@@ -85,6 +85,26 @@ PERMISSIONS
 
 ---
 
+## Privacy Form (Chrome Web Store)
+
+Copy and paste each answer directly into the Privacy tab of the Developer Dashboard.
+
+### Single purpose description
+> ProdLi replaces the browser's new tab page with a focused productivity workspace containing four tools: a rich-text editor, a to-do list, a Pomodoro timer, and a habit tracker. All data is stored locally on the user's device — no accounts, no servers.
+
+### Permission justification — `storage`
+> The storage permission is used to persist the user's notes, tasks, Pomodoro settings, and habit data in chrome.storage.local so that data is retained across browser sessions. No data is sent to any external server.
+
+### Permission justification — `notifications`
+> The notifications permission is used solely to display a desktop notification when a Pomodoro focus session or break ends, alerting the user to switch tasks. Notifications are triggered only by the in-page timer and only when the user has an active session running.
+
+### Remote code
+**Select:** No, I am not using remote code
+
+> All JavaScript, CSS, and font files are bundled into the extension package at build time using Vite. There are no references to external scripts, no CDN links, and no use of eval() or similar dynamic code execution. The extension operates entirely offline.
+
+---
+
 ## Pre-submission Checklist
 
 - [ ] Developer account created and one-time $5 registration fee paid
