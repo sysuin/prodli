@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ProdLi",
   "version": "1.0.0",
-  "description": "Your distraction-free new tab productivity hub. Editor, To-Dos, Pomodoro, and Habit Tracker — all in one beautiful Neobrutalist interface.",
+  "description": "Your distraction-free new tab hub. Editor, To-Dos, Pomodoro & Habit Tracker in one Neobrutalist interface.",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
