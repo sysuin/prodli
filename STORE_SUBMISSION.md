@@ -29,7 +29,7 @@
 | Asset | File | Required Size | Status |
 |-------|------|---------------|--------|
 | Screenshot | `store-assets/screenshot-1280x800.jpg` | 1280×800 | ✅ Ready |
-| Small Promo Tile | `store-assets/promo-440x280.jpg` | 440×280 | ✅ Ready |
+| Small Promo Tile | `store-assets/promo-440x280.png` | 440×280 | ✅ Ready |
 | Large Promo Tile | _(optional)_ | 920×680 | ⬜ Not required for launch |
 | Marquee Promo | _(optional)_ | 1400×560 | ⬜ Not required for launch |
 

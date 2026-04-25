@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=440, initial-scale=1" />
+<title>ProdLi Promo Tile</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 440px; height: 280px; overflow: hidden; }
+  body {
+    background: #1a1a1a;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+  }
+
+  .grid-bg {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    background: #f5f0dc;
+    border: 3px solid #1a1a1a;
+    box-shadow: 6px 6px 0 #1a1a1a;
+    border-radius: 4px;
+    padding: 28px 36px 24px;
+    width: 380px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: #ffd60a;
+    border: 2px solid #1a1a1a;
+    color: #1a1a1a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    margin-bottom: 14px;
+    border-radius: 2px;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #1a1a1a;
+    line-height: 1.15;
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span { color: #ffd60a; -webkit-text-stroke: 1px #1a1a1a; }
+
+  p {
+    font-size: 12px;
+    color: #444;
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+
+  .pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    background: #1a1a1a;
+    color: #f5f0dc;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .pill.accent { background: #ffd60a; color: #1a1a1a; border: 2px solid #1a1a1a; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="card">
+    <div class="badge">ProdLi &mdash; New Tab Extension</div>
+    <h1>Your focus,<br><span>amplified.</span></h1>
+    <p>Editor &bull; To-Dos &bull; Pomodoro &bull; Habits — all in one Neobrutalist new tab.</p>
+    <div class="pills">
+      <span class="pill accent">✏️ Editor</span>
+      <span class="pill">✅ To-Dos</span>
+      <span class="pill">🍅 Pomodoro</span>
+      <span class="pill">🎯 Habits</span>
+    </div>
+  </div>
+</body>
+</html>
