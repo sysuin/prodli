@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Black background (border + dividers) -->
+  <rect width="128" height="128" fill="#000000"/>
+  <!-- Top-left: Editor — yellow -->
+  <rect x="4" y="4" width="58" height="58" fill="#FFD700"/>
+  <!-- Top-right: To-Dos — cyan -->
+  <rect x="66" y="4" width="58" height="58" fill="#00BCD4"/>
+  <!-- Bottom-left: Pomodoro — red -->
+  <rect x="4" y="66" width="58" height="58" fill="#FF6B6B"/>
+  <!-- Bottom-right: Habits — green -->
+  <rect x="66" y="66" width="58" height="58" fill="#66BB6A"/>
+</svg>
