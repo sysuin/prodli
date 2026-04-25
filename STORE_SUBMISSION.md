@@ -33,7 +33,7 @@
 | Large Promo Tile | _(optional)_ | 920×680 | ⬜ Not required for launch |
 | Marquee Promo | _(optional)_ | 1400×560 | ⬜ Not required for launch |
 
-> **Note:** The Chrome Web Store requires screenshots as JPEG or PNG. The files above are saved as JPEG and can be uploaded directly.
+> **Note:** The Chrome Web Store accepts screenshots as JPEG or PNG. The screenshot is JPEG; the promo tile is PNG. Both can be uploaded directly.
 
 ---
 
