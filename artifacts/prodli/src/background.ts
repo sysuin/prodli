@@ -15,10 +15,6 @@ const DEFAULT_SETTINGS: TrackerSettings = {
 let currentDomain: string | null = null;
 let sessionStartMs: number | null = null;
 
-// ── Focus limit tracking (in-memory, resets daily) ───────────────────────────
-const notifiedToday = new Set<string>();
-let notifiedDate = "";
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDayKey(date: Date = new Date()): string {
@@ -108,18 +104,18 @@ async function refreshSession(isIdle: boolean): Promise<void> {
 // ── Focus limit checking ──────────────────────────────────────────────────────
 
 async function checkFocusLimit(domain: string): Promise<void> {
-  // Reset per-domain notifications at the start of a new day
   const today = getDayKey();
-  if (today !== notifiedDate) {
-    notifiedToday.clear();
-    notifiedDate = today;
-  }
+  const notifiedKey = `tt_focus_notified_${today}`;
 
-  if (notifiedToday.has(domain)) return;
+  const stored = await chrome.storage.local.get([notifiedKey]);
+  const notifiedDomains: string[] = (stored[notifiedKey] as string[] | undefined) ?? [];
+  const domainLower = domain.toLowerCase();
+
+  if (notifiedDomains.includes(domainLower)) return;
 
   const settings = await getSettings();
   const focusList: FocusRule[] = settings.focusList ?? [];
-  const rule = focusList.find((r) => r.domain.toLowerCase() === domain.toLowerCase());
+  const rule = focusList.find((r) => r.domain.toLowerCase() === domainLower);
   if (!rule) return;
 
   const dayKey = `tt_${today}`;
@@ -128,7 +124,12 @@ async function checkFocusLimit(domain: string): Promise<void> {
   const secsSpent = data[domain] ?? 0;
 
   if (secsSpent >= rule.limitMinutes * 60) {
-    notifiedToday.add(domain);
+    if (!notifiedDomains.includes(domainLower)) {
+      notifiedDomains.push(domainLower);
+      await chrome.storage.local.set({ [notifiedKey]: notifiedDomains });
+    } else {
+      return;
+    }
 
     chrome.notifications.create(`tt_focus_${domain}_${Date.now()}`, {
       type: "basic",
@@ -246,6 +247,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   } else if (alarm.name === "tt_daily_summary") {
     await sendDailySummary();
     await scheduleDailyAlarm();
+    await pruneOldFocusNotifiedKeys();
   }
 });
 
@@ -292,11 +294,23 @@ async function scheduleDailyAlarm(): Promise<void> {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+async function pruneOldFocusNotifiedKeys(): Promise<void> {
+  const today = getDayKey();
+  const allItems = await chrome.storage.local.get(null);
+  const oldKeys = Object.keys(allItems).filter(
+    (k) => k.startsWith("tt_focus_notified_") && !k.endsWith(today),
+  );
+  if (oldKeys.length > 0) {
+    await chrome.storage.local.remove(oldKeys);
+  }
+}
+
 async function init(): Promise<void> {
   const settings = await getSettings();
   chrome.idle.setDetectionInterval(settings.idleThreshold);
   chrome.alarms.create("tt_heartbeat", { periodInMinutes: 1 });
   await scheduleDailyAlarm();
+  await pruneOldFocusNotifiedKeys();
   // Start tracking the currently active tab immediately
   const state = await chrome.idle.queryState(settings.idleThreshold);
   await refreshSession(state !== "active");
