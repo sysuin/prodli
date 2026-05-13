@@ -10,6 +10,8 @@ import {
   PieChart,
   Pie,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
 import { storageGet, storageSet } from "../lib/storage";
 import { getDayKey, getDaysBetween } from "../lib/utils";
@@ -107,6 +109,98 @@ interface DaySummary {
 
 type Preset = "30d" | "90d" | "ytd" | "all" | "custom";
 
+const ACCENT_B = "#F59E0B";
+
+function fmtDelta(a: number, b: number): { text: string; positive: boolean; zero: boolean } {
+  const diff = a - b;
+  if (diff === 0) return { text: "no change", positive: true, zero: true };
+  const abs = Math.abs(diff);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const sign = diff > 0 ? "+" : "-";
+  const text = h > 0 ? `${sign}${h}h ${m}m` : `${sign}${m}m`;
+  return { text, positive: diff > 0, zero: false };
+}
+
+function computePreviousPeriod(fromDate: string, toDate: string): { fromB: string; toB: string } {
+  const span = getDaysBetween(fromDate, toDate);
+  const toB = new Date(fromDate + "T00:00:00");
+  toB.setDate(toB.getDate() - 1);
+  const fromB = new Date(toB);
+  fromB.setDate(fromB.getDate() - span);
+  return { fromB: getDayKey(fromB), toB: getDayKey(toB) };
+}
+
+function buildDomainTotals(
+  data: Record<string, TimeTrackingDay>,
+  query: string,
+  excludedSet: Set<string>,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  const q = query.toLowerCase();
+  for (const day of Object.values(data)) {
+    for (const [domain, secs] of Object.entries(day)) {
+      if (excludedSet.has(domain.toLowerCase())) continue;
+      if (q && !domain.toLowerCase().includes(q)) continue;
+      totals[domain] = (totals[domain] ?? 0) + secs;
+    }
+  }
+  return totals;
+}
+
+function buildDayTotals(
+  data: Record<string, TimeTrackingDay>,
+  query: string,
+  excludedSet: Set<string>,
+): Record<string, number> {
+  const q = query.toLowerCase();
+  const result: Record<string, number> = {};
+  for (const [date, day] of Object.entries(data)) {
+    let total = 0;
+    for (const [domain, secs] of Object.entries(day)) {
+      if (excludedSet.has(domain.toLowerCase())) continue;
+      if (!q || domain.toLowerCase().includes(q)) total += secs;
+    }
+    if (total > 0) result[date] = total;
+  }
+  return result;
+}
+
+function buildTrendPoints(
+  fromDate: string,
+  toDate: string,
+  dayTotals: Record<string, number>,
+): Array<{ label: string; total: number }> {
+  const span = Math.max(0, getDaysBetween(fromDate, toDate));
+  if (span > 60) {
+    const weeks: Record<string, number> = {};
+    for (let i = 0; i <= span; i++) {
+      const d = new Date(fromDate + "T00:00:00");
+      d.setDate(d.getDate() + i);
+      const date = getDayKey(d);
+      const ws = new Date(d);
+      ws.setDate(d.getDate() - d.getDay());
+      const wk = getDayKey(ws);
+      weeks[wk] = (weeks[wk] ?? 0) + (dayTotals[date] ?? 0);
+    }
+    return Object.entries(weeks).sort().map(([d, total]) => ({
+      label: new Date(d + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
+      total,
+    }));
+  }
+  const days = [];
+  for (let i = 0; i <= span; i++) {
+    const d = new Date(fromDate + "T00:00:00");
+    d.setDate(d.getDate() + i);
+    const date = getDayKey(d);
+    days.push({
+      label: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+      total: dayTotals[date] ?? 0,
+    });
+  }
+  return days;
+}
+
 function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
   const [allDates, setAllDates] = useState<string[]>([]);
   const [filteredData, setFilteredData] = useState<Record<string, TimeTrackingDay>>({});
@@ -125,6 +219,15 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
   const [sortCol, setSortCol] = useState<"time" | "name">("time");
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
+
+  // ── Compare mode ──────────────────────────────────────────────────────────
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [fromDateB, setFromDateB] = useState<string>("");
+  const [toDateB, setToDateB] = useState<string>("");
+  // Tracks whether the user has manually edited Period B — when true, Period A
+  // changes do NOT auto-reset B to the previous period.
+  const [userEditedB, setUserEditedB] = useState(false);
+  const [filteredDataB, setFilteredDataB] = useState<Record<string, TimeTrackingDay>>({});
 
   // Initial mount: load all date keys (for "all" preset) + load initial range via loadRangeData
   useEffect(() => {
@@ -169,33 +272,42 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
     return () => clearTimeout(id);
   }, [domainQuery]);
 
-  const domainTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
-    const q = debouncedQuery.toLowerCase();
-    for (const data of Object.values(filteredData)) {
-      for (const [domain, secs] of Object.entries(data)) {
-        if (excludedSet.has(domain.toLowerCase())) continue;
-        if (q && !domain.toLowerCase().includes(q)) continue;
-        totals[domain] = (totals[domain] ?? 0) + secs;
-      }
-    }
-    return totals;
-  }, [filteredData, debouncedQuery, excludedSet]);
+  // When compare is toggled on, initialize period B to "previous period"
+  useEffect(() => {
+    if (!compareEnabled) return;
+    const { fromB, toB } = computePreviousPeriod(fromDate, toDate);
+    setFromDateB(fromB);
+    setToDateB(toB);
+    setUserEditedB(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareEnabled]);
 
-  // Per-day totals respecting the domain filter — used for trend chart and stats
-  const filteredDayTotals = useMemo(() => {
-    const q = debouncedQuery.toLowerCase();
-    const result: Record<string, number> = {};
-    for (const [date, data] of Object.entries(filteredData)) {
-      let total = 0;
-      for (const [domain, secs] of Object.entries(data)) {
-        if (excludedSet.has(domain.toLowerCase())) continue;
-        if (!q || domain.toLowerCase().includes(q)) total += secs;
-      }
-      if (total > 0) result[date] = total;
-    }
-    return result;
-  }, [filteredData, debouncedQuery, excludedSet]);
+  // When period A changes while compare is active, re-sync period B to the new
+  // previous period — but only if the user hasn't manually edited period B yet.
+  useEffect(() => {
+    if (!compareEnabled || userEditedB) return;
+    const { fromB, toB } = computePreviousPeriod(fromDate, toDate);
+    setFromDateB(fromB);
+    setToDateB(toB);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate]);
+
+  // Load period B data when its dates change
+  useEffect(() => {
+    if (!compareEnabled || !fromDateB || !toDateB) return;
+    loadRangeData(fromDateB, toDateB).then(setFilteredDataB);
+  }, [compareEnabled, fromDateB, toDateB]);
+
+  // ── Period A memos ──────────────────────────────────────────────────────
+  const domainTotals = useMemo(
+    () => buildDomainTotals(filteredData, debouncedQuery, excludedSet),
+    [filteredData, debouncedQuery, excludedSet],
+  );
+
+  const filteredDayTotals = useMemo(
+    () => buildDayTotals(filteredData, debouncedQuery, excludedSet),
+    [filteredData, debouncedQuery, excludedSet],
+  );
 
   const stats = useMemo(() => {
     const totalSecs = Object.values(domainTotals).reduce((s, v) => s + v, 0);
@@ -208,47 +320,61 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
     return { totalSecs, daysWithData, topDomain, peakDay, peakSecs };
   }, [domainTotals, filteredDayTotals]);
 
-  const trendData = useMemo(() => {
-    const span = Math.max(0, getDaysBetween(fromDate, toDate));
-    if (span > 60) {
-      // Weekly aggregation — enumerate every day in range so empty weeks appear
-      const weeks: Record<string, number> = {};
-      for (let i = 0; i <= span; i++) {
-        const d = new Date(fromDate + "T00:00:00");
-        d.setDate(d.getDate() + i);
-        const date = getDayKey(d);
-        const ws = new Date(d);
-        ws.setDate(d.getDate() - d.getDay());
-        const wk = getDayKey(ws);
-        weeks[wk] = (weeks[wk] ?? 0) + (filteredDayTotals[date] ?? 0);
-      }
-      return Object.entries(weeks).sort().map(([d, total]) => ({
-        label: new Date(d + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
-        total,
-      }));
-    }
-    // Daily — one entry per calendar day including zero-activity days
-    const days = [];
-    for (let i = 0; i <= span; i++) {
-      const d = new Date(fromDate + "T00:00:00");
-      d.setDate(d.getDate() + i);
-      const date = getDayKey(d);
-      days.push({
-        label: d.toLocaleDateString([], { month: "short", day: "numeric" }),
-        total: filteredDayTotals[date] ?? 0,
-      });
-    }
-    return days;
-  }, [filteredDayTotals, fromDate, toDate]);
+  // ── Period B memos ──────────────────────────────────────────────────────
+  const domainTotalsB = useMemo(
+    () => compareEnabled ? buildDomainTotals(filteredDataB, debouncedQuery, excludedSet) : {},
+    [filteredDataB, debouncedQuery, excludedSet, compareEnabled],
+  );
 
-  const topSites = useMemo(() =>
-    Object.entries(domainTotals)
-      .sort((a, b) => b[1] - a[1]).slice(0, 10)
-      .map(([domain, secs], i) => ({
-        domain: domain.length > 17 ? domain.slice(0, 15) + "…" : domain,
-        secs, color: COLORS[i % COLORS.length],
-      })),
-    [domainTotals]);
+  const filteredDayTotalsB = useMemo(
+    () => compareEnabled ? buildDayTotals(filteredDataB, debouncedQuery, excludedSet) : {},
+    [filteredDataB, debouncedQuery, excludedSet, compareEnabled],
+  );
+
+  const statsB = useMemo(() => {
+    const totalSecs = Object.values(domainTotalsB).reduce((s, v) => s + v, 0);
+    const daysWithData = Object.keys(filteredDayTotalsB).length;
+    return { totalSecs, daysWithData };
+  }, [domainTotalsB, filteredDayTotalsB]);
+
+  // ── Trend data ──────────────────────────────────────────────────────────
+  const trendData = useMemo(() => {
+    const pointsA = buildTrendPoints(fromDate, toDate, filteredDayTotals);
+    if (!compareEnabled) return pointsA.map((p) => ({ label: p.label, totalA: p.total }));
+
+    const pointsB = buildTrendPoints(fromDateB || fromDate, toDateB || toDate, filteredDayTotalsB);
+    const len = Math.max(pointsA.length, pointsB.length);
+    return Array.from({ length: len }, (_, i) => ({
+      label: `Day ${i + 1}`,
+      totalA: pointsA[i]?.total ?? 0,
+      totalB: pointsB[i]?.total ?? 0,
+    }));
+  }, [filteredDayTotals, filteredDayTotalsB, fromDate, toDate, fromDateB, toDateB, compareEnabled]);
+
+  // ── Top sites ───────────────────────────────────────────────────────────
+  const topSites = useMemo(() => {
+    if (!compareEnabled) {
+      return Object.entries(domainTotals)
+        .sort((a, b) => b[1] - a[1]).slice(0, 10)
+        .map(([domain, secs], i) => ({
+          domain: domain.length > 17 ? domain.slice(0, 15) + "…" : domain,
+          secs, color: COLORS[i % COLORS.length],
+        }));
+    }
+    // Merge top 10 from A + B, ranked by combined total (A + B) descending
+    const allDomains = new Set([
+      ...Object.keys(domainTotals),
+      ...Object.keys(domainTotalsB),
+    ]);
+    return Array.from(allDomains)
+      .map((d) => ({ domain: d, secsA: domainTotals[d] ?? 0, secsB: domainTotalsB[d] ?? 0 }))
+      .sort((a, b) => (b.secsA + b.secsB) - (a.secsA + a.secsB))
+      .slice(0, 10)
+      .map(({ domain, secsA, secsB }) => ({
+        domain: domain.length > 14 ? domain.slice(0, 12) + "…" : domain,
+        secsA, secsB,
+      }));
+  }, [domainTotals, domainTotalsB, compareEnabled]);
 
   const pieData = useMemo(() => {
     const sorted = Object.entries(domainTotals).sort((a, b) => b[1] - a[1]);
@@ -311,9 +437,9 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
     fontSize: 10, fontWeight: 700, textTransform: "uppercase",
     letterSpacing: "0.1em", color: "hsl(var(--muted-foreground))", marginBottom: 4,
   };
-  const pillBtn = (active: boolean): React.CSSProperties => ({
-    border: `2px solid ${active ? ACCENT : "hsl(var(--border))"}`,
-    background: active ? ACCENT : "transparent",
+  const pillBtn = (active: boolean, accentColor = ACCENT): React.CSSProperties => ({
+    border: `2px solid ${active ? accentColor : "hsl(var(--border))"}`,
+    background: active ? accentColor : "transparent",
     color: active ? "#fff" : "hsl(var(--muted-foreground))",
     fontWeight: 800, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em",
     padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
@@ -330,12 +456,14 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
 
   const hasData = Object.keys(domainTotals).length > 0;
   const span = getDaysBetween(fromDate, toDate);
+  const spanB = fromDateB && toDateB ? getDaysBetween(fromDateB, toDateB) : 0;
+  const totalDelta = fmtDelta(stats.totalSecs, statsB.totalSecs);
 
   return (
     <div>
       {/* Filter bar */}
-      <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           {(["30d", "90d", "ytd", "all", "custom"] as Preset[]).map((p) => (
             <button key={p} style={pillBtn(preset === p)} onClick={() => setPreset(p)}>
               {p === "30d" ? "30 days" : p === "90d" ? "90 days" : p === "ytd" ? "This year" : p === "all" ? "All time" : "Custom"}
@@ -360,33 +488,86 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
           onChange={(e) => setDomainQuery(e.target.value)}
           style={{ flex: 1, minWidth: 140, fontFamily: "inherit", fontSize: 12, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "5px 10px", outline: "none" }}
         />
-        <button onClick={exportScoped} style={pillBtn(false)}>Export CSV</button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <button
+            onClick={() => { setCompareEnabled((v) => !v); if (compareEnabled) { setFromDateB(""); setToDateB(""); setFilteredDataB({}); } }}
+            style={{ ...pillBtn(compareEnabled, ACCENT_B), whiteSpace: "nowrap" }}
+          >
+            {compareEnabled ? "✕ Compare" : "Compare"}
+          </button>
+          <button onClick={exportScoped} style={pillBtn(false)}>Export CSV</button>
+        </div>
+
+        {/* Period B date pickers */}
+        {compareEnabled && (
+          <div style={{ width: "100%", display: "flex", gap: 8, alignItems: "center", paddingTop: 4, borderTop: "1px solid hsl(var(--border))", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: ACCENT_B, flexShrink: 0 }}>
+              Period B
+            </span>
+            <input type="date" value={fromDateB} max={toDateB || toDate}
+              onChange={(e) => { setFromDateB(e.target.value); setUserEditedB(true); }}
+              style={{ fontFamily: "Space Mono, monospace", fontSize: 11, border: `2px solid ${ACCENT_B}`, background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "3px 6px" }} />
+            <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>→</span>
+            <input type="date" value={toDateB} min={fromDateB}
+              onChange={(e) => { setToDateB(e.target.value); setUserEditedB(true); }}
+              style={{ fontFamily: "Space Mono, monospace", fontSize: 11, border: `2px solid ${ACCENT_B}`, background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "3px 6px" }} />
+            <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
+              {fromDateB && toDateB ? `${spanB + 1} days` : ""}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Stats bar */}
       <div style={{ ...card, display: "flex", gap: 28, flexWrap: "wrap" }}>
+        {/* Total time with compare */}
         <div>
-          <div style={lbl}>Total time</div>
-          <div style={{ fontFamily: "Space Mono, monospace", fontSize: 22, fontWeight: 700, color: ACCENT }}>
-            {fmtSecs(stats.totalSecs)}
+          <div style={lbl}>Total time{compareEnabled ? " · Period A" : ""}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontFamily: "Space Mono, monospace", fontSize: 22, fontWeight: 700, color: ACCENT }}>
+              {fmtSecs(stats.totalSecs)}
+            </div>
+            {compareEnabled && (
+              <>
+                <div style={{ fontFamily: "Space Mono, monospace", fontSize: 15, fontWeight: 700, color: ACCENT_B }}>
+                  vs {fmtSecs(statsB.totalSecs)}
+                </div>
+                {!totalDelta.zero && (
+                  <div style={{
+                    fontFamily: "Space Mono, monospace", fontSize: 12, fontWeight: 700,
+                    color: totalDelta.positive ? "#22c55e" : "#ef4444",
+                    border: `1px solid ${totalDelta.positive ? "#22c55e" : "#ef4444"}`,
+                    padding: "1px 6px", flexShrink: 0,
+                  }}>
+                    {totalDelta.text} this period
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
+
         <div>
-          <div style={lbl}>Days tracked</div>
+          <div style={lbl}>Days tracked{compareEnabled ? " A / B" : ""}</div>
           <div style={{ fontFamily: "Space Mono, monospace", fontSize: 22, fontWeight: 700, color: "hsl(var(--foreground))" }}>
-            {stats.daysWithData}
+            {stats.daysWithData}{compareEnabled ? <span style={{ color: ACCENT_B, fontSize: 15 }}> / {statsB.daysWithData}</span> : null}
           </div>
         </div>
+
         {stats.topDomain && (
           <div>
-            <div style={lbl}>Top site</div>
+            <div style={lbl}>Top site{compareEnabled ? " (Period A)" : ""}</div>
             <div style={{ fontWeight: 800, fontSize: 14, color: "hsl(var(--foreground))" }}>{stats.topDomain}</div>
             <div style={{ fontFamily: "Space Mono, monospace", fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
               {fmtSecs(domainTotals[stats.topDomain] ?? 0)} total
+              {compareEnabled && domainTotalsB[stats.topDomain] !== undefined && (
+                <span style={{ color: ACCENT_B }}> · {fmtSecs(domainTotalsB[stats.topDomain] ?? 0)} B</span>
+              )}
             </div>
           </div>
         )}
-        {stats.peakDay && (
+
+        {!compareEnabled && stats.peakDay && (
           <div>
             <div style={lbl}>Busiest day</div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "hsl(var(--foreground))" }}>
@@ -408,67 +589,136 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
       ) : (
         <>
           {/* Charts row: top sites (horizontal bar) + pie */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: compareEnabled ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div style={{ ...card, marginBottom: 0 }}>
-              <div style={{ ...lbl, marginBottom: 12 }}>Top 10 sites</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={topSites} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis type="number" tickFormatter={(v: number) => fmtSecs(v)}
-                    tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="domain" width={95}
-                    tick={{ fontSize: 9, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
-                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
-                    cursor={{ fill: "hsl(var(--muted))" }} />
-                  <Bar dataKey="secs" radius={0}>
-                    {topSites.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Bar>
-                </BarChart>
+              <div style={{ ...lbl, marginBottom: compareEnabled ? 8 : 12 }}>
+                Top 10 sites
+              </div>
+              {compareEnabled && (
+                <div style={{ display: "flex", gap: 14, marginBottom: 10 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                    <span style={{ display: "inline-block", width: 10, height: 10, background: ACCENT }} /> Period A
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                    <span style={{ display: "inline-block", width: 10, height: 10, background: ACCENT_B }} /> Period B
+                  </span>
+                </div>
+              )}
+              <ResponsiveContainer width="100%" height={compareEnabled ? 280 : 220}>
+                {compareEnabled ? (
+                  <BarChart
+                    data={topSites as Array<{ domain: string; secsA: number; secsB: number }>}
+                    layout="vertical"
+                    margin={{ top: 0, right: 8, bottom: 0, left: 0 }}
+                  >
+                    <XAxis type="number" tickFormatter={(v: number) => fmtSecs(v)}
+                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="domain" width={100}
+                      tick={{ fontSize: 9, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [fmtSecs(v), name === "secsA" ? "Period A" : "Period B"]}
+                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                      cursor={{ fill: "hsl(var(--muted))" }}
+                    />
+                    <Bar dataKey="secsA" fill={ACCENT} radius={0} name="Period A" />
+                    <Bar dataKey="secsB" fill={ACCENT_B} radius={0} name="Period B" />
+                  </BarChart>
+                ) : (
+                  <BarChart
+                    data={topSites as Array<{ domain: string; secs: number; color: string }>}
+                    layout="vertical"
+                    margin={{ top: 0, right: 8, bottom: 0, left: 0 }}
+                  >
+                    <XAxis type="number" tickFormatter={(v: number) => fmtSecs(v)}
+                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="domain" width={95}
+                      tick={{ fontSize: 9, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
+                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                      cursor={{ fill: "hsl(var(--muted))" }} />
+                    <Bar dataKey="secs" radius={0}>
+                      {(topSites as Array<{ domain: string; secs: number; color: string }>).map((e, i) => (
+                        <Cell key={i} fill={e.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             </div>
 
-            <div style={{ ...card, marginBottom: 0 }}>
-              <div style={{ ...lbl, marginBottom: 12 }}>Time share</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="44%"
-                    outerRadius={72} innerRadius={32}>
-                    {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
-                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }} />
-                  <Legend iconSize={8} iconType="square"
-                    formatter={(value: string) => {
-                      const entry = pieData.find((e) => e.name === value);
-                      return (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
-                          {value}{entry ? ` ${entry.pct}%` : ""}
-                        </span>
-                      );
-                    }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {!compareEnabled && (
+              <div style={{ ...card, marginBottom: 0 }}>
+                <div style={{ ...lbl, marginBottom: 12 }}>Time share</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="44%"
+                      outerRadius={72} innerRadius={32}>
+                      {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
+                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }} />
+                    <Legend iconSize={8} iconType="square"
+                      formatter={(value: string) => {
+                        const entry = pieData.find((e) => e.name === value);
+                        return (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                            {value}{entry ? ` ${entry.pct}%` : ""}
+                          </span>
+                        );
+                      }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* Daily / weekly trend chart */}
           <div style={card}>
             <div style={{ ...lbl, marginBottom: 4 }}>Browsing trend</div>
-            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
-              {span > 60 ? "Aggregated by week — zoom in by narrowing the date range" : "One bar per day in the selected range"}
+            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: compareEnabled ? 8 : 12 }}>
+              {compareEnabled
+                ? "Both periods aligned by relative day — Day 1 = first day of each period"
+                : span > 60 ? "Aggregated by week — zoom in by narrowing the date range" : "One bar per day in the selected range"}
             </div>
+            {compareEnabled && (
+              <div style={{ display: "flex", gap: 14, marginBottom: 10 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                  <span style={{ display: "inline-block", width: 10, height: 3, background: ACCENT }} /> Period A
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                  <span style={{ display: "inline-block", width: 10, height: 3, background: ACCENT_B }} /> Period B
+                </span>
+              </div>
+            )}
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={trendData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false} tickLine={false}
-                  interval={Math.max(0, Math.floor(trendData.length / 12) - 1)} />
-                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                  axisLine={false} tickLine={false} width={58} />
-                <Tooltip formatter={(v: number) => [fmtSecs(v), span > 60 ? "Week total" : "Day total"]}
-                  contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
-                  cursor={{ fill: "hsl(var(--muted))" }} />
-                <Bar dataKey="total" fill={ACCENT} radius={0} />
-              </BarChart>
+              {compareEnabled ? (
+                <LineChart data={trendData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false} tickLine={false}
+                    interval={Math.max(0, Math.floor(trendData.length / 12) - 1)} />
+                  <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false} tickLine={false} width={58} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [fmtSecs(v), name === "totalA" ? "Period A" : "Period B"]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                    cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  />
+                  <Line type="monotone" dataKey="totalA" stroke={ACCENT} strokeWidth={2} dot={false} name="Period A" />
+                  <Line type="monotone" dataKey="totalB" stroke={ACCENT_B} strokeWidth={2} dot={false} name="Period B" />
+                </LineChart>
+              ) : (
+                <BarChart data={trendData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false} tickLine={false}
+                    interval={Math.max(0, Math.floor(trendData.length / 12) - 1)} />
+                  <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false} tickLine={false} width={58} />
+                  <Tooltip formatter={(v: number) => [fmtSecs(v), span > 60 ? "Week total" : "Day total"]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                    cursor={{ fill: "hsl(var(--muted))" }} />
+                  <Bar dataKey="totalA" fill={ACCENT} radius={0} />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </div>
 
@@ -490,16 +740,36 @@ function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
 
             {pagedRows.map(([domain, secs]) => {
               const pct = stats.totalSecs > 0 ? (secs / stats.totalSecs) * 100 : 0;
+              const secsB = compareEnabled ? (domainTotalsB[domain] ?? 0) : 0;
+              const pctB = compareEnabled && statsB.totalSecs > 0 ? (secsB / statsB.totalSecs) * 100 : 0;
+              const delta = compareEnabled ? fmtDelta(secs, secsB) : null;
               return (
-                <div key={domain} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
-                  <div style={{ width: 200, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {domain}
-                  </div>
-                  <div style={{ flex: 1, height: 6, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
-                    <div style={{ position: "absolute", inset: "0 auto 0 0", width: `${pct}%`, background: ACCENT, transition: "width 0.3s" }} />
-                  </div>
-                  <div style={{ width: 76, fontSize: 11, fontFamily: "Space Mono, monospace", color: "hsl(var(--muted-foreground))", textAlign: "right", flexShrink: 0 }}>
-                    {fmtSecs(secs)}
+                <div key={domain} style={{ marginBottom: compareEnabled ? 12 : 7 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 200, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {domain}
+                    </div>
+                    <div style={{ flex: 1, position: "relative" }}>
+                      <div style={{ height: 6, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", inset: "0 auto 0 0", width: `${pct}%`, background: ACCENT, transition: "width 0.3s" }} />
+                      </div>
+                      {compareEnabled && (
+                        <div style={{ height: 4, background: "hsl(var(--muted))", position: "relative", overflow: "hidden", marginTop: 2 }}>
+                          <div style={{ position: "absolute", inset: "0 auto 0 0", width: `${pctB}%`, background: ACCENT_B, transition: "width 0.3s" }} />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ width: compareEnabled ? 140 : 76, fontSize: 11, fontFamily: "Space Mono, monospace", color: "hsl(var(--muted-foreground))", textAlign: "right", flexShrink: 0 }}>
+                      {fmtSecs(secs)}
+                      {compareEnabled && (
+                        <>
+                          <span style={{ color: ACCENT_B }}> / {fmtSecs(secsB)}</span>
+                          {delta && !delta.zero && (
+                            <span style={{ color: delta.positive ? "#22c55e" : "#ef4444", marginLeft: 4 }}>{delta.text}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
