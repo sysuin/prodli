@@ -75,6 +75,7 @@ async function loadRangeData(fromDate: string, toDate: string): Promise<Record<s
 }
 
 async function clearAllTrackingData(): Promise<void> {
+  _rangeCache.clear();
   if (isExtension()) {
     const all: Record<string, unknown> = await new Promise((resolve) =>
       chrome.storage.local.get(null, resolve)
@@ -105,7 +106,8 @@ interface DaySummary {
 type Preset = "30d" | "90d" | "ytd" | "all" | "custom";
 
 function AllTimeTab() {
-  const [allData, setAllData] = useState<Record<string, TimeTrackingDay>>({});
+  const [allDates, setAllDates] = useState<string[]>([]);
+  const [filteredData, setFilteredData] = useState<Record<string, TimeTrackingDay>>({});
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState<Preset>("30d");
   const [fromDate, setFromDate] = useState<string>(() => {
@@ -118,9 +120,25 @@ function AllTimeTab() {
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(0);
 
+  // Initial mount: load all date keys (for "all" preset) + load initial range via loadRangeData
   useEffect(() => {
-    getAllTrackingData().then((data) => { setAllData(data); setLoading(false); });
+    Promise.all([
+      loadRangeData(fromDate, toDate),
+      getAllTrackingData(),
+    ]).then(([rangeData, allData]) => {
+      setFilteredData(rangeData);
+      setAllDates(Object.keys(allData).sort());
+      setLoading(false);
+    });
+    // Intentionally empty deps — runs once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reload range data via loadRangeData (cache-backed) when dates change after initial load
+  useEffect(() => {
+    if (loading) return;
+    loadRangeData(fromDate, toDate).then(setFilteredData);
+  }, [fromDate, toDate, loading]);
 
   useEffect(() => {
     if (preset === "custom") return;
@@ -133,41 +151,33 @@ function AllTimeTab() {
     } else if (preset === "ytd") {
       setFromDate(`${now.getFullYear()}-01-01`); setToDate(today);
     } else if (preset === "all") {
-      const earliest = Object.keys(allData).sort()[0] ?? today;
+      const earliest = allDates[0] ?? today;
       setFromDate(earliest); setToDate(today);
     }
-  }, [preset, allData]);
+  }, [preset, allDates]);
 
   useEffect(() => {
     const id = setTimeout(() => { setDebouncedQuery(domainQuery); setPage(0); }, 280);
     return () => clearTimeout(id);
   }, [domainQuery]);
 
-  const filtered = useMemo(() => {
-    const result: Record<string, TimeTrackingDay> = {};
-    for (const [date, data] of Object.entries(allData)) {
-      if (date >= fromDate && date <= toDate) result[date] = data;
-    }
-    return result;
-  }, [allData, fromDate, toDate]);
-
   const domainTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     const q = debouncedQuery.toLowerCase();
-    for (const data of Object.values(filtered)) {
+    for (const data of Object.values(filteredData)) {
       for (const [domain, secs] of Object.entries(data)) {
         if (q && !domain.toLowerCase().includes(q)) continue;
         totals[domain] = (totals[domain] ?? 0) + secs;
       }
     }
     return totals;
-  }, [filtered, debouncedQuery]);
+  }, [filteredData, debouncedQuery]);
 
   // Per-day totals respecting the domain filter — used for trend chart and stats
   const filteredDayTotals = useMemo(() => {
     const q = debouncedQuery.toLowerCase();
     const result: Record<string, number> = {};
-    for (const [date, data] of Object.entries(filtered)) {
+    for (const [date, data] of Object.entries(filteredData)) {
       let total = 0;
       for (const [domain, secs] of Object.entries(data)) {
         if (!q || domain.toLowerCase().includes(q)) total += secs;
@@ -175,7 +185,7 @@ function AllTimeTab() {
       if (total > 0) result[date] = total;
     }
     return result;
-  }, [filtered, debouncedQuery]);
+  }, [filteredData, debouncedQuery]);
 
   const stats = useMemo(() => {
     const totalSecs = Object.values(domainTotals).reduce((s, v) => s + v, 0);
@@ -189,28 +199,36 @@ function AllTimeTab() {
   }, [domainTotals, filteredDayTotals]);
 
   const trendData = useMemo(() => {
-    const days = Object.entries(filteredDayTotals)
-      .map(([date, total]) => ({ date, total }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const span = getDaysBetween(fromDate, toDate);
+    const span = Math.max(0, getDaysBetween(fromDate, toDate));
     if (span > 60) {
+      // Weekly aggregation — enumerate every day in range so empty weeks appear
       const weeks: Record<string, number> = {};
-      for (const { date, total } of days) {
-        const d = new Date(date + "T00:00:00");
+      for (let i = 0; i <= span; i++) {
+        const d = new Date(fromDate + "T00:00:00");
+        d.setDate(d.getDate() + i);
+        const date = getDayKey(d);
         const ws = new Date(d);
         ws.setDate(d.getDate() - d.getDay());
         const wk = getDayKey(ws);
-        weeks[wk] = (weeks[wk] ?? 0) + total;
+        weeks[wk] = (weeks[wk] ?? 0) + (filteredDayTotals[date] ?? 0);
       }
       return Object.entries(weeks).sort().map(([d, total]) => ({
         label: new Date(d + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
         total,
       }));
     }
-    return days.map(({ date, total }) => ({
-      label: new Date(date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
-      total,
-    }));
+    // Daily — one entry per calendar day including zero-activity days
+    const days = [];
+    for (let i = 0; i <= span; i++) {
+      const d = new Date(fromDate + "T00:00:00");
+      d.setDate(d.getDate() + i);
+      const date = getDayKey(d);
+      days.push({
+        label: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+        total: filteredDayTotals[date] ?? 0,
+      });
+    }
+    return days;
   }, [filteredDayTotals, fromDate, toDate]);
 
   const topSites = useMemo(() =>
@@ -258,7 +276,7 @@ function AllTimeTab() {
   const exportScoped = () => {
     const rows = ["Date,Domain,Seconds,Minutes"];
     const q = debouncedQuery.toLowerCase();
-    for (const [date, domains] of Object.entries(filtered).sort()) {
+    for (const [date, domains] of Object.entries(filteredData).sort()) {
       for (const [domain, secs] of Object.entries(domains).sort((a, b) => b[1] - a[1])) {
         if (q && !domain.toLowerCase().includes(q)) continue;
         rows.push(`${date},${domain},${secs},${Math.round(secs / 60)}`);
