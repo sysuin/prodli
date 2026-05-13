@@ -200,6 +200,9 @@ async function init(): Promise<void> {
   chrome.idle.setDetectionInterval(settings.idleThreshold);
   chrome.alarms.create("tt_heartbeat", { periodInMinutes: 1 });
   await scheduleDailyAlarm();
+  // Start tracking the currently active tab immediately
+  const state = await chrome.idle.queryState(settings.idleThreshold);
+  await refreshSession(state !== "active");
 }
 
 chrome.runtime.onInstalled.addListener(() => { init(); });
