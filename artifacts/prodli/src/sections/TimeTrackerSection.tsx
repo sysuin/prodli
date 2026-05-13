@@ -24,9 +24,7 @@ function fmtSecs(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
+  return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 function isExtension(): boolean {
@@ -186,6 +184,23 @@ export function TimeTrackerSection() {
     fontFamily: "inherit",
     transition: "all 0.15s",
   });
+
+  // 7-day per-domain averages: total per domain ÷ 7
+  const weekAvgData = (() => {
+    const totals: Record<string, number> = {};
+    weekData.forEach((day) => {
+      Object.entries(day.data).forEach(([domain, secs]) => {
+        totals[domain] = (totals[domain] ?? 0) + secs;
+      });
+    });
+    return Object.entries(totals)
+      .map(([domain, total]) => ({
+        domain: domain.length > 20 ? domain.slice(0, 18) + "…" : domain,
+        avgSecs: Math.round(total / 7),
+      }))
+      .sort((a, b) => b.avgSecs - a.avgSecs)
+      .slice(0, 8);
+  })();
 
   const label: React.CSSProperties = {
     fontSize: 10,
@@ -349,37 +364,40 @@ export function TimeTrackerSection() {
           </div>
 
           <div style={cardStyle}>
-            <div style={{ ...label, marginBottom: 12 }}>Day breakdown</div>
-            {weekData.length === 0 || weekData.every((d) => d.total === 0) ? (
+            <div style={{ ...label, marginBottom: 4 }}>7-day averages per site</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
+              Average daily time spent per domain over the last 7 days
+            </div>
+            {weekAvgData.length === 0 ? (
               <div style={{ textAlign: "center", padding: "24px", color: "hsl(var(--muted-foreground))", fontSize: 13 }}>
                 No data yet for the past 7 days
               </div>
             ) : (
-              weekData
-                .filter((d) => d.total > 0)
-                .reverse()
-                .map((day) => (
-                  <div key={day.date} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 800, fontSize: 12, color: "hsl(var(--foreground))" }}>
-                        {day.label} <span style={{ color: "hsl(var(--muted-foreground))", fontWeight: 400 }}>({day.date})</span>
-                      </span>
-                      <span style={{ fontFamily: "Space Mono, monospace", fontSize: 12, color: ACCENT }}>
-                        {fmtSecs(day.total)}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {Object.entries(day.data)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 5)
-                        .map(([domain, secs]) => (
-                          <span key={domain} style={{ background: "hsl(var(--muted))", fontSize: 10, fontWeight: 700, padding: "2px 7px", color: "hsl(var(--muted-foreground))" }}>
-                            {domain} · {fmtSecs(secs)}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                ))
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={weekAvgData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={60} />
+                    <Tooltip
+                      formatter={(v: number) => [fmtSecs(v), "Avg/day"]}
+                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
+                      cursor={{ fill: "hsl(var(--muted))" }}
+                    />
+                    <Bar dataKey="avgSecs" radius={0}>
+                      {weekAvgData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+                  {weekAvgData.map((entry, i) => (
+                    <span key={entry.domain} style={{ background: "hsl(var(--muted))", fontSize: 10, fontWeight: 700, padding: "2px 8px", color: "hsl(var(--muted-foreground))", borderLeft: `3px solid ${COLORS[i % COLORS.length]}` }}>
+                      {entry.domain} · {fmtSecs(entry.avgSecs)}/day
+                    </span>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </>
