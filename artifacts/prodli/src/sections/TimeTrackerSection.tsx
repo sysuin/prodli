@@ -96,6 +96,37 @@ async function clearAllTrackingData(): Promise<void> {
   toRemove.forEach((k) => localStorage.removeItem(k));
 }
 
+async function clearDomainHistory(domain: string): Promise<void> {
+  _rangeCache.clear();
+  if (isExtension()) {
+    const all: Record<string, unknown> = await new Promise((resolve) =>
+      chrome.storage.local.get(null, resolve)
+    );
+    const dayKeys = Object.keys(all).filter((k) => /^tt_\d{4}-\d{2}-\d{2}$/.test(k));
+    for (const key of dayKeys) {
+      const day = all[key] as Record<string, number> | undefined;
+      if (day && domain in day) {
+        const updated = { ...day };
+        delete updated[domain];
+        await new Promise<void>((resolve) => chrome.storage.local.set({ [key]: updated }, resolve));
+      }
+    }
+    return;
+  }
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && /^prodli_tt_\d{4}-\d{2}-\d{2}$/.test(k)) {
+      try {
+        const day: Record<string, number> = JSON.parse(localStorage.getItem(k)!);
+        if (domain in day) {
+          delete day[domain];
+          localStorage.setItem(k, JSON.stringify(day));
+        }
+      } catch { /* skip */ }
+    }
+  }
+}
+
 type Tab = "today" | "history" | "alltime" | "settings";
 
 interface DaySummary {
@@ -809,6 +840,7 @@ export function TimeTrackerSection() {
   const [newExcludedDomain, setNewExcludedDomain] = useState("");
   const [excludeError, setExcludeError] = useState("");
   const excludedInputRef = useRef<HTMLInputElement>(null);
+  const [domainToClear, setDomainToClear] = useState<string | null>(null);
 
   const checkRedirectPermission = useCallback(async () => {
     if (!isExtension() || !chrome.permissions) return;
@@ -1355,11 +1387,31 @@ export function TimeTrackerSection() {
                       border: "2px solid hsl(var(--border))",
                       background: "hsl(var(--background))",
                       padding: "8px 12px",
+                      gap: 8,
                     }}
                   >
-                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: 12, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: 12, fontWeight: 700, color: "hsl(var(--foreground))", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {domain}
                     </span>
+                    <button
+                      onClick={() => setDomainToClear(domain)}
+                      aria-label="Clear history"
+                      style={{
+                        background: "transparent",
+                        border: "2px solid hsl(var(--border))",
+                        color: "hsl(var(--muted-foreground))",
+                        cursor: "pointer",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        padding: "3px 8px",
+                        fontFamily: "inherit",
+                        flexShrink: 0,
+                      }}
+                    >
+                      Clear history
+                    </button>
                     <button
                       onClick={() => removeExcludedDomain(domain)}
                       aria-label="Remove"
@@ -1378,6 +1430,76 @@ export function TimeTrackerSection() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Clear history confirmation dialog */}
+            {domainToClear && (
+              <div style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}>
+                <div style={{
+                  background: "hsl(var(--card))",
+                  border: "3px solid hsl(var(--border))",
+                  padding: "24px 28px",
+                  maxWidth: 360,
+                  width: "90%",
+                  boxShadow: "6px 6px 0 #000",
+                }}>
+                  <div style={{ fontWeight: 900, fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, color: "hsl(var(--foreground))" }}>
+                    Clear history?
+                  </div>
+                  <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginBottom: 20, lineHeight: 1.5 }}>
+                    This will permanently remove all stored tracking data for <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, color: "hsl(var(--foreground))" }}>{domainToClear}</span> across every recorded day. This cannot be undone.
+                  </div>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button
+                      onClick={() => setDomainToClear(null)}
+                      style={{
+                        background: "transparent",
+                        border: "2px solid hsl(var(--border))",
+                        color: "hsl(var(--foreground))",
+                        fontWeight: 800,
+                        fontSize: 11,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        padding: "6px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const domain = domainToClear;
+                        setDomainToClear(null);
+                        await clearDomainHistory(domain);
+                      }}
+                      style={{
+                        background: "#ef4444",
+                        border: "2px solid #ef4444",
+                        color: "#fff",
+                        fontWeight: 800,
+                        fontSize: 11,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        padding: "6px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        boxShadow: "3px 3px 0 #000",
+                      }}
+                    >
+                      Clear history
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
