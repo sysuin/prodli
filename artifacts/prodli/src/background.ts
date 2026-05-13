@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: TrackerSettings = {
   notifyEnabled: true,
   notifyTime: "20:00",
   focusList: [],
+  excludedDomains: [],
 };
 
 // ── In-memory session state (reset when SW restarts — that's OK) ──────────────
@@ -35,6 +36,11 @@ function extractDomain(url: string | undefined): string | null {
 
 function isTrackable(url: string | undefined): boolean {
   return !!url && (url.startsWith("http://") || url.startsWith("https://"));
+}
+
+function isExcludedDomain(domain: string, settings: TrackerSettings): boolean {
+  const list = settings.excludedDomains ?? [];
+  return list.some((d) => d.toLowerCase() === domain.toLowerCase());
 }
 
 async function getSettings(): Promise<TrackerSettings> {
@@ -83,6 +89,11 @@ async function refreshSession(isIdle: boolean): Promise<void> {
   const url = await getActiveTabUrl();
   const domain = isTrackable(url) ? extractDomain(url) : null;
   if (!domain || isIdle) {
+    await flushAndEnd();
+    return;
+  }
+  const settings = await getSettings();
+  if (isExcludedDomain(domain, settings)) {
     await flushAndEnd();
     return;
   }
@@ -160,8 +171,11 @@ chrome.tabs.onActivated.addListener(async () => {
   if (domain !== currentDomain) {
     await flushAndEnd();
     if (domain) {
-      startSession(domain);
-      await checkFocusLimit(domain);
+      const settings = await getSettings();
+      if (!isExcludedDomain(domain, settings)) {
+        startSession(domain);
+        await checkFocusLimit(domain);
+      }
     }
   }
 });
@@ -178,8 +192,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (domain !== currentDomain) {
     await flushAndEnd();
     if (domain) {
-      startSession(domain);
-      await checkFocusLimit(domain);
+      const settings = await getSettings();
+      if (!isExcludedDomain(domain, settings)) {
+        startSession(domain);
+        await checkFocusLimit(domain);
+      }
     }
   }
 });
@@ -214,7 +231,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         const flushedDomain = await flushAndEnd();
         const url = await getActiveTabUrl();
         const domain = isTrackable(url) ? extractDomain(url) : null;
-        if (domain) {
+        if (domain && !isExcludedDomain(domain, settings)) {
           startSession(domain);
           await checkFocusLimit(domain);
         }

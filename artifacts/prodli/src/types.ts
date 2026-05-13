@@ -46,6 +46,7 @@ export interface TrackerSettings {
   notifyEnabled: boolean;
   notifyTime: string;
   focusList: FocusRule[];
+  excludedDomains: string[];
 }
 
 export type TimeTrackingDay = Record<string, number>;

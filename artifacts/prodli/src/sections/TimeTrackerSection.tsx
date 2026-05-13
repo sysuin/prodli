@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS: TrackerSettings = {
   notifyEnabled: true,
   notifyTime: "20:00",
   focusList: [],
+  excludedDomains: [],
 };
 const COLORS = ["#8B5CF6", "#FFD700", "#FF6B6B", "#00BCD4", "#66BB6A", "#FF8C94", "#4ECDC4", "#F59E0B"];
 
@@ -106,9 +107,13 @@ interface DaySummary {
 
 type Preset = "30d" | "90d" | "ytd" | "all" | "custom";
 
-function AllTimeTab() {
+function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
   const [allDates, setAllDates] = useState<string[]>([]);
   const [filteredData, setFilteredData] = useState<Record<string, TimeTrackingDay>>({});
+  const excludedSet = useMemo(
+    () => new Set(excludedDomains.map((d) => d.toLowerCase())),
+    [excludedDomains],
+  );
   const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState<Preset>("30d");
   const [fromDate, setFromDate] = useState<string>(() => {
@@ -169,12 +174,13 @@ function AllTimeTab() {
     const q = debouncedQuery.toLowerCase();
     for (const data of Object.values(filteredData)) {
       for (const [domain, secs] of Object.entries(data)) {
+        if (excludedSet.has(domain.toLowerCase())) continue;
         if (q && !domain.toLowerCase().includes(q)) continue;
         totals[domain] = (totals[domain] ?? 0) + secs;
       }
     }
     return totals;
-  }, [filteredData, debouncedQuery]);
+  }, [filteredData, debouncedQuery, excludedSet]);
 
   // Per-day totals respecting the domain filter — used for trend chart and stats
   const filteredDayTotals = useMemo(() => {
@@ -183,12 +189,13 @@ function AllTimeTab() {
     for (const [date, data] of Object.entries(filteredData)) {
       let total = 0;
       for (const [domain, secs] of Object.entries(data)) {
+        if (excludedSet.has(domain.toLowerCase())) continue;
         if (!q || domain.toLowerCase().includes(q)) total += secs;
       }
       if (total > 0) result[date] = total;
     }
     return result;
-  }, [filteredData, debouncedQuery]);
+  }, [filteredData, debouncedQuery, excludedSet]);
 
   const stats = useMemo(() => {
     const totalSecs = Object.values(domainTotals).reduce((s, v) => s + v, 0);
@@ -529,6 +536,9 @@ export function TimeTrackerSection() {
   const [focusError, setFocusError] = useState("");
   const [redirectPermissionGranted, setRedirectPermissionGranted] = useState(false);
   const domainInputRef = useRef<HTMLInputElement>(null);
+  const [newExcludedDomain, setNewExcludedDomain] = useState("");
+  const [excludeError, setExcludeError] = useState("");
+  const excludedInputRef = useRef<HTMLInputElement>(null);
 
   const checkRedirectPermission = useCallback(async () => {
     if (!isExtension() || !chrome.permissions) return;
@@ -624,6 +634,33 @@ export function TimeTrackerSection() {
     await saveSettings(next);
   };
 
+  const addExcludedDomain = async () => {
+    setExcludeError("");
+    const raw = newExcludedDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+    if (!raw) { setExcludeError("Enter a domain name."); return; }
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(raw) && raw !== "localhost") {
+      setExcludeError("Enter a valid domain (e.g. example.com).");
+      return;
+    }
+    const existing = settings.excludedDomains ?? [];
+    if (existing.some((d) => d.toLowerCase() === raw)) {
+      setExcludeError("That domain is already excluded.");
+      return;
+    }
+    const next: TrackerSettings = { ...settings, excludedDomains: [...existing, raw] };
+    await saveSettings(next);
+    setNewExcludedDomain("");
+    excludedInputRef.current?.focus();
+  };
+
+  const removeExcludedDomain = async (domain: string) => {
+    const next: TrackerSettings = {
+      ...settings,
+      excludedDomains: (settings.excludedDomains ?? []).filter((d) => d !== domain),
+    };
+    await saveSettings(next);
+  };
+
   const exportAllCSV = async () => {
     const all = await getAllTrackingData();
     const rows = ["Date,Domain,Seconds,Minutes"];
@@ -648,7 +685,18 @@ export function TimeTrackerSection() {
     setWeekData((w) => w.map((d) => ({ ...d, total: 0, data: {} })));
   };
 
-  const todayEntries = Object.entries(todayData).sort((a, b) => b[1] - a[1]);
+  const excludedSet = useMemo(
+    () => new Set((settings.excludedDomains ?? []).map((d) => d.toLowerCase())),
+    [settings.excludedDomains],
+  );
+
+  const todayEntries = useMemo(
+    () =>
+      Object.entries(todayData)
+        .filter(([domain]) => !excludedSet.has(domain.toLowerCase()))
+        .sort((a, b) => b[1] - a[1]),
+    [todayData, excludedSet],
+  );
   const todayTotal = todayEntries.reduce((s, [, v]) => s + v, 0);
   const top8 = todayEntries.slice(0, 8).map(([domain, secs], i) => ({
     domain: domain.length > 20 ? domain.slice(0, 18) + "…" : domain,
@@ -656,9 +704,21 @@ export function TimeTrackerSection() {
     color: COLORS[i % COLORS.length],
   }));
 
-  const weekAvgData = (() => {
+  const filteredWeekData = useMemo(
+    () =>
+      weekData.map((day) => {
+        const data = Object.fromEntries(
+          Object.entries(day.data).filter(([domain]) => !excludedSet.has(domain.toLowerCase())),
+        );
+        const total = Object.values(data).reduce((s, v) => s + v, 0);
+        return { ...day, data, total };
+      }),
+    [weekData, excludedSet],
+  );
+
+  const weekAvgData = useMemo(() => {
     const totals: Record<string, number> = {};
-    weekData.forEach((day) => {
+    filteredWeekData.forEach((day) => {
       Object.entries(day.data).forEach(([domain, secs]) => {
         totals[domain] = (totals[domain] ?? 0) + secs;
       });
@@ -670,7 +730,7 @@ export function TimeTrackerSection() {
       }))
       .sort((a, b) => b.avgSecs - a.avgSecs)
       .slice(0, 8);
-  })();
+  }, [filteredWeekData]);
 
   const sectionStyle: React.CSSProperties = {
     height: "100%",
@@ -844,7 +904,7 @@ export function TimeTrackerSection() {
           <div style={cardStyle}>
             <div style={{ ...label, marginBottom: 12 }}>Daily totals — last 7 days</div>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={weekData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <BarChart data={filteredWeekData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
                 <Tooltip formatter={(v: number) => [fmtSecs(v), "Total"]}
@@ -892,7 +952,7 @@ export function TimeTrackerSection() {
       )}
 
       {/* ── ALL TIME ───────────────────────────────────────────────────────── */}
-      {activeTab === "alltime" && <AllTimeTab />}
+      {activeTab === "alltime" && <AllTimeTab excludedDomains={settings.excludedDomains ?? []} />}
 
       {/* ── SETTINGS ───────────────────────────────────────────────────────── */}
       {activeTab === "settings" && (
@@ -953,6 +1013,104 @@ export function TimeTrackerSection() {
               Save settings
             </button>
           )}
+
+          {/* Blocked Domains */}
+          <div style={{ borderTop: "2px solid hsl(var(--border))", paddingTop: 20, marginBottom: 24 }}>
+            <div style={{ ...label, marginBottom: 4 }}>Blocked domains</div>
+            <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginBottom: 14 }}>
+              Domains on this list are never tracked and are hidden from all views. Separate from the focus-limit list.
+            </div>
+
+            {/* Add row */}
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, flexWrap: "wrap" }}>
+              <input
+                ref={excludedInputRef}
+                type="text"
+                placeholder="example.com"
+                value={newExcludedDomain}
+                onChange={(e) => { setNewExcludedDomain(e.target.value); setExcludeError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") addExcludedDomain(); }}
+                style={{
+                  flex: "1 1 180px",
+                  minWidth: 140,
+                  fontFamily: "Space Mono, monospace",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: `2px solid ${excludeError ? "#ef4444" : "hsl(var(--border))"}`,
+                  background: "hsl(var(--background))",
+                  color: "hsl(var(--foreground))",
+                  padding: "6px 10px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              <button
+                onClick={addExcludedDomain}
+                style={{
+                  background: ACCENT,
+                  color: "#fff",
+                  border: `2px solid ${ACCENT}`,
+                  fontWeight: 800,
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: "2px 2px 0 #000",
+                  flexShrink: 0,
+                }}
+              >
+                Add
+              </button>
+            </div>
+            {excludeError && (
+              <div style={{ fontSize: 11, color: "#ef4444", fontWeight: 700, marginBottom: 10 }}>{excludeError}</div>
+            )}
+
+            {/* List */}
+            {(settings.excludedDomains ?? []).length === 0 ? (
+              <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", padding: "12px 0", fontStyle: "italic" }}>
+                No domains blocked yet.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                {(settings.excludedDomains ?? []).map((domain) => (
+                  <div
+                    key={domain}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      border: "2px solid hsl(var(--border))",
+                      background: "hsl(var(--background))",
+                      padding: "8px 12px",
+                    }}
+                  >
+                    <span style={{ fontFamily: "Space Mono, monospace", fontSize: 12, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+                      {domain}
+                    </span>
+                    <button
+                      onClick={() => removeExcludedDomain(domain)}
+                      aria-label="Remove"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "hsl(var(--muted-foreground))",
+                        cursor: "pointer",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: "0 2px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Focus List */}
           <div style={{ borderTop: "2px solid hsl(var(--border))", paddingTop: 20, marginBottom: 24 }}>
