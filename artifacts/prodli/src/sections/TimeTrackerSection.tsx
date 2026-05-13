@@ -60,6 +60,20 @@ async function getAllTrackingData(): Promise<Record<string, TimeTrackingDay>> {
   return out;
 }
 
+// Range loader: fetches all storage data, slices to [fromDate, toDate], caches by key
+const _rangeCache = new Map<string, Record<string, TimeTrackingDay>>();
+async function loadRangeData(fromDate: string, toDate: string): Promise<Record<string, TimeTrackingDay>> {
+  const cacheKey = `${fromDate}|${toDate}`;
+  if (_rangeCache.has(cacheKey)) return _rangeCache.get(cacheKey)!;
+  const all = await getAllTrackingData();
+  const result: Record<string, TimeTrackingDay> = {};
+  for (const [date, data] of Object.entries(all)) {
+    if (date >= fromDate && date <= toDate) result[date] = data;
+  }
+  _rangeCache.set(cacheKey, result);
+  return result;
+}
+
 async function clearAllTrackingData(): Promise<void> {
   if (isExtension()) {
     const all: Record<string, unknown> = await new Promise((resolve) =>
@@ -149,23 +163,34 @@ function AllTimeTab() {
     return totals;
   }, [filtered, debouncedQuery]);
 
+  // Per-day totals respecting the domain filter — used for trend chart and stats
+  const filteredDayTotals = useMemo(() => {
+    const q = debouncedQuery.toLowerCase();
+    const result: Record<string, number> = {};
+    for (const [date, data] of Object.entries(filtered)) {
+      let total = 0;
+      for (const [domain, secs] of Object.entries(data)) {
+        if (!q || domain.toLowerCase().includes(q)) total += secs;
+      }
+      if (total > 0) result[date] = total;
+    }
+    return result;
+  }, [filtered, debouncedQuery]);
+
   const stats = useMemo(() => {
     const totalSecs = Object.values(domainTotals).reduce((s, v) => s + v, 0);
-    const daysWithData = Object.keys(filtered).filter((d) =>
-      Object.values(filtered[d]).some((v) => v > 0)
-    ).length;
+    const daysWithData = Object.keys(filteredDayTotals).length;
     const topDomain = Object.entries(domainTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
     let peakDay = "", peakSecs = 0;
-    for (const [date, data] of Object.entries(filtered)) {
-      const t = Object.values(data).reduce((s, v) => s + v, 0);
-      if (t > peakSecs) { peakSecs = t; peakDay = date; }
+    for (const [date, total] of Object.entries(filteredDayTotals)) {
+      if (total > peakSecs) { peakSecs = total; peakDay = date; }
     }
     return { totalSecs, daysWithData, topDomain, peakDay, peakSecs };
-  }, [domainTotals, filtered]);
+  }, [domainTotals, filteredDayTotals]);
 
   const trendData = useMemo(() => {
-    const days = Object.entries(filtered)
-      .map(([date, data]) => ({ date, total: Object.values(data).reduce((s, v) => s + v, 0) }))
+    const days = Object.entries(filteredDayTotals)
+      .map(([date, total]) => ({ date, total }))
       .sort((a, b) => a.date.localeCompare(b.date));
     const span = getDaysBetween(fromDate, toDate);
     if (span > 60) {
@@ -186,7 +211,7 @@ function AllTimeTab() {
       label: new Date(date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
       total,
     }));
-  }, [filtered, fromDate, toDate]);
+  }, [filteredDayTotals, fromDate, toDate]);
 
   const topSites = useMemo(() =>
     Object.entries(domainTotals)
@@ -199,13 +224,20 @@ function AllTimeTab() {
 
   const pieData = useMemo(() => {
     const sorted = Object.entries(domainTotals).sort((a, b) => b[1] - a[1]);
-    const top7 = sorted.slice(0, 7).map(([domain, secs], i) => ({
+    const grandTotal = sorted.reduce((s, [, v]) => s + v, 0);
+    const top8 = sorted.slice(0, 8).map(([domain, secs], i) => ({
       name: domain.length > 15 ? domain.slice(0, 13) + "…" : domain,
-      value: secs, color: COLORS[i % COLORS.length],
+      value: secs,
+      pct: grandTotal > 0 ? Math.round((secs / grandTotal) * 100) : 0,
+      color: COLORS[i % COLORS.length],
     }));
-    const otherSecs = sorted.slice(7).reduce((s, [, v]) => s + v, 0);
-    if (otherSecs > 0) top7.push({ name: "Other", value: otherSecs, color: "#888" });
-    return top7;
+    const otherSecs = sorted.slice(8).reduce((s, [, v]) => s + v, 0);
+    if (otherSecs > 0) top8.push({
+      name: "Other", value: otherSecs,
+      pct: grandTotal > 0 ? Math.round((otherSecs / grandTotal) * 100) : 0,
+      color: "#888",
+    });
+    return top8;
   }, [domainTotals]);
 
   const PAGE_SIZE = 20;
@@ -378,9 +410,14 @@ function AllTimeTab() {
                   <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
                     contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }} />
                   <Legend iconSize={8} iconType="square"
-                    formatter={(value: string) => (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>{value}</span>
-                    )} />
+                    formatter={(value: string) => {
+                      const entry = pieData.find((e) => e.name === value);
+                      return (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
+                          {value}{entry ? ` ${entry.pct}%` : ""}
+                        </span>
+                      );
+                    }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
