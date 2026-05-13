@@ -30,6 +30,12 @@ const FEATURES = [
     accent: "#60a5fa",
     desc: "Daily habit check-ins with automatic streak tracking and a visual heatmap calendar.",
   },
+  {
+    emoji: "⏱",
+    title: "Time Tracker",
+    accent: "#a78bfa",
+    desc: "Automatically tracks time spent on every site you visit. Review today's browsing and your all-time history at a glance.",
+  },
 ];
 
 export function OnboardingModal({ onClose }: OnboardingModalProps) {
@@ -81,7 +87,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
             Your productivity hub is ready.
           </div>
           <div style={{ color: "#888", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-            Four tools, one new tab. Everything stays on your device — no account needed.
+            Five tools, one new tab. Everything stays on your device — no account needed.
           </div>
         </div>
 
