@@ -34,10 +34,18 @@ export interface Habit {
 
 export type Section = "editor" | "todos" | "pomodoro" | "habits" | "tracker";
 
+export interface FocusRule {
+  id: string;
+  domain: string;
+  limitMinutes: number;
+  redirectEnabled: boolean;
+}
+
 export interface TrackerSettings {
   idleThreshold: number;
   notifyEnabled: boolean;
   notifyTime: string;
+  focusList: FocusRule[];
 }
 
 export type TimeTrackingDay = Record<string, number>;

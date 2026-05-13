@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BarChart,
   Bar,
@@ -13,13 +13,14 @@ import {
 } from "recharts";
 import { storageGet, storageSet } from "../lib/storage";
 import { getDayKey, getDaysBetween } from "../lib/utils";
-import type { TrackerSettings, TimeTrackingDay } from "../types";
+import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
 
 const ACCENT = "#8B5CF6";
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
   notifyEnabled: true,
   notifyTime: "20:00",
+  focusList: [],
 };
 const COLORS = ["#8B5CF6", "#FFD700", "#FF6B6B", "#00BCD4", "#66BB6A", "#FF8C94", "#4ECDC4", "#F59E0B"];
 
@@ -521,6 +522,37 @@ export function TimeTrackerSection() {
   const [weekData, setWeekData] = useState<DaySummary[]>([]);
   const [settings, setSettings] = useState<TrackerSettings>(DEFAULT_SETTINGS);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [newDomain, setNewDomain] = useState("");
+  const [newLimit, setNewLimit] = useState(30);
+  const [focusError, setFocusError] = useState("");
+  const [redirectPermissionGranted, setRedirectPermissionGranted] = useState(false);
+  const domainInputRef = useRef<HTMLInputElement>(null);
+
+  const checkRedirectPermission = useCallback(async () => {
+    if (!isExtension() || !chrome.permissions) return;
+    const granted = await chrome.permissions.contains({ permissions: ["scripting"], origins: ["<all_urls>"] });
+    setRedirectPermissionGranted(granted);
+  }, []);
+
+  const requestRedirectPermission = async (enableForRuleId?: string) => {
+    if (!isExtension() || !chrome.permissions) return;
+    try {
+      const granted = await chrome.permissions.request({ permissions: ["scripting"], origins: ["<all_urls>"] });
+      setRedirectPermissionGranted(granted);
+      // If triggered from a specific rule row, auto-enable redirect for that rule
+      if (granted && enableForRuleId) {
+        const next: TrackerSettings = {
+          ...settings,
+          focusList: (settings.focusList ?? []).map((r) =>
+            r.id === enableForRuleId ? { ...r, redirectEnabled: true } : r
+          ),
+        };
+        await saveSettings(next);
+      }
+    } catch {
+      setRedirectPermissionGranted(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     const today = await storageGet<TimeTrackingDay>(`tt_${getDayKey()}`, {});
@@ -540,7 +572,8 @@ export function TimeTrackerSection() {
 
     const s = await storageGet<TrackerSettings>("tt_settings", DEFAULT_SETTINGS);
     setSettings(s);
-  }, []);
+    await checkRedirectPermission();
+  }, [checkRedirectPermission]);
 
   useEffect(() => {
     loadData();
@@ -552,6 +585,41 @@ export function TimeTrackerSection() {
     setSettings(next);
     await storageSet("tt_settings", next);
     setSettingsDirty(false);
+  };
+
+  const addFocusRule = async () => {
+    setFocusError("");
+    const raw = newDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+    if (!raw) { setFocusError("Enter a domain name."); return; }
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(raw)) { setFocusError("Enter a valid domain (e.g. reddit.com)."); return; }
+    if ((settings.focusList ?? []).some((r) => r.domain === raw)) { setFocusError("That domain is already in the list."); return; }
+    const rule: FocusRule = { id: crypto.randomUUID(), domain: raw, limitMinutes: newLimit, redirectEnabled: false };
+    const next: TrackerSettings = { ...settings, focusList: [...(settings.focusList ?? []), rule] };
+    await saveSettings(next);
+    setNewDomain("");
+    setNewLimit(30);
+    domainInputRef.current?.focus();
+  };
+
+  const removeFocusRule = async (id: string) => {
+    const next: TrackerSettings = { ...settings, focusList: (settings.focusList ?? []).filter((r) => r.id !== id) };
+    await saveSettings(next);
+  };
+
+  const toggleRedirect = async (id: string) => {
+    const next: TrackerSettings = {
+      ...settings,
+      focusList: (settings.focusList ?? []).map((r) => r.id === id ? { ...r, redirectEnabled: !r.redirectEnabled } : r),
+    };
+    await saveSettings(next);
+  };
+
+  const updateLimit = async (id: string, limitMinutes: number) => {
+    const next: TrackerSettings = {
+      ...settings,
+      focusList: (settings.focusList ?? []).map((r) => r.id === id ? { ...r, limitMinutes } : r),
+    };
+    await saveSettings(next);
   };
 
   const exportAllCSV = async () => {
@@ -884,6 +952,252 @@ export function TimeTrackerSection() {
             </button>
           )}
 
+          {/* Focus List */}
+          <div style={{ borderTop: "2px solid hsl(var(--border))", paddingTop: 20, marginBottom: 24 }}>
+            <div style={{ ...label, marginBottom: 4 }}>Focus list</div>
+            <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginBottom: 14 }}>
+              Set daily time limits per site. You'll get a notification when the limit is reached.
+            </div>
+
+            {/* Redirect permission banner */}
+            {isExtension() && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                border: `2px solid ${redirectPermissionGranted ? "#22c55e" : "hsl(var(--border))"}`,
+                background: redirectPermissionGranted ? "rgba(34,197,94,0.08)" : "hsl(var(--muted))",
+                padding: "8px 12px",
+                marginBottom: 14,
+                flexWrap: "wrap",
+              }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: redirectPermissionGranted ? "#22c55e" : "hsl(var(--foreground))", marginBottom: 2 }}>
+                    {redirectPermissionGranted ? "✓ Redirect permission granted" : "Auto-redirect (optional)"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
+                    {redirectPermissionGranted
+                      ? "When a limit is hit, the tab will redirect to your new tab page."
+                      : "Grant permission to automatically redirect tabs when a limit is reached."}
+                  </div>
+                </div>
+                {!redirectPermissionGranted && (
+                  <button
+                    onClick={() => requestRedirectPermission()}
+                    style={{
+                      background: ACCENT,
+                      color: "#fff",
+                      border: `2px solid ${ACCENT}`,
+                      fontWeight: 800,
+                      fontSize: 11,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      padding: "5px 12px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      boxShadow: "2px 2px 0 #000",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Grant Permission
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Add rule row */}
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px", minWidth: 140 }}>
+                <input
+                  ref={domainInputRef}
+                  type="text"
+                  placeholder="reddit.com"
+                  value={newDomain}
+                  onChange={(e) => { setNewDomain(e.target.value); setFocusError(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") addFocusRule(); }}
+                  style={{
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: `2px solid ${focusError ? "#ef4444" : "hsl(var(--border))"}`,
+                    background: "hsl(var(--background))",
+                    color: "hsl(var(--foreground))",
+                    padding: "6px 10px",
+                    outline: "none",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={newLimit}
+                  onChange={(e) => setNewLimit(Math.max(1, +e.target.value))}
+                  style={{
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: "2px solid hsl(var(--border))",
+                    background: "hsl(var(--background))",
+                    color: "hsl(var(--foreground))",
+                    padding: "6px 8px",
+                    width: 58,
+                    outline: "none",
+                  }}
+                />
+                <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", fontWeight: 700 }}>min</span>
+              </div>
+              <button
+                onClick={addFocusRule}
+                style={{
+                  background: ACCENT,
+                  color: "#fff",
+                  border: `2px solid ${ACCENT}`,
+                  fontWeight: 800,
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: "2px 2px 0 #000",
+                  flexShrink: 0,
+                }}
+              >
+                Add
+              </button>
+            </div>
+            {focusError && (
+              <div style={{ fontSize: 11, color: "#ef4444", fontWeight: 700, marginBottom: 10 }}>{focusError}</div>
+            )}
+
+            {/* Existing rules */}
+            {(settings.focusList ?? []).length === 0 ? (
+              <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", padding: "12px 0", fontStyle: "italic" }}>
+                No sites in your focus list yet.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                {(settings.focusList ?? []).map((rule) => {
+                  const todaySecs = todayData[rule.domain] ?? 0;
+                  const limitSecs = rule.limitMinutes * 60;
+                  const pct = Math.min(100, limitSecs > 0 ? (todaySecs / limitSecs) * 100 : 0);
+                  const over = todaySecs >= limitSecs;
+                  return (
+                    <div
+                      key={rule.id}
+                      style={{
+                        border: `2px solid ${over ? "#ef4444" : "hsl(var(--border))"}`,
+                        background: "hsl(var(--background))",
+                        padding: "10px 12px",
+                      }}
+                    >
+                      {/* Domain row */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ fontWeight: 800, fontSize: 13, color: over ? "#ef4444" : "hsl(var(--foreground))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {rule.domain}
+                          </span>
+                          {over && (
+                            <span style={{ fontSize: 10, fontWeight: 800, background: "#ef4444", color: "#fff", padding: "1px 6px", letterSpacing: "0.05em", flexShrink: 0 }}>
+                              LIMIT HIT
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeFocusRule(rule.id)}
+                          aria-label="Remove"
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "hsl(var(--muted-foreground))",
+                            cursor: "pointer",
+                            fontSize: 16,
+                            lineHeight: 1,
+                            padding: "0 2px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div style={{ height: 6, background: "hsl(var(--muted))", marginBottom: 8, position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${pct}%`, background: over ? "#ef4444" : ACCENT, transition: "width 0.4s ease" }} />
+                      </div>
+
+                      {/* Time + controls */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontFamily: "Space Mono, monospace", fontSize: 11, color: over ? "#ef4444" : "hsl(var(--muted-foreground))" }}>
+                            {fmtSecs(todaySecs)}
+                          </span>
+                          <span style={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }}>/</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={1440}
+                            value={rule.limitMinutes}
+                            onChange={(e) => updateLimit(rule.id, Math.max(1, +e.target.value))}
+                            style={{
+                              fontFamily: "Space Mono, monospace",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              border: "2px solid hsl(var(--border))",
+                              background: "hsl(var(--card))",
+                              color: "hsl(var(--foreground))",
+                              padding: "2px 6px",
+                              width: 50,
+                              outline: "none",
+                            }}
+                          />
+                          <span style={{ fontSize: 10, color: "hsl(var(--muted-foreground))", fontWeight: 700 }}>min</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                            Redirect
+                          </span>
+                          <button
+                            onClick={() => redirectPermissionGranted ? toggleRedirect(rule.id) : requestRedirectPermission(rule.id)}
+                            title={
+                              !redirectPermissionGranted
+                                ? "Grant redirect permission first (click to request)"
+                                : rule.redirectEnabled
+                                  ? "Click to disable auto-redirect"
+                                  : "Click to enable auto-redirect to new tab"
+                            }
+                            style={{
+                              border: `2px solid ${!redirectPermissionGranted ? "hsl(var(--border))" : rule.redirectEnabled ? ACCENT : "hsl(var(--border))"}`,
+                              background: !redirectPermissionGranted ? "hsl(var(--muted))" : rule.redirectEnabled ? ACCENT : "hsl(var(--muted))",
+                              color: !redirectPermissionGranted ? "hsl(var(--muted-foreground))" : rule.redirectEnabled ? "#fff" : "hsl(var(--muted-foreground))",
+                              fontWeight: 800,
+                              fontSize: 10,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
+                              padding: "3px 9px",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              transition: "all 0.15s",
+                              opacity: !redirectPermissionGranted ? 0.5 : 1,
+                            }}
+                          >
+                            {!redirectPermissionGranted ? "–" : rule.redirectEnabled ? "On" : "Off"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Danger zone */}
           <div style={{ borderTop: "2px solid hsl(var(--border))", paddingTop: 20 }}>
             <div style={{ ...label, color: "#ef4444", marginBottom: 8 }}>Danger zone</div>
             <button onClick={clearData} style={{

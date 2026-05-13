@@ -1,17 +1,22 @@
 // ProdLi Time Tracker — Background Service Worker (MV3)
 // Tracks active browsing time per domain and stores it in chrome.storage.local.
 
-import type { TrackerSettings } from "./types";
+import type { TrackerSettings, FocusRule } from "./types";
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
   notifyEnabled: true,
   notifyTime: "20:00",
+  focusList: [],
 };
 
 // ── In-memory session state (reset when SW restarts — that's OK) ──────────────
 let currentDomain: string | null = null;
 let sessionStartMs: number | null = null;
+
+// ── Focus limit tracking (in-memory, resets daily) ───────────────────────────
+const notifiedToday = new Set<string>();
+let notifiedDate = "";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,7 +40,8 @@ function isTrackable(url: string | undefined): boolean {
 async function getSettings(): Promise<TrackerSettings> {
   return new Promise((resolve) => {
     chrome.storage.local.get(["tt_settings"], (result) => {
-      resolve((result["tt_settings"] as TrackerSettings) ?? DEFAULT_SETTINGS);
+      const stored = result["tt_settings"] as Partial<TrackerSettings> | undefined;
+      resolve({ ...DEFAULT_SETTINGS, ...(stored ?? {}) });
     });
   });
 }
@@ -56,19 +62,21 @@ function startSession(domain: string): void {
   sessionStartMs = Date.now();
 }
 
-async function flushAndEnd(endMs: number = Date.now()): Promise<void> {
-  if (!currentDomain || !sessionStartMs) return;
+async function flushAndEnd(endMs: number = Date.now()): Promise<string | null> {
+  if (!currentDomain || !sessionStartMs) return null;
+  const flushedDomain = currentDomain;
   const elapsed = Math.round((endMs - sessionStartMs) / 1000);
   if (elapsed > 0 && elapsed < 3600) {
     const date = new Date(sessionStartMs);
     const dayKey = `tt_${getDayKey(date)}`;
     const result = await chrome.storage.local.get([dayKey]);
     const data: Record<string, number> = (result[dayKey] as Record<string, number>) ?? {};
-    data[currentDomain] = (data[currentDomain] ?? 0) + elapsed;
+    data[flushedDomain] = (data[flushedDomain] ?? 0) + elapsed;
     await chrome.storage.local.set({ [dayKey]: data });
   }
   currentDomain = null;
   sessionStartMs = null;
+  return flushedDomain;
 }
 
 async function refreshSession(isIdle: boolean): Promise<void> {
@@ -81,8 +89,67 @@ async function refreshSession(isIdle: boolean): Promise<void> {
   if (domain !== currentDomain) {
     await flushAndEnd();
     startSession(domain);
+    await checkFocusLimit(domain);
   }
   // Same domain → session continues
+}
+
+// ── Focus limit checking ──────────────────────────────────────────────────────
+
+async function checkFocusLimit(domain: string): Promise<void> {
+  // Reset per-domain notifications at the start of a new day
+  const today = getDayKey();
+  if (today !== notifiedDate) {
+    notifiedToday.clear();
+    notifiedDate = today;
+  }
+
+  if (notifiedToday.has(domain)) return;
+
+  const settings = await getSettings();
+  const focusList: FocusRule[] = settings.focusList ?? [];
+  const rule = focusList.find((r) => r.domain.toLowerCase() === domain.toLowerCase());
+  if (!rule) return;
+
+  const dayKey = `tt_${today}`;
+  const result = await chrome.storage.local.get([dayKey]);
+  const data: Record<string, number> = (result[dayKey] as Record<string, number>) ?? {};
+  const secsSpent = data[domain] ?? 0;
+
+  if (secsSpent >= rule.limitMinutes * 60) {
+    notifiedToday.add(domain);
+
+    chrome.notifications.create(`tt_focus_${domain}_${Date.now()}`, {
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title: `⏰ Time's up on ${domain}`,
+      message: `You've reached your ${rule.limitMinutes}-minute daily limit.`,
+    });
+
+    if (rule.redirectEnabled) {
+      try {
+        // Redirect requires the optional scripting + <all_urls> permission granted by the user
+        const hasPermission = await chrome.permissions.contains({
+          permissions: ["scripting"],
+          origins: ["<all_urls>"],
+        });
+        if (hasPermission) {
+          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          if (tab?.id && tab.url && extractDomain(tab.url) === domain) {
+            const newTabUrl = chrome.runtime.getURL("index.html");
+            // Inject a content-script-style redirect into the page
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: (url: string) => { window.location.replace(url); },
+              args: [newTabUrl],
+            });
+          }
+        }
+      } catch {
+        // Tab may have been closed, navigated away, or permission revoked
+      }
+    }
+  }
 }
 
 // ── Chrome event listeners ────────────────────────────────────────────────────
@@ -92,7 +159,10 @@ chrome.tabs.onActivated.addListener(async () => {
   const domain = isTrackable(url) ? extractDomain(url) : null;
   if (domain !== currentDomain) {
     await flushAndEnd();
-    if (domain) startSession(domain);
+    if (domain) {
+      startSession(domain);
+      await checkFocusLimit(domain);
+    }
   }
 });
 
@@ -107,7 +177,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   const domain = isTrackable(changeInfo.url) ? extractDomain(changeInfo.url) : null;
   if (domain !== currentDomain) {
     await flushAndEnd();
-    if (domain) startSession(domain);
+    if (domain) {
+      startSession(domain);
+      await checkFocusLimit(domain);
+    }
   }
 });
 
@@ -137,11 +210,18 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       const settings = await getSettings();
       const state = await chrome.idle.queryState(settings.idleThreshold);
       if (state === "active") {
-        // Flush elapsed, restart session
-        await flushAndEnd();
+        // Flush elapsed, check limits, restart session
+        const flushedDomain = await flushAndEnd();
         const url = await getActiveTabUrl();
         const domain = isTrackable(url) ? extractDomain(url) : null;
-        if (domain) startSession(domain);
+        if (domain) {
+          startSession(domain);
+          await checkFocusLimit(domain);
+        }
+        // Also check the domain we just flushed (in case it crossed the limit mid-session)
+        if (flushedDomain && flushedDomain !== domain) {
+          await checkFocusLimit(flushedDomain);
+        }
       } else {
         await flushAndEnd();
       }
@@ -208,7 +288,7 @@ async function init(): Promise<void> {
 chrome.runtime.onInstalled.addListener(() => { init(); });
 chrome.runtime.onStartup.addListener(() => { init(); });
 
-// Update idle interval when settings change
+// Update idle interval and reschedule alarm when settings change
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes["tt_settings"]) return;
   const s = changes["tt_settings"].newValue as TrackerSettings | undefined;
