@@ -281,11 +281,15 @@
   padding: 0;
 }
 .tiptap a {
-  color: hsl(var(--secondary));
+  color: #1a56db;
   text-decoration: underline;
   font-weight: 700;
-  border-bottom: 2px solid hsl(var(--secondary));
+  border-bottom: 2px solid #1a56db;
   cursor: pointer;
+}
+.dark .tiptap a {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
 }
 .tiptap strong {
   font-weight: 800;
