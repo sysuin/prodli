@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -7,9 +7,12 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  PieChart,
+  Pie,
+  Legend,
 } from "recharts";
 import { storageGet, storageSet } from "../lib/storage";
-import { getDayKey } from "../lib/utils";
+import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay } from "../types";
 
 const ACCENT = "#8B5CF6";
@@ -45,7 +48,6 @@ async function getAllTrackingData(): Promise<Record<string, TimeTrackingDay>> {
       });
     });
   }
-  // localStorage fallback
   const out: Record<string, TimeTrackingDay> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -75,7 +77,7 @@ async function clearAllTrackingData(): Promise<void> {
   toRemove.forEach((k) => localStorage.removeItem(k));
 }
 
-type Tab = "today" | "history" | "settings";
+type Tab = "today" | "history" | "alltime" | "settings";
 
 interface DaySummary {
   date: string;
@@ -83,6 +85,380 @@ interface DaySummary {
   total: number;
   data: TimeTrackingDay;
 }
+
+// ── All Time Tab ──────────────────────────────────────────────────────────────
+
+type Preset = "30d" | "90d" | "ytd" | "all" | "custom";
+
+function AllTimeTab() {
+  const [allData, setAllData] = useState<Record<string, TimeTrackingDay>>({});
+  const [loading, setLoading] = useState(true);
+  const [preset, setPreset] = useState<Preset>("30d");
+  const [fromDate, setFromDate] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return getDayKey(d);
+  });
+  const [toDate, setToDate] = useState<string>(() => getDayKey());
+  const [domainQuery, setDomainQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [sortCol, setSortCol] = useState<"time" | "name">("time");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    getAllTrackingData().then((data) => { setAllData(data); setLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    if (preset === "custom") return;
+    const today = getDayKey();
+    const now = new Date();
+    if (preset === "30d") {
+      const f = new Date(); f.setDate(f.getDate() - 29); setFromDate(getDayKey(f)); setToDate(today);
+    } else if (preset === "90d") {
+      const f = new Date(); f.setDate(f.getDate() - 89); setFromDate(getDayKey(f)); setToDate(today);
+    } else if (preset === "ytd") {
+      setFromDate(`${now.getFullYear()}-01-01`); setToDate(today);
+    } else if (preset === "all") {
+      const earliest = Object.keys(allData).sort()[0] ?? today;
+      setFromDate(earliest); setToDate(today);
+    }
+  }, [preset, allData]);
+
+  useEffect(() => {
+    const id = setTimeout(() => { setDebouncedQuery(domainQuery); setPage(0); }, 280);
+    return () => clearTimeout(id);
+  }, [domainQuery]);
+
+  const filtered = useMemo(() => {
+    const result: Record<string, TimeTrackingDay> = {};
+    for (const [date, data] of Object.entries(allData)) {
+      if (date >= fromDate && date <= toDate) result[date] = data;
+    }
+    return result;
+  }, [allData, fromDate, toDate]);
+
+  const domainTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const q = debouncedQuery.toLowerCase();
+    for (const data of Object.values(filtered)) {
+      for (const [domain, secs] of Object.entries(data)) {
+        if (q && !domain.toLowerCase().includes(q)) continue;
+        totals[domain] = (totals[domain] ?? 0) + secs;
+      }
+    }
+    return totals;
+  }, [filtered, debouncedQuery]);
+
+  const stats = useMemo(() => {
+    const totalSecs = Object.values(domainTotals).reduce((s, v) => s + v, 0);
+    const daysWithData = Object.keys(filtered).filter((d) =>
+      Object.values(filtered[d]).some((v) => v > 0)
+    ).length;
+    const topDomain = Object.entries(domainTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+    let peakDay = "", peakSecs = 0;
+    for (const [date, data] of Object.entries(filtered)) {
+      const t = Object.values(data).reduce((s, v) => s + v, 0);
+      if (t > peakSecs) { peakSecs = t; peakDay = date; }
+    }
+    return { totalSecs, daysWithData, topDomain, peakDay, peakSecs };
+  }, [domainTotals, filtered]);
+
+  const trendData = useMemo(() => {
+    const days = Object.entries(filtered)
+      .map(([date, data]) => ({ date, total: Object.values(data).reduce((s, v) => s + v, 0) }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const span = getDaysBetween(fromDate, toDate);
+    if (span > 60) {
+      const weeks: Record<string, number> = {};
+      for (const { date, total } of days) {
+        const d = new Date(date + "T00:00:00");
+        const ws = new Date(d);
+        ws.setDate(d.getDate() - d.getDay());
+        const wk = getDayKey(ws);
+        weeks[wk] = (weeks[wk] ?? 0) + total;
+      }
+      return Object.entries(weeks).sort().map(([d, total]) => ({
+        label: new Date(d + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
+        total,
+      }));
+    }
+    return days.map(({ date, total }) => ({
+      label: new Date(date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
+      total,
+    }));
+  }, [filtered, fromDate, toDate]);
+
+  const topSites = useMemo(() =>
+    Object.entries(domainTotals)
+      .sort((a, b) => b[1] - a[1]).slice(0, 10)
+      .map(([domain, secs], i) => ({
+        domain: domain.length > 17 ? domain.slice(0, 15) + "…" : domain,
+        secs, color: COLORS[i % COLORS.length],
+      })),
+    [domainTotals]);
+
+  const pieData = useMemo(() => {
+    const sorted = Object.entries(domainTotals).sort((a, b) => b[1] - a[1]);
+    const top7 = sorted.slice(0, 7).map(([domain, secs], i) => ({
+      name: domain.length > 15 ? domain.slice(0, 13) + "…" : domain,
+      value: secs, color: COLORS[i % COLORS.length],
+    }));
+    const otherSecs = sorted.slice(7).reduce((s, [, v]) => s + v, 0);
+    if (otherSecs > 0) top7.push({ name: "Other", value: otherSecs, color: "#888" });
+    return top7;
+  }, [domainTotals]);
+
+  const PAGE_SIZE = 20;
+  const tableRows = useMemo(() => {
+    const entries = Object.entries(domainTotals);
+    entries.sort((a, b) =>
+      sortCol === "time"
+        ? sortAsc ? a[1] - b[1] : b[1] - a[1]
+        : sortAsc ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0])
+    );
+    return entries;
+  }, [domainTotals, sortCol, sortAsc]);
+
+  const pageCount = Math.ceil(tableRows.length / PAGE_SIZE);
+  const curPage = Math.min(page, Math.max(0, pageCount - 1));
+  const pagedRows = tableRows.slice(curPage * PAGE_SIZE, (curPage + 1) * PAGE_SIZE);
+
+  const exportScoped = () => {
+    const rows = ["Date,Domain,Seconds,Minutes"];
+    const q = debouncedQuery.toLowerCase();
+    for (const [date, domains] of Object.entries(filtered).sort()) {
+      for (const [domain, secs] of Object.entries(domains).sort((a, b) => b[1] - a[1])) {
+        if (q && !domain.toLowerCase().includes(q)) continue;
+        rows.push(`${date},${domain},${secs},${Math.round(secs / 60)}`);
+      }
+    }
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `prodli-history-${fromDate}-to-${toDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const card: React.CSSProperties = {
+    border: "2px solid hsl(var(--border))",
+    background: "hsl(var(--card))",
+    padding: "16px 20px",
+    marginBottom: 16,
+  };
+  const lbl: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+    letterSpacing: "0.1em", color: "hsl(var(--muted-foreground))", marginBottom: 4,
+  };
+  const pillBtn = (active: boolean): React.CSSProperties => ({
+    border: `2px solid ${active ? ACCENT : "hsl(var(--border))"}`,
+    background: active ? ACCENT : "transparent",
+    color: active ? "#fff" : "hsl(var(--muted-foreground))",
+    fontWeight: 800, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em",
+    padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
+  });
+  const sortBtn = (active: boolean): React.CSSProperties => ({
+    ...pillBtn(active), fontSize: 9, padding: "3px 8px",
+  });
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "60px 20px", color: "hsl(var(--muted-foreground))", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+      Loading history…
+    </div>
+  );
+
+  const hasData = Object.keys(domainTotals).length > 0;
+  const span = getDaysBetween(fromDate, toDate);
+
+  return (
+    <div>
+      {/* Filter bar */}
+      <div style={{ ...card, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {(["30d", "90d", "ytd", "all", "custom"] as Preset[]).map((p) => (
+            <button key={p} style={pillBtn(preset === p)} onClick={() => setPreset(p)}>
+              {p === "30d" ? "30 days" : p === "90d" ? "90 days" : p === "ytd" ? "This year" : p === "all" ? "All time" : "Custom"}
+            </button>
+          ))}
+        </div>
+        {preset === "custom" && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="date" value={fromDate} max={toDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              style={{ fontFamily: "Space Mono, monospace", fontSize: 11, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "3px 6px" }} />
+            <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>→</span>
+            <input type="date" value={toDate} min={fromDate}
+              onChange={(e) => setToDate(e.target.value)}
+              style={{ fontFamily: "Space Mono, monospace", fontSize: 11, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "3px 6px" }} />
+          </div>
+        )}
+        <input
+          type="text"
+          placeholder="Filter by domain…"
+          value={domainQuery}
+          onChange={(e) => setDomainQuery(e.target.value)}
+          style={{ flex: 1, minWidth: 140, fontFamily: "inherit", fontSize: 12, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "5px 10px", outline: "none" }}
+        />
+        <button onClick={exportScoped} style={pillBtn(false)}>Export CSV</button>
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ ...card, display: "flex", gap: 28, flexWrap: "wrap" }}>
+        <div>
+          <div style={lbl}>Total time</div>
+          <div style={{ fontFamily: "Space Mono, monospace", fontSize: 22, fontWeight: 700, color: ACCENT }}>
+            {fmtSecs(stats.totalSecs)}
+          </div>
+        </div>
+        <div>
+          <div style={lbl}>Days tracked</div>
+          <div style={{ fontFamily: "Space Mono, monospace", fontSize: 22, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+            {stats.daysWithData}
+          </div>
+        </div>
+        {stats.topDomain && (
+          <div>
+            <div style={lbl}>Top site</div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "hsl(var(--foreground))" }}>{stats.topDomain}</div>
+            <div style={{ fontFamily: "Space Mono, monospace", fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
+              {fmtSecs(domainTotals[stats.topDomain] ?? 0)} total
+            </div>
+          </div>
+        )}
+        {stats.peakDay && (
+          <div>
+            <div style={lbl}>Busiest day</div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "hsl(var(--foreground))" }}>
+              {new Date(stats.peakDay + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+            </div>
+            <div style={{ fontFamily: "Space Mono, monospace", fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
+              {fmtSecs(stats.peakSecs)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!hasData ? (
+        <div style={{ ...card, textAlign: "center", padding: "40px 20px", color: "hsl(var(--muted-foreground))" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>No data in this range</div>
+          <div style={{ fontSize: 12 }}>Try "All time" or widen the date range.</div>
+        </div>
+      ) : (
+        <>
+          {/* Charts row: top sites (horizontal bar) + pie */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div style={{ ...card, marginBottom: 0 }}>
+              <div style={{ ...lbl, marginBottom: 12 }}>Top 10 sites</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={topSites} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+                  <XAxis type="number" tickFormatter={(v: number) => fmtSecs(v)}
+                    tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="domain" width={95}
+                    tick={{ fontSize: 9, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                    cursor={{ fill: "hsl(var(--muted))" }} />
+                  <Bar dataKey="secs" radius={0}>
+                    {topSites.map((e, i) => <Cell key={i} fill={e.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ ...card, marginBottom: 0 }}>
+              <div style={{ ...lbl, marginBottom: 12 }}>Time share</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="44%"
+                    outerRadius={72} innerRadius={32}>
+                    {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }} />
+                  <Legend iconSize={8} iconType="square"
+                    formatter={(value: string) => (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>{value}</span>
+                    )} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Daily / weekly trend chart */}
+          <div style={card}>
+            <div style={{ ...lbl, marginBottom: 4 }}>Browsing trend</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
+              {span > 60 ? "Aggregated by week — zoom in by narrowing the date range" : "One bar per day in the selected range"}
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={trendData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false} tickLine={false}
+                  interval={Math.max(0, Math.floor(trendData.length / 12) - 1)} />
+                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false} tickLine={false} width={58} />
+                <Tooltip formatter={(v: number) => [fmtSecs(v), span > 60 ? "Week total" : "Day total"]}
+                  contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 11 }}
+                  cursor={{ fill: "hsl(var(--muted))" }} />
+                <Bar dataKey="total" fill={ACCENT} radius={0} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Sortable data table */}
+          <div style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={lbl}>{tableRows.length} domains · page {curPage + 1}/{Math.max(1, pageCount)}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={sortBtn(sortCol === "name")}
+                  onClick={() => { setSortCol("name"); setSortAsc(sortCol === "name" ? !sortAsc : true); setPage(0); }}>
+                  Domain {sortCol === "name" ? (sortAsc ? "↑" : "↓") : ""}
+                </button>
+                <button style={sortBtn(sortCol === "time")}
+                  onClick={() => { setSortCol("time"); setSortAsc(sortCol === "time" ? !sortAsc : false); setPage(0); }}>
+                  Time {sortCol === "time" ? (sortAsc ? "↑" : "↓") : ""}
+                </button>
+              </div>
+            </div>
+
+            {pagedRows.map(([domain, secs]) => {
+              const pct = stats.totalSecs > 0 ? (secs / stats.totalSecs) * 100 : 0;
+              return (
+                <div key={domain} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
+                  <div style={{ width: 200, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {domain}
+                  </div>
+                  <div style={{ flex: 1, height: 6, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", inset: "0 auto 0 0", width: `${pct}%`, background: ACCENT, transition: "width 0.3s" }} />
+                  </div>
+                  <div style={{ width: 76, fontSize: 11, fontFamily: "Space Mono, monospace", color: "hsl(var(--muted-foreground))", textAlign: "right", flexShrink: 0 }}>
+                    {fmtSecs(secs)}
+                  </div>
+                </div>
+              );
+            })}
+
+            {pageCount > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 16 }}>
+                <button disabled={curPage === 0} onClick={() => setPage((p) => p - 1)}
+                  style={{ ...pillBtn(false), opacity: curPage === 0 ? 0.35 : 1 }}>← Prev</button>
+                <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", fontFamily: "Space Mono, monospace" }}>
+                  {curPage + 1} / {pageCount}
+                </span>
+                <button disabled={curPage >= pageCount - 1} onClick={() => setPage((p) => p + 1)}
+                  style={{ ...pillBtn(false), opacity: curPage >= pageCount - 1 ? 0.35 : 1 }}>Next →</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main TimeTrackerSection ───────────────────────────────────────────────────
 
 export function TimeTrackerSection() {
   const [activeTab, setActiveTab] = useState<Tab>("today");
@@ -123,7 +499,7 @@ export function TimeTrackerSection() {
     setSettingsDirty(false);
   };
 
-  const exportCSV = async () => {
+  const exportAllCSV = async () => {
     const all = await getAllTrackingData();
     const rows = ["Date,Domain,Seconds,Minutes"];
     for (const [date, domains] of Object.entries(all).sort()) {
@@ -149,11 +525,27 @@ export function TimeTrackerSection() {
 
   const todayEntries = Object.entries(todayData).sort((a, b) => b[1] - a[1]);
   const todayTotal = todayEntries.reduce((s, [, v]) => s + v, 0);
-  const top5 = todayEntries.slice(0, 8).map(([domain, secs], i) => ({
+  const top8 = todayEntries.slice(0, 8).map(([domain, secs], i) => ({
     domain: domain.length > 20 ? domain.slice(0, 18) + "…" : domain,
     secs,
     color: COLORS[i % COLORS.length],
   }));
+
+  const weekAvgData = (() => {
+    const totals: Record<string, number> = {};
+    weekData.forEach((day) => {
+      Object.entries(day.data).forEach(([domain, secs]) => {
+        totals[domain] = (totals[domain] ?? 0) + secs;
+      });
+    });
+    return Object.entries(totals)
+      .map(([domain, total]) => ({
+        domain: domain.length > 20 ? domain.slice(0, 18) + "…" : domain,
+        avgSecs: Math.round(total / 7),
+      }))
+      .sort((a, b) => b.avgSecs - a.avgSecs)
+      .slice(0, 8);
+  })();
 
   const sectionStyle: React.CSSProperties = {
     height: "100%",
@@ -185,23 +577,6 @@ export function TimeTrackerSection() {
     transition: "all 0.15s",
   });
 
-  // 7-day per-domain averages: total per domain ÷ 7
-  const weekAvgData = (() => {
-    const totals: Record<string, number> = {};
-    weekData.forEach((day) => {
-      Object.entries(day.data).forEach(([domain, secs]) => {
-        totals[domain] = (totals[domain] ?? 0) + secs;
-      });
-    });
-    return Object.entries(totals)
-      .map(([domain, total]) => ({
-        domain: domain.length > 20 ? domain.slice(0, 18) + "…" : domain,
-        avgSecs: Math.round(total / 7),
-      }))
-      .sort((a, b) => b.avgSecs - a.avgSecs)
-      .slice(0, 8);
-  })();
-
   const label: React.CSSProperties = {
     fontSize: 10,
     fontWeight: 700,
@@ -209,6 +584,13 @@ export function TimeTrackerSection() {
     letterSpacing: "0.1em",
     color: "hsl(var(--muted-foreground))",
     marginBottom: 4,
+  };
+
+  const TAB_LABELS: Record<Tab, string> = {
+    today: "Today",
+    history: "7-Day History",
+    alltime: "All Time",
+    settings: "⚙ Settings",
   };
 
   return (
@@ -225,31 +607,25 @@ export function TimeTrackerSection() {
             </div>
           )}
         </div>
-        <button
-          onClick={exportCSV}
-          style={{
-            background: ACCENT,
-            color: "#fff",
-            border: `2px solid ${ACCENT}`,
-            fontWeight: 800,
-            fontSize: 11,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            padding: "6px 14px",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            boxShadow: "3px 3px 0 #000",
-          }}
-        >
-          Export CSV
-        </button>
+        {activeTab !== "alltime" && (
+          <button
+            onClick={exportAllCSV}
+            style={{
+              background: ACCENT, color: "#fff", border: `2px solid ${ACCENT}`,
+              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
+              padding: "6px 14px", cursor: "pointer", fontFamily: "inherit", boxShadow: "3px 3px 0 #000",
+            }}
+          >
+            Export CSV
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "2px solid hsl(var(--border))", marginBottom: 20 }}>
-        {(["today", "history", "settings"] as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
           <button key={t} style={tabStyle(activeTab === t)} onClick={() => setActiveTab(t)}>
-            {t === "today" ? "Today" : t === "history" ? "7-Day History" : "⚙ Settings"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -257,7 +633,6 @@ export function TimeTrackerSection() {
       {/* ── TODAY ──────────────────────────────────────────────────────────── */}
       {activeTab === "today" && (
         <>
-          {/* Summary card */}
           <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center" }}>
             <div>
               <div style={label}>Total today</div>
@@ -296,7 +671,6 @@ export function TimeTrackerSection() {
             </div>
           ) : (
             <>
-              {/* Domain table */}
               <div style={cardStyle}>
                 <div style={{ ...label, marginBottom: 12 }}>Time per site</div>
                 {todayEntries.map(([domain, secs]) => {
@@ -317,23 +691,18 @@ export function TimeTrackerSection() {
                 })}
               </div>
 
-              {/* Bar chart — top sites */}
-              {top5.length > 0 && (
+              {top8.length > 0 && (
                 <div style={cardStyle}>
                   <div style={{ ...label, marginBottom: 12 }}>Top sites chart</div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={top5} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <BarChart data={top8} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                       <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                      <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={50} />
-                      <Tooltip
-                        formatter={(v: number) => [fmtSecs(v), "Time"]}
+                      <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
+                      <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
                         contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                        cursor={{ fill: "hsl(var(--muted))" }}
-                      />
+                        cursor={{ fill: "hsl(var(--muted))" }} />
                       <Bar dataKey="secs" radius={0}>
-                        {top5.map((entry, i) => (
-                          <Cell key={i} fill={entry.color} />
-                        ))}
+                        {top8.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -344,7 +713,7 @@ export function TimeTrackerSection() {
         </>
       )}
 
-      {/* ── HISTORY ────────────────────────────────────────────────────────── */}
+      {/* ── 7-DAY HISTORY ──────────────────────────────────────────────────── */}
       {activeTab === "history" && (
         <>
           <div style={cardStyle}>
@@ -352,12 +721,10 @@ export function TimeTrackerSection() {
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={weekData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={50} />
-                <Tooltip
-                  formatter={(v: number) => [fmtSecs(v), "Total"]}
+                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
+                <Tooltip formatter={(v: number) => [fmtSecs(v), "Total"]}
                   contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                  cursor={{ fill: "hsl(var(--muted))" }}
-                />
+                  cursor={{ fill: "hsl(var(--muted))" }} />
                 <Bar dataKey="total" fill={ACCENT} radius={0} />
               </BarChart>
             </ResponsiveContainer>
@@ -366,7 +733,7 @@ export function TimeTrackerSection() {
           <div style={cardStyle}>
             <div style={{ ...label, marginBottom: 4 }}>7-day averages per site</div>
             <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
-              Average daily time spent per domain over the last 7 days
+              Average daily time per domain over the last 7 days
             </div>
             {weekAvgData.length === 0 ? (
               <div style={{ textAlign: "center", padding: "24px", color: "hsl(var(--muted-foreground))", fontSize: 13 }}>
@@ -378,15 +745,11 @@ export function TimeTrackerSection() {
                   <BarChart data={weekAvgData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                     <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={60} />
-                    <Tooltip
-                      formatter={(v: number) => [fmtSecs(v), "Avg/day"]}
+                    <Tooltip formatter={(v: number) => [fmtSecs(v), "Avg/day"]}
                       contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                      cursor={{ fill: "hsl(var(--muted))" }}
-                    />
+                      cursor={{ fill: "hsl(var(--muted))" }} />
                     <Bar dataKey="avgSecs" radius={0}>
-                      {weekAvgData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
+                      {weekAvgData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -403,32 +766,27 @@ export function TimeTrackerSection() {
         </>
       )}
 
+      {/* ── ALL TIME ───────────────────────────────────────────────────────── */}
+      {activeTab === "alltime" && <AllTimeTab />}
+
       {/* ── SETTINGS ───────────────────────────────────────────────────────── */}
       {activeTab === "settings" && (
         <div style={cardStyle}>
-          {/* Idle threshold */}
           <div style={{ marginBottom: 24 }}>
             <div style={label}>Idle threshold</div>
             <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginBottom: 10 }}>
               Pause tracking after this many seconds of inactivity.
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <input
-                type="range"
-                min={15}
-                max={300}
-                step={15}
-                value={settings.idleThreshold}
+              <input type="range" min={15} max={300} step={15} value={settings.idleThreshold}
                 onChange={(e) => { setSettings((s) => ({ ...s, idleThreshold: +e.target.value })); setSettingsDirty(true); }}
-                style={{ flex: 1, accentColor: ACCENT }}
-              />
+                style={{ flex: 1, accentColor: ACCENT }} />
               <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, fontSize: 13, width: 50, textAlign: "right", color: "hsl(var(--foreground))" }}>
                 {settings.idleThreshold}s
               </span>
             </div>
           </div>
 
-          {/* Daily notification */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div>
@@ -443,14 +801,8 @@ export function TimeTrackerSection() {
                   border: "2px solid hsl(var(--border))",
                   background: settings.notifyEnabled ? ACCENT : "hsl(var(--muted))",
                   color: settings.notifyEnabled ? "#fff" : "hsl(var(--muted-foreground))",
-                  fontWeight: 800,
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  padding: "5px 12px",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  transition: "all 0.15s",
+                  fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
+                  padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
                 }}
               >
                 {settings.notifyEnabled ? "On" : "Off"}
@@ -459,66 +811,31 @@ export function TimeTrackerSection() {
             {settings.notifyEnabled && (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Notify at</span>
-                <input
-                  type="time"
-                  value={settings.notifyTime}
+                <input type="time" value={settings.notifyTime}
                   onChange={(e) => { setSettings((s) => ({ ...s, notifyTime: e.target.value })); setSettingsDirty(true); }}
-                  style={{
-                    fontFamily: "Space Mono, monospace",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    border: "2px solid hsl(var(--border))",
-                    background: "hsl(var(--background))",
-                    color: "hsl(var(--foreground))",
-                    padding: "4px 8px",
-                    outline: "none",
-                  }}
-                />
+                  style={{ fontFamily: "Space Mono, monospace", fontSize: 13, fontWeight: 700, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "4px 8px", outline: "none" }} />
               </div>
             )}
           </div>
 
-          {/* Save button */}
           {settingsDirty && (
-            <button
-              onClick={() => saveSettings(settings)}
-              style={{
-                background: ACCENT,
-                color: "#fff",
-                border: `2px solid ${ACCENT}`,
-                fontWeight: 800,
-                fontSize: 12,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "8px 18px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                boxShadow: "3px 3px 0 #000",
-                marginBottom: 24,
-              }}
-            >
+            <button onClick={() => saveSettings(settings)} style={{
+              background: ACCENT, color: "#fff", border: `2px solid ${ACCENT}`,
+              fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
+              padding: "8px 18px", cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "3px 3px 0 #000", marginBottom: 24,
+            }}>
               Save settings
             </button>
           )}
 
-          {/* Danger zone */}
           <div style={{ borderTop: "2px solid hsl(var(--border))", paddingTop: 20 }}>
             <div style={{ ...label, color: "#ef4444", marginBottom: 8 }}>Danger zone</div>
-            <button
-              onClick={clearData}
-              style={{
-                background: "transparent",
-                color: "#ef4444",
-                border: "2px solid #ef4444",
-                fontWeight: 800,
-                fontSize: 11,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "6px 14px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
+            <button onClick={clearData} style={{
+              background: "transparent", color: "#ef4444", border: "2px solid #ef4444",
+              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
+              padding: "6px 14px", cursor: "pointer", fontFamily: "inherit",
+            }}>
               Clear all tracking data
             </button>
           </div>
