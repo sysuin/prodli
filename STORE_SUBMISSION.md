@@ -42,11 +42,11 @@
 **Name:** ProdLi — Productivity New Tab
 
 **Short description (max 132 chars):**
-> Your distraction-free new tab hub. Editor, To-Dos, Pomodoro, and Habit Tracker in one Neobrutalist interface.
+> New tab workspace: rich-text editor, to-dos, Pomodoro, habits, and automatic time tracker. No account needed.
 
 **Detailed description:**
 ```
-ProdLi replaces your new tab with a focused, four-quadrant productivity workspace — no account, no cloud, no distractions.
+ProdLi replaces your new tab with a focused, five-tool productivity workspace — no account, no cloud, no distractions. Everything stays on your device.
 
 ✏️ EDITOR
 Rich-text notes with font picker, multiple note management, fullscreen focus mode, and full-text search across title and body.
@@ -60,12 +60,18 @@ Configurable focus timer that keeps running even when you switch tabs. Receive b
 🎯 HABITS
 Daily habit check-ins with automatic streak tracking and a visual heatmap calendar — stay consistent effortlessly.
 
+⏱ TIME TRACKER
+Automatically records time spent on every website you visit. Review today's usage, explore all-time history with interactive charts, and compare two date ranges side by side. Set daily time limits per site — when a limit is reached you get a desktop notification, and you can optionally enable an auto-redirect back to your new tab page. Block specific domains from being tracked entirely.
+
 DESIGN
-Neobrutal design with Light and Dark themes. All data stays on your device via localStorage — private by default.
+Neobrutal design with Light and Dark themes. All data is stored locally in your browser — private by default, never transmitted anywhere.
 
 PERMISSIONS
-• storage — to sync settings across browser profiles (optional)
-• notifications — to alert you when a Pomodoro session ends
+• storage — saves your notes, tasks, habits, settings, and time-tracking data locally in your browser
+• notifications — alerts you when a Pomodoro session ends or a daily site time limit is reached
+• tabs — reads the active tab's URL (hostname only) to record browsing time per domain; no page content or full URLs are ever stored
+• idle — detects when you step away so the tracker pauses instead of logging inactive time
+• alarms — schedules the daily summary notification and the per-minute tracking heartbeat
 ```
 
 **Category:** Productivity
@@ -76,12 +82,20 @@ PERMISSIONS
 
 ## Privacy & Permissions
 
-| Permission | Reason |
-|------------|--------|
-| `storage` | Sync app data across browser profiles (optional) |
-| `notifications` | Pomodoro session-complete desktop alerts |
+| Permission | Why it's needed |
+|------------|----------------|
+| `storage` | Persists notes, tasks, habits, Pomodoro settings, and time-tracking data in `chrome.storage.local`. Nothing leaves the device. |
+| `notifications` | Shows a desktop alert when a Pomodoro session ends or a daily site time limit is reached. |
+| `tabs` | Reads the hostname (domain) of the active tab to accumulate browsing time. The full URL and page content are never accessed or stored — only the `hostname` field of the URL is used. |
+| `idle` | Detects when the user is inactive so that idle time is not counted toward a site's tracked total. |
+| `alarms` | Powers the per-minute heartbeat that flushes in-memory time to storage, and schedules the optional daily summary notification. |
+| `scripting` _(optional)_ | Only requested if the user explicitly enables "auto-redirect" for a Focus List rule. Used to navigate the active tab away from a site when its daily limit is reached. |
+| `<all_urls>` _(optional host permission)_ | Required by `scripting` for the redirect feature above. Only granted if the user explicitly enables it. |
 
-**Privacy policy:** No data is collected, transmitted, or stored on external servers. All data lives in the browser's localStorage / chrome.storage.local.
+**What data is stored and where:**
+- **Time-tracking data** — hostname + seconds per day — stored in `chrome.storage.local` under per-day keys (`tt_YYYY-MM-DD`). Never transmitted.
+- **Settings** — idle threshold, notification time, Focus List rules, blocked domains — stored in `chrome.storage.local` under `tt_settings`. Never transmitted.
+- **All other app data** (notes, tasks, habits, Pomodoro state) — stored in `chrome.storage.local` with a `prodli_` prefix. Never transmitted.
 
 ---
 
@@ -90,13 +104,22 @@ PERMISSIONS
 Copy and paste each answer directly into the Privacy tab of the Developer Dashboard.
 
 ### Single purpose description
-> ProdLi replaces the browser's new tab page with a focused productivity workspace containing four tools: a rich-text editor, a to-do list, a Pomodoro timer, and a habit tracker. All data is stored locally on the user's device — no accounts, no servers.
+> ProdLi replaces the browser's new tab page with a focused productivity workspace containing five tools: a rich-text editor, a to-do list, a Pomodoro timer, a habit tracker, and an automatic time tracker. All data — including browsing time per domain — is stored locally on the user's device in chrome.storage.local. No data is transmitted to any external server.
 
 ### Permission justification — `storage`
-> The storage permission is used to persist the user's notes, tasks, Pomodoro settings, and habit data in chrome.storage.local so that data is retained across browser sessions. No data is sent to any external server.
+> The storage permission is used to persist the user's notes, tasks, Pomodoro settings, habit records, time-tracking data, and Focus List configuration in chrome.storage.local so that data is retained across browser sessions. No data is sent to any external server.
 
 ### Permission justification — `notifications`
-> The notifications permission is used solely to display a desktop notification when a Pomodoro focus session or break ends, alerting the user to switch tasks. Notifications are triggered only by the in-page timer and only when the user has an active session running.
+> The notifications permission is used to display a desktop notification when (a) a Pomodoro focus session or break ends, and (b) the user has reached their self-configured daily time limit for a website. Notifications are triggered only by local timers and only when relevant activity is detected.
+
+### Permission justification — `tabs`
+> The tabs permission is used solely to read the hostname of the currently active tab so that the time tracker can accumulate browsing time per domain. Only the `hostname` portion of the URL is ever read or stored — the full URL, page title, and page content are never accessed. The tracked data (domain + seconds) is stored locally in chrome.storage.local and is never transmitted.
+
+### Permission justification — `idle`
+> The idle permission is used to detect when the user has been inactive for a configurable threshold (default 60 seconds). When the browser is idle, the time tracker pauses so that inactive time is not incorrectly attributed to the last visited site.
+
+### Permission justification — `alarms`
+> The alarms permission is used to schedule a per-minute heartbeat that flushes in-memory browsing time to persistent storage, ensuring data is not lost if the browser closes unexpectedly. It is also used to schedule the user's optional daily summary notification at their chosen time.
 
 ### Remote code
 **Select:** No, I am not using remote code
@@ -108,14 +131,17 @@ Copy and paste each answer directly into the Privacy tab of the Developer Dashbo
 ## Pre-submission Checklist
 
 - [ ] Developer account created and one-time $5 registration fee paid
-- [ ] Extension zip uploaded successfully (no manifest errors)
-- [ ] At least 1 screenshot uploaded (screenshot-1280x800.jpg)
-- [ ] Promo tile uploaded (promo-440x280.jpg)
-- [ ] Short description filled in (≤ 132 chars)
-- [ ] Detailed description filled in
+- [ ] Extension zip rebuilt after latest changes (`pnpm build:extension`)
+- [ ] Extension zip uploaded successfully (no manifest errors reported by dashboard)
+- [ ] At least 1 screenshot uploaded (`store-assets/screenshot-1280x800.jpg`)
+- [ ] Promo tile uploaded (`store-assets/promo-440x280.png`)
+- [ ] Short description filled in (≤ 132 chars) — verify char count before pasting
+- [ ] Detailed description filled in (all five tools listed)
 - [ ] Category set to **Productivity**
-- [ ] Privacy practices form completed (no user data collected)
-- [ ] Justification provided for `notifications` permission
+- [ ] Privacy practices form completed — browsing history data declared as local-only
+- [ ] Justification provided for all five core permissions
+- [ ] `scripting` and `<all_urls>` listed as optional with reason
+- [ ] Remote code answer set to **No**
 - [ ] Submitted for review (typically 1–3 business days)
 
 ---
@@ -128,4 +154,4 @@ pnpm build:extension
 # → prodli-extension.zip at workspace root
 ```
 
-Bump the `version` field in `artifacts/prodli/extension/manifest.json` before each new submission.
+Bump the `version` field in `artifacts/prodli/extension/manifest.json` before each new submission to the store.
