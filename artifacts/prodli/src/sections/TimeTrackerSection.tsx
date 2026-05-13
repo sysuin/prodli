@@ -123,6 +123,8 @@ function AllTimeTab() {
 
   // Initial mount: load all date keys (for "all" preset) + load initial range via loadRangeData
   useEffect(() => {
+    // Bust the cache for the initial range so each tab activation sees fresh data
+    _rangeCache.delete(`${fromDate}|${toDate}`);
     Promise.all([
       loadRangeData(fromDate, toDate),
       getAllTrackingData(),

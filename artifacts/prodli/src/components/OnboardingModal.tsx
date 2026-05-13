@@ -34,7 +34,8 @@ const FEATURES = [
     emoji: "⏱",
     title: "Time Tracker",
     accent: "#a78bfa",
-    desc: "Automatically tracks time spent on every site you visit. Review today's browsing and your all-time history at a glance.",
+    desc: "Automatically tracks time on every site you visit. Review today's usage, explore all-time history with charts, and set daily time limits per site — limits fire a notification and can optionally redirect you away when you've hit your cap.",
+    wide: true,
   },
 ];
 
@@ -102,6 +103,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
                 background: "hsl(var(--card))",
                 position: "relative",
                 overflow: "hidden",
+                ...("wide" in f && f.wide ? { gridColumn: "1 / -1" } : {}),
               }}
             >
               <div style={{
