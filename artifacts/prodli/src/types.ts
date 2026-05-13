@@ -32,4 +32,12 @@ export interface Habit {
   archived: boolean;
 }
 
-export type Section = "editor" | "todos" | "pomodoro" | "habits";
+export type Section = "editor" | "todos" | "pomodoro" | "habits" | "tracker";
+
+export interface TrackerSettings {
+  idleThreshold: number;
+  notifyEnabled: boolean;
+  notifyTime: string;
+}
+
+export type TimeTrackingDay = Record<string, number>;

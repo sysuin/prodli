@@ -17,7 +17,16 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist-extension"),
     emptyOutDir: true,
     rollupOptions: {
-      input: path.resolve(import.meta.dirname, "index.extension.html"),
+      input: {
+        main: path.resolve(import.meta.dirname, "index.extension.html"),
+        background: path.resolve(import.meta.dirname, "src/background.ts"),
+      },
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
     },
   },
 });

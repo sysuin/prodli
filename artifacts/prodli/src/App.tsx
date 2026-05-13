@@ -10,12 +10,14 @@ const EditorSection = lazy(() => import("./sections/EditorSection").then(m => ({
 const TodoSection = lazy(() => import("./sections/TodoSection").then(m => ({ default: m.TodoSection })));
 const PomodoroSection = lazy(() => import("./sections/PomodoroSection").then(m => ({ default: m.PomodoroSection })));
 const HabitSection = lazy(() => import("./sections/HabitSection").then(m => ({ default: m.HabitSection })));
+const TimeTrackerSection = lazy(() => import("./sections/TimeTrackerSection").then(m => ({ default: m.TimeTrackerSection })));
 
 const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[] = [
   { key: "editor", label: "Editor", emoji: "✍️", accent: "#FFD700" },
   { key: "todos", label: "To-Dos", emoji: "✅", accent: "#00BCD4" },
   { key: "pomodoro", label: "Pomodoro", emoji: "🍅", accent: "#FF6B6B" },
   { key: "habits", label: "Habits", emoji: "🎯", accent: "#66BB6A" },
+  { key: "tracker", label: "Tracker", emoji: "⏱", accent: "#8B5CF6" },
 ];
 
 function LoadingFallback() {
@@ -69,7 +71,7 @@ export default function App() {
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-        const map: Partial<Record<string, Section>> = { "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits" };
+        const map: Partial<Record<string, Section>> = { "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker" };
         if (map[e.key]) { e.preventDefault(); handleSectionChange(map[e.key]!); return; }
       }
 
@@ -264,6 +266,7 @@ export default function App() {
           {section === "todos" && <TodoSection />}
           {section === "pomodoro" && <PomodoroSection {...pomodoroTimer} />}
           {section === "habits" && <HabitSection />}
+          {section === "tracker" && <TimeTrackerSection />}
         </Suspense>
       </main>
 
