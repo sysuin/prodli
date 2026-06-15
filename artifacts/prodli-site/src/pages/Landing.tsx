@@ -119,6 +119,9 @@ export function Landing() {
               No install required
             </span>
           </div>
+          <a href="#features" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
+            See all features
+          </a>
         </div>
 
         <div style={{ display: "flex", gap: 32, marginTop: 48, flexWrap: "wrap", justifyContent: "center" }}>
