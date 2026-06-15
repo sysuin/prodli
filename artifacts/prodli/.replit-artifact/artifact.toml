@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/extension/"
 title = "ProdLi - New Tab"
 version = "1.0.0"
 id = "artifacts/prodli"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/extension/" ]
 localPort = 19129
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "19129"
-BASE_PATH = "/"
+BASE_PATH = "/extension/"

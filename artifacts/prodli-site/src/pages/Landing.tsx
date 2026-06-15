@@ -63,7 +63,7 @@ export function Landing() {
           <a href="#features" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Features
           </a>
-          <a href="privacy" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <a href="/privacy" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Privacy
           </a>
           <a
@@ -263,7 +263,7 @@ export function Landing() {
         </div>
         <div className="site-footer-links" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
           <a href="mailto:contact@prodli.com" style={{ color: "#888", fontSize: 12, fontWeight: 700 }}>contact@prodli.com</a>
-          <a href="privacy" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Privacy Policy</a>
+          <a href="/privacy" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Privacy Policy</a>
           <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Chrome Store →</a>
         </div>
       </footer>
