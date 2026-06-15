@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/prodli-site/"
+title = "ProdLi Website"
+version = "1.0.0"
+id = "artifacts/prodli-site"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/prodli-site/" ]
+localPort = 24821
+
+[services.development]
+run = "pnpm --filter @workspace/prodli-site run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/prodli-site", "run", "build" ]
+publicDir = "artifacts/prodli-site/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24821"
+BASE_PATH = "/prodli-site/"
