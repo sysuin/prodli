@@ -1,3 +1,18 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Yellow background -->
+  <rect width="32" height="32" fill="#FFD700"/>
+  <!-- Black border (neobrutal) -->
+  <rect x="0" y="0" width="32" height="32" fill="none" stroke="#000000" stroke-width="2"/>
+  <!-- Bold "P" -->
+  <text
+    x="16"
+    y="23"
+    font-family="'Space Grotesk', 'Arial Black', Arial, sans-serif"
+    font-size="22"
+    font-weight="900"
+    fill="#000000"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    letter-spacing="-1"
+  >P</text>
 </svg>
