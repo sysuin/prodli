@@ -107,21 +107,21 @@ export function Landing() {
           Five productivity tools in one place — editor, to-dos, Pomodoro, habits, and an automatic time tracker. No account. No cloud. Just you.
         </p>
 
-        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
-          <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 14, padding: "16px 36px" }}>
-            Add to Chrome — it's free →
-          </a>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+            <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 14, padding: "16px 36px" }}>
+              Add to Chrome — it's free →
+            </a>
             <a href="/extension" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
               Try it live ↗
             </a>
-            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)" }}>
-              No install required
-            </span>
+            <a href="#features" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
+              See all features
+            </a>
           </div>
-          <a href="#features" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
-            See all features
-          </a>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)" }}>
+            Try it live — no install required
+          </span>
         </div>
 
         <div style={{ display: "flex", gap: 32, marginTop: 48, flexWrap: "wrap", justifyContent: "center" }}>
