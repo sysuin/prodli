@@ -111,9 +111,14 @@ export function Landing() {
           <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 14, padding: "16px 36px" }}>
             Add to Chrome — it's free →
           </a>
-          <a href="#features" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
-            See all features
-          </a>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <a href="/extension" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
+              Try it live ↗
+            </a>
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)" }}>
+              No install required
+            </span>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 32, marginTop: 48, flexWrap: "wrap", justifyContent: "center" }}>
