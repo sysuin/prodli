@@ -99,3 +99,82 @@ img {
   letter-spacing: 0.15em;
   color: var(--muted);
 }
+
+/* ── Layout grids (responsive) ───────────────────────────────────────────── */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+/* ── Nav helpers ─────────────────────────────────────────────────────────── */
+
+.nav-subtitle {
+  color: #444;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ── Mobile breakpoint (≤ 640px) ─────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .steps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-subtitle {
+    display: none;
+  }
+
+  .nav-links .nav-text-link {
+    display: none;
+  }
+
+  .site-hero {
+    padding: 48px 20px 48px !important;
+  }
+
+  .site-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  .site-footer {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 24px 20px !important;
+  }
+
+  .site-footer-links {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .privacy-card {
+    padding: 28px 20px !important;
+  }
+
+  .privacy-content {
+    padding: 40px 20px 60px !important;
+  }
+}

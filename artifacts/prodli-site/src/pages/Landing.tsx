@@ -1,4 +1,4 @@
-const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli";
+const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknflakhglanjaeenkmciohimnbkdp";
 
 const FEATURES = [
   {
@@ -57,15 +57,13 @@ export function Landing() {
             background: "var(--yellow)", color: "#000", fontWeight: 900,
             fontSize: 14, padding: "3px 12px", letterSpacing: "0.02em",
           }}>ProdLi</span>
-          <span style={{ color: "#444", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            New Tab Extension
-          </span>
+          <span className="nav-subtitle">New Tab Extension</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <a href="#features" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        <div className="nav-links">
+          <a href="#features" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Features
           </a>
-          <a href="privacy" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <a href="privacy" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Privacy
           </a>
           <a
@@ -78,7 +76,7 @@ export function Landing() {
       </nav>
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section style={{
+      <section className="site-hero" style={{
         borderBottom: "var(--border)",
         padding: "80px 40px 72px",
         display: "flex", flexDirection: "column", alignItems: "center",
@@ -133,14 +131,14 @@ export function Landing() {
       </section>
 
       {/* ── FEATURES ─────────────────────────────────────────────────────── */}
-      <section id="features" style={{ padding: "72px 40px", borderBottom: "var(--border)" }}>
+      <section id="features" className="site-section" style={{ padding: "72px 40px", borderBottom: "var(--border)" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div className="section-label" style={{ marginBottom: 12 }}>Everything you need</div>
           <h2 style={{ fontWeight: 900, fontSize: "clamp(24px, 4vw, 40px)", letterSpacing: "-0.02em", marginBottom: 40, maxWidth: 480 }}>
             Five tools. One new tab.
           </h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="feature-grid">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
@@ -167,14 +165,14 @@ export function Landing() {
       </section>
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-      <section style={{ padding: "72px 40px", borderBottom: "var(--border)", background: "#000" }}>
+      <section className="site-section" style={{ padding: "72px 40px", borderBottom: "var(--border)", background: "#000" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div className="section-label" style={{ marginBottom: 12, color: "#555" }}>Zero friction</div>
           <h2 style={{ fontWeight: 900, fontSize: "clamp(24px, 4vw, 40px)", letterSpacing: "-0.02em", marginBottom: 48, color: "#fff" }}>
             Up and running in 10 seconds.
           </h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+          <div className="steps-grid">
             {STEPS.map((step) => (
               <div key={step.n} style={{
                 border: "2px solid #333",
@@ -199,7 +197,7 @@ export function Landing() {
       </section>
 
       {/* ── PRIVACY STRIP ────────────────────────────────────────────────── */}
-      <section style={{
+      <section className="site-section" style={{
         padding: "72px 40px", borderBottom: "var(--border)",
         background: "var(--yellow)",
       }}>
@@ -235,7 +233,7 @@ export function Landing() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────────────────── */}
-      <section style={{ padding: "80px 40px", textAlign: "center" }}>
+      <section className="site-section" style={{ padding: "80px 40px", textAlign: "center" }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>
           <h2 style={{ fontWeight: 900, fontSize: "clamp(28px, 4vw, 44px)", letterSpacing: "-0.02em", marginBottom: 16 }}>
             Ready to reclaim your new tab?
@@ -253,7 +251,7 @@ export function Landing() {
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-      <footer style={{
+      <footer className="site-footer" style={{
         borderTop: "var(--border)", background: "#000",
         padding: "24px 40px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -263,7 +261,7 @@ export function Landing() {
           <span style={{ background: "var(--yellow)", color: "#000", fontWeight: 900, fontSize: 12, padding: "2px 10px" }}>ProdLi</span>
           <span style={{ color: "#555", fontSize: 11, fontWeight: 700 }}>© 2026</span>
         </div>
-        <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="site-footer-links" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
           <a href="mailto:contact@prodli.com" style={{ color: "#888", fontSize: 12, fontWeight: 700 }}>contact@prodli.com</a>
           <a href="privacy" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Privacy Policy</a>
           <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Chrome Store →</a>

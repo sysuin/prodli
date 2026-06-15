@@ -1,4 +1,6 @@
-const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli";
+import { Link } from "wouter";
+
+const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknflakhglanjaeenkmciohimnbkdp";
 
 export function Privacy() {
   return (
@@ -14,20 +16,20 @@ export function Privacy() {
         justifyContent: "space-between",
         height: 56,
       }}>
-        <a href="../" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{
             background: "var(--yellow)", color: "#000", fontWeight: 900,
             fontSize: 13, padding: "3px 12px", letterSpacing: "0.02em",
           }}>ProdLi</span>
-        </a>
+        </Link>
         <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 11, padding: "8px 18px" }}>
           Add to Chrome →
         </a>
       </nav>
 
       {/* Content */}
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 32px 80px" }}>
-        <div style={{
+      <div className="privacy-content" style={{ maxWidth: 720, margin: "0 auto", padding: "60px 32px 80px" }}>
+        <div className="privacy-card" style={{
           border: "var(--border)", background: "var(--card)",
           padding: "40px 48px", boxShadow: "var(--shadow-lg)",
         }}>
