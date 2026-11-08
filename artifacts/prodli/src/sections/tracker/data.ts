@@ -1,0 +1,235 @@
+// Time Tracker data helpers: reading/clearing per-day totals and building
+// the numbers the charts show. Pure functions here are unit-tested.
+
+import { getDayKey, getDaysBetween } from "../../lib/utils";
+import type { TrackerSettings, TimeTrackingDay } from "../../types";
+
+export const ACCENT = "#8B5CF6";
+export const DEFAULT_SETTINGS: TrackerSettings = {
+  idleThreshold: 60,
+  notifyEnabled: true,
+  notifyTime: "20:00",
+  focusList: [],
+  excludedDomains: [],
+};
+export const COLORS = ["#8B5CF6", "#FFD700", "#FF6B6B", "#00BCD4", "#66BB6A", "#FF8C94", "#4ECDC4", "#F59E0B"];
+
+export function fmtSecs(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+export function isExtension(): boolean {
+  return typeof chrome !== "undefined" && !!(chrome as { storage?: unknown }).storage;
+}
+
+export async function getAllTrackingData(): Promise<Record<string, TimeTrackingDay>> {
+  if (isExtension()) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (all) => {
+        const out: Record<string, TimeTrackingDay> = {};
+        for (const [k, v] of Object.entries(all)) {
+          if (/^tt_\d{4}-\d{2}-\d{2}$/.test(k)) {
+            out[k.slice(3)] = v as TimeTrackingDay;
+          }
+        }
+        resolve(out);
+      });
+    });
+  }
+  const out: Record<string, TimeTrackingDay> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && /^prodli_tt_\d{4}-\d{2}-\d{2}$/.test(key)) {
+      try {
+        out[key.slice("prodli_tt_".length)] = JSON.parse(localStorage.getItem(key)!);
+      } catch { /* skip */ }
+    }
+  }
+  return out;
+}
+
+/** Per-day totals (tt_YYYY-MM-DD) and daily limit-notification markers. */
+export const HISTORY_KEY = /^tt_(\d{4}-\d{2}-\d{2}|focus_notified_\d{4}-\d{2}-\d{2})$/;
+
+// Range loader: fetches all storage data, slices to [fromDate, toDate], caches by key.
+// The cache is dropped whenever tracking data changes, so views never go stale.
+const _rangeCache = new Map<string, Record<string, TimeTrackingDay>>();
+if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && Object.keys(changes).some((k) => /^tt_\d{4}-\d{2}-\d{2}$/.test(k))) _rangeCache.clear();
+  });
+}
+/** Forget cached ranges (e.g. when a view is opened, to show fresh data). */
+export function invalidateRangeCache(): void {
+  _rangeCache.clear();
+}
+
+export async function loadRangeData(fromDate: string, toDate: string): Promise<Record<string, TimeTrackingDay>> {
+  const cacheKey = `${fromDate}|${toDate}`;
+  if (_rangeCache.has(cacheKey)) return _rangeCache.get(cacheKey)!;
+  const all = await getAllTrackingData();
+  const result: Record<string, TimeTrackingDay> = {};
+  for (const [date, data] of Object.entries(all)) {
+    if (date >= fromDate && date <= toDate) result[date] = data;
+  }
+  _rangeCache.set(cacheKey, result);
+  return result;
+}
+
+export async function clearAllTrackingData(): Promise<void> {
+  _rangeCache.clear();
+  if (isExtension()) {
+    const all: Record<string, unknown> = await new Promise((resolve) =>
+      chrome.storage.local.get(null, resolve)
+    );
+    // Only history (per-day totals + limit-notification markers) — never tt_settings.
+    const keys = Object.keys(all).filter((k) => HISTORY_KEY.test(k));
+    if (keys.length) await new Promise<void>((resolve) => chrome.storage.local.remove(keys, resolve));
+    return;
+  }
+  const toRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("prodli_") && HISTORY_KEY.test(k.slice(7))) toRemove.push(k);
+  }
+  toRemove.forEach((k) => localStorage.removeItem(k));
+}
+
+export async function clearDomainHistory(domain: string): Promise<void> {
+  _rangeCache.clear();
+  if (isExtension()) {
+    const all: Record<string, unknown> = await new Promise((resolve) =>
+      chrome.storage.local.get(null, resolve)
+    );
+    const dayKeys = Object.keys(all).filter((k) => /^tt_\d{4}-\d{2}-\d{2}$/.test(k));
+    for (const key of dayKeys) {
+      const day = all[key] as Record<string, number> | undefined;
+      if (day && domain in day) {
+        const updated = { ...day };
+        delete updated[domain];
+        await new Promise<void>((resolve) => chrome.storage.local.set({ [key]: updated }, resolve));
+      }
+    }
+    return;
+  }
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && /^prodli_tt_\d{4}-\d{2}-\d{2}$/.test(k)) {
+      try {
+        const day: Record<string, number> = JSON.parse(localStorage.getItem(k)!);
+        if (domain in day) {
+          delete day[domain];
+          localStorage.setItem(k, JSON.stringify(day));
+        }
+      } catch { /* skip */ }
+    }
+  }
+}
+
+export type Tab = "today" | "history" | "alltime" | "settings";
+
+export interface DaySummary {
+  date: string;
+  label: string;
+  total: number;
+  data: TimeTrackingDay;
+}
+
+// ── All Time Tab ──────────────────────────────────────────────────────────────
+
+export type Preset = "30d" | "90d" | "ytd" | "all" | "custom";
+
+export const ACCENT_B = "#F59E0B";
+
+export function fmtDelta(a: number, b: number): { text: string; positive: boolean; zero: boolean } {
+  const diff = a - b;
+  if (diff === 0) return { text: "no change", positive: true, zero: true };
+  const abs = Math.abs(diff);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const sign = diff > 0 ? "+" : "-";
+  const text = h > 0 ? `${sign}${h}h ${m}m` : `${sign}${m}m`;
+  return { text, positive: diff > 0, zero: false };
+}
+
+export function computePreviousPeriod(fromDate: string, toDate: string): { fromB: string; toB: string } {
+  const span = getDaysBetween(fromDate, toDate);
+  const toB = new Date(fromDate + "T00:00:00");
+  toB.setDate(toB.getDate() - 1);
+  const fromB = new Date(toB);
+  fromB.setDate(fromB.getDate() - span);
+  return { fromB: getDayKey(fromB), toB: getDayKey(toB) };
+}
+
+export function buildDomainTotals(
+  data: Record<string, TimeTrackingDay>,
+  query: string,
+  excludedSet: Set<string>,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  const q = query.toLowerCase();
+  for (const day of Object.values(data)) {
+    for (const [domain, secs] of Object.entries(day)) {
+      if (excludedSet.has(domain.toLowerCase())) continue;
+      if (q && !domain.toLowerCase().includes(q)) continue;
+      totals[domain] = (totals[domain] ?? 0) + secs;
+    }
+  }
+  return totals;
+}
+
+export function buildDayTotals(
+  data: Record<string, TimeTrackingDay>,
+  query: string,
+  excludedSet: Set<string>,
+): Record<string, number> {
+  const q = query.toLowerCase();
+  const result: Record<string, number> = {};
+  for (const [date, day] of Object.entries(data)) {
+    let total = 0;
+    for (const [domain, secs] of Object.entries(day)) {
+      if (excludedSet.has(domain.toLowerCase())) continue;
+      if (!q || domain.toLowerCase().includes(q)) total += secs;
+    }
+    if (total > 0) result[date] = total;
+  }
+  return result;
+}
+
+export function buildTrendPoints(
+  fromDate: string,
+  toDate: string,
+  dayTotals: Record<string, number>,
+): Array<{ label: string; total: number }> {
+  const span = Math.max(0, getDaysBetween(fromDate, toDate));
+  if (span > 60) {
+    const weeks: Record<string, number> = {};
+    for (let i = 0; i <= span; i++) {
+      const d = new Date(fromDate + "T00:00:00");
+      d.setDate(d.getDate() + i);
+      const date = getDayKey(d);
+      const ws = new Date(d);
+      ws.setDate(d.getDate() - d.getDay());
+      const wk = getDayKey(ws);
+      weeks[wk] = (weeks[wk] ?? 0) + (dayTotals[date] ?? 0);
+    }
+    return Object.entries(weeks).sort().map(([d, total]) => ({
+      label: new Date(d + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" }),
+      total,
+    }));
+  }
+  const days = [];
+  for (let i = 0; i <= span; i++) {
+    const d = new Date(fromDate + "T00:00:00");
+    d.setDate(d.getDate() + i);
+    const date = getDayKey(d);
+    days.push({
+      label: d.toLocaleDateString([], { month: "short", day: "numeric" }),
+      total: dayTotals[date] ?? 0,
+    });
+  }
+  return days;
+}
