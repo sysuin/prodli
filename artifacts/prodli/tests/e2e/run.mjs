@@ -288,8 +288,20 @@ const suites = {
     await p.setFile('input[type="file"]', "people.csv");
     const rows = await p.eval(`[...document.querySelectorAll("table tr")].map(r => [...r.children].map(c => c.textContent))`);
     check("Files: CSV with quoted fields", rows[1]?.[1] === "Shah, Priya" && rows[1]?.[3] === 'Says "hi"\nsecond line');
+    await p.setFile('input[type="file"]', "demo.ts");
+    await sleep(500);
+    if (process.env.E2E_SHOTS) { const { data } = await p.send("Page.captureScreenshot", { format: "png" }); writeFileSync(path.join(process.env.E2E_SHOTS, "files-code.png"), Buffer.from(data, "base64")); }
+    check("Files: code files are syntax-highlighted", await p.eval(`!!document.querySelector('.code-preview[data-language="typescript"] .hljs-keyword')`));
     await p.setFile('input[type="file"]', "blob.bin");
     check("Files: binary rejected", (await p.text()).includes("looks like a binary file"));
+    // Recent files: close the preview and reopen from the list.
+    await p.click("Close");
+    await sleep(400);
+    const recentNames = await p.eval(`[...document.querySelectorAll('[aria-label="Recent files"] button div:first-child')].map(d => d.textContent)`);
+    check("Files: recent files are listed (newest first)", recentNames[0] === "demo.ts" && recentNames.includes("sample.md") && !recentNames.includes("blob.bin"), recentNames.join(", "));
+    await p.eval(`[...document.querySelectorAll('[aria-label="Recent files"] button')].find(b => b.textContent.includes("people.csv")).click()`);
+    await sleep(500);
+    check("Files: reopen a recent file with one click", (await p.text()).includes("Shah, Priya"));
     // Drop onto another section
     await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.textContent.includes("Editor")).click()`);
     await sleep(1000);

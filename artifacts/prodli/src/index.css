@@ -478,3 +478,25 @@
   }
   .printing-note .editor-scroll { padding: 0 !important; }
 }
+
+/* Files previewer: syntax highlighting (highlight.js classes), light + dark */
+.code-preview .hljs { background: transparent; color: inherit; }
+.code-preview .hljs-comment, .code-preview .hljs-quote { color: #6a737d; font-style: italic; }
+.code-preview .hljs-keyword, .code-preview .hljs-selector-tag, .code-preview .hljs-built_in, .code-preview .hljs-meta .hljs-keyword { color: #7c3aed; font-weight: 700; }
+.code-preview .hljs-string, .code-preview .hljs-attr-value, .code-preview .hljs-regexp, .code-preview .hljs-addition { color: #15803d; }
+.code-preview .hljs-number, .code-preview .hljs-literal, .code-preview .hljs-symbol, .code-preview .hljs-bullet { color: #c2410c; }
+.code-preview .hljs-title, .code-preview .hljs-title.function_, .code-preview .hljs-section { color: #1d4ed8; font-weight: 700; }
+.code-preview .hljs-attr, .code-preview .hljs-attribute, .code-preview .hljs-variable, .code-preview .hljs-template-variable, .code-preview .hljs-property { color: #b45309; }
+.code-preview .hljs-tag, .code-preview .hljs-name, .code-preview .hljs-selector-id, .code-preview .hljs-selector-class { color: #be123c; }
+.code-preview .hljs-type, .code-preview .hljs-params { color: #0e7490; }
+.code-preview .hljs-deletion { color: #b91c1c; }
+.code-preview .hljs-emphasis { font-style: italic; }
+.code-preview .hljs-strong { font-weight: 700; }
+.dark .code-preview .hljs-comment, .dark .code-preview .hljs-quote { color: #8b949e; }
+.dark .code-preview .hljs-keyword, .dark .code-preview .hljs-selector-tag, .dark .code-preview .hljs-built_in { color: #c4b5fd; }
+.dark .code-preview .hljs-string, .dark .code-preview .hljs-attr-value, .dark .code-preview .hljs-regexp, .dark .code-preview .hljs-addition { color: #86efac; }
+.dark .code-preview .hljs-number, .dark .code-preview .hljs-literal, .dark .code-preview .hljs-symbol, .dark .code-preview .hljs-bullet { color: #fdba74; }
+.dark .code-preview .hljs-title, .dark .code-preview .hljs-title.function_, .dark .code-preview .hljs-section { color: #93c5fd; }
+.dark .code-preview .hljs-attr, .dark .code-preview .hljs-attribute, .dark .code-preview .hljs-variable, .dark .code-preview .hljs-property { color: #fcd34d; }
+.dark .code-preview .hljs-tag, .dark .code-preview .hljs-name, .dark .code-preview .hljs-selector-class { color: #fda4af; }
+.dark .code-preview .hljs-type, .dark .code-preview .hljs-params { color: #67e8f9; }
