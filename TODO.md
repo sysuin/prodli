@@ -25,7 +25,6 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [
 
 ## Recorder improvements
 
-- [ ] Detect "left the call" in languages other than English (only the English "Leave call" button is checked today)
 - [ ] Keep an eye on Meet page changes; the captions reader depends on Meet's page structure (`pnpm test:e2e` covers it against a simulated Meet page)
 - [ ] Transcription option for when captions aren't on (e.g. a speech-to-text service, or on-device Whisper)
 - [ ] Move AI calls to a ProdLi server before public launch (instead of each user pasting their own key)
@@ -62,6 +61,8 @@ From the repo root (see README.md for all commands):
 - `pnpm test:e2e` — builds the extension and drives it in a throwaway headless Chrome (all 7 tabs, Meetings, Files, captions reader, Pomodoro across tabs + background completion, Markdown import/export, backup). Set `CHROME_PATH` if Chrome isn't in the default place.
 
 ## Done
+
+- [x] 2026-11-08 — Meet recorder works in any UI language: "left the call" and auto-captions use Meet's language-independent icon names; more caption-panel languages
 
 - [x] 2026-11-08 — Editor v2: fixed multi-tab overwrites, undo crossing notes, lost last edits on close, silent save failures, no way to remove links; added `/` command menu, checklists, tables, highlight, quotes, code blocks, dividers, smart typography, selection bubble menu, Markdown paste, Ctrl/⌘+K links, auto titles, pin/sort/duplicate, delete with Undo, outline panel, copy as Markdown, print/PDF, save status
 - [x] 2026-11-08 — Multi-tab safe storage for notes, to-dos and habits (merge instead of overwrite); saves report errors; unlimitedStorage
