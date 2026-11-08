@@ -9,7 +9,7 @@
  */
 
 import { execSync } from "child_process";
-import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, createWriteStream, renameSync } from "fs";
+import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, writeFileSync, createWriteStream, renameSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import archiver from "archiver";
@@ -38,6 +38,25 @@ console.log("==> Copying icons/...");
 const iconsDir = resolve(distDir, "icons");
 mkdirSync(iconsDir, { recursive: true });
 cpSync(resolve(root, "extension", "icons"), iconsDir, { recursive: true });
+
+console.log("==> Applying build settings to manifest...");
+{
+  // Optional, from environment variables (never committed):
+  //   PRODLI_GOOGLE_CLIENT_ID  — OAuth client ID ("Chrome extension" type) for Google sign-in
+  //   PRODLI_EXTENSION_KEY     — the Web Store item's public key, so unpacked builds get the same ID
+  const manifestPath = resolve(distDir, "manifest.json");
+  const m = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const clientId = process.env.PRODLI_GOOGLE_CLIENT_ID?.trim();
+  if (clientId) {
+    m.oauth2 = { client_id: clientId, scopes: ["openid", "email", "profile", "https://www.googleapis.com/auth/drive.appdata"] };
+    console.log("    Google sign-in: enabled");
+  } else {
+    console.log("    Google sign-in: not configured (set PRODLI_GOOGLE_CLIENT_ID to enable)");
+  }
+  const key = process.env.PRODLI_EXTENSION_KEY?.trim();
+  if (key) m.key = key;
+  writeFileSync(manifestPath, JSON.stringify(m, null, 2));
+}
 
 console.log("==> Removing website-only files from the extension...");
 // public/ is shared with the web preview; these files are only used by the website.

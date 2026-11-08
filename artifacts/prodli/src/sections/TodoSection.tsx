@@ -16,7 +16,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { storageGet, storageSet } from "../lib/storage";
+import { storageSet } from "../lib/storage";
+import { useSyncedList } from "../lib/syncedList";
 import { generateId } from "../lib/utils";
 import type { Todo } from "../types";
 
@@ -173,19 +174,14 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
 }
 
 export function TodoSection() {
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [dueDate, setDueDate] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
 
-  useEffect(() => {
-    storageGet<Todo[]>("todos", []).then(t => { setTodos(t); setLoaded(true); });
-  }, []);
-
-  const save = (updated: Todo[]) => { setTodos(updated); storageSet("todos", updated); };
+  // Synced across ProdLi tabs: edits in one tab never overwrite another's.
+  const { items: todos, setItems: save, loaded } = useSyncedList<Todo>("todos");
 
   const addTodo = () => {
     if (!input.trim()) return;

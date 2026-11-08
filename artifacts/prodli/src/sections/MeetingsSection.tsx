@@ -94,9 +94,13 @@ function meetingToNoteHtml(m: Meeting): string {
     html += `<h2>Summary</h2><p>${escapeHtml(s.overview)}</p>`;
     html += `<h2>Key points</h2>${list(s.keyPoints)}`;
     html += `<h2>Decisions</h2>${list(s.decisions)}`;
-    html += `<h2>Action items</h2>${list(
-      s.actionItems.map((a) => `${actionItemTitle(a)}${a.dueDate ? ` — due ${a.dueDate}` : ""}`),
-    )}`;
+    html += `<h2>Action items</h2>${
+      s.actionItems.length
+        ? `<ul data-type="taskList">${s.actionItems
+            .map((a) => `<li data-type="taskItem" data-checked="false"><p>${escapeHtml(`${actionItemTitle(a)}${a.dueDate ? ` — due ${a.dueDate}` : ""}`)}</p></li>`)
+            .join("")}</ul>`
+        : "<p>None</p>"
+    }`;
     if (s.openQuestions.length) html += `<h2>Open questions</h2>${list(s.openQuestions)}`;
   } else {
     html += `<h2>Transcript</h2>${m.transcript.map((e) => `<p><strong>${escapeHtml(e.speaker)}:</strong> ${escapeHtml(e.text)}</p>`).join("")}`;

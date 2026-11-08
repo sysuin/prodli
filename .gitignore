@@ -49,6 +49,10 @@ artifacts/prodli/dist-extension/
 prodli-extension.zip
 site-dist/
 
+# Local secrets (Google client ID, extension key)
+.env
+.env.*
+
 # Tool caches
 .cache/
 .local/

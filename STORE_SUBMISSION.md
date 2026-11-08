@@ -71,7 +71,10 @@ PERMISSIONS
 • notifications — alerts you when a Pomodoro session ends or a daily site time limit is reached
 • tabs — reads the active tab's URL (hostname only) to record browsing time per domain; no page content or full URLs are ever stored
 • idle — detects when you step away so the tracker pauses instead of logging inactive time
-• alarms — schedules the daily summary notification and the per-minute tracking heartbeat
+• alarms — schedules the daily summary notification, the per-minute tracking heartbeat, Pomodoro phase endings and the daily Google Drive backup
+• unlimitedStorage — lets notes, meeting transcripts and recordings grow beyond the default browser storage limit, so saving never fails silently
+• identity — optional "Sign in with Google" to back up to the user's own Google Drive app-data folder (only when the user chooses to sign in)
+• Optional (requested only when the user turns a feature on): tabCapture + offscreen + meet.google.com (meeting recorder: captures the Meet tab's audio and reads its captions); scripting + site access (Focus List auto-redirect)
 ```
 
 **Category:** Productivity

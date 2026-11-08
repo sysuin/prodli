@@ -113,25 +113,25 @@ export function HelpModal({ onClose }: HelpModalProps) {
           }}>
             <div style={{ fontWeight: 900, fontSize: 16, textTransform: "uppercase", letterSpacing: "-0.01em" }}>Welcome to ProdLi</div>
             <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4, lineHeight: 1.5 }}>
-              Your new tab is now a distraction-free productivity hub. Editor, To-Dos, Pomodoro, and Habit Tracker — all in one place. All data is stored locally in your browser and never leaves your device.
+              Your new tab is now an all-in-one productivity hub: Editor, To-Dos, Pomodoro, Habits, Time Tracker, Meetings and Files. Data is stored locally in your browser. Optional: sign in with Google (👤) to back up to your own Google Drive.
             </div>
           </div>
 
           {/* Editor */}
           <Section emoji="✍️" title="Editor">
-            <Row label={<Tag>+ button</Tag>} desc="Create a new note. Notes appear in the left sidebar." />
-            <Row label={<Tag>✎</Tag>} desc="Rename a note. Click the pencil icon next to any note title." />
-            <Row label={<Tag>×</Tag>} desc="Delete a note (requires at least 2 notes)." />
-            <Row label={<><Tag>B</Tag><Tag>I</Tag><Tag>U</Tag><Tag>S</Tag></>} desc="Bold, italic, underline, strikethrough." />
-            <Row label={<><Tag>H1</Tag><Tag>H2</Tag><Tag>H3</Tag></>} desc="Heading levels 1, 2, and 3." />
-            <Row label={<><Tag>—</Tag><Tag>{"{}"}</Tag><Tag>{"<>"}</Tag></>} desc="Blockquote, code block, and inline code." />
-            <Row label={<Tag>🔗</Tag>} desc="Insert or edit a hyperlink. Click a link while holding the toolbar open to open it." />
-            <Row label={<Tag>↩ ↪</Tag>} desc="Undo and redo." />
-            <Row label={<Tag>Font picker</Tag>} desc="Choose System, Inter, Space Mono, or Merriweather for the editor body text." />
-            <Row label={<><Tag>⬆</Tag><Tag>⬇</Tag></>} desc="Import a Markdown (.md) file as a new note, or export the current note as Markdown." />
-            <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar and toolbar for distraction-free writing. Press Escape or click ⛶ again to exit." />
-            <Row label={<Tag>Status bar</Tag>} desc="Shows word count, character count, line count, block count, reading time, selected word count, and last auto-save time." />
-            <Row label={<Tag>Search</Tag>} desc="Type in the search box above the note list to filter notes by title and body content. Content matches show an inline excerpt." />
+            <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
+            <Row label={<Tag>Select text</Tag>} desc="A small menu appears over selected text for bold, italic, underline, strikethrough, highlight, code and links." />
+            <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
+            <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
+            <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K adds or edits a link (leave empty to remove). Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
+            <Row label={<Tag>Paste Markdown</Tag>} desc="Pasting Markdown text (headings, lists, checklists, bold, links) turns it into formatting automatically." />
+            <Row label={<Tag>+ / Alt+N</Tag>} desc="New note. Untitled notes are named after their first line until you rename them." />
+            <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
+            <Row label={<Tag>Sort & search</Tag>} desc="Sort by recently edited, newest, or A–Z. Search matches titles and text, with an excerpt." />
+            <Row label={<Tag>☰ Outline</Tag>} desc="Shows the note's headings; click one to jump there." />
+            <Row label={<><Tag>⧉</Tag><Tag>⬆</Tag><Tag>⬇</Tag><Tag>🖨</Tag></>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
+            <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar for distraction-free writing. Press Escape to exit." />
+            <Row label={<Tag>Saving</Tag>} desc="Notes save automatically (the status bar shows Saving… / Saved). Edits in several ProdLi tabs are merged — nothing gets overwritten." />
           </Section>
 
           {/* To-Dos */}
@@ -189,6 +189,13 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>Save to Notes</Tag>} desc="Copies the file into a new Editor note (Markdown becomes formatted text)." />
           </Section>
 
+          {/* Account */}
+          <Section emoji="👤" title="Account & Google Drive backup">
+            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to back up everything to a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
+            <Row label={<Tag>Back up now</Tag>} desc="Saves notes, to-dos, habits, Pomodoro data, time tracking and meeting notes to Drive. Auto-backup runs once a day while signed in. Your Claude API key is never included." />
+            <Row label={<Tag>Restore</Tag>} desc="Replaces this device's data with the Drive backup — use it to move to a new computer." />
+          </Section>
+
           {/* Keyboard Shortcuts */}
           <Section emoji="⌨️" title="Keyboard Shortcuts">
             <div style={{ border: "var(--nb-border)", overflow: "hidden" }}>
@@ -208,7 +215,11 @@ export function HelpModal({ onClose }: HelpModalProps) {
                 <ShortcutRow keys={["Ctrl / ⌘ + Shift + S"]} action="Strikethrough" />
                 <ShortcutRow keys={["Ctrl / ⌘ + Z"]} action="Undo" />
                 <ShortcutRow keys={["Ctrl+Y / ⌘+Shift+Z"]} action="Redo" />
-                <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Insert or edit a link" />
+                <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Insert, edit or remove a link" />
+                <ShortcutRow keys={["Ctrl / ⌘ + Shift + H"]} action="Highlight" />
+                <ShortcutRow keys={["Ctrl / ⌘ + E"]} action="Inline code" />
+                <ShortcutRow keys={["/"]} action="Insert a block (checklist, table, heading…)" />
+                <ShortcutRow keys={["Alt + N"]} action="New note" />
                 <ShortcutRow keys={["Escape"]} action="Exit fullscreen mode" />
               </div>
 

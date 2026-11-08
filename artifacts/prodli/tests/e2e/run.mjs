@@ -7,7 +7,7 @@
 // Needs Google Chrome (or Chromium) 126+ for Extensions.loadUnpacked.
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,6 +134,34 @@ class Page {
   }
   storage(keys) {
     return this.eval(`chrome.storage.local.get(${JSON.stringify(keys)})`);
+  }
+  async type(text) {
+    await this.send("Input.insertText", { text });
+    await sleep(60);
+  }
+  async key(key, { mod = false, shift = false } = {}) {
+    const codes = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, Backspace: 8, Tab: 9 };
+    const modifiers = (mod ? (process.platform === "darwin" ? 4 : 2) : 0) | (shift ? 8 : 0);
+    const vk = codes[key] ?? key.toUpperCase().charCodeAt(0);
+    const code = codes[key] ? key : `Key${key.toUpperCase()}`;
+    const text = key === "Enter" ? "\r" : undefined;
+    await this.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code, windowsVirtualKeyCode: vk, modifiers });
+    if (text && !mod) await this.send("Input.dispatchKeyEvent", { type: "char", key, text, modifiers });
+    await this.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: vk, modifiers });
+    await sleep(80);
+  }
+  async focusEditor(where = "end") {
+    await this.eval(`(() => { const el = document.querySelector(".ProseMirror"); el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(${where === "end" ? "false" : "true"}); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(100);
+  }
+  /** Saves a screenshot when E2E_SHOTS is set to a folder. */
+  async shot(name) {
+    if (!process.env.E2E_SHOTS) return;
+    const { data } = await this.send("Page.captureScreenshot", { format: "png" });
+    writeFileSync(path.join(process.env.E2E_SHOTS, `${name}.png`), Buffer.from(data, "base64"));
+  }
+  editorHtml() {
+    return this.eval(`document.querySelector(".ProseMirror").innerHTML`);
   }
   close() {
     return this.browser.send("Target.closeTarget", { targetId: this.targetId });
@@ -360,13 +388,193 @@ const suites = {
   async editor(b, check) {
     const p = await b.openPage();
     await p.goto("editor");
+    const notesNow = async () => (await p.storage(["notes"])).notes ?? [];
+    const waitSaved = () => sleep(900);
+
+    // Dark-mode screenshot of the welcome note.
+    if (process.env.E2E_SHOTS) {
+      await p.eval(`document.documentElement.classList.add("dark")`);
+      await sleep(200);
+      await p.shot("editor-dark");
+      await p.eval(`document.documentElement.classList.remove("dark")`);
+    }
+    // Welcome note on first run.
+    check("Editor: welcome note with checklist on first run", (await p.editorHtml()).includes('data-type="taskList"'));
+
+    // New note: title follows the first line; content saves to the right note.
+    await p.click("+");
+    await sleep(300);
+    await p.type("Shopping list");
+    await p.key("Enter");
+    await p.type("Milk and eggs");
+    await waitSaved();
+    let notes = await notesNow();
+    const a = notes.find((n) => n.content.includes("Milk and eggs"));
+    check("Editor: typing saves to the new note", !!a);
+    check("Editor: untitled notes take their first line as title", a?.title === "Shopping list", a?.title);
+
+    // Second note, then switch back: each keeps its own content.
+    await p.click("+");
+    await sleep(300);
+    await p.type("Second note body");
+    await waitSaved();
+    notes = await notesNow();
+    const b2 = notes.find((n) => n.content.includes("Second note body"));
+    check("Editor: second note saved separately", !!b2 && b2.id !== a?.id && !b2.content.includes("Milk"));
+
+    // Undo right after switching must not pull the other note's text in.
+    await p.eval(`document.querySelector('[data-note-id="${a.id}"]').click()`);
+    await sleep(400);
+    await p.focusEditor();
+    await p.key("z", { mod: true });
+    await p.key("z", { mod: true });
+    await waitSaved();
+    const html = await p.editorHtml();
+    notes = await notesNow();
+    check("Editor: undo never crosses notes", html.includes("Milk and eggs") && !html.includes("Second note body") && notes.find((n) => n.id === a.id)?.content.includes("Milk and eggs"));
+
+    // Slash menu → checklist, table.
+    await p.focusEditor();
+    await p.key("Enter");
+    await p.type("/check");
+    await sleep(200);
+    const menuOpen = await p.eval(`!!document.querySelector("[data-slash-menu]")`);
+    await p.key("Enter");
+    await p.type("Buy bread");
+    await sleep(200);
+    check("Editor: “/” menu inserts a checklist", menuOpen && (await p.editorHtml()).includes('data-type="taskList"'));
+    await p.key("Enter");
+    await p.key("Enter");
+    await p.type("/table");
+    await sleep(200);
+    await p.shot("editor-slash-menu");
+    await p.key("Enter");
+    await sleep(200);
+    check("Editor: “/” menu inserts a table", (await p.editorHtml()).includes("<table"));
+    check("Editor: table controls appear inside a table", (await p.lowerText()).includes("+ row"));
+
+    // Markdown paste becomes formatting.
+    await p.focusEditor();
+    await p.eval(`(() => { const dt = new DataTransfer(); dt.setData("text/plain", ["## Pasted heading", "", "- [x] done item", "- [ ] open item", "", "**bold** text"].join(String.fromCharCode(10))); document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); })()`);
+    await sleep(300);
+    const pasted = await p.editorHtml();
+    await p.shot("editor-content");
+    check("Editor: pasted Markdown becomes headings, checklists and bold", pasted.includes("<h2>Pasted heading</h2>") && pasted.includes('data-checked="true"') && pasted.includes("<strong>bold</strong>"));
+    await waitSaved();
+
+    // Pin, delete with undo.
+    await p.eval(`document.querySelector('[data-note-id="${b2.id}"] button[aria-label^="Actions"]').click()`);
+    await p.click("Pin to top");
+    await sleep(400);
+    notes = await notesNow();
+    check("Editor: pin a note", notes.find((n) => n.id === b2.id)?.pinned === true);
+    const firstListed = await p.eval(`document.querySelector("[data-note-id]").dataset.noteId`);
+    check("Editor: pinned notes are listed first", firstListed === b2.id);
+    await p.eval(`document.querySelector('[data-note-id="${b2.id}"] button[aria-label^="Actions"]').click()`);
+    await p.click("Delete");
+    await sleep(400);
+    notes = await notesNow();
+    const deletedOk = !notes.some((n) => n.id === b2.id);
+    await p.click("Undo");
+    await sleep(500);
+    notes = await notesNow();
+    check("Editor: delete with Undo", deletedOk && notes.some((n) => n.id === b2.id && n.content.includes("Second note body")));
+
+    // Two tabs: edits in each tab are kept (no overwriting).
+    const q = await b.openPage();
+    await sleep(800);
+    await q.click("+");
+    await sleep(300);
+    await q.type("Written in tab two");
+    await sleep(900);
+    await p.eval(`document.querySelector('[data-note-id="${a.id}"]').click()`);
+    await sleep(300);
+    await p.focusEditor();
+    await p.type(" plus butter");
+    await sleep(1200);
+    notes = await notesNow();
+    check("Editor: two tabs — both edits are kept", notes.some((n) => n.content.includes("Written in tab two")) && notes.find((n) => n.id === a.id)?.content.includes("plus butter"));
+    check("Editor: other tab shows the new note live", (await q.eval(`[...document.querySelectorAll("[data-note-id]")].length`)) === notes.length);
+    await q.close();
+
+    // Import / export Markdown (checklists and tables survive).
     await p.setFile('input[accept^=".md"]', "sample.md");
     await sleep(500);
-    const { notes = [], activeNoteId } = await p.storage(["notes", "activeNoteId"]);
-    check("Editor: import Markdown as a new note", notes[0]?.title === "sample" && notes[0].content.includes("<h1>Project Plan</h1>") && activeNoteId === notes[0].id && !/<script/i.test(notes[0].content));
+    notes = await notesNow();
+    const imported = notes.find((n) => n.title === "sample");
+    check("Editor: import Markdown keeps checklist and table", !!imported && imported.content.includes("<h1>Project Plan</h1>") && imported.content.includes('data-type="taskList"') && imported.content.includes("<table") && !/<script/i.test(imported.content));
+    await sleep(300);
     await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
     const md = await waitForDownload(b, "sample");
-    check("Editor: export note as Markdown", md.startsWith("# Project Plan") && md.includes("**bold**") && md.includes("[safe link](https://example.com)"), md.slice(0, 80).replace(/\n/g, "⏎"));
+    check("Editor: export note as Markdown", md.startsWith("# Project Plan") && md.includes("**bold**") && md.includes("[safe link](https://example.com)") && md.includes("- [x] Write spec") && /\|\s*Name\s*\|\s*Role\s*\|/.test(md), md.slice(0, 160).replace(/\n/g, "⏎"));
+    await p.close();
+  },
+
+  async todosSync(b, check) {
+    const a = await b.openPage();
+    await a.goto("todos");
+    const c = await b.openPage();
+    const add = async (page, title) => {
+      await page.eval(`(() => { const i = document.querySelector('input[placeholder^="Add a new task"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(title)}); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await sleep(80);
+      await page.eval(`document.querySelector('input[placeholder^="Add a new task"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+      await sleep(600);
+    };
+    await add(a, "Task from tab A");
+    await add(c, "Task from tab B");
+    const { todos = [] } = await a.storage(["todos"]);
+    check("To-Dos: tasks added in two tabs are both kept", todos.some((t) => t.title === "Task from tab A") && todos.some((t) => t.title === "Task from tab B"));
+    check("To-Dos: the other tab updates live", (await a.text()).includes("Task from tab B"));
+    await a.close();
+    await c.close();
+  },
+
+  async account(b, check) {
+    const p = await b.openPage();
+    await p.goto("editor");
+    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.getAttribute("aria-label") === "Sign in").click()`);
+    await sleep(400);
+    check("Account: explains when Google sign-in isn't configured", (await p.text()).includes("isn’t set up in this copy"));
+    await p.eval(`document.querySelector('[aria-label="Close"]').click()`);
+    await sleep(200);
+
+    // Simulate a configured build + Google, then sign in, back up and sign out.
+    await p.eval(`(() => {
+      const realFetch = window.fetch;
+      window.__drive = null;
+      chrome.runtime.getManifest = () => ({ oauth2: { client_id: "e2e.apps.googleusercontent.com" } });
+      chrome.identity.getAuthToken = async () => ({ token: "e2e-token" });
+      chrome.identity.removeCachedAuthToken = async () => {};
+      chrome.identity.clearAllCachedAuthTokens = async () => {};
+      window.fetch = async (url, init = {}) => {
+        url = String(url);
+        if (url.includes("oauth2/v3/userinfo")) return Response.json({ sub: "1", name: "Test User", email: "test@example.com", picture: null });
+        if (url.includes("/upload/drive/v3/files")) { window.__drive = init.body; return Response.json({ id: "f1" }); }
+        if (url.includes("/drive/v3/files?")) return Response.json({ files: window.__drive ? [{ id: "f1", modifiedTime: new Date().toISOString(), size: "100" }] : [] });
+        if (url.includes("oauth2.googleapis.com/revoke")) return new Response("");
+        return realFetch(url, init);
+      };
+      return true;
+    })()`);
+    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.getAttribute("aria-label") === "Sign in").click()`);
+    await sleep(300);
+    await p.click("Sign in with Google", { exact: false });
+    await sleep(700);
+    let t = await p.text();
+    await p.shot("account-signed-in");
+    check("Account: sign in shows the Google profile", t.includes("Test User") && t.includes("test@example.com"));
+    check("Account: avatar appears in the top bar", await p.eval(`!!document.querySelector('nav button[aria-label="Account: test@example.com"]')`));
+    await p.click("Back up now");
+    await sleep(800);
+    t = await p.text();
+    const uploaded = await p.eval("window.__drive || ''");
+    check("Account: back up to Google Drive (private app folder, no API key)", t.includes("Backed up to Google Drive") && uploaded.includes('"version":"1.1"') && uploaded.includes("appDataFolder") && !uploaded.includes("claudeApiKey"), uploaded.slice(0, 200));
+    await sleep(500);
+    check("Account: shows the latest Drive copy", !(await p.text()).includes("Latest copy in Drive: none yet"));
+    await p.click("Sign out");
+    await sleep(500);
+    const { googleAccount } = await p.storage(["googleAccount"]);
+    check("Account: sign out forgets the account", !googleAccount && (await p.text()).includes("Signed out"));
     await p.close();
   },
 
@@ -407,7 +615,7 @@ try {
   const errors = browser.jsErrors();
   if (errors.length) {
     failures++;
-    console.log(`✗ ${errors.length} JavaScript error(s):`, errors.map((e) => JSON.stringify(e.params).slice(0, 300)).join("\n"));
+    console.log(`✗ ${errors.length} JavaScript error(s):`, errors.map((e) => e.params.exceptionDetails?.exception?.description?.slice(0, 600) ?? JSON.stringify(e.params).slice(0, 400)).join("\n"));
   }
 } finally {
   browser.close();

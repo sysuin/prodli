@@ -4,6 +4,7 @@
 
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
+import { rowsToTableHtml, toEditorHtml } from "./editorHtml";
 
 export type PreviewKind = "markdown" | "json" | "jsonl" | "csv" | "text";
 
@@ -324,7 +325,11 @@ export function escapeHtml(s: string): string {
 export function fileToNoteHtml(file: OpenedFile): string {
   switch (file.kind) {
     case "markdown":
-      return markdownToSafeHtml(file.text);
+      return toEditorHtml(markdownToSafeHtml(file.text));
+    case "csv": {
+      const rows = parseDelimited(file.text, detectDelimiter(file.text, file.ext)).filter((r) => !(r.length === 1 && r[0] === ""));
+      return rowsToTableHtml(rows);
+    }
     case "json": {
       const parsed = parseJson(file.text);
       const body = parsed.ok ? JSON.stringify(parsed.value, null, 2) : file.text;

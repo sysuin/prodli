@@ -4,6 +4,9 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [
 
 ## Now — needs you
 
+- [ ] **Turn on Google sign-in** (free, ~10 min): create the Google Cloud OAuth client and add `PRODLI_GOOGLE_CLIENT_ID` — follow [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md). Then try 👤 → Sign in → Back up now → Restore on a second computer.
+- [ ] **Try the new Editor** (v1.3.0): `/` commands, checklists, tables, selection menu, Markdown paste, pin/duplicate/delete-with-undo, outline, print — and editing the same notes in two tabs
+
 - [ ] **Test the recorder on a real Google Meet call**: load `artifacts/prodli/dist-extension` unpacked (`chrome://extensions` → Developer mode → Load unpacked), record a short call, and check:
   - [ ] Transcript is captured from Meet captions (speaker names correct)
   - [ ] Audio recording plays back (with and without microphone)
@@ -33,13 +36,12 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [
 
 - [ ] Keep a "recent files" list (needs the File System Access API to reopen files)
 - [ ] Syntax highlighting for code files (`.js`, `.py`, `.yaml`, …)
-- [ ] Save CSV files to Notes as real tables (the Editor needs a table extension first; Markdown tables are also lost when a .md is saved as a note)
 - [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission, and free extensions already do it)
 
 ## Foundation (before accounts and sync)
 
-- [ ] **Change how data is saved**: give every note, to-do and habit its own ID, a "last changed" time and a "deleted" flag, so syncing devices doesn't overwrite changes (today each tool saves its whole list at once)
-- [ ] Add tests for the Time Tracker and Habits (only smoke-tested today)
+- [ ] **Cross-device sync** (beyond Drive backup/restore): the per-item merge from `syncedList.ts` already handles tabs; reuse it to merge a Drive copy instead of replacing. Needs deletion markers so deletes sync too.
+- [ ] Add tests for the Time Tracker (incl. background-worker restarts) and Habits (only smoke-tested today)
 - [ ] Split `TimeTrackerSection.tsx` (1,767 lines) into smaller files
 - [ ] Move inline styles into shared UI components, so screens can be reused on web, desktop and mobile
 - [ ] Optional: publish to the Chrome Web Store from CI (the Web Store API is free)
@@ -60,6 +62,13 @@ From the repo root (see README.md for all commands):
 - `pnpm test:e2e` — builds the extension and drives it in a throwaway headless Chrome (all 7 tabs, Meetings, Files, captions reader, Pomodoro across tabs + background completion, Markdown import/export, backup). Set `CHROME_PATH` if Chrome isn't in the default place.
 
 ## Done
+
+- [x] 2026-11-08 — Editor v2: fixed multi-tab overwrites, undo crossing notes, lost last edits on close, silent save failures, no way to remove links; added `/` command menu, checklists, tables, highlight, quotes, code blocks, dividers, smart typography, selection bubble menu, Markdown paste, Ctrl/⌘+K links, auto titles, pin/sort/duplicate, delete with Undo, outline panel, copy as Markdown, print/PDF, save status
+- [x] 2026-11-08 — Multi-tab safe storage for notes, to-dos and habits (merge instead of overwrite); saves report errors; unlimitedStorage
+- [x] 2026-11-08 — Time Tracker keeps tracking after Chrome restarts the background worker (previously stopped until the next tab switch)
+- [x] 2026-11-08 — Sign in with Google + daily backup / restore via the user's own Google Drive app-data folder ($0, no server); account button in the top bar
+- [x] 2026-11-08 — Files → Save to Notes keeps checklists and turns CSV into tables; meeting action items become a checklist in notes
+- [x] 2026-11-08 — Website + privacy policy updated (7 tools, Meetings, Google sign-in, Limited Use statement); onboarding and help updated
 
 - [x] 2026-11-08 — Meeting recorder for Google Meet (no bot, Meet captions, Claude Haiku 5.5 notes, action items → To-Dos)
 - [x] 2026-11-08 — Files previewer: Markdown, JSON / JSON Lines (tree + search), CSV / TSV tables, text and code; drag-and-drop anywhere; Save to Notes

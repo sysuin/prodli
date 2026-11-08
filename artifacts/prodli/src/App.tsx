@@ -5,6 +5,7 @@ import { usePomodoroTimer } from "./lib/usePomodoroTimer";
 import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
+import { AccountButton, AccountModal } from "./components/AccountModal";
 
 const EditorSection = lazy(() => import("./sections/EditorSection").then(m => ({ default: m.EditorSection })));
 const TodoSection = lazy(() => import("./sections/TodoSection").then(m => ({ default: m.TodoSection })));
@@ -40,9 +41,11 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [draggingFile, setDraggingFile] = useState(false);
   const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
+  const closeAccount = useCallback(() => setShowAccount(false), []);
 
   const pomodoroTimer = usePomodoroTimer();
 
@@ -230,9 +233,11 @@ export default function App() {
         </div>
 
         <div style={{ display: "flex", alignItems: "stretch" }}>
+          <AccountButton onClick={() => setShowAccount(true)} />
           <button
             onClick={() => setShowBackup(true)}
             title="Backup & Restore"
+            aria-label="Backup and restore"
             style={{
               border: "none",
               borderLeft: "2px solid #222",
@@ -255,6 +260,7 @@ export default function App() {
           <button
             onClick={() => setShowHelp(true)}
             title="Help & shortcuts"
+            aria-label="Help and keyboard shortcuts"
             style={{
               border: "none",
               borderLeft: "2px solid #222",
@@ -277,6 +283,7 @@ export default function App() {
           <button
             onClick={toggleTheme}
             title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             style={{
               border: "none",
               borderLeft: "2px solid #222",
@@ -323,6 +330,7 @@ export default function App() {
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {showBackup && <BackupModal onClose={() => setShowBackup(false)} />}
+      {showAccount && <AccountModal onClose={closeAccount} />}
     </div>
   );
 }

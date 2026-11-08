@@ -1,5 +1,5 @@
 import { storageGet, storageSet } from "./storage";
-import { DEFAULT_POMODORO_SETTINGS } from "./usePomodoroTimer";
+import { DEFAULT_POMODORO_SETTINGS } from "./pomodoroCore";
 import { deleteMeeting, listMeetings, putMeeting } from "../recorder/db";
 import type { Meeting } from "../recorder/types";
 

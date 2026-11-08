@@ -4,11 +4,14 @@
 import type { TrackerSettings, FocusRule } from "./types";
 import { registerRecorder } from "./recorder/controller";
 import { registerPomodoro } from "./lib/pomodoroBackground";
+import { registerDriveBackup } from "./lib/driveBackground";
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
 // Pomodoro: finishes phases and notifies even when no ProdLi tab is open.
 registerPomodoro();
+// Google Drive: daily backup while signed in (no-op otherwise).
+registerDriveBackup();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
@@ -18,9 +21,37 @@ const DEFAULT_SETTINGS: TrackerSettings = {
   excludedDomains: [],
 };
 
-// ── In-memory session state (reset when SW restarts — that's OK) ──────────────
+// ── Session state ─────────────────────────────────────────────────────────────
+// Chrome stops this service worker after ~30 s of inactivity, wiping memory.
+// The current session is mirrored to chrome.storage.session so tracking
+// continues after a restart (otherwise a long stay on one site stopped
+// counting until the next tab switch).
 let currentDomain: string | null = null;
 let sessionStartMs: number | null = null;
+let restored = false;
+const SESSION_KEY = "tt_session";
+
+async function restoreSession(): Promise<void> {
+  if (restored) return;
+  restored = true;
+  if (currentDomain) return;
+  try {
+    const r = await chrome.storage.session.get(SESSION_KEY);
+    const saved = r[SESSION_KEY] as { domain: string; start: number } | undefined;
+    if (saved?.domain && saved.start) {
+      currentDomain = saved.domain;
+      sessionStartMs = saved.start;
+    }
+  } catch {
+    // storage.session unavailable — start fresh
+  }
+}
+
+function persistSession(): void {
+  const value = currentDomain && sessionStartMs ? { domain: currentDomain, start: sessionStartMs } : null;
+  const p = value ? chrome.storage.session.set({ [SESSION_KEY]: value }) : chrome.storage.session.remove(SESSION_KEY);
+  p.catch(() => {});
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -69,9 +100,11 @@ async function getActiveTabUrl(): Promise<string | undefined> {
 function startSession(domain: string): void {
   currentDomain = domain;
   sessionStartMs = Date.now();
+  persistSession();
 }
 
 async function flushAndEnd(endMs: number = Date.now()): Promise<string | null> {
+  await restoreSession();
   if (!currentDomain || !sessionStartMs) return null;
   const flushedDomain = currentDomain;
   const elapsed = Math.round((endMs - sessionStartMs) / 1000);
@@ -85,10 +118,12 @@ async function flushAndEnd(endMs: number = Date.now()): Promise<string | null> {
   }
   currentDomain = null;
   sessionStartMs = null;
+  persistSession();
   return flushedDomain;
 }
 
 async function refreshSession(isIdle: boolean): Promise<void> {
+  await restoreSession();
   const url = await getActiveTabUrl();
   const domain = isTrackable(url) ? extractDomain(url) : null;
   if (!domain || isIdle) {
@@ -174,6 +209,7 @@ async function checkFocusLimit(domain: string): Promise<void> {
 // ── Chrome event listeners ────────────────────────────────────────────────────
 
 chrome.tabs.onActivated.addListener(async () => {
+  await restoreSession();
   const url = await getActiveTabUrl();
   const domain = isTrackable(url) ? extractDomain(url) : null;
   if (domain !== currentDomain) {
@@ -190,6 +226,7 @@ chrome.tabs.onActivated.addListener(async () => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (!changeInfo.url) return;
+  await restoreSession();
   try {
     const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (active?.id !== tabId) return;
@@ -231,6 +268,14 @@ chrome.idle.onStateChanged.addListener(async (state) => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "tt_heartbeat") {
+    await restoreSession();
+    if (!currentDomain || !sessionStartMs) {
+      // No session (e.g. the worker restarted): pick up the active tab again.
+      const settings = await getSettings();
+      const state = await chrome.idle.queryState(settings.idleThreshold);
+      await refreshSession(state !== "active");
+      return;
+    }
     if (currentDomain && sessionStartMs) {
       const settings = await getSettings();
       const state = await chrome.idle.queryState(settings.idleThreshold);

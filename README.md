@@ -1,6 +1,6 @@
 # ProdLi
 
-All-in-one productivity workspace that lives in your Chrome new tab: notes, to-dos, Pomodoro, habits, time tracking, AI meeting notes for Google Meet, and a file previewer.
+All-in-one productivity workspace that lives in your Chrome new tab: a rich notes editor (checklists, tables, `/` commands), to-dos, Pomodoro, habits, time tracking, AI meeting notes for Google Meet, a file previewer, and optional Google sign-in with backup to your own Google Drive.
 
 - Chrome Web Store: https://chromewebstore.google.com/detail/prodli/gjgknflakhglanjaeenkmciohimnbkdp
 - Website: https://prodli.com
@@ -57,8 +57,9 @@ Everything runs on free tiers. See [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-R
 | Website + live preview | Cloudflare Pages | Free |
 | Extension | Chrome Web Store | One-time $5 (already paid) |
 | AI meeting notes | Each user's own Claude API key (Claude Haiku 5.5) | $0 to you |
+| Sign in with Google + backup | Chrome identity API + the user's own Google Drive (app-data folder) | Free |
 | Domain | prodli.com | ~$10–15/year (only unavoidable cost) |
 
 ## Privacy model
 
-All data stays in the user's browser (`chrome.storage.local` + IndexedDB). The only network calls are to Anthropic's API for meeting summaries, made with the user's own key, and only when they've added one.
+All data stays in the user's browser (`chrome.storage.local` + IndexedDB). The only network calls are optional: Anthropic's API for meeting summaries (with the user's own key), and Google sign-in / Drive backup to the user's own Drive. Setup for Google sign-in: [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md).

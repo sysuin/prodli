@@ -40,42 +40,60 @@ export function Privacy() {
             Privacy Policy
           </h1>
           <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 40 }}>
-            Last updated: June 2026
+            Last updated: November 2026
           </p>
 
           {[
             {
               title: "Overview",
-              body: `ProdLi is a Chrome extension that replaces your new tab page with a local productivity workspace. All data created and collected by ProdLi is stored exclusively on your device using chrome.storage.local. No data is ever transmitted to any external server, sold, shared, or used for advertising.`,
+              body: `ProdLi is a Chrome extension that replaces your new tab page with a productivity workspace. Your data is stored on your device (chrome.storage.local and the browser's IndexedDB). ProdLi has no servers of its own: it does not collect, sell, share or use your data for advertising. Data leaves your device only for the optional features described below, and only when you turn them on.`,
             },
             {
-              title: "What data is stored",
-              body: `ProdLi stores the following data locally in your browser:
-
-• Notes — content and metadata from the rich-text editor
-• Tasks — to-do items, priorities, due dates, and subtasks
-• Habit records — daily check-in history and streak counts
-• Pomodoro settings — timer durations and session preferences
-• Time-tracking data — the hostname (domain name) of websites you visit and the number of seconds spent on each, recorded per day under keys like tt_YYYY-MM-DD
-• Tracker settings — idle threshold, notification time, Focus List rules, and blocked domains list
-
-None of this data leaves your device.`,
+              title: "What data is stored on your device",
+              body: `• Notes — content and metadata from the editor
+• Tasks — to-dos, priorities, due dates and subtasks
+• Habit records — daily check-ins and streaks
+• Pomodoro — settings, the running timer and completed sessions
+• Time-tracking data — the hostname (domain name) of websites you visit and the seconds spent on each, per day
+• Tracker settings — idle threshold, notification time, Focus List rules and excluded domains
+• Meetings (if you use them) — transcripts, AI summaries and optional audio recordings
+• Settings — theme, fonts, your Claude API key (if you add one) and Google account name/email/picture (if you sign in)`,
             },
             {
               title: "Browsing history",
-              body: `The Time Tracker feature uses the browser's tabs permission to read the hostname of your currently active tab. Only the hostname (e.g. "github.com") is ever read or stored — the full URL, page title, query parameters, and page content are never accessed. This data is stored locally and never transmitted.`,
+              body: `The Time Tracker uses the tabs permission to read the hostname of your active tab. Only the hostname (e.g. "github.com") is read or stored — never the full URL, page title or page content. It stays on your device (and in your Google Drive backup if you turn that on).`,
             },
             {
-              title: "Optional permissions",
-              body: `If you choose to enable the auto-redirect feature in the Focus List, ProdLi will request the scripting and <all_urls> permissions. These are used solely to navigate the active tab away from a site when its daily time limit is reached. This feature is entirely opt-in and the permissions can be revoked at any time from Chrome's extension settings.`,
+              title: "Meetings (optional)",
+              body: `When you turn on the meeting recorder and start a recording on a Google Meet tab, ProdLi:
+• records the tab's audio (and your microphone, if you allow it) and stores the recording on your device only;
+• reads Google Meet's live captions on that tab to build a transcript, stored on your device;
+• if you have added your own Claude API key, sends the transcript to Anthropic's API to generate a summary and action items. This request is made directly from your browser with your key and is subject to Anthropic's privacy policy. ProdLi never sees your key or transcripts.
+
+No bot joins the call. You are responsible for informing participants and obtaining consent where the law requires it.`,
             },
             {
-              title: "No external services",
-              body: `ProdLi does not use analytics, crash reporting, remote logging, or any third-party services. The extension operates entirely offline. All JavaScript, CSS, and font files are bundled into the extension package — no resources are loaded from external CDNs or servers at runtime.`,
+              title: "Google sign-in and Google Drive backup (optional)",
+              body: `If you choose "Sign in with Google", ProdLi uses Chrome's identity API to get your name, email address and profile picture (shown in the extension) and permission to use ProdLi's own hidden app-data folder in your Google Drive (scope drive.appdata). ProdLi cannot see any other files in your Drive.
+
+Backups contain your notes, tasks, habits, Pomodoro data, time-tracking data and meeting notes (not audio, and never your Claude API key). They are sent directly from your browser to your own Google Drive; ProdLi has no copy. You can restore, sign out (which revokes access) or delete the backup from Google Drive settings → Manage apps at any time.
+
+ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.`,
+            },
+            {
+              title: "Permissions",
+              body: `• storage, unlimitedStorage — save your data on your device
+• tabs, idle, alarms, notifications — time tracking, Pomodoro and reminders
+• identity — optional Google sign-in
+• Optional, requested only when you turn a feature on: tabCapture, offscreen and access to meet.google.com (meeting recorder); scripting and access to sites (Focus List auto-redirect). You can revoke these at any time in Chrome's extension settings.`,
+            },
+            {
+              title: "No analytics or tracking",
+              body: `ProdLi does not use analytics, crash reporting, remote logging or advertising SDKs. All code, styles and fonts are bundled in the extension; nothing is loaded from external servers at runtime except the optional Anthropic and Google requests described above (and Google profile pictures when signed in).`,
             },
             {
               title: "Data retention and deletion",
-              body: `Your data persists in chrome.storage.local until you clear it. You can delete all time-tracking data at any time from the Time Tracker → Settings → Danger Zone section within the extension. Uninstalling the extension will remove all stored data from your browser.`,
+              body: `Data stays on your device until you delete it. You can delete notes, tasks, habits and meetings in the extension, and all time-tracking data from Time Tracker → Settings. Uninstalling the extension removes all data stored in your browser. Google Drive backups can be deleted from Google Drive settings → Manage apps → ProdLi → Delete hidden app data.`,
             },
             {
               title: "Children's privacy",
