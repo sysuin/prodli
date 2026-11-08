@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 import { storageGet, storageSet } from "../lib/storage";
 import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
-import { ACCENT, COLORS, DEFAULT_SETTINGS, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
+import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
 export function TimeTrackerSection() {
@@ -278,7 +278,7 @@ export function TimeTrackerSection() {
           <button
             onClick={exportAllCSV}
             style={{
-              background: ACCENT, color: "#fff", border: `2px solid ${ACCENT}`,
+              background: ACCENT, color: ON_ACCENT, border: `2px solid ${ACCENT}`,
               fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
               padding: "6px 14px", cursor: "pointer", fontFamily: "inherit", boxShadow: "3px 3px 0 #000",
             }}
@@ -487,7 +487,7 @@ export function TimeTrackerSection() {
 
           {settingsDirty && (
             <button onClick={() => saveSettings(settings)} style={{
-              background: ACCENT, color: "#fff", border: `2px solid ${ACCENT}`,
+              background: ACCENT, color: ON_ACCENT, border: `2px solid ${ACCENT}`,
               fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
               padding: "8px 18px", cursor: "pointer", fontFamily: "inherit",
               boxShadow: "3px 3px 0 #000", marginBottom: 24,
@@ -530,7 +530,7 @@ export function TimeTrackerSection() {
                 onClick={addExcludedDomain}
                 style={{
                   background: ACCENT,
-                  color: "#fff",
+                  color: ON_ACCENT,
                   border: `2px solid ${ACCENT}`,
                   fontWeight: 800,
                   fontSize: 11,
@@ -719,7 +719,7 @@ export function TimeTrackerSection() {
                     onClick={() => requestRedirectPermission()}
                     style={{
                       background: ACCENT,
-                      color: "#fff",
+                      color: ON_ACCENT,
                       border: `2px solid ${ACCENT}`,
                       fontWeight: 800,
                       fontSize: 11,
@@ -787,7 +787,7 @@ export function TimeTrackerSection() {
                 onClick={addFocusRule}
                 style={{
                   background: ACCENT,
-                  color: "#fff",
+                  color: ON_ACCENT,
                   border: `2px solid ${ACCENT}`,
                   fontWeight: 800,
                   fontSize: 11,

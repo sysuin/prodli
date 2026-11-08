@@ -38,7 +38,9 @@
   --secondary: 200 100% 60%;
   --secondary-foreground: 0 0% 0%;
   --muted: 36 35% 82%;
-  --muted-foreground: 28 10% 38%;
+  --muted-foreground: 28 12% 30%;
+  --tracker-accent: #6D28D9;
+  --tracker-on-accent: #ffffff;
   --accent: 330 100% 60%;
   --accent-foreground: 0 0% 0%;
   --destructive: 0 100% 55%;
@@ -72,7 +74,9 @@
   --secondary: 200 100% 60%;
   --secondary-foreground: 0 0% 0%;
   --muted: 222 14% 18%;
-  --muted-foreground: 215 10% 58%;
+  --muted-foreground: 215 12% 66%;
+  --tracker-accent: #A78BFA;
+  --tracker-on-accent: #111111;
   --accent: 330 100% 60%;
   --accent-foreground: 0 0% 0%;
   --destructive: 0 100% 55%;
@@ -416,7 +420,7 @@
 .dark .tiptap ul[data-type="taskList"] li > label input { accent-color: #FFD700; }
 .tiptap ul[data-type="taskList"] li > div { flex: 1 1 auto; min-width: 0; }
 .tiptap ul[data-type="taskList"] li > div > p { margin: 0; }
-.tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.55; }
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.72; }
 
 /* Tables */
 .tiptap .tableWrapper { overflow-x: auto; margin: 14px 0; }
@@ -478,3 +482,19 @@
   }
   .printing-note .editor-scroll { padding: 0 !important; }
 }
+
+/* Keyboard focus: always visible, on-brand */
+:focus-visible {
+  outline: 3px solid #FFD700;
+  outline-offset: 2px;
+}
+.dark :focus-visible { outline-color: #FFD700; }
+nav :focus-visible { outline-offset: -3px; }
+.ProseMirror:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Dark mode: inline code and code blocks keep readable contrast */
+.dark .tiptap code { background: #0d0f14; color: #FFD700; }
+.dark .tiptap pre { background: #0d0f14; color: #FFD700; }

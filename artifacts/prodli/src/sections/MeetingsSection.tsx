@@ -534,7 +534,7 @@ export function MeetingsSection() {
     <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
-        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "hsl(var(--foreground))", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
           AI notes · Google Meet
         </span>
       </div>

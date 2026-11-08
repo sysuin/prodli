@@ -669,6 +669,46 @@ const suites = {
     await p.close();
   },
 
+  async a11y(b, check) {
+    // Automated accessibility audit (axe-core, WCAG 2 A/AA) of every tab, light and dark.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("editor");
+    const report = [];
+    for (const theme of ["light", "dark"]) {
+      for (const section of ["editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
+        await p.eval(`chrome.storage.local.set({ lastSection: "${section}", theme: "${theme}" })`);
+        await p.send("Page.reload", {});
+        await sleep(1500);
+        await p.eval(axeSource + ";true");
+        const violations = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => ({ id: v.id, impact: v.impact, count: v.nodes.length, sample: v.nodes.slice(0, 4).map(n => n.html.slice(0, 90) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + " = " + n.any[0].data.contrastRatio + "]" : "")).join(" | ") })))`);
+        for (const v of violations) report.push(`${theme}/${section}: ${v.id} (${v.impact}, ${v.count}) e.g. ${v.sample}`);
+        check(`A11y (${theme}): ${section} has no serious accessibility problems`, violations.length === 0, violations.map((v) => `${v.id}×${v.count}`).join(", "));
+      }
+    }
+    // Pop-ups: Help, Backup, Account, Welcome.
+    await p.eval(`chrome.storage.local.set({ lastSection: "editor", theme: "light" })`);
+    for (const [name, open] of [
+      ["help", `document.querySelector('button[aria-label="Help and keyboard shortcuts"]').click()`],
+      ["backup", `document.querySelector('button[aria-label="Backup and restore"]').click()`],
+      ["account", `document.querySelector('nav button[aria-label="Sign in"]').click()`],
+      ["welcome", `chrome.storage.local.set({ hasSeenOnboarding: false }).then(() => location.reload())`],
+    ]) {
+      await p.send("Page.reload", {});
+      await sleep(1300);
+      await p.eval(open);
+      await sleep(name === "welcome" ? 1600 : 500);
+      await p.eval(axeSource + ";true");
+      const violations = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => ({ id: v.id, count: v.nodes.length, sample: v.nodes.slice(0, 3).map(n => n.html.slice(0, 90) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + " = " + n.any[0].data.contrastRatio + "]" : "")).join(" | ") })))`);
+      const isDialog = await p.eval(`!!document.querySelector('[role="dialog"][aria-modal="true"]')`);
+      for (const v of violations) report.push(`popup/${name}: ${v.id} (${v.count}) e.g. ${v.sample}`);
+      check(`A11y: ${name} pop-up is an accessible dialog with no serious problems`, violations.length === 0 && isDialog, `${isDialog ? "" : "not a dialog; "}${violations.map((v) => `${v.id}×${v.count}`).join(", ")}`);
+      await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
+    }
+    if (process.env.A11Y_REPORT) console.log(report.join("\n"));
+    await p.close();
+  },
+
   async backup(b, check) {
     const p = await b.openPage();
     await p.goto("editor");

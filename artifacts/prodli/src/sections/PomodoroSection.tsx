@@ -273,7 +273,7 @@ export function PomodoroSection({
             <div style={{ borderTop: "var(--nb-border)", padding: "8px 16px" }}>
               <button
                 onClick={() => { setSessions([]); storageSet("pomodoroSessions", []); }}
-                style={{ border: "1px solid #ff4444", background: "#ff4444", color: "white", padding: "4px 12px", fontWeight: 700, cursor: "pointer", fontSize: 10, textTransform: "uppercase", fontFamily: "inherit" }}
+                style={{ border: "1px solid #C62828", background: "#C62828", color: "white", padding: "4px 12px", fontWeight: 700, cursor: "pointer", fontSize: 10, textTransform: "uppercase", fontFamily: "inherit" }}
               >Clear Log</button>
             </div>
           )}

@@ -155,12 +155,12 @@ function HabitCard({ habit, onToggle, onDelete, onEdit }: {
           <button
             onClick={() => onEdit(habit)}
             style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", width: 26, height: 26, cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
-            title="Edit"
+            title="Edit" aria-label={`Edit habit: ${habit.name}`}
           >✎</button>
           <button
             onClick={() => onDelete(habit.id)}
-            style={{ border: "1px solid hsl(var(--muted-foreground))", background: "hsl(var(--muted))", width: 26, height: 26, cursor: "pointer", fontSize: 14, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", color: "#ff4444" }}
-            title="Archive"
+            style={{ border: "1px solid hsl(var(--muted-foreground))", background: "hsl(var(--muted))", width: 26, height: 26, cursor: "pointer", fontSize: 14, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", color: "#C62828" }}
+            title="Archive" aria-label={`Archive habit: ${habit.name}`}
           >⊘</button>
           <button
             onClick={() => onToggle(habit.id)}
@@ -198,7 +198,7 @@ function HabitCard({ habit, onToggle, onDelete, onEdit }: {
               style={{
                 border: "none", borderRight: v === "week" ? "var(--nb-border)" : "none",
                 padding: "3px 10px", fontWeight: 800, fontSize: 9, textTransform: "uppercase",
-                background: heatmapView === v ? "hsl(var(--foreground))" : "hsl(var(--card))",
+                background: heatmapView === v ? "#000" : "hsl(var(--card))",
                 color: heatmapView === v ? "#FFD700" : "hsl(var(--foreground))",
                 cursor: "pointer", letterSpacing: "0.06em", fontFamily: "inherit",
               }}
@@ -370,7 +370,7 @@ export function HabitSection() {
             <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, color: "hsl(var(--muted-foreground))" }}>
               {completedToday}/{activeHabits.length} done today
               <span style={{
-                display: "inline-block", marginLeft: 10, background: "hsl(var(--foreground))", color: "#FFD700",
+                display: "inline-block", marginLeft: 10, background: "#000", color: "#FFD700",
                 padding: "1px 8px", fontSize: 11, fontWeight: 900,
               }}>{completionPct}%</span>
             </div>
