@@ -113,13 +113,40 @@ describe("Google Drive backup", () => {
     expect(chrome.identity.removeCachedAuthToken).toHaveBeenCalledWith({ token: "tok-1" });
   });
 
-  it("auto-backup runs only when signed in, enabled and due", async () => {
-    expect(await google.autoBackupIfDue()).toBe(false); // not signed in
+  it("auto-sync runs only when signed in, enabled and due (about hourly)", async () => {
+    expect(await google.autoSyncIfDue()).toBe(false); // not signed in
     await google.signIn();
-    expect(await google.autoBackupIfDue()).toBe(true);
-    expect(await google.autoBackupIfDue()).toBe(false); // just ran
-    expect(await google.autoBackupIfDue(Date.now() + 21 * 3600_000)).toBe(true);
+    expect(await google.autoSyncIfDue()).toBe(true);
+    expect(await google.autoSyncIfDue()).toBe(false); // just ran
+    expect(await google.autoSyncIfDue(Date.now() + 61 * 60_000)).toBe(true);
     await storageSet(google.AUTO_BACKUP_KEY, false);
-    expect(await google.autoBackupIfDue(Date.now() + 48 * 3600_000)).toBe(false);
+    expect(await google.autoSyncIfDue(Date.now() + 48 * 3600_000)).toBe(false);
+  });
+
+  it("two computers: edits from both are merged and deletions propagate", async () => {
+    const note = (id: string, title: string, minutes: number) => ({ id, title, content: `<p>${title}</p>`, createdAt: "2026-11-01T00:00:00.000Z", updatedAt: new Date(Date.UTC(2026, 10, 8, 10, minutes)).toISOString() });
+    // Computer A has notes a + shared, syncs first.
+    await storageSet("notes", [note("a", "Only on A", 0), note("shared", "Shared v1", 0)]);
+    await google.syncWithDrive();
+    const computerA = { ...localStorage };
+    // Computer B (fresh storage) has its own note and edits the shared note later.
+    localStorage.clear();
+    await storageSet("notes", [note("b", "Only on B", 5), note("shared", "Shared v2 from B", 10)]);
+    const fromB = await google.syncWithDrive();
+    expect(fromB.changes).toBeGreaterThan(0);
+    let notes = await storageGet<{ id: string; title: string }[]>("notes", []);
+    expect(notes.map((n) => n.id).sort()).toEqual(["a", "b", "shared"]);
+    expect(notes.find((n) => n.id === "shared")?.title).toBe("Shared v2 from B");
+    // B deletes note "a" (as the Editor does via the tombstone list), then syncs.
+    await storageSet("notes", notes.filter((n) => n.id !== "a"));
+    await storageSet("syncTombstones", { notes: { a: new Date().toISOString() } });
+    await google.syncWithDrive();
+    // Back on A: sync brings B's note and edit, and removes the deleted note.
+    localStorage.clear();
+    for (const [k, v] of Object.entries(computerA)) localStorage.setItem(k, v as string);
+    await google.syncWithDrive();
+    notes = await storageGet<{ id: string; title: string }[]>("notes", []);
+    expect(notes.map((n) => n.id).sort()).toEqual(["b", "shared"]);
+    expect(notes.find((n) => n.id === "shared")?.title).toBe("Shared v2 from B");
   });
 });

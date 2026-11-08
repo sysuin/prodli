@@ -188,7 +188,7 @@ export async function restoreBackup(parsed: unknown): Promise<ImportResult> {
       try {
         const current = await listMeetings();
         const keep = new Set(incoming.map((m) => m.id));
-        await Promise.all(current.filter((m) => !keep.has(m.id)).map((m) => deleteMeeting(m.id)));
+        await Promise.all(current.filter((m) => !keep.has(m.id)).map((m) => deleteMeeting(m.id, { tombstone: false })));
         for (const m of incoming) {
           // A restored meeting can't still be recording or summarizing.
           const status = m.status === "recording" || m.status === "processing" ? "ready" : m.status;

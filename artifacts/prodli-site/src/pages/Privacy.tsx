@@ -73,10 +73,10 @@ export function Privacy() {
 No bot joins the call. You are responsible for informing participants and obtaining consent where the law requires it.`,
             },
             {
-              title: "Google sign-in and Google Drive backup (optional)",
+              title: "Google sign-in and Google Drive sync (optional)",
               body: `If you choose "Sign in with Google", ProdLi uses Chrome's identity API to get your name, email address and profile picture (shown in the extension) and permission to use ProdLi's own hidden app-data folder in your Google Drive (scope drive.appdata). ProdLi cannot see any other files in your Drive.
 
-Backups contain your notes, tasks, habits, Pomodoro data, time-tracking data and meeting notes (not audio, and never your Claude API key). They are sent directly from your browser to your own Google Drive; ProdLi has no copy. You can restore, sign out (which revokes access) or delete the backup from Google Drive settings → Manage apps at any time.
+Sync stores one file with your notes, tasks, habits, Pomodoro data, time-tracking data, meeting notes and deletion markers (not audio, settings or your Claude API key) in that folder, and merges it with each computer where you sign in. Data goes directly between your browser and your own Google Drive; ProdLi has no copy. You can restore, sign out (which revokes access) or delete the backup from Google Drive settings → Manage apps at any time.
 
 ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.`,
             },

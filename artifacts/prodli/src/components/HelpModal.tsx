@@ -195,10 +195,10 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </Section>
 
           {/* Account */}
-          <Section emoji="👤" title="Account & Google Drive backup">
-            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to back up everything to a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
-            <Row label={<Tag>Back up now</Tag>} desc="Saves notes, to-dos, habits, Pomodoro data, time tracking and meeting notes to Drive. Auto-backup runs once a day while signed in. Your Claude API key is never included." />
-            <Row label={<Tag>Restore</Tag>} desc="Replaces this device's data with the Drive backup — use it to move to a new computer." />
+          <Section emoji="👤" title="Account & Google Drive sync">
+            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to sync through a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
+            <Row label={<Tag>Sync now</Tag>} desc="Merges this computer with the copy in Drive, item by item: the newest edit of each note, task, habit or meeting wins, and deletions sync too. Runs automatically about every hour while signed in. Your Claude API key and settings are never synced." />
+            <Row label={<Tag>Replace</Tag>} desc="Overwrites this computer with the Drive copy — only for starting fresh." />
           </Section>
 
           {/* Keyboard Shortcuts */}
