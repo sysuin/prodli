@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
+import { addRecent, clearRecent, listRecent, MAX_RECENT, removeRecent, type RecentFile } from "../lib/recentFiles";
 import {
   ACCEPT_ATTR,
   detectDelimiter,
@@ -67,9 +68,27 @@ function ErrorBox({ children }: { children: ReactNode }) {
 
 // ── Viewers ───────────────────────────────────────────────────────────────────
 
-function TextView({ text, wrap }: { text: string; wrap: boolean }) {
+/** Highlighted HTML for code (highlight.js loads only when a code file is shown). */
+function useHighlighted(text: string, language: string | null | undefined): string | null {
+  const [html, setHtml] = useState<string | null>(null);
+  useEffect(() => {
+    setHtml(null);
+    if (!language) return;
+    let cancelled = false;
+    void import("../lib/highlight").then((m) => {
+      if (!cancelled) setHtml(m.highlightCode(text, language));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [text, language]);
+  return html;
+}
+
+function TextView({ text, wrap, language }: { text: string; wrap: boolean; language?: string | null }) {
   const lines = useMemo(() => text.split(/\r?\n/), [text]);
   const showNumbers = lines.length <= LINE_NUMBER_LIMIT;
+  const highlighted = useHighlighted(text, language);
   return (
     <div style={{ ...card, overflow: "auto", display: "flex" }}>
       {showNumbers && (
@@ -77,7 +96,10 @@ function TextView({ text, wrap }: { text: string; wrap: boolean }) {
           {lines.map((_, i) => i + 1).join("\n")}
         </pre>
       )}
-      <pre style={{ ...mono, margin: 0, padding: 12, whiteSpace: wrap ? "pre-wrap" : "pre", wordBreak: wrap ? "break-word" : "normal", flex: 1 }}>{text}</pre>
+      <pre className="code-preview" data-language={language ?? undefined} style={{ ...mono, margin: 0, padding: 12, whiteSpace: wrap ? "pre-wrap" : "pre", wordBreak: wrap ? "break-word" : "normal", flex: 1 }}>
+        {/* highlight.js output is escaped text wrapped in <span class="hljs-…"> */}
+        {highlighted ? <code className="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} /> : text}
+      </pre>
     </div>
   );
 }
@@ -293,7 +315,7 @@ function JsonView({ text, lines }: { text: string; lines: boolean }) {
           {matches && matches.size === 0 ? <div style={{ opacity: 0.6 }}>Nothing matches “{query}”.</div> : <JsonNode name={null} value={parsed.value as Json} path="$" depth={0} query={query.trim()} matches={matches} />}
         </div>
       )}
-      {mode === "pretty" && <TextView text={pretty} wrap={false} />}
+      {mode === "pretty" && <TextView text={pretty} wrap={false} language="json" />}
       {mode === "raw" && <TextView text={text} wrap />}
     </div>
   );
@@ -310,6 +332,11 @@ const KIND_LABEL: Record<OpenedFile["kind"], string> = {
 };
 
 export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile: File | null; onIncomingHandled: () => void }) {
+  const [recent, setRecent] = useState<RecentFile[]>([]);
+  const refreshRecent = () => listRecent().then(setRecent).catch(() => setRecent([]));
+  useEffect(() => {
+    void refreshRecent();
+  }, []);
   const [file, setFile] = useState<OpenedFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mdMode, setMdMode] = useState<"preview" | "source">("preview");
@@ -328,6 +355,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
     try {
       const opened = await readPreviewFile(f);
       setFile(opened);
+      void addRecent(opened).then(refreshRecent).catch(() => {});
       setMdMode("preview");
       setCsvMode("table");
     } catch (err) {
@@ -364,6 +392,12 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
   };
 
   const lineCount = useMemo(() => (file ? file.text.split(/\r?\n/).length : 0), [file]);
+  const [language, setLanguage] = useState<string | null>(null);
+  useEffect(() => {
+    setLanguage(null);
+    if (file?.kind !== "text" || !file.ext) return;
+    void import("../lib/highlight").then((m) => setLanguage(m.languageForExt(file.ext)));
+  }, [file]);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
@@ -403,6 +437,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
         {error && <ErrorBox>{error}</ErrorBox>}
 
         {!file ? (
+          <>
           <button
             onClick={() => inputRef.current?.click()}
             style={{
@@ -421,13 +456,47 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
             <div style={{ fontSize: 14, marginTop: 6, opacity: 0.8 }}>or click to choose one — Markdown, JSON, JSON Lines, CSV/TSV, text, logs and code files up to 10 MB</div>
             <div style={{ fontSize: 12, marginTop: 14, fontWeight: 700, opacity: 0.7 }}>🔒 Files are read on your device and never uploaded.</div>
           </button>
+          {recent.length > 0 && (
+            <div style={{ marginTop: 20 }} aria-label="Recent files">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7 }}>Recent files</span>
+                <button style={{ ...btn(), padding: "3px 8px", fontSize: 10 }} onClick={() => void clearRecent().then(refreshRecent)}>
+                  Clear
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {recent.map((r) => (
+                  <div key={r.id} style={{ ...card, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px" }}>
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        setFile(r);
+                        void addRecent(r).then(refreshRecent).catch(() => {});
+                      }}
+                      style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "transparent", color: "inherit", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>
+                        {KIND_LABEL[r.kind]} · {formatBytes(r.size)} · opened {new Date(r.openedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                      </div>
+                    </button>
+                    <button aria-label={`Remove ${r.name} from recent files`} title="Remove from recent" style={{ ...btn(), padding: "2px 8px" }} onClick={() => void removeRecent(r.id).then(refreshRecent)}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>The last {MAX_RECENT} files (up to 1 MB each) are kept on this device only.</div>
+            </div>
+          )}
+          </>
         ) : (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 900, wordBreak: "break-all" }}>{file.name}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>
-                  {KIND_LABEL[file.kind]} · {formatBytes(file.size)} · {lineCount.toLocaleString()} lines · modified {new Date(file.lastModified).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                  {file.kind === "text" && language ? `Code · ${language}` : KIND_LABEL[file.kind]} · {formatBytes(file.size)} · {lineCount.toLocaleString()} lines · modified {new Date(file.lastModified).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
                 </div>
               </div>
               {file.kind === "markdown" && (
@@ -443,10 +512,10 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
               )}
             </div>
 
-            {file.kind === "markdown" && (mdMode === "preview" ? <MarkdownView text={file.text} /> : <TextView text={file.text} wrap />)}
+            {file.kind === "markdown" && (mdMode === "preview" ? <MarkdownView text={file.text} /> : <TextView text={file.text} wrap language="markdown" />)}
             {(file.kind === "json" || file.kind === "jsonl") && <JsonView key={file.name + file.lastModified} text={file.text} lines={file.kind === "jsonl"} />}
             {file.kind === "csv" && (csvMode === "table" ? <CsvView text={file.text} ext={file.ext} /> : <TextView text={file.text} wrap={false} />)}
-            {file.kind === "text" && <TextView text={file.text} wrap={wrap} />}
+            {file.kind === "text" && <TextView text={file.text} wrap={wrap} language={language} />}
           </>
         )}
       </div>
