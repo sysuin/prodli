@@ -351,6 +351,32 @@ const suites = {
     await sleep(7000);
     check("Captions: leaving the call ends recording", await p.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
     await p.close();
+
+    // Same flow with Meet in Spanish: labels are translated, icon names are not.
+    const es = await b.openPage("about:blank");
+    await es.eval(`
+      document.title = "Meet - Reunión semanal";
+      document.body.innerHTML = '<button aria-label="Salir de la llamada"><i class="google-symbols" aria-hidden="true">call_end</i></button>' +
+        '<button aria-label="Activar subtítulos" aria-pressed="false"><i class="google-symbols" aria-hidden="true">closed_caption_off</i></button>';
+      document.querySelector('[aria-label="Activar subtítulos"]').addEventListener('click', () => {
+        const r = document.createElement('div'); r.setAttribute('role','region'); r.setAttribute('aria-label','Subtítulos'); r.id='cap'; document.body.appendChild(r);
+      });
+      window.__sent = []; window.__listeners = [];
+      window.chrome = { runtime: { sendMessage: (m) => { window.__sent.push(JSON.parse(JSON.stringify(m))); return Promise.resolve({ ok: true }); }, onMessage: { addListener: (f) => window.__listeners.push(f), removeListener: () => {} } } };
+      window.__block = (s, t) => { const d = document.createElement('div'); d.innerHTML = '<img alt=""><div>' + s + '</div><div class="t">' + t + '</div>'; document.getElementById('cap').appendChild(d); return d; };
+      true`);
+    await es.eval(script + ";true");
+    await es.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "es1", startedAtMs: Date.now() }, {}, r))`);
+    await sleep(300);
+    check("Captions (Spanish UI): turns captions on via the icon", await es.eval(`!!document.getElementById('cap')`));
+    await es.eval(`__block('Tú', 'Hola a todos, empecemos'); true`);
+    await sleep(3500);
+    const esUpdates = await es.eval(`window.__sent.filter(m => m.type === 'captions-update')`);
+    check("Captions (Spanish UI): transcript captured", esUpdates.at(-1)?.entries?.[0]?.text === "Hola a todos, empecemos" && esUpdates.at(-1)?.title === "Reunión semanal");
+    await es.eval(`document.querySelector('[aria-label="Salir de la llamada"]').remove(); true`);
+    await sleep(7000);
+    check("Captions (Spanish UI): leaving the call ends recording", await es.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
+    await es.close();
   },
 
   async pomodoro(b, check) {
