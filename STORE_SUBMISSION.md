@@ -1,160 +1,113 @@
-# ProdLi — Chrome Web Store Submission Checklist
+# ProdLi v1.3.0 — Chrome Web Store submission kit
 
-## Quick Start
+Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this update.
 
-1. Run `pnpm run build:extension` from the repo root (or download `prodli-extension.zip` from the latest CI run)
-2. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
-3. Click **New Item** → upload `prodli-extension.zip`
-4. Fill in the listing fields below
-5. Upload store assets from `artifacts/prodli/store-assets/`
+## 1. Package
 
----
+- Build: `pnpm run build:extension` from the repo root → `prodli-extension.zip` (or download it from the latest CI run on GitHub → Actions → Artifacts).
+- For Google sign-in to work in the store build, build with `PRODLI_GOOGLE_CLIENT_ID` set (see `docs/GOOGLE-SIGN-IN.md`). Without it, sign-in shows "not set up" and everything else works.
+- Version in `artifacts/prodli/extension/manifest.json`: **1.3.0** (bump for every upload).
 
-## Extension Package
+## 2. Store listing → Graphics
 
-| File | Status |
-|------|--------|
-| `prodli-extension.zip` | ✅ Generated at workspace root |
-| `manifest.json` (MV3) | ✅ Included |
-| `index.html` (new tab override) | ✅ Included |
-| `icons/icon-16.png` | ✅ Included |
-| `icons/icon-48.png` | ✅ Included |
-| `icons/icon-128.png` | ✅ Included |
-| All assets bundled (no CDN calls) | ✅ Fonts + JS/CSS self-hosted |
+| Slot | File (in `artifacts/prodli/store-assets/`) |
+|---|---|
+| Screenshot 1 | `screenshot-1-editor.png` — notes with checklists and tables |
+| Screenshot 2 | `screenshot-2-meetings.png` — AI meeting notes |
+| Screenshot 3 | `screenshot-3-todos.png` |
+| Screenshot 4 | `screenshot-4-time-tracker.png` |
+| Screenshot 5 | `screenshot-5-files.png` — file previewer |
+| Small promo tile (440×280) | `promo-440x280.png` |
 
----
+Extra (if you prefer them): `screenshot-6-habits.png`, `screenshot-7-pomodoro.png`. All are 1280×800 and regenerated from the real extension with `node scripts/store-screenshots.mjs` (from `artifacts/prodli/`, after a build).
 
-## Store Assets
-
-| Asset | File | Required Size | Status |
-|-------|------|---------------|--------|
-| Screenshot | `store-assets/screenshot-1280x800.jpg` | 1280×800 | ✅ Ready |
-| Small Promo Tile | `store-assets/promo-440x280.png` | 440×280 | ✅ Ready |
-| Large Promo Tile | _(optional)_ | 920×680 | ⬜ Not required for launch |
-| Marquee Promo | _(optional)_ | 1400×560 | ⬜ Not required for launch |
-
-> **Note:** The Chrome Web Store accepts screenshots as JPEG or PNG. The screenshot is JPEG; the promo tile is PNG. Both can be uploaded directly.
-
----
-
-## Listing Copy
+## 3. Store listing → Text
 
 **Name:** ProdLi — Productivity New Tab
 
-**Short description (max 132 chars):**
-> New tab workspace: rich-text editor, to-dos, Pomodoro, habits, and automatic time tracker. No account needed.
+**Short description** (124 characters — the limit is 132):
+
+```
+Notes, to-dos, Pomodoro, habits, time tracking, AI meeting notes for Google Meet and a file previewer — all in your new tab.
+```
 
 **Detailed description:**
-```
-ProdLi replaces your new tab with a focused, five-tool productivity workspace — no account, no cloud, no distractions. Everything stays on your device.
 
-✏️ EDITOR
-Rich-text notes with font picker, multiple note management, fullscreen focus mode, and full-text search across title and body.
+```
+ProdLi turns your new tab into an all-in-one productivity workspace. Seven tools, one tab — and your data stays on your device. No account needed.
+
+✍️ NOTES THAT FEEL PROFESSIONAL
+Type "/" to insert checklists, tables, headings, quotes, code blocks and dividers. Select text for quick formatting, paste Markdown and it just works, pin important notes, search everything, see an outline of long notes, and export to Markdown or PDF. Notes save automatically — even with ProdLi open in several tabs.
+
+🎙️ AI MEETING NOTES FOR GOOGLE MEET — NO BOT
+Click the ProdLi icon in a Google Meet call. ProdLi builds a transcript from Meet's live captions (only you see them) and, with your own Claude API key, turns it into a summary, decisions and action items. Send action items straight to your to-do list. No bot joins the call.
 
 ✅ TO-DOS
-Task management with priority levels, due dates, and subtasks. Drag to reorder. Filter by status or priority.
+Priorities, due dates, subtasks, drag to reorder, and filters.
 
 🍅 POMODORO
-Configurable focus timer that keeps running even when you switch tabs. Receive browser notifications on session completion.
+A focus timer that keeps running across tabs — even when ProdLi is closed — with a notification when time is up and a log of your sessions.
 
 🎯 HABITS
-Daily habit check-ins with automatic streak tracking and a visual heatmap calendar — stay consistent effortlessly.
+Daily check-ins with streaks and a heatmap calendar.
 
 ⏱ TIME TRACKER
-Automatically records time spent on every website you visit. Review today's usage, explore all-time history with interactive charts, and compare two date ranges side by side. Set daily time limits per site — when a limit is reached you get a desktop notification, and you can optionally enable an auto-redirect back to your new tab page. Block specific domains from being tracked entirely.
+See where your browsing time goes: today, the last 7 days, and all-time charts. Set daily limits per site with optional auto-redirect. Only domain names are recorded, never full URLs.
 
-DESIGN
-Neobrutal design with Light and Dark themes. All data is stored locally in your browser — private by default, never transmitted anywhere.
+📄 FILE PREVIEWER
+Drop a Markdown, JSON, CSV or text file anywhere on ProdLi to preview it beautifully, then save it as a note.
 
-PERMISSIONS
-• storage — saves your notes, tasks, habits, settings, and time-tracking data locally in your browser
-• notifications — alerts you when a Pomodoro session ends or a daily site time limit is reached
-• tabs — reads the active tab's URL (hostname only) to record browsing time per domain; no page content or full URLs are ever stored
-• idle — detects when you step away so the tracker pauses instead of logging inactive time
-• alarms — schedules the daily summary notification, the per-minute tracking heartbeat, Pomodoro phase endings and the daily Google Drive backup
-• unlimitedStorage — lets notes, meeting transcripts and recordings grow beyond the default browser storage limit, so saving never fails silently
-• identity — optional "Sign in with Google" to back up to the user's own Google Drive app-data folder (only when the user chooses to sign in)
-• Optional (requested only when the user turns a feature on): tabCapture + offscreen + meet.google.com (meeting recorder: captures the Meet tab's audio and reads its captions); scripting + site access (Focus List auto-redirect)
+☁️ OPTIONAL GOOGLE DRIVE BACKUP
+Sign in with Google to back up everything to a private ProdLi folder in your own Google Drive and restore it on another computer. No ProdLi servers.
+
+PRIVACY
+Your data lives in your browser. ProdLi has no servers, no analytics and no tracking. Optional features send data only where you choose: meeting transcripts to Anthropic with your own API key, and backups to your own Google Drive. Full policy: https://prodli.com/privacy
 ```
 
-**Category:** Productivity
+**Category:** Productivity · **Language:** English · **Homepage:** https://prodli.com · **Support:** contact@prodli.com
 
-**Language:** English
+## 4. Privacy practices tab
 
----
+### Single purpose
+> ProdLi replaces the new tab page with a personal productivity workspace: notes, to-dos, a Pomodoro timer, habit tracking, browsing-time tracking, meeting notes and a file previewer. All features help the user organise their own work, and the data is stored on the user's device.
 
-## Privacy & Permissions
+### Permission justifications
 
-| Permission | Why it's needed |
-|------------|----------------|
-| `storage` | Persists notes, tasks, habits, Pomodoro settings, and time-tracking data in `chrome.storage.local`. Nothing leaves the device. |
-| `notifications` | Shows a desktop alert when a Pomodoro session ends or a daily site time limit is reached. |
-| `tabs` | Reads the hostname (domain) of the active tab to accumulate browsing time. The full URL and page content are never accessed or stored — only the `hostname` field of the URL is used. |
-| `idle` | Detects when the user is inactive so that idle time is not counted toward a site's tracked total. |
-| `alarms` | Powers the per-minute heartbeat that flushes in-memory time to storage, and schedules the optional daily summary notification. |
-| `scripting` _(optional)_ | Only requested if the user explicitly enables "auto-redirect" for a Focus List rule. Used to navigate the active tab away from a site when its daily limit is reached. |
-| `<all_urls>` _(optional host permission)_ | Required by `scripting` for the redirect feature above. Only granted if the user explicitly enables it. |
-
-**What data is stored and where:**
-- **Time-tracking data** — hostname + seconds per day — stored in `chrome.storage.local` under per-day keys (`tt_YYYY-MM-DD`). Never transmitted.
-- **Settings** — idle threshold, notification time, Focus List rules, blocked domains — stored in `chrome.storage.local` under `tt_settings`. Never transmitted.
-- **All other app data** (notes, tasks, habits, Pomodoro state) — stored in `chrome.storage.local` with a `prodli_` prefix. Never transmitted.
-
----
-
-## Privacy Form (Chrome Web Store)
-
-Copy and paste each answer directly into the Privacy tab of the Developer Dashboard.
-
-### Single purpose description
-> ProdLi replaces the browser's new tab page with a focused productivity workspace containing five tools: a rich-text editor, a to-do list, a Pomodoro timer, a habit tracker, and an automatic time tracker. All data — including browsing time per domain — is stored locally on the user's device in chrome.storage.local. No data is transmitted to any external server.
-
-### Permission justification — `storage`
-> The storage permission is used to persist the user's notes, tasks, Pomodoro settings, habit records, time-tracking data, and Focus List configuration in chrome.storage.local so that data is retained across browser sessions. No data is sent to any external server.
-
-### Permission justification — `notifications`
-> The notifications permission is used to display a desktop notification when (a) a Pomodoro focus session or break ends, and (b) the user has reached their self-configured daily time limit for a website. Notifications are triggered only by local timers and only when relevant activity is detected.
-
-### Permission justification — `tabs`
-> The tabs permission is used solely to read the hostname of the currently active tab so that the time tracker can accumulate browsing time per domain. Only the `hostname` portion of the URL is ever read or stored — the full URL, page title, and page content are never accessed. The tracked data (domain + seconds) is stored locally in chrome.storage.local and is never transmitted.
-
-### Permission justification — `idle`
-> The idle permission is used to detect when the user has been inactive for a configurable threshold (default 60 seconds). When the browser is idle, the time tracker pauses so that inactive time is not incorrectly attributed to the last visited site.
-
-### Permission justification — `alarms`
-> The alarms permission is used to schedule a per-minute heartbeat that flushes in-memory browsing time to persistent storage, ensuring data is not lost if the browser closes unexpectedly. It is also used to schedule the user's optional daily summary notification at their chosen time.
+| Permission | Justification to paste |
+|---|---|
+| `storage` | Stores the user's notes, tasks, habits, Pomodoro data, time-tracking data and settings on the device so they persist between sessions. |
+| `unlimitedStorage` | Notes, meeting transcripts and optional recordings can exceed the default storage quota; without it, saves could fail and the user could lose work. |
+| `tabs` | Reads only the hostname of the active tab to total browsing time per domain for the Time Tracker. Full URLs, titles and page content are never read or stored. |
+| `idle` | Pauses time tracking when the user is away so idle time isn't counted. |
+| `alarms` | Schedules the tracking heartbeat, the daily summary notification, the end of Pomodoro sessions, and the optional daily Google Drive backup. |
+| `notifications` | Notifies the user when a Pomodoro session ends, a daily site limit is reached, or meeting notes are ready. |
+| `identity` | Used only if the user chooses "Sign in with Google", to back up their data to a private app-data folder in their own Google Drive. |
+| `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet tab the user explicitly starts recording (by clicking the toolbar icon or shortcut). |
+| `offscreen` *(optional)* | Runs the audio recorder for the meeting recorder in an offscreen document. |
+| `scripting` *(optional)* | Injects the caption reader into the Google Meet tab being recorded, and the Focus List auto-redirect when the user enables it. |
+| Host access *(optional)*: `meet.google.com`, `<all_urls>` | `meet.google.com` to read live captions for meeting notes; other sites only for the optional Focus List redirect. |
 
 ### Remote code
-**Select:** No, I am not using remote code
+**No, I am not using remote code.** All code is bundled in the package. (Network requests go only to Anthropic's API with the user's key and to Google's sign-in/Drive APIs — data, not code.)
 
-> All JavaScript, CSS, and font files are bundled into the extension package at build time using Vite. There are no references to external scripts, no CDN links, and no use of eval() or similar dynamic code execution. The extension operates entirely offline.
+### Data usage (declare conservatively)
 
----
+Tick the types that can leave the device because of an optional feature the user turns on:
+- **Personally identifiable information** — name, email and profile picture from Google sign-in (stored locally; used to show the signed-in account).
+- **Personal communications** — meeting transcripts sent to Anthropic's API when the user adds a Claude key and requests a summary.
+- **Web history** — per-domain browsing time, included in the user's own Google Drive backup when they turn it on.
 
-## Pre-submission Checklist
+Then certify all three: data is **not sold** to third parties, **not used or transferred for purposes unrelated** to the single purpose, and **not used for creditworthiness or lending**.
 
-- [ ] Developer account created and one-time $5 registration fee paid
-- [ ] Extension zip rebuilt after latest changes (`pnpm build:extension`)
-- [ ] Extension zip uploaded successfully (no manifest errors reported by dashboard)
-- [ ] At least 1 screenshot uploaded (`store-assets/screenshot-1280x800.jpg`)
-- [ ] Promo tile uploaded (`store-assets/promo-440x280.png`)
-- [ ] Short description filled in (≤ 132 chars) — verify char count before pasting
-- [ ] Detailed description filled in (all five tools listed)
-- [ ] Category set to **Productivity**
-- [ ] Privacy practices form completed — browsing history data declared as local-only
-- [ ] Justification provided for all five core permissions
-- [ ] `scripting` and `<all_urls>` listed as optional with reason
-- [ ] Remote code answer set to **No**
-- [ ] Submitted for review (typically 1–3 business days)
+**Privacy policy URL:** https://prodli.com/privacy (updated November 2026 — covers Meetings, Google sign-in and the Google API Limited Use statement).
 
----
+## 5. Before you submit
 
-## Rebuilding After Changes
-
-```bash
-cd artifacts/prodli
-pnpm build:extension
-# → prodli-extension.zip at workspace root
-```
-
-Bump the `version` field in `artifacts/prodli/extension/manifest.json` before each new submission to the store.
+- [ ] Zip built from the latest `main` (with `PRODLI_GOOGLE_CLIENT_ID` if sign-in should work)
+- [ ] Recorder tested on a real Google Meet call
+- [ ] Five screenshots + promo tile uploaded; old screenshot removed
+- [ ] Short and detailed descriptions pasted
+- [ ] Permission justifications pasted (including the new `unlimitedStorage`, `identity`, `tabCapture`, `offscreen`)
+- [ ] Data usage boxes ticked and the three certifications checked
+- [ ] Privacy policy URL set; prodli.com/privacy shows the November 2026 version
+- [ ] Submit — expect a longer review than usual because of the tab-audio permission
