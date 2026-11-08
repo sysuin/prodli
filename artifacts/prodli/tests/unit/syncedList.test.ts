@@ -19,10 +19,14 @@ describe("mergeLists (multi-tab merge)", () => {
     expect(mergeLists([mine], [newer], new Set(["a"]), none)).toEqual([newer]);
   });
 
-  it("adds items created in another tab at the top and keeps local order", () => {
+  it("places items created in another tab where that tab has them, keeping local order", () => {
     const local = [it_("a", "A"), it_("b", "B")];
-    const incoming = [it_("b", "B"), it_("c", "C"), it_("a", "A")];
-    expect(mergeLists(local, incoming, none, none).map((i) => i.id)).toEqual(["c", "a", "b"]);
+    // Prepended elsewhere (notes, to-dos) → top here too.
+    expect(mergeLists(local, [it_("new", "N"), it_("a", "A"), it_("b", "B")], none, none).map((i) => i.id)).toEqual(["new", "a", "b"]);
+    // Appended elsewhere (habits) → bottom here too.
+    expect(mergeLists(local, [it_("a", "A"), it_("b", "B"), it_("new", "N")], none, none).map((i) => i.id)).toEqual(["a", "b", "new"]);
+    // Local drag order (b before a) is kept; the new item follows its neighbour.
+    expect(mergeLists([it_("b", "B"), it_("a", "A")], [it_("a", "A"), it_("c", "C"), it_("b", "B")], none, none).map((i) => i.id)).toEqual(["b", "a", "c"]);
   });
 
   it("keeps items created here that aren't saved yet", () => {

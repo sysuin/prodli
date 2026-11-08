@@ -27,13 +27,14 @@ const stamp = (x: SyncItem) => x.updatedAt ?? x.createdAt ?? "";
  * - Items this tab deleted (`deleted`) stay deleted.
  * - Untouched items take the incoming version; if they're gone from
  *   `incoming`, another tab deleted them.
- * - Items only in `incoming` (created elsewhere) are added at the top.
- * Order follows `local`, so drag-and-drop ordering is preserved.
+ * - Items only in `incoming` (created elsewhere) are placed right after the
+ *   item that precedes them there (or first), so both tabs show the same order
+ *   whether a list adds new items at the top (notes, to-dos) or bottom (habits).
+ * Otherwise order follows `local`, so drag-and-drop ordering is preserved.
  */
 export function mergeLists<T extends SyncItem>(local: T[], incoming: T[], dirty: ReadonlySet<string>, deleted: ReadonlySet<string>): T[] {
   const incomingById = new Map(incoming.map((i) => [i.id, i]));
   const localIds = new Set(local.map((l) => l.id));
-  const added = incoming.filter((i) => !localIds.has(i.id) && !deleted.has(i.id));
   const kept: T[] = [];
   for (const l of local) {
     if (deleted.has(l.id)) continue;
@@ -44,7 +45,20 @@ export function mergeLists<T extends SyncItem>(local: T[], incoming: T[], dirty:
       kept.push(l); // created or edited here, not saved yet
     }
   }
-  return [...added, ...kept];
+  const result = kept;
+  incoming.forEach((item, idx) => {
+    if (localIds.has(item.id) || deleted.has(item.id)) return;
+    let at = 0;
+    for (let j = idx - 1; j >= 0; j--) {
+      const pos = result.findIndex((r) => r.id === incoming[j].id);
+      if (pos !== -1) {
+        at = pos + 1;
+        break;
+      }
+    }
+    result.splice(at, 0, item);
+  });
+  return result;
 }
 
 export interface SyncedList<T> {

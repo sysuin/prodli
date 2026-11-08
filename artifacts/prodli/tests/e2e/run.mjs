@@ -7,6 +7,7 @@
 // Needs Google Chrome (or Chromium) 126+ for Extensions.loadUnpacked.
 
 import { spawn } from "node:child_process";
+import http from "node:http";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -575,6 +576,96 @@ const suites = {
     await sleep(500);
     const { googleAccount } = await p.storage(["googleAccount"]);
     check("Account: sign out forgets the account", !googleAccount && (await p.text()).includes("Signed out"));
+    await p.close();
+  },
+
+  async tracker(b, check) {
+    // A real local website the tracker can time.
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<title>Test site</title><h1>Hello from a test site</h1>");
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const port = server.address().port;
+    try {
+      const ext = await b.openPage();
+      await ext.goto("tracker");
+      const dayKey = await ext.eval(`(() => { const d = new Date(); return "tt_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+      const secondsOnSite = async () => ((await ext.storage([dayKey]))[dayKey] ?? {})["127.0.0.1"] ?? 0;
+
+      const site = await b.openPage(`http://127.0.0.1:${port}/`);
+      await b.send("Target.activateTarget", { targetId: site.targetId });
+      await sleep(4000);
+      await b.send("Target.activateTarget", { targetId: ext.targetId });
+      await sleep(1500);
+      const first = await secondsOnSite();
+      check("Tracker: time on a website is recorded", first >= 3, `${first}s`);
+
+      // Chrome stops idle extension workers; tracking must continue across that.
+      await b.send("Target.activateTarget", { targetId: site.targetId });
+      await sleep(1500);
+      await ext.send("ServiceWorker.enable", {});
+      await ext.send("ServiceWorker.stopAllWorkers", {});
+      await sleep(4000);
+      await b.send("Target.activateTarget", { targetId: ext.targetId });
+      await sleep(2000);
+      const second = await secondsOnSite();
+      check("Tracker: keeps counting after the background worker restarts", second - first >= 4, `${first}s → ${second}s`);
+
+      await ext.send("Page.reload", {});
+      await sleep(1800);
+      check("Tracker: Today view lists the site", (await ext.text()).includes("127.0.0.1"));
+
+      // Clearing history keeps settings.
+      await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 60, notifyEnabled: true, notifyTime: "20:00", focusList: [{ id: "r1", domain: "youtube.com", limitMinutes: 30, redirectEnabled: false }], excludedDomains: ["bank.example"] } })`);
+      await ext.eval(`window.confirm = () => true`);
+      await ext.click("⚙ Settings", { exact: false }).catch(() => ext.click("Settings", { exact: false }));
+      await sleep(500);
+      await ext.click("Clear all tracking data", { exact: false });
+      await sleep(800);
+      const after = await ext.storage([dayKey, "tt_settings"]);
+      check("Tracker: “Clear all tracking data” keeps Focus List and excluded sites", !after[dayKey] && after.tt_settings?.focusList?.[0]?.domain === "youtube.com" && after.tt_settings?.excludedDomains?.[0] === "bank.example");
+      await site.close();
+      await ext.close();
+    } finally {
+      server.close();
+    }
+  },
+
+  async habits(b, check) {
+    const p = await b.openPage();
+    await p.goto("habits");
+    const today = await p.eval(`(() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    const habits = async () => (await p.storage(["habits"])).habits ?? [];
+
+    await p.click("+ New Habit");
+    await sleep(200);
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder="Habit name..."]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Drink water"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await p.click("Save");
+    await sleep(400);
+    let list = await habits();
+    check("Habits: create a habit", list.some((h) => h.name === "Drink water" && !h.archived));
+
+    await p.eval(`document.querySelector('button[title="Mark today done"]').click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: mark today done", list.find((h) => h.name === "Drink water")?.completedDays.includes(today));
+    await p.eval(`document.querySelector('button[title="Unmark today"]').click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: unmark today", !list.find((h) => h.name === "Drink water")?.completedDays.includes(today));
+
+    // Streaks from a seeded history of 5 days in a row.
+    const days = await p.eval(`[0,1,2,3,4].map(i => { const d = new Date(); d.setDate(d.getDate() - i); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })`);
+    await p.eval(`chrome.storage.local.get("habits").then(({ habits }) => chrome.storage.local.set({ habits: [...habits, { id: "streaky", name: "Read", emoji: "📚", color: "#60a5fa", completedDays: ${JSON.stringify(days)}, createdAt: new Date(Date.now() - 864e6).toISOString(), archived: false }] }))`);
+    await sleep(500);
+    check("Habits: shows a 5-day streak", /5\s*(day|🔥)|🔥\s*5/i.test(await p.text()));
+
+    await p.eval(`[...document.querySelectorAll('button[title="Archive"]')].find(b => b.closest("div").parentElement.innerText.includes("Read") || b.parentElement.parentElement.innerText.includes("Read")).click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: archive keeps the history", list.find((h) => h.id === "streaky")?.archived === true && list.find((h) => h.id === "streaky")?.completedDays.length === 5 && list.find((h) => h.name === "Drink water")?.archived === false, JSON.stringify(list.map((h) => [h.name, h.archived])));
+    check("Habits: a habit added in another tab appears at the bottom, like local ones", (await habits()).map((h) => h.id).at(-1) === "streaky");
     await p.close();
   },
 
