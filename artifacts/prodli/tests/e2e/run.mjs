@@ -32,7 +32,7 @@ class Browser {
     this.downloads = mkdtempSync(path.join(tmpdir(), "prodli-dl-"));
     this.proc = spawn(
       CHROME,
-      ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", ...(process.env.CI ? ["--no-sandbox"] : []), "about:blank"],
+      ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required", ...(process.env.CI ? ["--no-sandbox"] : []), "about:blank"],
       { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] },
     );
     this.nextId = 1;
@@ -734,6 +734,47 @@ const suites = {
       await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
     }
     if (process.env.A11Y_REPORT) console.log(report.join("\n"));
+    await p.close();
+  },
+
+  async speech(b, check) {
+    // On-device transcription with Chrome's real speech model. Opt-in (downloads a language pack):
+    //   E2E_SPEECH=1 node tests/e2e/run.mjs speech
+    if (!process.env.E2E_SPEECH) {
+      console.log("  – skipped (set E2E_SPEECH=1 to download Chrome's speech model and run it)");
+      return;
+    }
+    const p = await b.openPage();
+    await p.goto("meetings");
+    check("Speech: setup offers on-device transcription", (await p.lowerText()).includes("when captions are off"));
+    const box = await p.eval(`(() => { const b = [...document.querySelectorAll("button")].find(b => b.textContent.includes("Download speech model")); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    if (box) {
+      for (const type of ["mousePressed", "mouseReleased"]) await p.send("Input.dispatchMouseEvent", { type, x: box.x, y: box.y, button: "left", clickCount: 1 });
+    }
+    let ready = false;
+    for (let i = 0; i < 90 && !ready; i++) {
+      await sleep(1000);
+      ready = (await p.text()).includes("✓ Ready");
+    }
+    const { recorderSpeechEnabled } = await p.storage(["recorderSpeechEnabled"]);
+    check("Speech: one click downloads the model and turns transcription on", ready && recorderSpeechEnabled === true);
+
+    // Run the recorder's transcriber on recorded speech inside the offscreen page.
+    const wav = readFileSync(path.join(FIXTURES, "speech-en.wav")).toString("base64");
+    const off = await b.openPage(`chrome-extension://${b.extId}/offscreen.html`);
+    const heard = await off.eval(`(async () => {
+      const { LiveTranscriber } = window.__prodliSpeech;
+      const bytes = Uint8Array.from(atob("${wav}"), (c) => c.charCodeAt(0));
+      const ctx = new AudioContext(); await ctx.resume();
+      const buf = await ctx.decodeAudioData(bytes.buffer);
+      const dest = ctx.createMediaStreamDestination(); const src = ctx.createBufferSource(); src.buffer = buf; src.connect(dest);
+      const t = new LiveTranscriber(dest.stream.getAudioTracks()[0], "Others", "en-US", Date.now());
+      t.start(); src.start();
+      await new Promise((r) => setTimeout(r, (buf.duration + 4) * 1000));
+      return (await t.stop()).map((e) => e.speaker + ": " + e.text).join(" | ");
+    })()`);
+    check("Speech: transcribes call audio on-device", /ship the beta on Friday/i.test(heard) && heard.startsWith("Others:"), heard);
+    await off.close();
     await p.close();
   },
 
