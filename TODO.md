@@ -1,39 +1,42 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-08
+Last updated: 2026-11-08 · Branch: `feature/meetings-and-files`
 
-## Now — finish the meeting recorder (v1.2.0)
+## Now — needs you
 
-- [ ] **Test on a real Google Meet call**: load `artifacts/prodli/dist-extension` unpacked, record a short call, and check:
+- [ ] **Test the recorder on a real Google Meet call**: load `artifacts/prodli/dist-extension` unpacked (`chrome://extensions` → Developer mode → Load unpacked), record a short call, and check:
   - [ ] Transcript is captured from Meet captions (speaker names correct)
   - [ ] Audio recording plays back (with and without microphone)
   - [ ] Summary + action items generate with your Claude API key
   - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call, closing the tab
-- [ ] **Try the Files previewer** with your own files: drag one onto ProdLi, then use Save to Notes
-- [ ] **Commit the recorder + Files work** to a new git branch
-- [ ] **Get the code back into one place**: push to GitHub (the code currently lives on Replit plus this local copy, with no GitHub backup)
-- [ ] **Update the Chrome Web Store listing** for v1.2.0: new description, Meetings and Files screenshots, "all-in-one workspace" wording
-- [ ] **Update the privacy policy and store data disclosure**: meeting transcripts can now go to Anthropic (Claude) when the user adds their key
+- [ ] **Quick check of this round's changes** in your own Chrome: Files tab, Editor ⬆/⬇ Markdown buttons, Pomodoro across tabs, Backup export
+- [ ] **Push to GitHub**: the code lives on Replit plus this local copy with no GitHub backup. Create a GitHub repo, then `git remote add origin …` and push the branch.
+- [ ] **Decide how to sync with Replit**: either make GitHub the main copy and connect Replit to it, or copy this branch back into Replit
+- [ ] **Update the Chrome Web Store listing** for v1.2.0: new description, Meetings and Files screenshots, "all-in-one workspace" wording; remove "keeps running across tabs" caveats (now true)
+- [ ] **Update the privacy policy and store data disclosure**: meeting transcripts can go to Anthropic (Claude) when the user adds their key
 - [ ] Submit v1.2.0 to the Chrome Web Store (expect a slower review because of the tab-audio permission)
 
 ## Recorder improvements
 
-- [ ] Detect "left the call" in languages other than English (it only checks for the English "Leave call" button today)
-- [ ] Keep an eye on Meet page changes; the captions reader depends on Meet's page structure
+- [ ] Detect "left the call" in languages other than English (only the English "Leave call" button is checked today)
+- [ ] Keep an eye on Meet page changes; the captions reader depends on Meet's page structure (`pnpm test:e2e` covers it against a simulated Meet page)
 - [ ] Transcription option for when captions aren't on (e.g. a speech-to-text service, or on-device Whisper)
 - [ ] Move AI calls to a ProdLi server before public launch (instead of each user pasting their own key)
 - [ ] Zoom / Microsoft Teams support (web versions first; desktop apps need the future desktop app)
 - [ ] Mobile: mic-based recording for in-person meetings and phone calls
 
-## Bugs in existing features
+## Files previewer — later improvements
 
-- [ ] **Backup skips Time Tracker data**: `src/lib/backupRestore.ts` doesn't export the `tt_*` history or `tt_settings`
-- [ ] **Pomodoro stops when its tab closes**: the timer runs inside the page and isn't saved, and other tabs don't show it running. Move it to the background worker (alarms). The store listing currently says it "keeps running across tabs".
+- [ ] Keep a "recent files" list (needs the File System Access API to reopen files)
+- [ ] Syntax highlighting for code files (`.js`, `.py`, `.yaml`, …)
+- [ ] Save CSV files to Notes as real tables (the Editor needs a table extension first; Markdown tables are also lost when a .md is saved as a note)
+- [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission, and free extensions already do it)
 
 ## Foundation (before accounts and sync)
 
 - [ ] **Change how data is saved**: give every note, to-do and habit its own ID, a "last changed" time and a "deleted" flag, so syncing devices doesn't overwrite changes (today each tool saves its whole list at once)
-- [ ] Add automated tests (start with storage, backup/restore, the captions reader and To-Do creation from meetings)
+- [ ] Run `pnpm test` and `pnpm test:e2e` automatically on every push (GitHub Actions, once the code is on GitHub)
+- [ ] Add tests for the Time Tracker and Habits (only smoke-tested today)
 - [ ] Split `TimeTrackerSection.tsx` (1,767 lines) into smaller files
 - [ ] Move inline styles into shared UI components, so screens can be reused on web, desktop and mobile
 - [ ] Remove build output (`dist-extension/`, `prodli-extension.zip`) from git and build it in CI instead
@@ -45,15 +48,21 @@ Last updated: 2026-11-08
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
 - [ ] Mobile app
 
-## Files previewer — later improvements
+## How to test
 
-- [ ] Export notes as Markdown (`.md` download from the Editor)
-- [ ] Keep a "recent files" list (needs the File System Access API to reopen files)
-- [ ] Syntax highlighting for code files (`.js`, `.py`, `.yaml`, …)
-- [ ] Save CSV files to Notes as real tables (the Editor needs a table extension first)
-- [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission, and free extensions already do it)
+From `artifacts/prodli/`:
+
+- `pnpm run typecheck` — TypeScript
+- `pnpm test` — unit tests (file parsing & sanitizing, Pomodoro timer, backup/restore, Markdown export)
+- `pnpm test:e2e` — builds the extension and drives it in a throwaway headless Chrome (all 7 tabs, Meetings, Files, captions reader, Pomodoro across tabs + background completion, Markdown import/export, backup). Set `CHROME_PATH` if Chrome isn't in the default place.
 
 ## Done
 
 - [x] 2026-11-08 — Meeting recorder for Google Meet (no bot, Meet captions, Claude Haiku 5.5 notes, action items → To-Dos)
 - [x] 2026-11-08 — Files previewer: Markdown, JSON / JSON Lines (tree + search), CSV / TSV tables, text and code; drag-and-drop anywhere; Save to Notes
+- [x] 2026-11-08 — Backup now includes Time Tracker history + settings and meetings (no audio; the Claude API key is never exported); old 1.0 backups still restore
+- [x] 2026-11-08 — Pomodoro keeps running across tabs and when ProdLi is closed; the background finishes phases, logs sessions and notifies
+- [x] 2026-11-08 — Editor: import a Markdown file as a note, export a note as Markdown
+- [x] 2026-11-08 — Top bar fits on smaller screens (icons only below ~1040 px)
+- [x] 2026-11-08 — Automated tests: 31 unit tests + 44 browser checks
+- [x] 2026-11-08 — Markdown safety: never show unsanitized HTML if the sanitizer can't run

@@ -96,6 +96,9 @@ function configurePurify(): void {
  * event handlers), so the output is always sanitized before it's shown.
  */
 export function markdownToSafeHtml(markdown: string): string {
+  // DOMPurify returns its input unchanged where it can't run safely; never
+  // show unsanitized HTML in that case — fall back to escaped text.
+  if (!DOMPurify.isSupported) return `<pre>${escapeHtml(markdown)}</pre>`;
   configurePurify();
   const raw = marked.parse(markdown, { async: false }) as string;
   return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true }, FORBID_TAGS: ["style", "form", "button", "textarea", "select"] });

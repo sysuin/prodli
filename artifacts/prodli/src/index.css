@@ -375,3 +375,14 @@
 .md-preview h4, .md-preview h5, .md-preview h6 { font-weight: 700; margin: 10px 0 4px; }
 .md-preview li > input[type="checkbox"] { margin-right: 6px; }
 .md-preview ul:has(> li > input[type="checkbox"]) { list-style: none; padding-left: 4px; }
+
+/* Top bar: keep all 7 tabs and the right-side buttons visible on smaller screens */
+.nav-tabs { scrollbar-width: none; }
+.nav-tabs::-webkit-scrollbar { display: none; }
+@media (max-width: 1200px) {
+  .nav-tab { padding: 0 12px !important; letter-spacing: 0.04em !important; }
+}
+@media (max-width: 1040px) {
+  .nav-label { display: none; }
+  .nav-tab { padding: 0 14px !important; font-size: 16px !important; }
+}

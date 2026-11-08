@@ -181,10 +181,12 @@ export default function App() {
           }}>ProdLi</span>
         </div>
 
-        <div style={{ display: "flex", flex: 1 }}>
+        <div className="nav-tabs" style={{ display: "flex", flex: 1, minWidth: 0, overflowX: "auto" }}>
           {SECTIONS.map(s => (
             <button
               key={s.key}
+              className="nav-tab"
+              title={s.label}
               onClick={() => handleSectionChange(s.key)}
               style={{
                 border: "none",
@@ -207,7 +209,7 @@ export default function App() {
               }}
             >
               <span>{s.emoji}</span>
-              <span>{s.label}</span>
+              <span className="nav-label">{s.label}</span>
               {s.key === "pomodoro" && pomodoroTimer.running && section !== "pomodoro" && (
                 <span
                   className="timer-pulse"

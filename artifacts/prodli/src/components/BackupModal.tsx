@@ -140,7 +140,7 @@ export function BackupModal({ onClose }: BackupModalProps) {
                 ⚠ Replace all data?
               </div>
               <div style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 4 }}>
-                Restoring from <strong style={{ fontFamily: "Space Mono, monospace" }}>{importState.file.name}</strong> will overwrite all your current notes, to-dos, habits, and Pomodoro data.
+                Restoring from <strong style={{ fontFamily: "Space Mono, monospace" }}>{importState.file.name}</strong> will overwrite your current notes, to-dos, habits, Pomodoro data, time-tracking history and meetings.
               </div>
               <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginBottom: 18 }}>
                 This cannot be undone. Make sure you export your current data first if you want to keep it.
@@ -208,7 +208,7 @@ export function BackupModal({ onClose }: BackupModalProps) {
                   💾 Export Data
                 </div>
                 <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", lineHeight: 1.6, marginBottom: 14 }}>
-                  Download all your notes, to-dos, habits, and Pomodoro settings as a JSON file. Store it somewhere safe as a backup.
+                  Download your notes, to-dos, habits, Pomodoro data, time-tracking history and meeting notes as a JSON file. Meeting audio and your Claude API key are not included. Store it somewhere safe as a backup.
                 </div>
                 <button
                   onClick={handleExport}
