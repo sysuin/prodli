@@ -59,6 +59,11 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Help and keyboard shortcuts"
+      tabIndex={-1}
+      autoFocus
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 10000,

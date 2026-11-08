@@ -20,7 +20,7 @@ const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[]
   { key: "todos", label: "To-Dos", emoji: "✅", accent: "#00BCD4" },
   { key: "pomodoro", label: "Pomodoro", emoji: "🍅", accent: "#FF6B6B" },
   { key: "habits", label: "Habits", emoji: "🎯", accent: "#66BB6A" },
-  { key: "tracker", label: "Tracker", emoji: "⏱", accent: "#8B5CF6" },
+  { key: "tracker", label: "Tracker", emoji: "⏱", accent: "#A78BFA" },
   { key: "meetings", label: "Meetings", emoji: "🎙️", accent: "#FF4FA3" },
   { key: "files", label: "Files", emoji: "📄", accent: "#FF9800" },
 ];
@@ -156,7 +156,7 @@ export default function App() {
       fontFamily: "Space Grotesk, Inter, sans-serif",
       overflow: "hidden",
     }}>
-      <nav style={{
+      <nav aria-label="Sections" style={{
         display: "flex",
         alignItems: "stretch",
         borderBottom: isDark ? "3px solid #FFD700" : "3px solid #000",
@@ -190,6 +190,7 @@ export default function App() {
               key={s.key}
               className="nav-tab"
               title={s.label}
+              aria-current={section === s.key ? "page" : undefined}
               onClick={() => handleSectionChange(s.key)}
               style={{
                 border: "none",
@@ -307,7 +308,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <main id="main" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
           {section === "editor" && <EditorSection />}
           {section === "todos" && <TodoSection />}

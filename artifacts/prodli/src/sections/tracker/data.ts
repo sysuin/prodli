@@ -4,7 +4,10 @@
 import { getDayKey, getDaysBetween } from "../../lib/utils";
 import type { TrackerSettings, TimeTrackingDay } from "../../types";
 
-export const ACCENT = "#8B5CF6";
+/** Theme-aware purple with WCAG AA contrast (deeper in light mode, lighter in dark). */
+export const ACCENT = "var(--tracker-accent)";
+/** Text colour on an ACCENT background. */
+export const ON_ACCENT = "var(--tracker-on-accent)";
 export const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
   notifyEnabled: true,

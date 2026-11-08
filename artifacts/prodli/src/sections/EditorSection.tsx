@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { EditorState } from "@tiptap/pm/state";
+import { ListOrdered } from "lucide-react";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/700.css";
 import "@fontsource/inter/800.css";
@@ -98,7 +99,7 @@ function ToolbarButton({ onClick, active, disabled, title, children, wide }: Too
         fontFamily: "inherit",
       }}
     >
-      {children}
+      <span aria-hidden="true">{children}</span>
     </button>
   );
 }
@@ -585,7 +586,9 @@ export function EditorSection() {
           <ToolbarButton onClick={setLink} active={t?.link} title="Link (Ctrl/⌘+K)">🔗</ToolbarButton>
           <Divider />
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBulletList().run())} active={t?.bullet} title="Bullet list">•</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} title="Numbered list">1.</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} title="Numbered list">
+            <ListOrdered size={16} strokeWidth={2.5} aria-hidden="true" />
+          </ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleTaskList().run())} active={t?.task} title="Checklist">☑</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} title="Quote">❝</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} title="Code block">{"{}"}</ToolbarButton>

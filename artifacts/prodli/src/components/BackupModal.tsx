@@ -77,6 +77,11 @@ export function BackupModal({ onClose }: BackupModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Backup and restore"
+      tabIndex={-1}
+      autoFocus
       onClick={(e) => { if (e.target === e.currentTarget && !isMidConfirm) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 10001,

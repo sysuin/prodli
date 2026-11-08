@@ -24,12 +24,14 @@ import type { Todo } from "../types";
 type Priority = "high" | "medium" | "low" | "none";
 type Filter = "all" | "active" | "completed" | "high" | "medium" | "low";
 
+// Badge colours with WCAG AA contrast against their text colour (PRIORITY_TEXT).
 const PRIORITY_COLORS: Record<Priority, string> = {
-  high: "#ff4444",
+  high: "#C62828",
   medium: "#FF9800",
-  low: "#4CAF50",
+  low: "#2E7D32",
   none: "#aaa",
 };
+const PRIORITY_TEXT: Record<Priority, string> = { high: "#fff", medium: "#000", low: "#fff", none: "#000" };
 const PRIORITY_LABELS: Record<Priority, string> = {
   high: "HIGH",
   medium: "MED",
@@ -84,11 +86,14 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           {/* Checkbox */}
           <button
             onClick={handleToggle}
+            role="checkbox"
+            aria-checked={todo.completed}
+            aria-label={`${todo.completed ? "Mark not done" : "Mark done"}: ${todo.title}`}
             style={{
               width: 22,
               height: 22,
               border: "var(--nb-border)",
-              background: todo.completed ? "hsl(var(--foreground))" : "hsl(var(--card))",
+              background: todo.completed ? "#000" : "hsl(var(--card))",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -127,7 +132,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           <span style={{
             border: `2px solid ${priorityColor}`,
             background: todo.priority ? priorityColor : "transparent",
-            color: todo.priority ? "white" : "hsl(var(--muted-foreground))",
+            color: todo.priority ? PRIORITY_TEXT[todo.priority] : "hsl(var(--muted-foreground))",
             fontSize: 9,
             fontWeight: 900,
             padding: "1px 5px",
@@ -136,7 +141,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           }}>{todo.priority ? PRIORITY_LABELS[todo.priority] : PRIORITY_LABELS.none}</span>
           {/* Due date */}
           {todo.dueDate && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: new Date(todo.dueDate) < new Date() && !todo.completed ? "#ff4444" : "hsl(var(--muted-foreground))", flexShrink: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: new Date(todo.dueDate) < new Date() && !todo.completed ? "#C62828" : "hsl(var(--muted-foreground))", flexShrink: 0 }}>
               📅 {new Date(todo.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
           )}
@@ -147,9 +152,9 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
             </button>
           )}
           {/* Add subtask */}
-          <button onClick={() => onAddSubtask(todo.id)} style={{ border: "var(--nb-border)", background: "hsl(var(--muted))", color: "hsl(var(--foreground))", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Add subtask">+</button>
+          <button onClick={() => onAddSubtask(todo.id)} style={{ border: "var(--nb-border)", background: "hsl(var(--muted))", color: "hsl(var(--foreground))", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Add subtask" aria-label={`Add subtask to ${todo.title}`}>+</button>
           {/* Delete */}
-          <button onClick={() => onDelete(todo.id)} style={{ border: "1px solid #ff4444", background: "#ff4444", color: "white", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+          <button onClick={() => onDelete(todo.id)} aria-label={`Delete task: ${todo.title}`} title="Delete task" style={{ border: "1px solid #C62828", background: "#C62828", color: "white", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
         </div>
         {/* Subtasks */}
         {expanded && todo.subtasks && todo.subtasks.length > 0 && (
@@ -163,7 +168,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
                   {sub.completed && <span style={{ color: "#FFD700", fontSize: 10, fontWeight: 900 }}>✓</span>}
                 </button>
                 <span style={{ flex: 1, fontSize: 12, textDecoration: sub.completed ? "line-through" : "none", opacity: sub.completed ? 0.5 : 1 }}>{sub.title}</span>
-                <button onClick={() => onDeleteSubtask(todo.id, sub.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#ff4444", fontSize: 14, fontWeight: 900 }}>×</button>
+                <button onClick={() => onDeleteSubtask(todo.id, sub.id)} aria-label={`Delete subtask: ${sub.title}`} style={{ border: "none", background: "none", cursor: "pointer", color: "#C62828", fontSize: 14, fontWeight: 900 }}>×</button>
               </div>
             ))}
           </div>
@@ -271,7 +276,7 @@ export function TodoSection() {
       <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))" }}>
         <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
           To-Do List
-          <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "hsl(var(--foreground))", color: "#FFD700", padding: "2px 8px", verticalAlign: "middle" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: "#FFD700", padding: "2px 8px", verticalAlign: "middle" }}>
             {completedCount}/{todos.length} done
           </span>
         </div>
@@ -298,7 +303,7 @@ export function TodoSection() {
                 border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px",
                 height: "38px", boxSizing: "border-box" as const,
                 background: priority !== "none" ? PRIORITY_COLORS[priority] : "hsl(var(--card))",
-                color: priority !== "none" ? "white" : "hsl(var(--foreground))",
+                color: priority !== "none" ? PRIORITY_TEXT[priority] : "hsl(var(--foreground))",
                 fontWeight: 700, cursor: "pointer", fontSize: 12, textTransform: "uppercase",
                 fontFamily: "inherit",
               }}
@@ -317,7 +322,7 @@ export function TodoSection() {
             )}
           </div>
           <input
-            type="date"
+            type="date" aria-label="Due date"
             value={dueDate}
             onChange={e => setDueDate(e.target.value)}
             style={{ border: "var(--nb-border)", padding: "0 8px", height: "38px", boxSizing: "border-box" as const, fontFamily: "inherit", fontSize: 12, boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
@@ -337,7 +342,7 @@ export function TodoSection() {
             onClick={() => setFilter(f.key)}
             style={{
               border: "none", borderRight: "var(--nb-border)", padding: "8px 16px",
-              background: filter === f.key ? "hsl(var(--foreground))" : "transparent",
+              background: filter === f.key ? "#000" : "transparent",
               color: filter === f.key ? "#FFD700" : "hsl(var(--foreground))",
               fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase",
               letterSpacing: "0.06em", whiteSpace: "nowrap", fontFamily: "inherit",
