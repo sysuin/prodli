@@ -2,7 +2,7 @@
 
 ## Quick Start
 
-1. Run `pnpm build:extension` from `artifacts/prodli/` to produce `prodli-extension.zip`
+1. Run `pnpm run build:extension` from the repo root (or download `prodli-extension.zip` from the latest CI run)
 2. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 3. Click **New Item** → upload `prodli-extension.zip`
 4. Fill in the listing fields below

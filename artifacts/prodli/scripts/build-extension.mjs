@@ -39,6 +39,12 @@ const iconsDir = resolve(distDir, "icons");
 mkdirSync(iconsDir, { recursive: true });
 cpSync(resolve(root, "extension", "icons"), iconsDir, { recursive: true });
 
+console.log("==> Removing website-only files from the extension...");
+// public/ is shared with the web preview; these files are only used by the website.
+for (const f of ["store-assets", "promo.html", "opengraph.jpg", "favicon.svg", "icon-16.png", "icon-48.png", "icon-128.png"]) {
+  rmSync(resolve(distDir, f), { recursive: true, force: true });
+}
+
 console.log("==> Verifying manifest...");
 const manifest = JSON.parse(readFileSync(resolve(distDir, "manifest.json"), "utf8"));
 if (manifest.manifest_version !== 3) throw new Error("manifest_version must be 3");

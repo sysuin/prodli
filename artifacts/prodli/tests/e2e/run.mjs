@@ -31,7 +31,7 @@ class Browser {
     this.downloads = mkdtempSync(path.join(tmpdir(), "prodli-dl-"));
     this.proc = spawn(
       CHROME,
-      ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"],
+      ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", ...(process.env.CI ? ["--no-sandbox"] : []), "about:blank"],
       { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] },
     );
     this.nextId = 1;

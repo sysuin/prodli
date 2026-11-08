@@ -1,6 +1,6 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-08 · Branch: `feature/meetings-and-files`
+Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 
@@ -10,8 +10,11 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files`
   - [ ] Summary + action items generate with your Claude API key
   - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call, closing the tab
 - [ ] **Quick check of this round's changes** in your own Chrome: Files tab, Editor ⬆/⬇ Markdown buttons, Pomodoro across tabs, Backup export
-- [ ] **Push to GitHub**: the code lives on Replit plus this local copy with no GitHub backup. Create a GitHub repo, then `git remote add origin …` and push the branch.
-- [ ] **Decide how to sync with Replit**: either make GitHub the main copy and connect Replit to it, or copy this branch back into Replit
+- [ ] **Leave Replit** — follow [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
+  - [ ] Push to a private GitHub repo (CI then runs all tests on every push)
+  - [ ] Create the free Cloudflare Pages project + add the two GitHub secrets
+  - [ ] Move prodli.com DNS to Cloudflare, **keeping the Hostinger email (MX/TXT) records**
+  - [ ] After a few days on Cloudflare: unpublish the Replit deployment and cancel any Replit plan
 - [ ] **Update the Chrome Web Store listing** for v1.2.0: new description, Meetings and Files screenshots, "all-in-one workspace" wording; remove "keeps running across tabs" caveats (now true)
 - [ ] **Update the privacy policy and store data disclosure**: meeting transcripts can go to Anthropic (Claude) when the user adds their key
 - [ ] Submit v1.2.0 to the Chrome Web Store (expect a slower review because of the tab-audio permission)
@@ -35,22 +38,21 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files`
 ## Foundation (before accounts and sync)
 
 - [ ] **Change how data is saved**: give every note, to-do and habit its own ID, a "last changed" time and a "deleted" flag, so syncing devices doesn't overwrite changes (today each tool saves its whole list at once)
-- [ ] Run `pnpm test` and `pnpm test:e2e` automatically on every push (GitHub Actions, once the code is on GitHub)
 - [ ] Add tests for the Time Tracker and Habits (only smoke-tested today)
 - [ ] Split `TimeTrackerSection.tsx` (1,767 lines) into smaller files
 - [ ] Move inline styles into shared UI components, so screens can be reused on web, desktop and mobile
-- [ ] Remove build output (`dist-extension/`, `prodli-extension.zip`) from git and build it in CI instead
+- [ ] Optional: publish to the Chrome Web Store from CI (the Web Store API is free)
 
 ## Roadmap
 
-- [ ] Accounts + cloud sync (use the existing `api-server` + PostgreSQL skeleton); keep "use without an account"
+- [ ] Accounts + cloud sync on Cloudflare Workers + D1 (free tier; see [docs/COSTS.md](docs/COSTS.md)); keep "use without an account"
 - [ ] Web app (app.prodli.com), reusing the extension's screens
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
 - [ ] Mobile app
 
 ## How to test
 
-From `artifacts/prodli/`:
+From the repo root (see README.md for all commands):
 
 - `pnpm run typecheck` — TypeScript
 - `pnpm test` — unit tests (file parsing & sanitizing, Pomodoro timer, backup/restore, Markdown export)
@@ -66,3 +68,4 @@ From `artifacts/prodli/`:
 - [x] 2026-11-08 — Top bar fits on smaller screens (icons only below ~1040 px)
 - [x] 2026-11-08 — Automated tests: 31 unit tests + 44 browser checks
 - [x] 2026-11-08 — Markdown safety: never show unsanitized HTML if the sanitizer can't run
+- [x] 2026-11-08 — Independent of Replit: removed Replit config/plugins/packages and the unused backend template; builds on any OS; `pnpm run build:web` produces a static website for free hosting; GitHub Actions CI + Cloudflare Pages deploy workflows; build output no longer committed; website-only files removed from the extension zip

@@ -1,2 +1,0 @@
-const E="claude-haiku-5-5";function c(s){const t=Math.max(0,Math.floor(s/1e3)),o=Math.floor(t/3600),n=Math.floor(t%3600/60),e=t%60,a=String(n).padStart(2,"0"),r=String(e).padStart(2,"0");return o>0?`${o}:${a}:${r}`:`${a}:${r}`}function i(s){return s.map(t=>`[${c(t.startMs)}] ${t.speaker}: ${t.text}`).join(`
-`)}const S="rec_state",M="claudeApiKey",_="recorderMicEnabled",m="recorderAutoSummarize",p={permissions:["tabCapture","offscreen","scripting"],origins:["https://meet.google.com/*"]};export{m as A,M as C,_ as M,S as R,E as S,p as a,c as f,i as t};
