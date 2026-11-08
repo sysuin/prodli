@@ -11,7 +11,8 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [
   - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call, closing the tab
 - [ ] **Quick check of this round's changes** in your own Chrome: Files tab, Editor ⬆/⬇ Markdown buttons, Pomodoro across tabs, Backup export
 - [ ] **Leave Replit** — follow [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
-  - [ ] Push to a private GitHub repo (CI then runs all tests on every push)
+  - [x] Push to a private GitHub repo — https://github.com/sysuin/prodli (CI passed on first run, 2026-11-08)
+  - [ ] Merge `feature/meetings-and-files` into `main` (open a pull request on GitHub)
   - [ ] Create the free Cloudflare Pages project + add the two GitHub secrets
   - [ ] Move prodli.com DNS to Cloudflare, **keeping the Hostinger email (MX/TXT) records**
   - [ ] After a few days on Cloudflare: unpublish the Replit deployment and cancel any Replit plan
