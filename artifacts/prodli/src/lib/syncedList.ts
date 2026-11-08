@@ -11,6 +11,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onStorageChange, storageGet, storageSet } from "./storage";
+import { recordDeletions, type Collection } from "./tombstones";
+
+const SYNCED_COLLECTIONS: ReadonlySet<string> = new Set(["notes", "todos", "habits"]);
 
 export interface SyncItem {
   id: string;
@@ -101,6 +104,8 @@ export function useSyncedList<T extends SyncItem>(
       const nowById = new Map(itemsRef.current.map((i) => [i.id, i]));
       for (const id of dirtySnap) if (nowById.get(id) === snapById.get(id)) dirty.current.delete(id);
       for (const id of deletedSnap) deleted.current.delete(id);
+      // Remember deletions so cross-device sync doesn't bring items back.
+      if (deletedSnap.size && SYNCED_COLLECTIONS.has(key)) void recordDeletions(key as Collection, [...deletedSnap]).catch(() => {});
       // Pick up anything other tabs added while we were saving.
       if (itemsRef.current === localSnap) apply(merged);
       else apply(mergeLists(itemsRef.current, merged, dirty.current, deleted.current));

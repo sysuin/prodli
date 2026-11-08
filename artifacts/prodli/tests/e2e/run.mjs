@@ -549,7 +549,8 @@ const suites = {
       window.fetch = async (url, init = {}) => {
         url = String(url);
         if (url.includes("oauth2/v3/userinfo")) return Response.json({ sub: "1", name: "Test User", email: "test@example.com", picture: null });
-        if (url.includes("/upload/drive/v3/files")) { window.__drive = init.body; return Response.json({ id: "f1" }); }
+        if (url.includes("/upload/drive/v3/files")) { window.__drive = init.body; window.__uploads = (window.__uploads || 0) + 1; return Response.json({ id: "f1" }); }
+        if (url.includes("/drive/v3/files/f1") && url.includes("alt=media")) return new Response(window.__drive.split(String.fromCharCode(13, 10, 13, 10))[2].split(String.fromCharCode(13, 10) + "--")[0], { headers: { "Content-Type": "application/json" } });
         if (url.includes("/drive/v3/files?")) return Response.json({ files: window.__drive ? [{ id: "f1", modifiedTime: new Date().toISOString(), size: "100" }] : [] });
         if (url.includes("oauth2.googleapis.com/revoke")) return new Response("");
         return realFetch(url, init);
@@ -563,12 +564,13 @@ const suites = {
     let t = await p.text();
     await p.shot("account-signed-in");
     check("Account: sign in shows the Google profile", t.includes("Test User") && t.includes("test@example.com"));
+    check("Account: signing in syncs right away", (await p.eval("window.__uploads || 0")) === 1 && t.includes("synced"));
     check("Account: avatar appears in the top bar", await p.eval(`!!document.querySelector('nav button[aria-label="Account: test@example.com"]')`));
-    await p.click("Back up now");
+    await p.click("Sync now");
     await sleep(800);
     t = await p.text();
     const uploaded = await p.eval("window.__drive || ''");
-    check("Account: back up to Google Drive (private app folder, no API key)", t.includes("Backed up to Google Drive") && uploaded.includes('"version":"1.1"') && uploaded.includes("appDataFolder") && !uploaded.includes("claudeApiKey"), uploaded.slice(0, 200));
+    check("Account: sync with Google Drive (private app folder, no API key)", t.includes("Synced with Google Drive") && (await p.eval("window.__uploads")) === 2 && uploaded.includes('"version":"1.1"') && uploaded.includes('"tombstones"') && !uploaded.includes("claudeApiKey"), uploaded.slice(0, 200));
     await sleep(500);
     check("Account: shows the latest Drive copy", !(await p.text()).includes("Latest copy in Drive: none yet"));
     await p.click("Sign out");

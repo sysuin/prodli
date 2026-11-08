@@ -3,6 +3,7 @@
 // live in IndexedDB, which the service worker, offscreen document and UI share.
 
 import type { Meeting } from "./types";
+import { recordDeletions } from "../lib/tombstones";
 
 const DB_NAME = "prodli-meetings";
 const DB_VERSION = 1;
@@ -91,12 +92,14 @@ export async function listMeetings(): Promise<Meeting[]> {
   return all.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
-export async function deleteMeeting(id: string): Promise<void> {
+/** Deletes a meeting and its audio. `tombstone` marks the deletion for cross-device sync. */
+export async function deleteMeeting(id: string, { tombstone = true }: { tombstone?: boolean } = {}): Promise<void> {
   await tx([MEETINGS, AUDIO], "readwrite", async (t) => {
     await reqToPromise(t.objectStore(MEETINGS).delete(id));
     await reqToPromise(t.objectStore(AUDIO).delete(id));
   });
   await deleteChunks(id);
+  if (tombstone) await recordDeletions("meetings", [id]).catch(() => {});
 }
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
