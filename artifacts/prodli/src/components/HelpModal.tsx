@@ -134,7 +134,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
             <Row label={<Tag>Sort & search</Tag>} desc="Sort by recently edited, newest, or A–Z. Search matches titles and text, with an excerpt." />
             <Row label={<Tag>☰ Outline</Tag>} desc="Shows the note's headings; click one to jump there." />
-            <Row label={<><Tag>⧉</Tag><Tag>⬆</Tag><Tag>⬇</Tag><Tag>🖨</Tag></>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
+            <Row label={<Tag>⋯ More</Tag>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
             <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar for distraction-free writing. Press Escape to exit." />
             <Row label={<Tag>Saving</Tag>} desc="Notes save automatically (the status bar shows Saving… / Saved). Edits in several ProdLi tabs are merged — nothing gets overwritten." />
           </Section>

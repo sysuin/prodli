@@ -115,6 +115,7 @@ export function EditorSection() {
   const [sort, setSort] = useState<NoteSort>("updated");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
@@ -508,6 +509,16 @@ export function EditorSection() {
     document.documentElement.classList.remove("printing-note");
   };
 
+  // Close the More menu when clicking elsewhere.
+  useEffect(() => {
+    if (!showMore) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[aria-label="More note actions"], [title^="More: copy"]')) setShowMore(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showMore]);
+
   // Escape leaves full screen; Alt+N makes a new note.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -615,10 +626,34 @@ export function EditorSection() {
           </select>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} title="Outline (headings in this note)">☰</ToolbarButton>
-            <ToolbarButton onClick={() => void copyMarkdown()} title="Copy note as Markdown">⧉</ToolbarButton>
-            <ToolbarButton onClick={() => importInputRef.current?.click()} title="Import a Markdown file as a new note">⬆</ToolbarButton>
-            <ToolbarButton onClick={exportMarkdown} title="Export this note as Markdown (.md)">⬇</ToolbarButton>
-            <ToolbarButton onClick={printNote} title="Print or save as PDF">🖨</ToolbarButton>
+            <div style={{ position: "relative" }}>
+              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: copy, import, export, print">⋯</ToolbarButton>
+              {showMore && (
+                <div role="menu" aria-label="More note actions" style={{ position: "absolute", right: 0, top: 38, zIndex: 30, minWidth: 220, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}>
+                  {[
+                    { icon: "⧉", label: "Copy as Markdown", title: "Copy note as Markdown", run: () => void copyMarkdown() },
+                    { icon: "⬆", label: "Import Markdown file…", title: "Import a Markdown file as a new note", run: () => importInputRef.current?.click() },
+                    { icon: "⬇", label: "Export as Markdown (.md)", title: "Export this note as Markdown (.md)", run: exportMarkdown },
+                    { icon: "🖨", label: "Print / save as PDF", title: "Print or save as PDF", run: printNote },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      role="menuitem"
+                      title={item.title}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setShowMore(false);
+                        item.run();
+                      }}
+                      style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", color: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      <span style={{ width: 18, textAlign: "center" }}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <input
               ref={importInputRef}
               type="file"
