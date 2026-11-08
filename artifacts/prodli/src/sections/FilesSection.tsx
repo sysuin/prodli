@@ -459,7 +459,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
           {recent.length > 0 && (
             <div style={{ marginTop: 20 }} aria-label="Recent files">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7 }}>Recent files</span>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "hsl(var(--muted-foreground))" }}>Recent files</span>
                 <button style={{ ...btn(), padding: "3px 8px", fontSize: 10 }} onClick={() => void clearRecent().then(refreshRecent)}>
                   Clear
                 </button>
@@ -476,7 +476,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
                       style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "transparent", color: "inherit", cursor: "pointer", fontFamily: "inherit", padding: 0 }}
                     >
                       <div style={{ fontWeight: 800, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
-                      <div style={{ fontSize: 11, opacity: 0.7 }}>
+                      <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
                         {KIND_LABEL[r.kind]} · {formatBytes(r.size)} · opened {new Date(r.openedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
                       </div>
                     </button>
@@ -486,7 +486,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>The last {MAX_RECENT} files (up to 1 MB each) are kept on this device only.</div>
+              <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginTop: 6 }}>The last {MAX_RECENT} files (up to 1 MB each) are kept on this device only.</div>
             </div>
           )}
           </>

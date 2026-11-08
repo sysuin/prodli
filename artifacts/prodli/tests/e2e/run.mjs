@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Browser, EXT, FIXTURES, sleep, waitForDownload } from "./cdp.mjs";
 
-const only = process.argv[2]; // optional suite name filter
+const only = process.argv[2]; // optional suite filter, e.g. "editor" or "files,tracker"
 
 // ── Suites ────────────────────────────────────────────────────────────────────
 
@@ -389,6 +389,8 @@ const suites = {
     const imported = notes.find((n) => n.title === "sample");
     check("Editor: import Markdown keeps checklist and table", !!imported && imported.content.includes("<h1>Project Plan</h1>") && imported.content.includes('data-type="taskList"') && imported.content.includes("<table") && !/<script/i.test(imported.content));
     await sleep(300);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await sleep(200);
     await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
     const md = await waitForDownload(b, "sample");
     check("Editor: export note as Markdown", md.startsWith("# Project Plan") && md.includes("**bold**") && md.includes("[safe link](https://example.com)") && md.includes("- [x] Write spec") && /\|\s*Name\s*\|\s*Role\s*\|/.test(md), md.slice(0, 160).replace(/\n/g, "⏎"));
@@ -479,23 +481,53 @@ const suites = {
       const dayKey = await ext.eval(`(() => { const d = new Date(); return "tt_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
       const secondsOnSite = async () => ((await ext.storage([dayKey]))[dayKey] ?? {})["127.0.0.1"] ?? 0;
 
+      const sw = await b.serviceWorker();
+      const trackingSite = async () => {
+        // Wait until the tracker has actually started timing the site (not just a fixed delay).
+        for (let i = 0; i < 40; i++) {
+          const { tt_session } = await sw.eval(`chrome.storage.session.get("tt_session")`);
+          if (tt_session?.domain === "127.0.0.1") return true;
+          await sleep(250);
+        }
+        return false;
+      };
+      const waitForSeconds = async (min) => {
+        for (let i = 0; i < 20; i++) {
+          const v = await secondsOnSite();
+          if (v >= min) return v;
+          await sleep(250);
+        }
+        return secondsOnSite();
+      };
+
+      // The tracker (correctly) pauses when the computer is idle. A long test run sends no
+      // input for minutes, so use a long idle threshold — as for an active user.
+      await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 3600, notifyEnabled: false, notifyTime: "20:00", focusList: [], excludedDomains: [] } })`);
+      await sleep(500);
+
       const site = await b.openPage(`http://127.0.0.1:${port}/`);
       await b.send("Target.activateTarget", { targetId: site.targetId });
+      const started = await trackingSite();
+      const diag = started ? "" : JSON.stringify(await sw.eval(`(async () => ({
+        active: (await chrome.tabs.query({ active: true, lastFocusedWindow: true })).map((t) => t.url),
+        windows: (await chrome.windows.getAll({ populate: true })).map((w) => ({ focused: w.focused, tabs: w.tabs.map((t) => (t.active ? "*" : "") + t.url.slice(0, 40)) })),
+        idle: await chrome.idle.queryState(60),
+        settings: (await chrome.storage.local.get("tt_settings")).tt_settings ?? null,
+      }))()`));
       await sleep(4000);
       await b.send("Target.activateTarget", { targetId: ext.targetId });
-      await sleep(1500);
-      const first = await secondsOnSite();
-      check("Tracker: time on a website is recorded", first >= 3, `${first}s`);
+      const first = await waitForSeconds(3);
+      check("Tracker: time on a website is recorded", started && first >= 3, `${started ? "" : "session never started; " + diag + "; "}${first}s`);
 
       // Chrome stops idle extension workers; tracking must continue across that.
       await b.send("Target.activateTarget", { targetId: site.targetId });
+      await trackingSite();
       await sleep(1500);
       await ext.send("ServiceWorker.enable", {});
       await ext.send("ServiceWorker.stopAllWorkers", {});
       await sleep(4000);
       await b.send("Target.activateTarget", { targetId: ext.targetId });
-      await sleep(2000);
-      const second = await secondsOnSite();
+      const second = await waitForSeconds(first + 4);
       check("Tracker: keeps counting after the background worker restarts", second - first >= 4, `${first}s → ${second}s`);
 
       await ext.send("Page.reload", {});
@@ -657,7 +689,7 @@ let failures = 0;
 try {
   await browser.loadExtension();
   for (const [name, suite] of Object.entries(suites)) {
-    if (only && name !== only) continue;
+    if (only && !only.split(",").includes(name)) continue;
     const check = (label, ok, detail = "") => {
       if (!ok) failures++;
       console.log(`${ok ? "  ✓" : "  ✗"} ${label}${!ok && detail ? ` — ${detail}` : ""}`);
@@ -669,6 +701,9 @@ try {
       failures++;
       console.log(`  ✗ ${name} crashed: ${err.message}`);
     }
+    // Isolation: close any tabs a suite left open so suites can't affect each other.
+    const { targetInfos } = await browser.send("Target.getTargets");
+    for (const t of targetInfos) if (t.type === "page" && t.url !== "about:blank") await browser.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
   }
   const errors = browser.jsErrors();
   if (errors.length) {
