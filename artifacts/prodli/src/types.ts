@@ -32,7 +32,7 @@ export interface Habit {
   archived: boolean;
 }
 
-export type Section = "editor" | "todos" | "pomodoro" | "habits" | "tracker";
+export type Section = "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
 
 export interface FocusRule {
   id: string;

@@ -358,3 +358,20 @@
 .timer-pulse {
   animation: timer-pulse 1.2s ease-in-out infinite;
 }
+
+/* Files previewer — extra Markdown elements on top of the .tiptap text styles */
+.md-preview { line-height: 1.6; font-size: 15px; }
+.md-preview blockquote {
+  border-left: 4px solid var(--nb-section-border);
+  margin: 12px 0;
+  padding: 4px 14px;
+  opacity: 0.85;
+}
+.md-preview hr { border: none; border-top: 2px solid var(--nb-section-border); margin: 20px 0; }
+.md-preview img { max-width: 100%; border: var(--nb-border); }
+.md-preview table { border-collapse: collapse; margin: 12px 0; display: block; overflow-x: auto; }
+.md-preview th, .md-preview td { border: 1px solid var(--nb-section-border); padding: 6px 10px; text-align: left; }
+.md-preview th { background: hsl(var(--muted)); font-weight: 800; }
+.md-preview h4, .md-preview h5, .md-preview h6 { font-weight: 700; margin: 10px 0 4px; }
+.md-preview li > input[type="checkbox"] { margin-right: 6px; }
+.md-preview ul:has(> li > input[type="checkbox"]) { list-style: none; padding-left: 4px; }

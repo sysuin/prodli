@@ -90,9 +90,12 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/merriweather": "^5.2.11",
     "@fontsource/space-grotesk": "^5.2.10",
-    "@fontsource/space-mono": "^5.2.9"
+    "@fontsource/space-mono": "^5.2.9",
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.3"
   }
 }

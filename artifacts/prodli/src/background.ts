@@ -2,6 +2,10 @@
 // Tracks active browsing time per domain and stores it in chrome.storage.local.
 
 import type { TrackerSettings, FocusRule } from "./types";
+import { registerRecorder } from "./recorder/controller";
+
+// Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
+registerRecorder();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,

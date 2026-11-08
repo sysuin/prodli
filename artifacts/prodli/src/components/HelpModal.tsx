@@ -170,6 +170,24 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>⊘ Archive</Tag>} desc="Hides a habit without deleting its data. Restore from the Archived section at the bottom." />
           </Section>
 
+          {/* Meetings */}
+          <Section emoji="🎙️" title="Meetings">
+            <Row label={<Tag>⚙ Setup</Tag>} desc="Add your Claude API key, turn on the recorder (Chrome asks for permission), and optionally include your microphone." />
+            <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call; ProdLi reads Meet's captions, which only you can see." />
+            <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
+            <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku using your own API key." />
+            <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
+          </Section>
+
+          {/* Files */}
+          <Section emoji="📄" title="Files">
+            <Row label={<Tag>Open / drop</Tag>} desc="Click Open file, or drag a file anywhere onto ProdLi. Files are read on your device and never uploaded (up to 10 MB)." />
+            <Row label={<Tag>Markdown</Tag>} desc="Formatted preview, or switch to Source. Links open in a new tab; scripts in the file never run." />
+            <Row label={<Tag>JSON</Tag>} desc="Collapsible tree with search across keys and values, a formatted view, and the raw text. Invalid JSON shows where the problem is." />
+            <Row label={<Tag>CSV / TSV</Tag>} desc="Table view with the separator detected automatically and an optional header row." />
+            <Row label={<Tag>Save to Notes</Tag>} desc="Copies the file into a new Editor note (Markdown becomes formatted text)." />
+          </Section>
+
           {/* Keyboard Shortcuts */}
           <Section emoji="⌨️" title="Keyboard Shortcuts">
             <div style={{ border: "var(--nb-border)", overflow: "hidden" }}>
@@ -206,6 +224,10 @@ export function HelpModal({ onClose }: HelpModalProps) {
                 <ShortcutRow keys={["Ctrl / ⌘ + 2"]} action="Switch to To-Dos" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 3"]} action="Switch to Pomodoro" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 4"]} action="Switch to Habits" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 5"]} action="Switch to Tracker" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 6"]} action="Switch to Meetings" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 7"]} action="Switch to Files" />
+                <ShortcutRow keys={["Alt + Shift + R"]} action="Start / stop recording (on a Google Meet tab)" />
                 <ShortcutRow keys={["Space"]} action="Start / Pause Pomodoro timer (when on Pomodoro tab, no input focused)" />
                 <ShortcutRow keys={["Escape"]} action="Close this help panel" />
               </div>
