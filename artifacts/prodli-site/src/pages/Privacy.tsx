@@ -68,6 +68,7 @@ export function Privacy() {
               body: `When you turn on the meeting recorder and start a recording on a Google Meet tab, ProdLi:
 • records the tab's audio (and your microphone, if you allow it) and stores the recording on your device only;
 • reads Google Meet's live captions on that tab to build a transcript, stored on your device;
+• if you turn on "Transcribe on this computer", uses Chrome's built-in on-device speech recognition on the call audio instead (Chrome downloads a language pack once; the audio is processed on your device and is not sent anywhere);
 • if you have added your own Claude API key, sends the transcript to Anthropic's API to generate a summary and action items. This request is made directly from your browser with your key and is subject to Anthropic's privacy policy. ProdLi never sees your key or transcripts.
 
 No bot joins the call. You are responsible for informing participants and obtaining consent where the law requires it.`,

@@ -175,6 +175,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <Section emoji="🎙️" title="Meetings">
             <Row label={<Tag>⚙ Setup</Tag>} desc="Add your Claude API key, turn on the recorder (Chrome asks for permission), and optionally include your microphone." />
             <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call; ProdLi reads Meet's captions, which only you can see." />
+            <Row label={<Tag>Captions off?</Tag>} desc="Turn on “Transcribe on this computer” in Setup. Chrome's built-in speech recognition transcribes the call on your device (speakers: You / Others). One free download per language; audio never leaves your computer." />
             <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku using your own API key." />
             <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
