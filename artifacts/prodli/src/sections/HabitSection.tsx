@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { storageGet, storageSet } from "../lib/storage";
+import { storageSet } from "../lib/storage";
+import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import type { Habit } from "../types";
 
@@ -305,17 +306,12 @@ function HabitForm({ initial, onSave, onCancel }: HabitFormProps) {
 }
 
 export function HabitSection() {
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  useEffect(() => {
-    storageGet<Habit[]>("habits", []).then(h => { setHabits(h); setLoaded(true); });
-  }, []);
-
-  const save = (updated: Habit[]) => { setHabits(updated); storageSet("habits", updated); };
+  // Synced across ProdLi tabs: edits in one tab never overwrite another's.
+  const { items: habits, setItems: save, loaded } = useSyncedList<Habit>("habits");
 
   const addHabit = (name: string, emoji: string, color: string) => {
     const habit: Habit = {

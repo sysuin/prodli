@@ -10,7 +10,7 @@ const FEATURES = [
     emoji: "✍️",
     title: "Editor",
     accent: "#FFD700",
-    desc: "Rich-text notes with font picker, fullscreen focus mode, and full-text search across title and body.",
+    desc: "Rich notes with checklists, tables and a “/” command menu. Paste Markdown, pin notes, export or print.",
   },
   {
     emoji: "✅",
@@ -22,13 +22,25 @@ const FEATURES = [
     emoji: "🍅",
     title: "Pomodoro",
     accent: "#f87171",
-    desc: "Focus timer that keeps running even when you switch tabs. Get browser notifications on completion.",
+    desc: "Focus timer that keeps running across tabs — even with ProdLi closed — and notifies you when time is up.",
   },
   {
     emoji: "🎯",
     title: "Habits",
     accent: "#60a5fa",
     desc: "Daily habit check-ins with automatic streak tracking and a visual heatmap calendar.",
+  },
+  {
+    emoji: "🎙️",
+    title: "Meetings",
+    accent: "#FF4FA3",
+    desc: "AI notes for Google Meet without a bot joining: transcript, summary and action items that go straight to your To-Dos.",
+  },
+  {
+    emoji: "📄",
+    title: "Files",
+    accent: "#FF9800",
+    desc: "Drop a .md, .json, .csv or text file anywhere to preview it nicely — then save it as a note.",
   },
   {
     emoji: "⏱",
@@ -88,7 +100,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
             Your productivity hub is ready.
           </div>
           <div style={{ color: "#888", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-            Five tools, one new tab. Everything stays on your device — no account needed.
+            Seven tools, one new tab. Everything stays on your device — no account needed (sign in with Google only if you want Drive backup).
           </div>
         </div>
 

@@ -5,7 +5,7 @@ const FEATURES = [
     emoji: "✍️",
     title: "Editor",
     accent: "#FFD700",
-    desc: "Rich-text notes with font picker, fullscreen focus mode, and full-text search across title and body.",
+    desc: "Rich notes with checklists, tables and a “/” command menu. Paste Markdown, pin notes, export to .md or PDF.",
   },
   {
     emoji: "✅",
@@ -17,13 +17,25 @@ const FEATURES = [
     emoji: "🍅",
     title: "Pomodoro",
     accent: "#f87171",
-    desc: "Focus timer that keeps running even when you switch tabs. Get browser notifications on completion.",
+    desc: "Focus timer that keeps running across tabs — even with ProdLi closed — with a notification when time is up.",
   },
   {
     emoji: "🎯",
     title: "Habits",
     accent: "#60a5fa",
     desc: "Daily habit check-ins with automatic streak tracking and a visual heatmap calendar.",
+  },
+  {
+    emoji: "🎙️",
+    title: "Meetings",
+    accent: "#FF4FA3",
+    desc: "AI notes for Google Meet — no bot joins your call. Transcript, summary and action items that land in your to-dos.",
+  },
+  {
+    emoji: "📄",
+    title: "Files",
+    accent: "#FF9800",
+    desc: "Drop a .md, .json, .csv or text file to preview it beautifully, then save it as a note.",
   },
   {
     emoji: "⏱",
@@ -104,7 +116,7 @@ export function Landing() {
           fontSize: "clamp(14px, 2vw, 18px)", fontWeight: 500,
           color: "#5a3e20", maxWidth: 560, lineHeight: 1.65, marginBottom: 40,
         }}>
-          Five productivity tools in one place — editor, to-dos, Pomodoro, habits, and an automatic time tracker. No account. No cloud. Just you.
+          Seven productivity tools in one place — notes, to-dos, Pomodoro, habits, time tracking, AI meeting notes and a file previewer. No account needed. Your data stays on your device.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
@@ -128,7 +140,7 @@ export function Landing() {
           {[
             ["100%", "Local storage"],
             ["0", "Accounts required"],
-            ["5", "Tools in one tab"],
+            ["7", "Tools in one tab"],
           ].map(([val, lbl]) => (
             <div key={lbl} style={{ textAlign: "center" }}>
               <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 28, color: "#000" }}>{val}</div>
@@ -143,7 +155,7 @@ export function Landing() {
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div className="section-label" style={{ marginBottom: 12 }}>Everything you need</div>
           <h2 style={{ fontWeight: 900, fontSize: "clamp(24px, 4vw, 40px)", letterSpacing: "-0.02em", marginBottom: 40, maxWidth: 480 }}>
-            Five tools. One new tab.
+            Seven tools. One new tab.
           </h2>
 
           <div className="feature-grid">
@@ -224,10 +236,10 @@ export function Landing() {
             Everything stays on your device.
           </h2>
           <p style={{ fontSize: 15, lineHeight: 1.7, color: "#3a2a00", maxWidth: 560, margin: "0 auto 36px" }}>
-            Your notes, tasks, habits, and browsing history never leave your browser. No servers. No analytics. No accounts. No tracking. ProdLi works entirely offline.
+            Your notes, tasks, habits and browsing history stay in your browser. No ProdLi servers, no analytics, no tracking. Optional extras are yours to control: AI meeting summaries use your own Claude API key, and Google Drive backup goes to your own Drive.
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-            {["No account needed", "No data collection", "No external servers", "Works offline"].map((item) => (
+            {["No account needed", "No ProdLi servers", "No analytics", "Works offline"].map((item) => (
               <span key={item} style={{
                 border: "2px solid #000", padding: "6px 16px",
                 fontWeight: 800, fontSize: 11, textTransform: "uppercase",

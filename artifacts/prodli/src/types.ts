@@ -4,6 +4,9 @@ export interface Note {
   content: string;
   createdAt: string;
   updatedAt: string;
+  pinned?: boolean;
+  /** True until the user renames the note: the title follows the first line. */
+  autoTitle?: boolean;
 }
 
 export interface Subtask {
@@ -20,6 +23,7 @@ export interface Todo {
   dueDate?: string;
   subtasks?: Subtask[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Habit {
@@ -29,6 +33,7 @@ export interface Habit {
   color: string;
   completedDays: string[];
   createdAt: string;
+  updatedAt?: string;
   archived: boolean;
 }
 
