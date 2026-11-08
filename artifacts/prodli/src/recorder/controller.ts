@@ -1,0 +1,326 @@
+// Background-side control of meeting recording.
+//
+// Start: click the ProdLi toolbar icon (or press Alt+Shift+R) on a Google Meet
+// tab. Chrome only lets an extension capture a tab's audio after one of those
+// user actions, which is why recording can't start from a button inside Meet.
+
+import { getMeeting, putMeeting, updateMeeting } from "./db";
+import { summarizeMeeting, SummarizeError } from "./summarize";
+import {
+  AUTO_SUMMARIZE_STORAGE_KEY,
+  CLAUDE_KEY_STORAGE_KEY,
+  MIC_ENABLED_STORAGE_KEY,
+  RECORDER_PERMISSIONS,
+  RECORDING_STATE_KEY,
+  type BackgroundMessage,
+  type ContentCommand,
+  type Meeting,
+  type OffscreenCommand,
+  type RecordingState,
+  type TranscriptEntry,
+} from "./types";
+
+const MEET_URL = /^https:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})(?:[/?#]|$)/;
+const OFFSCREEN_URL = "offscreen.html";
+
+let stopping = false;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function meetingCodeFromUrl(url: string | undefined): string | null {
+  return url ? (MEET_URL.exec(url)?.[1] ?? null) : null;
+}
+
+async function getState(): Promise<RecordingState | null> {
+  const r = await chrome.storage.session.get(RECORDING_STATE_KEY);
+  return (r[RECORDING_STATE_KEY] as RecordingState | undefined) ?? null;
+}
+
+async function setState(state: RecordingState | null): Promise<void> {
+  if (state) await chrome.storage.session.set({ [RECORDING_STATE_KEY]: state });
+  else await chrome.storage.session.remove(RECORDING_STATE_KEY);
+}
+
+async function getLocal<T>(key: string, fallback: T): Promise<T> {
+  const r = await chrome.storage.local.get(key);
+  return (r[key] as T | undefined) ?? fallback;
+}
+
+async function hasOffscreenDocument(): Promise<boolean> {
+  if (!chrome.offscreen) return false;
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  });
+  return contexts.length > 0;
+}
+
+async function ensureOffscreenDocument(): Promise<void> {
+  if (await hasOffscreenDocument()) return;
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_URL,
+    reasons: [chrome.offscreen.Reason.USER_MEDIA],
+    justification: "Record Google Meet audio for ProdLi meeting notes",
+  });
+}
+
+async function closeOffscreenDocument(): Promise<void> {
+  if (await hasOffscreenDocument()) await chrome.offscreen.closeDocument().catch(() => {});
+}
+
+function notify(title: string, message: string): void {
+  chrome.notifications.create(`rec_${Date.now()}`, {
+    type: "basic",
+    iconUrl: "icons/icon-128.png",
+    title,
+    message,
+  });
+}
+
+async function openMeetingsSection(): Promise<void> {
+  await chrome.storage.local.set({ lastSection: "meetings" });
+  await chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
+}
+
+async function setRecordingBadge(tabId: number | null): Promise<void> {
+  if (tabId === null) {
+    await chrome.action.setBadgeText({ text: "" });
+    return;
+  }
+  await chrome.action.setBadgeBackgroundColor({ color: "#E53935" });
+  await chrome.action.setBadgeText({ text: "REC" });
+}
+
+// ── Start / stop ──────────────────────────────────────────────────────────────
+
+export async function toggleRecording(tab: chrome.tabs.Tab | undefined): Promise<void> {
+  const state = await getState();
+  if (state) {
+    await stopRecording("user");
+    return;
+  }
+  const code = meetingCodeFromUrl(tab?.url);
+  if (!tab?.id || !code) {
+    await openMeetingsSection();
+    return;
+  }
+  await startRecording(tab as chrome.tabs.Tab & { id: number }, code);
+}
+
+async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: string): Promise<void> {
+  const granted = await chrome.permissions.contains(RECORDER_PERMISSIONS);
+  if (!granted) {
+    notify("Turn on the meeting recorder", "Open ProdLi → Meetings and click “Turn on recorder” first.");
+    await openMeetingsSection();
+    return;
+  }
+
+  const meetingId = `mtg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = new Date();
+  try {
+    await ensureOffscreenDocument();
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+
+    const meeting: Meeting = {
+      id: meetingId,
+      platform: "google-meet",
+      title: `Google Meet · ${code}`,
+      meetingCode: code,
+      url: tab.url ?? `https://meet.google.com/${code}`,
+      startedAt: startedAt.toISOString(),
+      endedAt: null,
+      durationSec: 0,
+      status: "recording",
+      transcript: [],
+      summary: null,
+      error: null,
+      notice: null,
+      hasAudio: false,
+      micIncluded: false,
+      audioMimeType: null,
+      updatedAt: startedAt.toISOString(),
+    };
+    await putMeeting(meeting);
+    await setState({ meetingId, tabId: tab.id, startedAt: meeting.startedAt, captionsOn: false });
+
+    const withMic = await getLocal<boolean>(MIC_ENABLED_STORAGE_KEY, false);
+    const startCmd: OffscreenCommand = { target: "offscreen", type: "start", meetingId, streamId, withMic };
+    const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string } | undefined;
+    if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
+
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
+    const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime() };
+    await chrome.tabs.sendMessage(tab.id, captionsCmd);
+
+    await setRecordingBadge(tab.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await setState(null);
+    await setRecordingBadge(null);
+    await closeOffscreenDocument();
+    await updateMeeting(meetingId, () => ({ status: "error", error: `Recording couldn't start: ${message}`, endedAt: new Date().toISOString() }));
+    notify("Recording didn't start", message);
+  }
+}
+
+export async function stopRecording(reason: "user" | "tab-closed" | "left-call" | "error", finalEntries?: TranscriptEntry[]): Promise<void> {
+  if (stopping) return;
+  const state = await getState();
+  if (!state) return;
+  stopping = true;
+  try {
+    await setState(null);
+    await setRecordingBadge(null);
+
+    // 1. Collect the final transcript from the Meet tab (if it's still open).
+    let entries = finalEntries;
+    if (!entries && reason !== "tab-closed") {
+      try {
+        const stopCmd: ContentCommand = { target: "captions", type: "stop" };
+        const res = (await chrome.tabs.sendMessage(state.tabId, stopCmd)) as { entries?: TranscriptEntry[] } | undefined;
+        entries = res?.entries;
+      } catch {
+        // Tab is gone or navigated away; use what was already saved.
+      }
+    }
+
+    // 2. Stop the audio recorder (it saves the audio before replying).
+    try {
+      const stopCmd: OffscreenCommand = { target: "offscreen", type: "stop" };
+      await chrome.runtime.sendMessage(stopCmd);
+    } catch {
+      // Offscreen document already gone.
+    }
+    await closeOffscreenDocument();
+
+    // 3. Save the finished meeting.
+    const endedAt = new Date();
+    const meeting = await updateMeeting(state.meetingId, (m) => {
+      const transcript = entries && entries.length >= m.transcript.length ? entries : m.transcript;
+      return {
+        transcript,
+        endedAt: endedAt.toISOString(),
+        durationSec: Math.round((endedAt.getTime() - new Date(m.startedAt).getTime()) / 1000),
+        status: "processing",
+        notice:
+          transcript.length === 0
+            ? "No captions were captured. Next time, make sure captions (CC) are on in Google Meet — only you can see them."
+            : null,
+      };
+    });
+    if (meeting) await finishMeeting(meeting.id);
+  } finally {
+    stopping = false;
+  }
+}
+
+async function finishMeeting(meetingId: string): Promise<void> {
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return;
+  const autoSummarize = await getLocal<boolean>(AUTO_SUMMARIZE_STORAGE_KEY, true);
+  const apiKey = await getLocal<string>(CLAUDE_KEY_STORAGE_KEY, "");
+
+  if (meeting.transcript.length === 0 || !autoSummarize || !apiKey) {
+    await updateMeeting(meetingId, () => ({ status: "ready" }));
+    notify("Meeting saved", apiKey || meeting.transcript.length === 0 ? "Open ProdLi → Meetings to see it." : "Add your Claude API key in ProdLi → Meetings to get AI notes.");
+    return;
+  }
+  await runSummary(meetingId);
+}
+
+export async function runSummary(meetingId: string): Promise<{ ok: boolean; error?: string }> {
+  const meeting = await updateMeeting(meetingId, () => ({ status: "processing", error: null }));
+  if (!meeting) return { ok: false, error: "Meeting not found." };
+  const apiKey = await getLocal<string>(CLAUDE_KEY_STORAGE_KEY, "");
+  try {
+    const summary = await summarizeMeeting(meeting, apiKey);
+    await updateMeeting(meetingId, (m) => ({
+      status: "ready",
+      summary,
+      title: m.title.startsWith("Google Meet · ") && summary.title ? summary.title : m.title,
+    }));
+    notify("Meeting notes ready", `${summary.title} — ${summary.actionItems.length} action item(s).`);
+    return { ok: true };
+  } catch (err) {
+    const error = err instanceof SummarizeError || err instanceof Error ? err.message : "Summarizing failed.";
+    await updateMeeting(meetingId, () => ({ status: "ready", error }));
+    return { ok: false, error };
+  }
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
+  switch (msg.type) {
+    case "captions-update": {
+      const state = await getState();
+      if (state?.meetingId === msg.meetingId && state.captionsOn !== msg.captionsOn) {
+        await setState({ ...state, captionsOn: msg.captionsOn });
+      }
+      await updateMeeting(msg.meetingId, (m) => ({
+        transcript: msg.entries.length >= m.transcript.length ? msg.entries : m.transcript,
+        title: msg.title && m.title.startsWith("Google Meet · ") ? msg.title : m.title,
+      }));
+      return { ok: true };
+    }
+    case "captions-ended":
+      await stopRecording("left-call", msg.entries);
+      return { ok: true };
+    case "stop-recording":
+      await stopRecording("user");
+      return { ok: true };
+    case "offscreen-started":
+      await updateMeeting(msg.meetingId, () => ({ micIncluded: msg.micIncluded }));
+      return { ok: true };
+    case "offscreen-stopped":
+      await updateMeeting(msg.meetingId, () => ({ hasAudio: msg.hasAudio, audioMimeType: msg.mimeType }));
+      return { ok: true };
+    case "offscreen-error":
+      notify("Recording problem", msg.error);
+      await stopRecording("error");
+      return { ok: true };
+    case "summarize":
+      return runSummary(msg.meetingId);
+  }
+}
+
+/** If the service worker restarted mid-recording and the recorder is gone, close the meeting out. */
+async function recoverIfStale(): Promise<void> {
+  const state = await getState();
+  if (state && !(await hasOffscreenDocument())) await stopRecording("error");
+}
+
+export function registerRecorder(): void {
+  chrome.action.onClicked.addListener((tab) => {
+    void toggleRecording(tab);
+  });
+
+  chrome.commands.onCommand.addListener((command, tab) => {
+    if (command !== "toggle-recording") return;
+    if (tab) {
+      void toggleRecording(tab);
+    } else {
+      void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([t]) => toggleRecording(t));
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((msg: BackgroundMessage, _sender, sendResponse) => {
+    if (msg?.target !== "background") return undefined;
+    handleMessage(msg).then(sendResponse, (err: unknown) => sendResponse({ ok: false, error: String(err) }));
+    return true;
+  });
+
+  chrome.tabs.onRemoved.addListener(async (tabId) => {
+    const state = await getState();
+    if (state?.tabId === tabId) await stopRecording("tab-closed");
+  });
+
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    if (!changeInfo.url) return;
+    const state = await getState();
+    if (state?.tabId !== tabId) return;
+    if (!meetingCodeFromUrl(changeInfo.url)) await stopRecording("left-call");
+  });
+
+  void recoverIfStale();
+}

@@ -1,35 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { storageGet, storageSet } from "./storage";
+import { storageSet } from "./storage";
 import { formatTime } from "./utils";
+import {
+  completeIfDue,
+  completionMessage,
+  defaultTimer,
+  DEFAULT_POMODORO_SETTINGS,
+  getPomodoroTotal,
+  loadPomodoro,
+  nextPhaseAfter,
+  pause,
+  saveTimer,
+  secondsLeftOf,
+  start,
+  TIMER_KEY,
+  withPhase,
+  type Phase,
+  type PomodoroSession,
+  type PomodoroSettings,
+  type TimerState,
+} from "./pomodoroCore";
 
-export type Phase = "work" | "short-break" | "long-break";
-
-export interface PomodoroSettings {
-  workDuration: number;
-  shortBreak: number;
-  longBreak: number;
-  longBreakAfter: number;
-}
-
-export interface PomodoroSession {
-  id: string;
-  label: string;
-  completedAt: string;
-  duration: number;
-}
-
-export const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
-  workDuration: 25,
-  shortBreak: 5,
-  longBreak: 15,
-  longBreakAfter: 4,
-};
-
-export function getPomodoroTotal(phase: Phase, s: PomodoroSettings) {
-  if (phase === "work") return s.workDuration * 60;
-  if (phase === "short-break") return s.shortBreak * 60;
-  return s.longBreak * 60;
-}
+export type { Phase, PomodoroSession, PomodoroSettings } from "./pomodoroCore";
+export { DEFAULT_POMODORO_SETTINGS, getPomodoroTotal } from "./pomodoroCore";
 
 function playChime() {
   try {
@@ -48,120 +41,127 @@ function playChime() {
   } catch {}
 }
 
+function isExtension(): boolean {
+  return typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.storage;
+}
+
+/**
+ * Pomodoro timer for the UI. State lives in storage (see pomodoroCore), so
+ * every open ProdLi tab shows the same timer and it keeps running when tabs
+ * close. In the extension the background worker finishes phases; in the web
+ * preview this hook does it.
+ */
 export function usePomodoroTimer() {
   const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [sessions, setSessions] = useState<PomodoroSession[]>([]);
-  const [phase, setPhase] = useState<Phase>("work");
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [taskLabel, setTaskLabel] = useState("");
+  const [timer, setTimer] = useState<TimerState>(() => defaultTimer(DEFAULT_POMODORO_SETTINGS));
+  const [now, setNow] = useState(() => Date.now());
   const [loaded, setLoaded] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(() => getPomodoroTotal("work", DEFAULT_POMODORO_SETTINGS));
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const timerRef = useRef(timer);
+  const settingsRef = useRef(settings);
+  const completedRef = useRef(completedPomodoros);
   const totalRef = useRef(getPomodoroTotal("work", DEFAULT_POMODORO_SETTINGS));
+  const lastChimeRef = useRef<number | null>(null);
+  const lastCheckRef = useRef(0);
+  const completingRef = useRef(false);
 
-  // Refs to avoid stale closures in the persistent interval
-  const phaseRef = useRef<Phase>("work");
-  const taskLabelRef = useRef("");
-  const settingsRef = useRef<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
-  const completedPomodorosRef = useRef(0);
+  timerRef.current = timer;
+  settingsRef.current = settings;
+  completedRef.current = completedPomodoros;
+  totalRef.current = getPomodoroTotal(timer.phase, settings);
 
-  useEffect(() => { phaseRef.current = phase; }, [phase]);
-  useEffect(() => { taskLabelRef.current = taskLabel; }, [taskLabel]);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
-  useEffect(() => { completedPomodorosRef.current = completedPomodoros; }, [completedPomodoros]);
-
-  useEffect(() => {
-    Promise.all([
-      storageGet<PomodoroSettings>("pomodoroSettings", DEFAULT_POMODORO_SETTINGS),
-      storageGet<PomodoroSession[]>("pomodoroSessions", []),
-      storageGet<number>("completedPomodoros", 0),
-    ]).then(([s, sess, cp]) => {
-      setSettings(s);
-      settingsRef.current = s;
-      setSessions(sess);
-      setCompletedPomodoros(cp);
-      completedPomodorosRef.current = cp;
-      const total = getPomodoroTotal("work", s);
-      setSecondsLeft(total);
-      totalRef.current = total;
-      setLoaded(true);
-    });
-  }, []);
-
-  const transitionPhase = useCallback((current: Phase, currentCompleted: number, s: PomodoroSettings) => {
-    let nextPhase: Phase;
-    let nextCompleted = currentCompleted;
-    if (current === "work") {
-      nextCompleted = currentCompleted + 1;
-      nextPhase = nextCompleted % s.longBreakAfter === 0 ? "long-break" : "short-break";
-    } else {
-      nextPhase = "work";
+  const applyTimer = useCallback((t: TimerState) => {
+    // Chime once per finished phase, in the tab the user is looking at.
+    if (t.lastCompletedAt && t.lastCompletedAt !== lastChimeRef.current) {
+      const isNew = lastChimeRef.current !== null || Date.now() - t.lastCompletedAt < 5000;
+      lastChimeRef.current = t.lastCompletedAt;
+      if (isNew && document.visibilityState === "visible") playChime();
     }
-    const total = getPomodoroTotal(nextPhase, s);
-    setPhase(nextPhase);
-    phaseRef.current = nextPhase;
-    setSecondsLeft(total);
-    totalRef.current = total;
-    setRunning(false);
-    return { nextPhase, nextCompleted };
+    setTimer(t);
   }, []);
 
+  const reloadAll = useCallback(async () => {
+    const data = await loadPomodoro();
+    setSettings(data.settings);
+    setSessions(data.sessions);
+    setCompletedPomodoros(data.completed);
+    if (lastChimeRef.current === null) lastChimeRef.current = data.timer.lastCompletedAt ?? 0;
+    applyTimer(data.timer);
+  }, [applyTimer]);
+
   useEffect(() => {
-    if (!running) { clearInterval(intervalRef.current); return; }
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          playChime();
-          const currentPhase = phaseRef.current;
-          const currentTaskLabel = taskLabelRef.current;
-          const currentSettings = settingsRef.current;
-          if (Notification.permission === "granted") {
-            new Notification("ProdLi — Timer complete!", {
-              body: currentPhase === "work" ? "Time for a break!" : "Back to work!",
-            });
-          }
-          if (currentPhase === "work") {
-            const newSession: PomodoroSession = {
-              id: Date.now().toString(),
-              label: currentTaskLabel || "Focus session",
-              completedAt: new Date().toISOString(),
-              duration: currentSettings.workDuration,
-            };
-            setSessions(prev => {
-              const updated = [newSession, ...prev].slice(0, 20);
-              storageSet("pomodoroSessions", updated);
-              return updated;
-            });
-          }
-          setCompletedPomodoros(prev => {
-            const nc = currentPhase === "work" ? prev + 1 : prev;
-            completedPomodorosRef.current = nc;
-            storageSet("completedPomodoros", nc);
-            transitionPhase(currentPhase, nc, currentSettings);
-            return nc;
-          });
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(intervalRef.current);
-  }, [running, transitionPhase]);
+    void reloadAll().then(() => setLoaded(true));
+    if (!isExtension()) return;
+    // Keep in sync with other tabs and the background worker.
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== "local") return;
+      if (changes[TIMER_KEY]?.newValue) applyTimer(changes[TIMER_KEY].newValue as TimerState);
+      if (changes.pomodoroSessions) setSessions((changes.pomodoroSessions.newValue as PomodoroSession[] | undefined) ?? []);
+      if (changes.completedPomodoros) setCompletedPomodoros((changes.completedPomodoros.newValue as number | undefined) ?? 0);
+      if (changes.pomodoroSettings?.newValue) setSettings(changes.pomodoroSettings.newValue as PomodoroSettings);
+    };
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  }, [reloadAll, applyTimer]);
+
+  // Tick while running.
+  useEffect(() => {
+    if (!timer.running) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [timer.running]);
+
+  const secondsLeft = secondsLeftOf(timer, now);
+
+  // When the phase is over: the background normally handles it via an alarm.
+  useEffect(() => {
+    if (!timer.running || timer.endsAt === null || now < timer.endsAt) return;
+    if (isExtension()) {
+      // Nudge the background if its alarm is late.
+      if (now - timer.endsAt > 1500 && now - lastCheckRef.current > 3000) {
+        lastCheckRef.current = now;
+        chrome.runtime.sendMessage({ target: "pomodoro", type: "check" }).catch(() => {});
+      }
+      return;
+    }
+    if (completingRef.current) return;
+    completingRef.current = true;
+    void completeIfDue(now).then(async (finished) => {
+      if (finished && "Notification" in window && Notification.permission === "granted") {
+        new Notification("ProdLi — Timer complete!", { body: completionMessage(finished) });
+      }
+      await reloadAll();
+      completingRef.current = false;
+    });
+  }, [now, timer.running, timer.endsAt, reloadAll]);
+
+  const update = useCallback((t: TimerState) => {
+    setTimer(t);
+    timerRef.current = t;
+    void saveTimer(t);
+  }, []);
+
+  const setRunning = useCallback((r: boolean) => {
+    const t = timerRef.current;
+    const nowMs = Date.now();
+    setNow(nowMs);
+    update(r ? start(t, nowMs) : pause(t, nowMs));
+  }, [update]);
+
+  const setTaskLabel = useCallback((label: string) => update({ ...timerRef.current, label }), [update]);
 
   const reset = useCallback(() => {
-    setRunning(false);
-    const total = getPomodoroTotal(phaseRef.current, settingsRef.current);
-    setSecondsLeft(total);
-    totalRef.current = total;
-  }, []);
+    update(withPhase(timerRef.current, timerRef.current.phase, settingsRef.current));
+  }, [update]);
 
   const skip = useCallback(() => {
-    setRunning(false);
-    transitionPhase(phaseRef.current, completedPomodorosRef.current, settingsRef.current);
-  }, [transitionPhase]);
+    const { next } = nextPhaseAfter(timerRef.current.phase, completedRef.current, settingsRef.current);
+    update(withPhase(timerRef.current, next, settingsRef.current));
+  }, [update]);
+
+  const changePhase = useCallback((p: Phase) => update(withPhase(timerRef.current, p, settingsRef.current)), [update]);
 
   const saveSettings = useCallback(async (newSettings: PomodoroSettings) => {
     const clamped: PomodoroSettings = {
@@ -173,40 +173,28 @@ export function usePomodoroTimer() {
     setSettings(clamped);
     settingsRef.current = clamped;
     await storageSet("pomodoroSettings", clamped);
-    const total = getPomodoroTotal(phaseRef.current, clamped);
-    setSecondsLeft(total);
-    totalRef.current = total;
-    setRunning(false);
-  }, []);
-
-  const changePhase = useCallback((p: Phase) => {
-    setRunning(false);
-    setPhase(p);
-    phaseRef.current = p;
-    const t = getPomodoroTotal(p, settingsRef.current);
-    setSecondsLeft(t);
-    totalRef.current = t;
-  }, []);
+    update(withPhase(timerRef.current, timerRef.current.phase, clamped));
+  }, [update]);
 
   useEffect(() => {
-    if (running) {
-      const label = phase === "work" ? "FOCUS" : "BREAK";
+    if (timer.running) {
+      const label = timer.phase === "work" ? "FOCUS" : "BREAK";
       document.title = `▶ ${formatTime(secondsLeft)} ${label} — ProdLi`;
     } else {
       document.title = "ProdLi";
     }
     return () => { document.title = "ProdLi"; };
-  }, [running, secondsLeft, phase]);
+  }, [timer.running, secondsLeft, timer.phase]);
 
   return {
     settings,
     sessions,
     setSessions,
-    phase,
+    phase: timer.phase,
     completedPomodoros,
-    running,
+    running: timer.running,
     setRunning,
-    taskLabel,
+    taskLabel: timer.label,
     setTaskLabel,
     loaded,
     secondsLeft,

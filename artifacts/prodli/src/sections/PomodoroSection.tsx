@@ -115,10 +115,13 @@ export function PomodoroSection({
       <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>Pomodoro</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={requestNotifications}
-            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "4px 12px", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontWeight: 700, cursor: "pointer", fontSize: 11, textTransform: "uppercase", fontFamily: "inherit" }}
-          >🔔 Notify</button>
+          {/* The extension notifies from the background; the web preview needs browser permission. */}
+          {!(typeof chrome !== "undefined" && chrome.runtime?.id) && (
+            <button
+              onClick={requestNotifications}
+              style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "4px 12px", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontWeight: 700, cursor: "pointer", fontSize: 11, textTransform: "uppercase", fontFamily: "inherit" }}
+            >🔔 Notify</button>
+          )}
           <button
             onClick={() => { setShowSettings(!showSettings); setTempSettings(settings); }}
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "4px 12px", background: showSettings ? "hsl(var(--foreground))" : "hsl(var(--card))", color: showSettings ? "#FFD700" : "hsl(var(--foreground))", fontWeight: 700, cursor: "pointer", fontSize: 11, textTransform: "uppercase", fontFamily: "inherit" }}

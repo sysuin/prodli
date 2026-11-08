@@ -128,6 +128,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>🔗</Tag>} desc="Insert or edit a hyperlink. Click a link while holding the toolbar open to open it." />
             <Row label={<Tag>↩ ↪</Tag>} desc="Undo and redo." />
             <Row label={<Tag>Font picker</Tag>} desc="Choose System, Inter, Space Mono, or Merriweather for the editor body text." />
+            <Row label={<><Tag>⬆</Tag><Tag>⬇</Tag></>} desc="Import a Markdown (.md) file as a new note, or export the current note as Markdown." />
             <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar and toolbar for distraction-free writing. Press Escape or click ⛶ again to exit." />
             <Row label={<Tag>Status bar</Tag>} desc="Shows word count, character count, line count, block count, reading time, selected word count, and last auto-save time." />
             <Row label={<Tag>Search</Tag>} desc="Type in the search box above the note list to filter notes by title and body content. Content matches show an inline excerpt." />
@@ -148,12 +149,12 @@ export function HelpModal({ onClose }: HelpModalProps) {
           {/* Pomodoro */}
           <Section emoji="🍅" title="Pomodoro">
             <Row label={<Tag>Phase tabs</Tag>} desc="Choose FOCUS (default 25 min), SHORT BREAK (5 min), or LONG BREAK (15 min). Switching resets the timer." />
-            <Row label={<Tag>▶ START / ⏸ PAUSE</Tag>} desc="Start or pause the current timer. The timer keeps running even when you navigate to another section." />
+            <Row label={<Tag>▶ START / ⏸ PAUSE</Tag>} desc="Start or pause the current timer. It keeps running when you switch sections, open other tabs, or close ProdLi — every ProdLi tab shows the same timer." />
             <Row label={<Tag>↺ RESET</Tag>} desc="Reset the current phase timer back to its full duration." />
             <Row label={<Tag>⏭ SKIP</Tag>} desc="Skip the current phase and move to the next one automatically." />
             <Row label={<Tag>Task label</Tag>} desc="Click the dashed area to type what you're working on. Saved with each completed focus session in the Session Log." />
             <Row label={<Tag>🔥 Auto-advance</Tag>} desc={`After ${4} focus sessions, the timer suggests a long break automatically. A chime plays at the end of each phase.`} />
-            <Row label={<Tag>🔔 Notify</Tag>} desc="Request browser notification permission. Once granted, you'll get a desktop alert when each phase ends — even in another browser tab." />
+            <Row label={<Tag>🔔 Notify</Tag>} desc="In the Chrome extension you always get a desktop alert when a phase ends, even with ProdLi closed. In the web preview, click to allow browser notifications." />
             <Row label={<Tag>⚙ Settings</Tag>} desc="Customize Focus, Short Break, Long Break durations (in minutes), and how many focus sessions trigger a long break." />
             <Row label={<Tag>Session Log</Tag>} desc="Right panel shows your completed focus sessions with label, duration, and time. Limited to the 20 most recent." />
             <Row label={<Tag>🔴 Nav indicator</Tag>} desc="A blinking dot appears on the Pomodoro tab when the timer is running and you're viewing another section." />
@@ -168,6 +169,24 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>Monthly heatmap</Tag>} desc="Shows the current calendar month with filled cells for completed days. Today is highlighted." />
             <Row label={<Tag>✎ Edit</Tag>} desc="Change a habit's name, emoji, or color without losing its history." />
             <Row label={<Tag>⊘ Archive</Tag>} desc="Hides a habit without deleting its data. Restore from the Archived section at the bottom." />
+          </Section>
+
+          {/* Meetings */}
+          <Section emoji="🎙️" title="Meetings">
+            <Row label={<Tag>⚙ Setup</Tag>} desc="Add your Claude API key, turn on the recorder (Chrome asks for permission), and optionally include your microphone." />
+            <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call; ProdLi reads Meet's captions, which only you can see." />
+            <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
+            <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku using your own API key." />
+            <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
+          </Section>
+
+          {/* Files */}
+          <Section emoji="📄" title="Files">
+            <Row label={<Tag>Open / drop</Tag>} desc="Click Open file, or drag a file anywhere onto ProdLi. Files are read on your device and never uploaded (up to 10 MB)." />
+            <Row label={<Tag>Markdown</Tag>} desc="Formatted preview, or switch to Source. Links open in a new tab; scripts in the file never run." />
+            <Row label={<Tag>JSON</Tag>} desc="Collapsible tree with search across keys and values, a formatted view, and the raw text. Invalid JSON shows where the problem is." />
+            <Row label={<Tag>CSV / TSV</Tag>} desc="Table view with the separator detected automatically and an optional header row." />
+            <Row label={<Tag>Save to Notes</Tag>} desc="Copies the file into a new Editor note (Markdown becomes formatted text)." />
           </Section>
 
           {/* Keyboard Shortcuts */}
@@ -206,6 +225,10 @@ export function HelpModal({ onClose }: HelpModalProps) {
                 <ShortcutRow keys={["Ctrl / ⌘ + 2"]} action="Switch to To-Dos" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 3"]} action="Switch to Pomodoro" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 4"]} action="Switch to Habits" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 5"]} action="Switch to Tracker" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 6"]} action="Switch to Meetings" />
+                <ShortcutRow keys={["Ctrl / ⌘ + 7"]} action="Switch to Files" />
+                <ShortcutRow keys={["Alt + Shift + R"]} action="Start / stop recording (on a Google Meet tab)" />
                 <ShortcutRow keys={["Space"]} action="Start / Pause Pomodoro timer (when on Pomodoro tab, no input focused)" />
                 <ShortcutRow keys={["Escape"]} action="Close this help panel" />
               </div>

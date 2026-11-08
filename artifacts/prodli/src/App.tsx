@@ -11,6 +11,8 @@ const TodoSection = lazy(() => import("./sections/TodoSection").then(m => ({ def
 const PomodoroSection = lazy(() => import("./sections/PomodoroSection").then(m => ({ default: m.PomodoroSection })));
 const HabitSection = lazy(() => import("./sections/HabitSection").then(m => ({ default: m.HabitSection })));
 const TimeTrackerSection = lazy(() => import("./sections/TimeTrackerSection").then(m => ({ default: m.TimeTrackerSection })));
+const MeetingsSection = lazy(() => import("./sections/MeetingsSection").then(m => ({ default: m.MeetingsSection })));
+const FilesSection = lazy(() => import("./sections/FilesSection").then(m => ({ default: m.FilesSection })));
 
 const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[] = [
   { key: "editor", label: "Editor", emoji: "✍️", accent: "#FFD700" },
@@ -18,6 +20,8 @@ const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[]
   { key: "pomodoro", label: "Pomodoro", emoji: "🍅", accent: "#FF6B6B" },
   { key: "habits", label: "Habits", emoji: "🎯", accent: "#66BB6A" },
   { key: "tracker", label: "Tracker", emoji: "⏱", accent: "#8B5CF6" },
+  { key: "meetings", label: "Meetings", emoji: "🎙️", accent: "#FF4FA3" },
+  { key: "files", label: "Files", emoji: "📄", accent: "#FF9800" },
 ];
 
 function LoadingFallback() {
@@ -36,6 +40,9 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [draggingFile, setDraggingFile] = useState(false);
+  const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
 
   const pomodoroTimer = usePomodoroTimer();
 
@@ -63,6 +70,37 @@ export default function App() {
     await storageSet("lastSection", s);
   }, []);
 
+  // Drop a file anywhere in ProdLi to preview it in Files. Without this,
+  // Chrome would navigate the new tab away to the raw file.
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+    const onEnter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDraggingFile(true); } };
+    const onLeave = (e: DragEvent) => { if (hasFiles(e)) { depth = Math.max(0, depth - 1); if (depth === 0) setDraggingFile(false); } };
+    const onOver = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDraggingFile(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        setDroppedFile(file);
+        handleSectionChange("files");
+      }
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [handleSectionChange]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -71,7 +109,7 @@ export default function App() {
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-        const map: Partial<Record<string, Section>> = { "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker" };
+        const map: Partial<Record<string, Section>> = { "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker", "6": "meetings", "7": "files" };
         if (map[e.key]) { e.preventDefault(); handleSectionChange(map[e.key]!); return; }
       }
 
@@ -143,10 +181,12 @@ export default function App() {
           }}>ProdLi</span>
         </div>
 
-        <div style={{ display: "flex", flex: 1 }}>
+        <div className="nav-tabs" style={{ display: "flex", flex: 1, minWidth: 0, overflowX: "auto" }}>
           {SECTIONS.map(s => (
             <button
               key={s.key}
+              className="nav-tab"
+              title={s.label}
               onClick={() => handleSectionChange(s.key)}
               style={{
                 border: "none",
@@ -169,7 +209,7 @@ export default function App() {
               }}
             >
               <span>{s.emoji}</span>
-              <span>{s.label}</span>
+              <span className="nav-label">{s.label}</span>
               {s.key === "pomodoro" && pomodoroTimer.running && section !== "pomodoro" && (
                 <span
                   className="timer-pulse"
@@ -267,8 +307,18 @@ export default function App() {
           {section === "pomodoro" && <PomodoroSection {...pomodoroTimer} />}
           {section === "habits" && <HabitSection />}
           {section === "tracker" && <TimeTrackerSection />}
+          {section === "meetings" && <MeetingsSection />}
+          {section === "files" && <FilesSection incomingFile={droppedFile} onIncomingHandled={clearDroppedFile} />}
         </Suspense>
       </main>
+
+      {draggingFile && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ background: "#FF9800", color: "#000", border: "3px solid #000", boxShadow: "6px 6px 0 #000", padding: "24px 36px", fontWeight: 900, fontSize: 20, textTransform: "uppercase" }}>
+            📄 Drop to preview in Files
+          </div>
+        </div>
+      )}
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}

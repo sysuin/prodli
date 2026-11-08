@@ -14,6 +14,8 @@ import "@fontsource/merriweather/700.css";
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
+import { downloadText, noteToMarkdown, safeFileName } from "../lib/markdownExport";
+import { markdownToSafeHtml, MAX_NOTE_BYTES } from "../lib/filePreview";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 
@@ -199,6 +201,36 @@ export function EditorSection() {
     }
     await storageSet("notes", updated);
   }, [notes, activeId]);
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const exportMarkdown = useCallback(() => {
+    if (!activeNote) return;
+    const html = editor?.getHTML() ?? activeNote.content;
+    downloadText(safeFileName(activeNote.title, "md"), noteToMarkdown(activeNote.title, html));
+  }, [activeNote, editor]);
+
+  const importMarkdown = useCallback(async (file: File) => {
+    if (file.size > MAX_NOTE_BYTES) {
+      window.alert(`${file.name} is too large to import as a note (max 1 MB).`);
+      return;
+    }
+    const text = await file.text();
+    const now = new Date().toISOString();
+    const note: Note = {
+      id: generateId(),
+      title: file.name.replace(/\.(md|markdown|txt)$/i, "") || "Imported note",
+      content: markdownToSafeHtml(text),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const updated = [note, ...notes];
+    setNotes(updated);
+    setActiveId(note.id);
+    setNoteSearch("");
+    await storageSet("notes", updated);
+    await storageSet("activeNoteId", note.id);
+  }, [notes]);
 
   const selectNote = useCallback(async (id: string) => {
     setActiveId(id);
@@ -401,7 +433,20 @@ export function EditorSection() {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <div style={{ marginLeft: "auto" }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <ToolbarButton onClick={() => importInputRef.current?.click()} title="Import a Markdown file as a new note">⬆</ToolbarButton>
+            <ToolbarButton onClick={exportMarkdown} title="Export this note as Markdown (.md)">⬇</ToolbarButton>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".md,.markdown,.txt,text/markdown,text/plain"
+              style={{ display: "none" }}
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) void importMarkdown(f);
+                e.target.value = "";
+              }}
+            />
             <ToolbarButton onClick={() => setIsFullscreen(f => !f)} active={false} title={isFullscreen ? "Exit full screen" : "Full screen"}>⛶</ToolbarButton>
           </div>
         </div>

@@ -20,10 +20,18 @@ export default defineConfig({
       input: {
         main: path.resolve(import.meta.dirname, "index.extension.html"),
         background: path.resolve(import.meta.dirname, "src/background.ts"),
+        offscreen: path.resolve(import.meta.dirname, "offscreen.html"),
+        // Injected into meet.google.com with chrome.scripting — must stay
+        // self-contained (type-only imports), since content scripts can't use ES imports.
+        "meet-captions": path.resolve(import.meta.dirname, "src/recorder/meetCaptions.ts"),
       },
       output: {
         entryFileNames: (chunk) =>
-          chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
+          chunk.name === "background"
+            ? "background.js"
+            : chunk.name === "meet-captions"
+              ? "meet-captions.js"
+              : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },

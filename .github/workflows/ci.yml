@@ -1,0 +1,34 @@
+# Runs on every push and pull request: type check, unit tests, extension build,
+# and end-to-end tests in headless Chrome. The built extension zip is attached
+# to each run (Actions → run → Artifacts), ready to upload to the Chrome Web Store.
+# Free: GitHub Actions is free for public repos and includes 2,000 min/month for private ones.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm test
+      - run: pnpm run build:extension
+      - name: End-to-end tests (headless Chrome)
+        run: node artifacts/prodli/tests/e2e/run.mjs
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prodli-extension
+          path: prodli-extension.zip
+          retention-days: 30

@@ -2,6 +2,13 @@
 // Tracks active browsing time per domain and stores it in chrome.storage.local.
 
 import type { TrackerSettings, FocusRule } from "./types";
+import { registerRecorder } from "./recorder/controller";
+import { registerPomodoro } from "./lib/pomodoroBackground";
+
+// Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
+registerRecorder();
+// Pomodoro: finishes phases and notifies even when no ProdLi tab is open.
+registerPomodoro();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
