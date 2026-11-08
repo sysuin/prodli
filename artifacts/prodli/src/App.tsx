@@ -7,13 +7,65 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
 import { AccountButton, AccountModal } from "./components/AccountModal";
 
-const EditorSection = lazy(() => import("./sections/EditorSection").then(m => ({ default: m.EditorSection })));
-const TodoSection = lazy(() => import("./sections/TodoSection").then(m => ({ default: m.TodoSection })));
-const PomodoroSection = lazy(() => import("./sections/PomodoroSection").then(m => ({ default: m.PomodoroSection })));
-const HabitSection = lazy(() => import("./sections/HabitSection").then(m => ({ default: m.HabitSection })));
-const TimeTrackerSection = lazy(() => import("./sections/TimeTrackerSection").then(m => ({ default: m.TimeTrackerSection })));
-const MeetingsSection = lazy(() => import("./sections/MeetingsSection").then(m => ({ default: m.MeetingsSection })));
-const FilesSection = lazy(() => import("./sections/FilesSection").then(m => ({ default: m.FilesSection })));
+// Each section's code loads on demand. To make a new tab appear fast, the
+// section the user had open last starts loading immediately (from a tiny
+// synchronous localStorage hint), instead of after the async settings read.
+//
+// Sections whose code has already loaded render directly (no <Suspense>
+// fallback): React 19 holds a shown fallback for at least ~300 ms, which made
+// every new tab wait that long even though the code loads in a few ms.
+const loadedModules: {
+  editor?: typeof import("./sections/EditorSection");
+  todos?: typeof import("./sections/TodoSection");
+  pomodoro?: typeof import("./sections/PomodoroSection");
+  habits?: typeof import("./sections/HabitSection");
+  tracker?: typeof import("./sections/TimeTrackerSection");
+  meetings?: typeof import("./sections/MeetingsSection");
+  files?: typeof import("./sections/FilesSection");
+} = {};
+function once<K extends keyof typeof loadedModules>(key: K, load: () => Promise<NonNullable<(typeof loadedModules)[K]>>) {
+  let p: Promise<NonNullable<(typeof loadedModules)[K]>> | undefined;
+  return () =>
+    (p ??= load().then((m) => {
+      loadedModules[key] = m;
+      return m;
+    }));
+}
+const importers = {
+  editor: once("editor", () => import("./sections/EditorSection")),
+  todos: once("todos", () => import("./sections/TodoSection")),
+  pomodoro: once("pomodoro", () => import("./sections/PomodoroSection")),
+  habits: once("habits", () => import("./sections/HabitSection")),
+  tracker: once("tracker", () => import("./sections/TimeTrackerSection")),
+  meetings: once("meetings", () => import("./sections/MeetingsSection")),
+  files: once("files", () => import("./sections/FilesSection")),
+} satisfies Record<Section, () => Promise<unknown>>;
+
+const SECTION_HINT_KEY = "prodli_sectionHint";
+function rememberSectionHint(s: Section) {
+  try {
+    localStorage.setItem(SECTION_HINT_KEY, s);
+  } catch {
+    // storage unavailable — just no head start next time
+  }
+}
+(() => {
+  let hint: string | null = null;
+  try {
+    hint = localStorage.getItem(SECTION_HINT_KEY);
+  } catch {
+    // ignore
+  }
+  void (importers[(hint && hint in importers ? hint : "editor") as Section])();
+})();
+
+const EditorSection = lazy(() => importers.editor().then(m => ({ default: m.EditorSection })));
+const TodoSection = lazy(() => importers.todos().then(m => ({ default: m.TodoSection })));
+const PomodoroSection = lazy(() => importers.pomodoro().then(m => ({ default: m.PomodoroSection })));
+const HabitSection = lazy(() => importers.habits().then(m => ({ default: m.HabitSection })));
+const TimeTrackerSection = lazy(() => importers.tracker().then(m => ({ default: m.TimeTrackerSection })));
+const MeetingsSection = lazy(() => importers.meetings().then(m => ({ default: m.MeetingsSection })));
+const FilesSection = lazy(() => importers.files().then(m => ({ default: m.FilesSection })));
 
 const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[] = [
   { key: "editor", label: "Editor", emoji: "✍️", accent: "#FFD700" },
@@ -27,7 +79,7 @@ const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[]
 
 function LoadingFallback() {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 14, color: "#999" }}>
+    <div data-suspense-fallback style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 14, color: "#999" }}>
       Loading...
     </div>
   );
@@ -54,8 +106,11 @@ export default function App() {
       storageGet<Section>("lastSection", "editor"),
       storageGet<string>("theme", "light"),
       storageGet<boolean>("hasSeenOnboarding", false),
-    ]).then(([s, theme, seenOnboarding]) => {
+    ]).then(async ([s, theme, seenOnboarding]) => {
+      // Have the section's code ready before the first render (no fallback flash).
+      await (importers[s] ?? importers.editor)().catch(() => {});
       setSection(s);
+      rememberSectionHint(s);
       const dark = theme === "dark";
       setIsDark(dark);
       if (dark) {
@@ -69,7 +124,10 @@ export default function App() {
   }, []);
 
   const handleSectionChange = useCallback(async (s: Section) => {
+    // Usually already prefetched (on hover); otherwise waits a few ms for the code.
+    await importers[s]().catch(() => {});
     setSection(s);
+    rememberSectionHint(s);
     await storageSet("lastSection", s);
   }, []);
 
@@ -138,6 +196,15 @@ export default function App() {
 
   const activeSection = SECTIONS.find(s => s.key === section)!;
 
+  // Already-loaded sections render directly; others go through lazy/Suspense.
+  const Editor = loadedModules.editor?.EditorSection ?? EditorSection;
+  const Todos = loadedModules.todos?.TodoSection ?? TodoSection;
+  const Pomodoro = loadedModules.pomodoro?.PomodoroSection ?? PomodoroSection;
+  const Habits = loadedModules.habits?.HabitSection ?? HabitSection;
+  const Tracker = loadedModules.tracker?.TimeTrackerSection ?? TimeTrackerSection;
+  const Meetings = loadedModules.meetings?.MeetingsSection ?? MeetingsSection;
+  const Files = loadedModules.files?.FilesSection ?? FilesSection;
+
   if (!loaded) {
     return (
       <div style={{ minHeight: "100vh", background: "hsl(var(--background))", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -191,6 +258,7 @@ export default function App() {
               className="nav-tab"
               title={s.label}
               onClick={() => handleSectionChange(s.key)}
+              onMouseEnter={() => void importers[s.key]()}
               style={{
                 border: "none",
                 borderRight: "2px solid #222",
@@ -309,13 +377,13 @@ export default function App() {
 
       <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
-          {section === "editor" && <EditorSection />}
-          {section === "todos" && <TodoSection />}
-          {section === "pomodoro" && <PomodoroSection {...pomodoroTimer} />}
-          {section === "habits" && <HabitSection />}
-          {section === "tracker" && <TimeTrackerSection />}
-          {section === "meetings" && <MeetingsSection />}
-          {section === "files" && <FilesSection incomingFile={droppedFile} onIncomingHandled={clearDroppedFile} />}
+          {section === "editor" && <Editor />}
+          {section === "todos" && <Todos />}
+          {section === "pomodoro" && <Pomodoro {...pomodoroTimer} />}
+          {section === "habits" && <Habits />}
+          {section === "tracker" && <Tracker />}
+          {section === "meetings" && <Meetings />}
+          {section === "files" && <Files incomingFile={droppedFile} onIncomingHandled={clearDroppedFile} />}
         </Suspense>
       </main>
 
