@@ -188,6 +188,19 @@ const suites = {
     // Every tab opens with its keyboard shortcut and renders without errors.
     const p = await b.openPage();
     await p.goto("editor");
+
+    // Speed: a new tab must render the last section directly — never through
+    // the Suspense fallback, which React 19 holds for ~300 ms.
+    await p.send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__fallbackSeen = false; window.__t0 = performance.now(); new MutationObserver(() => { if (document.querySelector("[data-suspense-fallback]")) window.__fallbackSeen = true; if (!window.__editorAt && document.querySelector(".ProseMirror")) window.__editorAt = Math.round(performance.now()); }).observe(document, { childList: true, subtree: true });` });
+    let fallbackSeen = false;
+    const times = [];
+    for (let i = 0; i < 3; i++) {
+      await p.send("Page.reload", {});
+      await sleep(1200);
+      fallbackSeen ||= await p.eval("window.__fallbackSeen");
+      times.push(await p.eval("window.__editorAt || 99999"));
+    }
+    check("Speed: new tab shows the Editor without a loading placeholder", !fallbackSeen, `editor visible at ${times.join(", ")} ms`);
     const tabs = ["Editor", "To-Dos", "Pomodoro", "Habits", "Tracker", "Meetings", "Files"];
     const headings = ["words", "to-do list", "pomodoro", "habit", "time tracker", "meetings", "files"];
     for (let i = 0; i < tabs.length; i++) {

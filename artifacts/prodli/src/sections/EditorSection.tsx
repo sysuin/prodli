@@ -14,9 +14,12 @@ import { storageGet, storageSet } from "../lib/storage";
 import { useSyncedList } from "../lib/syncedList";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
-import { downloadText, noteToMarkdown, safeFileName } from "../lib/markdownExport";
-import { MAX_NOTE_BYTES } from "../lib/filePreview";
-import { looksLikeMarkdown, markdownToNoteHtml } from "../lib/editorHtml";
+import { looksLikeMarkdown, MAX_NOTE_BYTES } from "../lib/markdownDetect";
+
+// Loaded on demand so the Editor opens faster: Markdown conversion
+// (marked + DOMPurify) for paste/import, and turndown for export.
+const loadMarkdownImport = () => import("../lib/editorHtml");
+const loadMarkdownExport = () => import("../lib/markdownExport");
 import { buildExtensions } from "./editor/extensions";
 import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashState } from "./editor/SlashMenu";
 import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
@@ -271,7 +274,8 @@ export function EditorSection() {
           const html = event.clipboardData?.getData("text/html") ?? "";
           const ed = editorRef.current;
           if (!ed || html || !text || ed.isActive("codeBlock") || !looksLikeMarkdown(text)) return false;
-          ed.chain().focus().insertContent(markdownToNoteHtml(text)).run();
+          event.preventDefault();
+          void loadMarkdownImport().then((m) => ed.chain().focus().insertContent(m.markdownToNoteHtml(text)).run());
           return true;
         },
       },
@@ -467,18 +471,20 @@ export function EditorSection() {
 
   const activeNote = notes.find((n) => n.id === activeId) ?? null;
 
-  const currentMarkdown = () => {
+  const currentMarkdown = async () => {
     const ed = editorRef.current;
+    const { noteToMarkdown } = await loadMarkdownExport();
     return noteToMarkdown(activeNote?.title || "Untitled", ed?.getHTML() ?? activeNote?.content ?? "");
   };
 
-  const exportMarkdown = () => {
+  const exportMarkdown = async () => {
     if (!activeNote) return;
-    downloadText(safeFileName(activeNote.title || "note", "md"), currentMarkdown());
+    const [{ downloadText, safeFileName }, md] = await Promise.all([loadMarkdownExport(), currentMarkdown()]);
+    downloadText(safeFileName(activeNote.title || "note", "md"), md);
   };
 
   const copyMarkdown = async () => {
-    await navigator.clipboard.writeText(currentMarkdown());
+    await navigator.clipboard.writeText(await currentMarkdown());
     showToast("Copied as Markdown");
   };
 
@@ -488,6 +494,7 @@ export function EditorSection() {
       return;
     }
     const text = await file.text();
+    const { markdownToNoteHtml } = await loadMarkdownImport();
     const note = newNote({ title: file.name.replace(/\.(md|markdown|txt)$/i, "") || "Imported note", content: markdownToNoteHtml(text), autoTitle: false });
     setNotes((prev) => [note, ...prev]);
     selectNote(note.id);
