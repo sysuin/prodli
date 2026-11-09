@@ -31,6 +31,7 @@ import {
   type Device,
   type ProdliUser,
 } from "../lib/prodliAccount";
+import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
 
 type Profile = Pick<GoogleAccount, "name" | "email" | "picture">;
 
@@ -103,6 +104,90 @@ const ago = (ms: number) => {
   return new Date(ms).toLocaleDateString([], { dateStyle: "medium" });
 };
 
+const mb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+/** Sync status, "Sync now" and what this device uploads. */
+function SyncBox({ ext }: { ext: boolean }) {
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [meetings, setMeetings] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    void getSyncStatus().then(setStatus);
+    void storageGet<boolean>(SYNC_MEETINGS_KEY, true).then(setMeetings);
+    const off = onSyncStatusChange(setStatus);
+    const t = setInterval(() => tick((n) => n + 1), 30_000); // keep "x min ago" fresh
+    return () => {
+      off();
+      clearInterval(t);
+    };
+  }, []);
+
+  const s = status;
+  const line =
+    !s || (s.state === "idle" && !s.lastSyncAt) ? "Getting ready to sync…"
+    : s.state === "syncing" || running ? "Syncing…"
+    : s.state === "offline" ? "Offline — your changes are saved here and will sync when you’re back online."
+    : s.state === "error" ? `Sync problem: ${s.error ?? "unknown error"}`
+    : `Synced ${ago(s.lastSyncAt!)}`;
+
+  return (
+    <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }}>
+      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Sync</div>
+      <div role="status" aria-live="polite" data-testid="sync-status" style={{ fontSize: 13, lineHeight: 1.5, color: s?.state === "error" ? "#E53935" : undefined }}>
+        <strong>{line}</strong>
+        <br />
+        <span style={{ opacity: 0.75 }}>
+          Notes, to-dos, habits, meetings (text only), Pomodoro and Time Tracker history stay the same on every device signed in to this account. Settings stay per device.
+        </span>
+        {s?.usage && (
+          <>
+            <br />
+            <span style={{ opacity: 0.75 }}>Using {mb(s.usage.bytes)} of {mb(s.usage.quota)}.</span>
+          </>
+        )}
+        {!!s?.tooLarge && (
+          <>
+            <br />
+            <span style={{ color: "#E53935" }}>{s.tooLarge} item{s.tooLarge > 1 ? "s are" : " is"} too large to sync (over about 1.4 MB) and stay on this device only.</span>
+          </>
+        )}
+      </div>
+      {ext && (
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            checked={meetings}
+            style={{ marginTop: 3 }}
+            onChange={async () => {
+              setMeetings(!meetings);
+              await storageSet(SYNC_MEETINGS_KEY, !meetings);
+            }}
+          />
+          <span>
+            Sync meetings recorded on this computer
+            <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Transcripts include what other people said. Audio is never uploaded.</span>
+          </span>
+        </label>
+      )}
+      <div>
+        <button
+          style={btn(true, running)}
+          disabled={running}
+          onClick={() => {
+            setRunning(true);
+            void syncOnce({ forceTracking: true })
+              .catch(() => {})
+              .finally(() => setRunning(false));
+          }}
+        >
+          {running ? "Syncing…" : "Sync now"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The ProdLi account (server): sign in, devices, download, delete. */
 function ProdliAccountPanel() {
   const ext = isExtensionBuild();
@@ -173,9 +258,10 @@ function ProdliAccountPanel() {
     return (
       <div style={{ display: "grid", gap: 14 }}>
         <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-          Sign in to your <strong>ProdLi account</strong> to use ProdLi on any computer — in the extension and at app.prodli.com.
+          Sign in to your <strong>ProdLi account</strong> to keep your notes, to-dos, habits, meetings and history the same on every computer — in the extension and at app.prodli.com.
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, listStyle: "disc" }}>
-            <li>Free. ProdLi keeps working without an account.</li>
+            <li>What’s already on this device is added to your account; nothing is overwritten.</li>
+            <li>Free. ProdLi keeps working without an account, and offline.</li>
             <li>Your Claude API key and meeting audio are never uploaded.</li>
             <li>You can download or delete your account any time.</li>
           </ul>
@@ -185,9 +271,7 @@ function ProdliAccountPanel() {
             onClick={() => void act("signin", async () => {
               const u = await signInFromExtension(true);
               setUser(u);
-              // Keep Google Drive sync working until ProdLi's own sync replaces it.
-              if (googleConfigured() && !(await getAccount())) await signIn().then(() => syncWithDrive()).catch(() => {});
-              setMessage({ tone: "ok", text: `Signed in as ${u.email}.` });
+              setMessage({ tone: "ok", text: `Signed in as ${u.email}. Syncing your data…` });
             })}
             disabled={!!busy}
             style={{ ...btn(false, !!busy), display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", color: "#1f1f1f", textTransform: "none", fontSize: 14, padding: "10px 16px" }}
@@ -215,6 +299,8 @@ function ProdliAccountPanel() {
         </div>
         <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
       </div>
+
+      <SyncBox ext={ext} />
 
       <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 8 }}>
         <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Signed-in devices</div>
@@ -267,7 +353,7 @@ function ProdliAccountPanel() {
       {confirmDelete && (
         <div style={{ border: "2px solid #E53935", padding: 10, fontSize: 13, display: "grid", gap: 8 }}>
           <strong>Delete your ProdLi account permanently?</strong>
-          <span>This removes your account and signs out every device. Data saved on this device stays here. This can’t be undone.</span>
+          <span>This removes your account and everything synced to ProdLi’s servers, and signs out every device. Data saved on this device stays here. This can’t be undone.</span>
           <label style={{ display: "grid", gap: 4 }}>
             Type <strong>{user.email}</strong> to confirm:
             <input value={typedEmail} onChange={(e) => setTypedEmail(e.target.value)} aria-label="Type your email to confirm" style={{ border: "var(--nb-border)", padding: "6px 8px", fontFamily: "inherit", background: "hsl(var(--background))", color: "inherit" }} />
@@ -366,13 +452,8 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ padding: 20, display: "grid", gap: 16 }}>
-          {withServer && <ProdliAccountPanel />}
-          {withServer ? (
-            account && (
-              <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>Google Drive sync (until ProdLi sync arrives)</div>
-            )
-          ) : null}
-          {withServer && !account ? null : !configured ? (
+          {/* With a ProdLi server, ProdLi sync replaces Google Drive sync (the Drive copy is imported on first sync). */}
+          {withServer ? <ProdliAccountPanel /> : !configured ? (
             <div style={{ fontSize: 14, lineHeight: 1.6 }}>
               <strong>Google sign-in isn’t set up in this copy of ProdLi yet.</strong>
               <p style={{ margin: "8px 0 0" }}>Everything still works without an account — your data stays on this device. (Developers: add a Google OAuth client ID as described in <code>docs/GOOGLE-SIGN-IN.md</code>.)</p>

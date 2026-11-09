@@ -16,7 +16,11 @@ ProdLi shares the Cloudflare account that hosts your other projects (jobscanner,
 | `prodli-core-staging` | `prodli-api-staging` | accounts + sessions (staging) |
 | `prodli-core` | `prodli-api` | accounts + sessions (production) |
 
-Schema changes live in `artifacts/prodli-api/migrations/`. The deploy scripts apply them before deploying.
+| Durable Object class | Used by | Holds |
+|---|---|---|
+| `UserStore` (SQLite) | `prodli-api-staging`, `prodli-api` | one object per user: that user's synced notes, to-dos, habits, meetings (text), Pomodoro and Time Tracker history |
+
+D1 schema changes live in `artifacts/prodli-api/migrations/`; the deploy scripts apply them before deploying. `UserStore` creates its own tables. Its class migrations (`new_sqlite_classes`) are in `wrangler.jsonc`.
 
 - The site's routes (`prodli.com/*`, `www.prodli.com/*`) attach to the proxied DNS records. Requests never reach the old Replit address the A records still show.
 - Email DNS (Hostinger Mail) is **DNS only** and must stay that way. That covers MX, SPF, DMARC, the three `hostingermail-*._domainkey` DKIM records, `autoconfig` and `autodiscover`.

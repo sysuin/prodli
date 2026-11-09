@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { getPlatformProxy } from "wrangler";
 import { GoogleAuthError, type GoogleIdentity } from "../src/google";
 import { createApp, type Deps, type Env } from "../src/app";
+import { fakeUserStoreNamespace } from "./userStoreFake";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = path.resolve(here, "..");
@@ -24,6 +25,7 @@ export async function makeEnv(): Promise<{ env: Env; dispose: () => Promise<void
     DB: proxy.env.DB,
     GOOGLE_EXTENSION_CLIENT_ID: "ext-client",
     GOOGLE_WEB_CLIENT_ID: "web-client",
+    USER_STORE: fakeUserStoreNamespace(),
   };
   return { env, dispose: () => proxy.dispose() };
 }

@@ -117,6 +117,65 @@ try {
   check("Web: same account as the extension", t.includes("Alice Example") && t.includes("alice@example.com"), t.slice(0, 300));
   check("Web: sees both devices (extension + web)", /Extension · /.test(t) && /Web · .* ?\(this one\)/.test(t), t.slice(0, 500).replace(/\n/g, " | "));
 
+  console.log("sync");
+  const waitFor = async (fn, ms = 10_000) => {
+    const t0 = Date.now();
+    for (;;) {
+      if (await fn()) return Date.now() - t0;
+      if (Date.now() - t0 > ms) return -1;
+      await sleep(250);
+    }
+  };
+  const extNotes = async () => (await p.storage(["notes"])).notes ?? [];
+  const webNotes = async () => JSON.parse((await w.eval(`localStorage.getItem("prodli_notes")`)) ?? "[]");
+  await sleep(1500); // both devices finish their first sync
+  check("Sync: one welcome note on both devices (not one per device)", (await extNotes()).filter((n) => n.title === "Welcome to ProdLi").length === 1 && (await webNotes()).filter((n) => n.title === "Welcome to ProdLi").length === 1);
+
+  // Close the account window on the web page and type a new note.
+  await w.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
+  await w.click("+");
+  await sleep(300);
+  await w.focusEditor();
+  await w.type("Typed on the website");
+  let ms = await waitFor(async () => (await extNotes()).some((n) => n.content.includes("Typed on the website")));
+  check("Sync: a note typed on the website appears in the extension (live)", ms >= 0, `waited ${ms} ms`);
+  if (ms >= 0) console.log(`    (arrived after ${ms} ms)`);
+  // …and shows in the extension's open editor list without a reload.
+  check("Sync: the extension's open page shows it", await waitFor(async () => (await p.text()).includes("Typed on the website"), 4000) >= 0);
+
+  // Edit it in the extension; the website gets the edit.
+  await p.eval(`[...document.querySelectorAll("button, [role=button], li, div")].find(el => el.children.length < 6 && el.textContent.trim().startsWith("Typed on the website"))?.click()`);
+  await sleep(500);
+  await p.focusEditor();
+  await p.type(" — and edited in the extension");
+  ms = await waitFor(async () => (await webNotes()).some((n) => n.content.includes("and edited in the extension")));
+  check("Sync: an edit in the extension reaches the website", ms >= 0, `waited ${ms} ms`);
+
+  // Delete it on the website (as the editor does: the list without it); it disappears from the extension.
+  await w.eval(`(() => {
+    const notes = JSON.parse(localStorage.getItem("prodli_notes")).filter(n => !n.content.includes("Typed on the website"));
+    localStorage.setItem("prodli_notes", JSON.stringify(notes));
+    window.dispatchEvent(new CustomEvent("prodli-storage", { detail: { key: "notes", newValue: notes } }));
+    return true;
+  })()`);
+  ms = await waitFor(async () => !(await extNotes()).some((n) => n.content.includes("Typed on the website")));
+  check("Sync: deleting on the website deletes in the extension", ms >= 0, `waited ${ms} ms`);
+
+  // A to-do from the extension reaches the website.
+  await p.goto("todos");
+  await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Add a new task"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Task from the extension"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+  await sleep(100);
+  await p.eval(`document.querySelector('input[placeholder^="Add a new task"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+  ms = await waitFor(async () => JSON.parse((await w.eval(`localStorage.getItem("prodli_todos")`)) ?? "[]").some((t) => t.title === "Task from the extension"));
+  check("Sync: a to-do added in the extension appears on the website", ms >= 0, `waited ${ms} ms`);
+
+  await openAccount(w);
+  await sleep(800);
+  t = await w.text();
+  check("Sync: account window shows the sync status and usage", /Synced (just now|\d+ (s|min) ago)/.test(t) && /Using \d+ KB of 100\.0 MB/.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  const exp = await w.eval(`fetch("/api/account/export").then(r => r.json())`);
+  check("Sync: 'Download my data' includes synced notes and to-dos", exp.data?.notes?.length >= 1 && exp.data?.todos?.some((x) => x.title === "Task from the extension"));
+
   await w.click("Sign out everywhere");
   await sleep(1200);
   t = await w.text();

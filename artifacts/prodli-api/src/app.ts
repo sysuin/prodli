@@ -1,6 +1,7 @@
 // ProdLi API — the Hono app (src/index.ts is the Worker entry).
 //   Phase 0: health, CORS, security headers.
 //   Phase 1: Google sign-in → ProdLi session, account (me, devices, export, delete).
+//   Phase 2: sync — each user's data lives in their own UserStore Durable Object.
 // The same Worker serves the web app's static files (everything outside /api).
 //
 // Sessions: the extension sends `Authorization: Bearer <token>`; the web app
@@ -26,6 +27,8 @@ import {
   type Client,
 } from "./accounts";
 import { GoogleAuthError, verifyExtensionAccessToken, verifyWebIdToken, type GoogleIdentity } from "./google";
+import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
+import type { SyncOutcome, UserStore } from "./userStore";
 
 export type Environment = "development" | "staging" | "production";
 
@@ -35,6 +38,8 @@ export interface Env {
   GOOGLE_EXTENSION_CLIENT_ID: string;
   GOOGLE_WEB_CLIENT_ID: string;
   AUTH_LIMITER?: RateLimit;
+  SYNC_LIMITER?: RateLimit;
+  USER_STORE: DurableObjectNamespace<UserStore>;
   ASSETS?: Fetcher;
   /** Local end-to-end tests only: `wrangler dev --var DEV_FAKE_GOOGLE:true`. Ignored unless ENV is "development". */
   DEV_FAKE_GOOGLE?: string;
@@ -78,6 +83,11 @@ const devExtension = (env: Environment, origin: string) => env === "development"
 const isAllowedOrigin = (c: Ctx, origin: string | undefined) =>
   !!origin && (allowedOrigins(c.env.ENV).includes(origin) || devExtension(c.env.ENV, origin) || origin === new URL(c.req.url).origin);
 
+const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** The signed-in user's own Durable Object. The id comes only from the verified session. */
+const storeFor = (env: Env, userId: string) => env.USER_STORE.get(env.USER_STORE.idFromName(userId));
+
 const clearSessionCookie = (c: Ctx) => deleteCookie(c, SESSION_COOKIE, { path: "/", secure: true });
 
 export function createApp(deps: Deps = realDeps) {
@@ -96,7 +106,11 @@ export function createApp(deps: Deps = realDeps) {
     })(c, next);
   });
 
-  app.use("/api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "too_large" }, 413) }));
+  // Sync carries notes and meeting transcripts; everything else is tiny.
+  const tooLarge = (c: Ctx) => c.json({ error: "too_large" }, 413);
+  const smallBody = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
+  const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
+  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : smallBody(c, next)));
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
@@ -106,6 +120,14 @@ export function createApp(deps: Deps = realDeps) {
     if (c.env.AUTH_LIMITER) {
       const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
       const { success } = await c.env.AUTH_LIMITER.limit({ key: `auth:${ip}` });
+      if (!success) return c.json({ error: "rate_limited" }, 429);
+    }
+    return next();
+  };
+
+  const rateLimitSync: MiddlewareHandler<AppEnv> = async (c, next) => {
+    if (c.env.SYNC_LIMITER) {
+      const { success } = await c.env.SYNC_LIMITER.limit({ key: `sync:${c.get("auth").user.id}` });
       if (!success) return c.json({ error: "rate_limited" }, 429);
     }
     return next();
@@ -194,7 +216,9 @@ export function createApp(deps: Deps = realDeps) {
   });
 
   app.post("/api/auth/logout-all", requireAuth, async (c) => {
-    await deleteAllSessions(c.env.DB, c.get("auth").user.id);
+    const userId = c.get("auth").user.id;
+    await deleteAllSessions(c.env.DB, userId);
+    await storeFor(c.env, userId).disconnectAll();
     clearSessionCookie(c);
     return c.json({ ok: true });
   });
@@ -211,8 +235,7 @@ export function createApp(deps: Deps = realDeps) {
       exportedAt: new Date(now).toISOString(),
       account: auth.user,
       devices: sessions,
-      // Notes, to-dos, habits, meetings etc. are added here once sync (phase 2) stores them on the server.
-      data: {},
+      data: await storeFor(c.env, auth.user.id).exportAll(),
     });
   });
 
@@ -222,9 +245,59 @@ export function createApp(deps: Deps = realDeps) {
     if (typeof body?.confirmEmail !== "string" || body.confirmEmail.trim().toLowerCase() !== auth.user.email.toLowerCase()) {
       return c.json({ error: "confirmation_mismatch" }, 400);
     }
+    await storeFor(c.env, auth.user.id).wipe();
     await deleteUser(c.env.DB, auth.user.id);
     clearSessionCookie(c);
     return c.json({ deleted: true });
+  });
+
+  // ── Sync ───────────────────────────────────────────────────────────────────
+  // POST { deviceId, since, changes: [{ c, id, u, d?, v? }] }
+  //   → { seq, changes, more, accepted, rejected, usage }
+  app.post("/api/sync", requireAuth, rateLimitSync, async (c) => {
+    const auth = c.get("auth");
+    const body = (await c.req.json().catch(() => null)) as { deviceId?: unknown; since?: unknown; changes?: unknown } | null;
+    const since = body?.since ?? 0;
+    if (typeof body?.deviceId !== "string" || !DEVICE_ID.test(body.deviceId) || typeof since !== "number" || !Number.isInteger(since) || since < 0) {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    let changes;
+    try {
+      changes = parseChanges(body.changes);
+    } catch (err) {
+      if (err instanceof SyncError) return c.json({ error: err.code, message: err.message }, 400);
+      throw err;
+    }
+    const quota = QUOTA_BYTES[auth.user.plan as keyof typeof QUOTA_BYTES] ?? QUOTA_BYTES.free;
+    const outcome = (await storeFor(c.env, auth.user.id).sync(since, changes, quota, body.deviceId)) as SyncOutcome;
+    if (!outcome.ok) return c.json({ error: outcome.error, message: outcome.message }, outcome.error === "bad_request" ? 400 : 413);
+    return c.json(outcome.result);
+  });
+
+  app.get("/api/sync/usage", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const quota = QUOTA_BYTES[auth.user.plan as keyof typeof QUOTA_BYTES] ?? QUOTA_BYTES.free;
+    return c.json({ ...(await storeFor(c.env, auth.user.id).usage()), quota });
+  });
+
+  /** A one-minute ticket for the live-updates WebSocket. */
+  app.post("/api/sync/ticket", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const body = (await c.req.json().catch(() => null)) as { deviceId?: unknown } | null;
+    if (typeof body?.deviceId !== "string" || !DEVICE_ID.test(body.deviceId)) return c.json({ error: "bad_request" }, 400);
+    const ticket = await storeFor(c.env, auth.user.id).issueTicket(body.deviceId);
+    return c.json({ path: `/api/sync/live?u=${encodeURIComponent(auth.user.id)}&ticket=${encodeURIComponent(ticket)}` });
+  });
+
+  /** Live updates. The ticket only works in the object that issued it (the signed-in user's). */
+  app.get("/api/sync/live", async (c) => {
+    if (c.req.header("Upgrade")?.toLowerCase() !== "websocket") return c.json({ error: "expected_websocket" }, 426);
+    if (!isAllowedOrigin(c, c.req.header("Origin"))) return c.json({ error: "bad_origin" }, 403);
+    const userId = c.req.query("u") ?? "";
+    if (!/^[0-9a-f-]{36}$/.test(userId)) return c.json({ error: "bad_request" }, 400);
+    // Don't wake (or create) a Durable Object for ids that aren't real accounts.
+    if (!(await c.env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first())) return c.json({ error: "unauthorized" }, 401);
+    return storeFor(c.env, userId).fetch(c.req.raw);
   });
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));

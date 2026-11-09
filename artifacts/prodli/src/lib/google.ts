@@ -252,6 +252,8 @@ export async function autoSyncIfDue(now = Date.now()): Promise<boolean> {
   if (!googleConfigured()) return false;
   const [account, enabled, last] = await Promise.all([getAccount(), storageGet<boolean>(AUTO_BACKUP_KEY, true), storageGet<BackupInfo | null>(LAST_BACKUP_KEY, null)]);
   if (!account || !enabled) return false;
+  // Signed in to a ProdLi account: ProdLi sync has replaced Drive sync.
+  if (await storageGet<unknown>("prodliAccount", null)) return false;
   if (last && now - new Date(last.at).getTime() < 55 * 60 * 1000) return false;
   await syncWithDrive(true);
   return true;

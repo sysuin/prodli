@@ -14,6 +14,9 @@ import { onStorageChange, storageGet, storageRemove, storageSet } from "./storag
 
 export const PRODLI_ACCOUNT_KEY = "prodliAccount";
 export const PRODLI_SESSION_KEY = "prodliSession";
+/** What this device knows about the server's copy (see prodliSync.ts); forgotten on sign-out. */
+export const SYNC_STATE_KEY = "prodliSyncState";
+export const SYNC_STATUS_KEY = "prodliSyncStatus";
 
 export interface ProdliUser {
   id: string;
@@ -67,9 +70,13 @@ const friendly: Record<string, string> = {
   google_auth_failed: "Google couldn't confirm your sign-in. Try again.",
   confirmation_mismatch: "The email you typed doesn't match this account.",
   bad_origin: "This page isn't allowed to change your account.",
+  quota_exceeded: "Your ProdLi storage is full. Delete some notes or meetings to keep syncing.",
+  item_too_large: "One item is too large to sync.",
+  too_large: "That's too much to send at once.",
 };
 
-async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** A request to ProdLi's server with this device's session. */
+export async function accountRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (isExtension()) {
@@ -91,7 +98,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function forgetLocally(): Promise<void> {
-  await Promise.all([storageRemove(PRODLI_ACCOUNT_KEY), storageRemove(PRODLI_SESSION_KEY)]);
+  await Promise.all([PRODLI_ACCOUNT_KEY, PRODLI_SESSION_KEY, SYNC_STATE_KEY, SYNC_STATUS_KEY].map((k) => storageRemove(k)));
 }
 
 export function getProdliAccount(): Promise<ProdliUser | null> {
@@ -105,7 +112,7 @@ export function onProdliAccountChange(cb: (user: ProdliUser | null) => void): ()
 /** Extension: Google (chrome.identity) → ProdLi session. */
 export async function signInFromExtension(interactive = true): Promise<ProdliUser> {
   const accessToken = await getToken(interactive);
-  const r = await api<{ user: ProdliUser; token: string; session: { expiresAt: number } }>("/api/auth/google", {
+  const r = await accountRequest<{ user: ProdliUser; token: string; session: { expiresAt: number } }>("/api/auth/google", {
     method: "POST",
     body: JSON.stringify({ kind: "extension", accessToken }),
   });
@@ -116,7 +123,7 @@ export async function signInFromExtension(interactive = true): Promise<ProdliUse
 
 /** Web: a Google Identity Services ID token → ProdLi session (HttpOnly cookie). */
 export async function signInFromWeb(idToken: string): Promise<ProdliUser> {
-  const r = await api<{ user: ProdliUser }>("/api/auth/google", { method: "POST", body: JSON.stringify({ kind: "web", idToken }) });
+  const r = await accountRequest<{ user: ProdliUser }>("/api/auth/google", { method: "POST", body: JSON.stringify({ kind: "web", idToken }) });
   await storageSet(PRODLI_ACCOUNT_KEY, r.user);
   return r.user;
 }
@@ -124,7 +131,7 @@ export async function signInFromWeb(idToken: string): Promise<ProdliUser> {
 /** Asks the server who's signed in (and refreshes the cached profile). */
 export async function refreshAccount(): Promise<ProdliUser | null> {
   try {
-    const { user } = await api<{ user: ProdliUser }>("/api/me");
+    const { user } = await accountRequest<{ user: ProdliUser }>("/api/me");
     await storageSet(PRODLI_ACCOUNT_KEY, user);
     return user;
   } catch (err) {
@@ -134,16 +141,16 @@ export async function refreshAccount(): Promise<ProdliUser | null> {
 }
 
 export async function listDevices(): Promise<Device[]> {
-  return (await api<{ sessions: Device[] }>("/api/sessions")).sessions;
+  return (await accountRequest<{ sessions: Device[] }>("/api/sessions")).sessions;
 }
 
 export async function signOutDevice(id: string): Promise<void> {
-  await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+  await accountRequest(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function signOutHere(): Promise<void> {
   try {
-    await api("/api/auth/logout", { method: "POST" });
+    await accountRequest("/api/auth/logout", { method: "POST" });
   } catch {
     // Already signed out on the server, or offline — forget locally anyway.
   }
@@ -151,13 +158,13 @@ export async function signOutHere(): Promise<void> {
 }
 
 export async function signOutEverywhere(): Promise<void> {
-  await api("/api/auth/logout-all", { method: "POST" });
+  await accountRequest("/api/auth/logout-all", { method: "POST" });
   await forgetLocally();
 }
 
 /** Downloads everything ProdLi's server holds about the account. */
 export async function downloadAccountExport(): Promise<void> {
-  const data = await api<Record<string, unknown>>("/api/account/export");
+  const data = await accountRequest<Record<string, unknown>>("/api/account/export");
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -170,7 +177,7 @@ export async function downloadAccountExport(): Promise<void> {
 }
 
 export async function deleteAccount(confirmEmail: string): Promise<void> {
-  await api("/api/account", { method: "DELETE", body: JSON.stringify({ confirmEmail }) });
+  await accountRequest("/api/account", { method: "DELETE", body: JSON.stringify({ confirmEmail }) });
   await forgetLocally();
 }
 
@@ -207,7 +214,7 @@ function loadGis(): Promise<GoogleId> {
 
 /** Renders Google's "Sign in with Google" button into `el` (web app only). */
 export async function renderGoogleButton(el: HTMLElement, onSignedIn: (u: ProdliUser) => void, onError: (e: Error) => void): Promise<void> {
-  const { googleWebClientId } = await api<{ googleWebClientId: string | null }>("/api/config");
+  const { googleWebClientId } = await accountRequest<{ googleWebClientId: string | null }>("/api/config");
   if (!googleWebClientId) throw new AccountError("Google sign-in isn't set up on this server.");
   const google = await loadGis();
   google.accounts.id.initialize({
