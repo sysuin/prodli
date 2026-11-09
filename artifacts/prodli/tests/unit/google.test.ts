@@ -70,6 +70,21 @@ describe("Google sign-in", () => {
     await expect(google.signIn()).rejects.toThrow("Sign-in was cancelled.");
   });
 
+  it("a clicked sync may ask Chrome for permission; a background sync never does", async () => {
+    const getAuthToken = chrome.identity.getAuthToken as ReturnType<typeof vi.fn>;
+    await google.syncWithDrive();
+    expect(getAuthToken.mock.calls.every(([o]) => o.interactive === true)).toBe(true);
+    getAuthToken.mockClear();
+    await google.syncWithDrive(true);
+    expect(getAuthToken.mock.calls.length).toBeGreaterThan(0);
+    expect(getAuthToken.mock.calls.every(([o]) => o.interactive === false)).toBe(true);
+  });
+
+  it("explains a missing Drive permission instead of blaming the setup", async () => {
+    (chrome.identity.getAuthToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("OAuth2 not granted or revoked."));
+    await expect(google.syncWithDrive(true)).rejects.toThrow(/needs your permission/);
+  });
+
   it("signs out: revokes the token and forgets the account", async () => {
     await google.signIn();
     await google.signOut();

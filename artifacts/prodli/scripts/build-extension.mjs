@@ -18,11 +18,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 const workspaceRoot = resolve(root, "..", "..");
 
-const distDir = resolve(root, "dist-extension");
+// PRODLI_OUT_DIR: build somewhere other than dist-extension (tests use
+// dist-extension-test so they never touch the copy loaded in your Chrome).
+const outName = process.env.PRODLI_OUT_DIR?.trim() || "dist-extension";
+const isMainBuild = outName === "dist-extension";
+const finalDir = resolve(root, outName);
+// Build into a staging folder and swap it in at the end. Chrome may have the
+// final folder loaded unpacked; if it reloads while the folder is half-written
+// it can drop the extension *and its data*, so the folder is never half-written.
+const distDir = `${finalDir}.staging`;
 const zipPath = resolve(workspaceRoot, "prodli-extension.zip");
+rmSync(distDir, { recursive: true, force: true });
 
-console.log("==> Building extension with Vite...");
-execSync("pnpm vite build --config vite.extension.config.ts", {
+console.log(`==> Building extension with Vite (${outName})...`);
+execSync(`pnpm vite build --config vite.extension.config.ts --outDir "${distDir}" --emptyOutDir`, {
   cwd: root,
   stdio: "inherit",
   env: { ...process.env, NODE_ENV: "production" },
@@ -70,6 +79,15 @@ if (manifest.manifest_version !== 3) throw new Error("manifest_version must be 3
 if (!manifest.chrome_url_overrides?.newtab) throw new Error("Missing chrome_url_overrides.newtab");
 console.log(`    name: ${manifest.name}, version: ${manifest.version}, manifest_version: ${manifest.manifest_version}`);
 
+console.log(`==> Swapping the new build into ${outName}/...`);
+rmSync(finalDir, { recursive: true, force: true });
+renameSync(distDir, finalDir);
+
+if (!isMainBuild) {
+  console.log(`\n✓ Done! Test build: ${finalDir} (no zip)`);
+  process.exit(0);
+}
+
 console.log("\n==> Packaging into prodli-extension.zip...");
 if (existsSync(zipPath)) rmSync(zipPath);
 
@@ -83,7 +101,11 @@ await new Promise((resolvePromise, reject) => {
   });
   archive.on("error", reject);
   archive.pipe(output);
-  archive.directory(distDir, false);
+  // The Web Store rejects uploads whose manifest has a "key", so the zip gets
+  // the manifest without it (the unpacked dist-extension folder keeps it).
+  archive.directory(finalDir, false, (entry) => (entry.name === "manifest.json" ? false : entry));
+  const { key: _unpackedOnly, ...storeManifest } = manifest;
+  archive.append(JSON.stringify(storeManifest, null, 2), { name: "manifest.json" });
   archive.finalize();
 });
 

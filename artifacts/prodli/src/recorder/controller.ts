@@ -311,7 +311,10 @@ export function registerRecorder(): void {
     void toggleRecording(tab);
   });
 
-  chrome.commands.onCommand.addListener((command, tab) => {
+  // Optional chaining: if this API is ever missing (e.g. Chrome loaded a
+  // half-written build), the keyboard shortcut is lost but the rest of the
+  // background worker — time tracking, Pomodoro, sync — still starts.
+  chrome.commands?.onCommand.addListener((command, tab) => {
     if (command !== "toggle-recording") return;
     if (tab) {
       void toggleRecording(tab);

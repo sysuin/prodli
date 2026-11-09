@@ -10,7 +10,8 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:e2e": "node scripts/build-extension.mjs && node tests/e2e/run.mjs"
+    "build:extension:test": "PRODLI_OUT_DIR=dist-extension-test PRODLI_GOOGLE_CLIENT_ID= PRODLI_EXTENSION_KEY= node scripts/build-extension.mjs",
+    "test:e2e": "pnpm run build:extension:test && node tests/e2e/run.mjs"
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",

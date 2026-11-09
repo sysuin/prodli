@@ -4,6 +4,16 @@ ProdLi's Google sign-in uses Chrome's built-in identity API and syncs (merges it
 
 The code is done; it needs a Google OAuth **client ID** that belongs to you. Until one is set, the 👤 button explains that sign-in isn't set up and everything else works normally.
 
+## Status (2026-11-09)
+
+Steps 1 and 2 are done for ProdLi:
+
+- Google Cloud project **`prodli`**: Drive API on, Google Auth Platform set up (External, **Testing**), branding + the four non-sensitive scopes saved, test user `sunnysinghnitb@gmail.com`.
+- OAuth client "ProdLi Chrome extension" — client ID `1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com` (client IDs are public; they're in every shipped manifest).
+- Both build values are in the git-ignored `.env.local` at the repo root: `source .env.local && pnpm run build:extension`.
+
+Still to do: the `PRODLI_GOOGLE_CLIENT_ID` GitHub secret (step 3) and **Publish app** before the store release (step 4).
+
 ## 1. Google Cloud project (one time, ~10 minutes)
 
 1. Go to https://console.cloud.google.com/ → create a project, e.g. **ProdLi** (no billing account needed).
@@ -24,7 +34,7 @@ The code is done; it needs a Google OAuth **client ID** that belongs to you. Unt
 
 OAuth client IDs are tied to an extension ID. Unpacked builds normally get a random ID, so give them the store's ID:
 
-1. Chrome Web Store Developer Dashboard → ProdLi → **Package** → **View public key**. Copy the key (the long text between the BEGIN/END lines, as one line).
+1. Chrome Web Store Developer Dashboard → ProdLi → **Package** → **View public key**. Copy the key (the long text between the BEGIN/END lines, as one line). Or, if the store version is installed, copy the `"key"` value from its `manifest.json` in your Chrome profile (`…/Chrome/<Profile>/Extensions/gjgknflakhglanjaeenkmciohimnbkdp/<version>/manifest.json`).
 2. Build with both values:
 
 ```bash
@@ -40,7 +50,7 @@ Load `artifacts/prodli/dist-extension` unpacked; its ID now matches the store, a
 Add repository secrets in GitHub (**Settings → Secrets and variables → Actions**):
 
 - `PRODLI_GOOGLE_CLIENT_ID`
-- (optional) `PRODLI_EXTENSION_KEY` — not needed for store uploads (the store assigns the ID), only for testing CI-built zips unpacked.
+- (optional) `PRODLI_EXTENSION_KEY` — not needed for store uploads (the store assigns the ID). The build keeps `key` only in the unpacked `dist-extension` folder and leaves it out of `prodli-extension.zip`, because the Web Store rejects uploads that contain it.
 
 The CI workflow passes them to the build, so the zip attached to each run has sign-in enabled.
 
