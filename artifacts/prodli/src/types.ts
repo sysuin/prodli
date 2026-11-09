@@ -49,6 +49,8 @@ export interface DayRecord {
   focus?: string;
   reflection?: string;
   brief?: DailyBrief;
+  /** Fingerprint of the tasks and events the brief was written from (to notice when it's out of date). */
+  briefBasis?: string;
   createdAt: string;
   updatedAt?: string;
 }

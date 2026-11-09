@@ -4,7 +4,7 @@ import { storageGet, storageSet } from "../lib/storage";
 import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
 import { accountsEnabled } from "../lib/prodliAccount";
-import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
+import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, compareToUsual, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
 export function TimeTrackerSection() {
@@ -301,7 +301,7 @@ export function TimeTrackerSection() {
       {/* ── TODAY ──────────────────────────────────────────────────────────── */}
       {activeTab === "today" && (
         <>
-          <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center" }}>
+          <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={label}>Total today</div>
               <div style={{ fontFamily: "Space Mono, monospace", fontSize: 28, fontWeight: 700, color: ACCENT }}>
@@ -314,6 +314,20 @@ export function TimeTrackerSection() {
                 {todayEntries.length}
               </div>
             </div>
+            {(() => {
+              const usual = compareToUsual(todayTotal, weekData.slice(0, -1).map((d) => d.total));
+              if (!usual) return null;
+              const up = usual.percent > 0;
+              return (
+                <div data-testid="tracker-vs-usual">
+                  <div style={label}>{todayTotal < 1800 ? "Your usual day" : "Vs. your usual day"}</div>
+                  <div style={{ fontFamily: "Space Mono, monospace", fontSize: 20, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+                    {todayTotal < 1800 ? fmtSecs(usual.average) : usual.percent === 0 ? "≈ same" : `${up ? "▲" : "▼"} ${Math.abs(usual.percent)}%`}
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{todayTotal < 1800 ? "average of the last 6 days" : `average ${fmtSecs(usual.average)} (last 6 days)`}</div>
+                </div>
+              );
+            })()}
             {todayEntries[0] && (
               <div>
                 <div style={label}>Top site</div>

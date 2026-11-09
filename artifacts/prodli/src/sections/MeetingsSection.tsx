@@ -4,6 +4,7 @@ import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
 import { deleteMeeting, getAudio, listMeetings, updateMeeting } from "../recorder/db";
 import { canUseProdliAi, summarizeAny } from "../recorder/summarize";
+import { openAsk } from "../lib/ask";
 import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
@@ -385,6 +386,16 @@ function MeetingDetail({
             {meeting.status === "processing" ? "Summarizing…" : s ? "Re-summarize" : "✨ Summarize"}
           </button>
           <button style={btn("plain", busy)} disabled={busy} onClick={saveAsNote}>Save as note</button>
+          {accountsEnabled() && meeting.transcript.length > 0 && (
+            <button
+              style={btn("plain", busy)}
+              disabled={busy}
+              onClick={() => openAsk(`About the meeting “${s?.title || meeting.title}” on ${new Date(meeting.startedAt).toLocaleDateString([], { dateStyle: "medium" })}: what was decided, who owns which action items, and what's still open?`)}
+              title="Ask ProdLi about this meeting"
+            >
+              ✨ Ask about it
+            </button>
+          )}
           <button style={btn("plain", meeting.transcript.length === 0)} disabled={meeting.transcript.length === 0} onClick={exportTxt}>Export .txt</button>
           <button style={btn("danger", meeting.status === "recording")} disabled={meeting.status === "recording"} onClick={onDelete}>Delete</button>
         </div>

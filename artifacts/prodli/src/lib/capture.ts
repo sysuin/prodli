@@ -7,6 +7,7 @@ import { storageGet, storageSet } from "./storage";
 import { generateId } from "./utils";
 import type { Note, Todo } from "../types";
 import { dayKey } from "./today";
+import { parseTask } from "./taskParse";
 
 export interface CaptureInput {
   title: string;
@@ -32,9 +33,12 @@ export function safeUrl(url: string | undefined): string | undefined {
   }
 }
 
-export async function addTask(input: CaptureInput & { planToday?: boolean }): Promise<Todo> {
+/** `smart`: the user typed it, so words like "tomorrow" or "!high" set the date and priority. */
+export async function addTask(input: CaptureInput & { planToday?: boolean; smart?: boolean }): Promise<Todo> {
   const now = new Date().toISOString();
-  const title = clean(input.title, 300) || clean(input.text, 300) || "New task";
+  let title = clean(input.title, 300) || clean(input.text, 300) || "New task";
+  const p = input.smart ? parseTask(title) : null;
+  if (p) title = p.title;
   const url = safeUrl(input.url);
   const extra = clean(input.text, 500);
   const todo: Todo = {
@@ -45,7 +49,9 @@ export async function addTask(input: CaptureInput & { planToday?: boolean }): Pr
       ...(extra && extra !== title ? [{ id: generateId(), title: extra, completed: false }] : []),
       ...(url ? [{ id: generateId(), title: url, completed: false }] : []),
     ],
-    plannedFor: input.planToday ? dayKey() : undefined,
+    plannedFor: input.planToday || p?.planToday ? dayKey() : undefined,
+    dueDate: p?.dueDate,
+    priority: p?.priority,
     createdAt: now,
     updatedAt: now,
   };

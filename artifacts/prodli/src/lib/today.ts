@@ -30,6 +30,16 @@ export const toMinutes = (t: string) => {
   return h * 60 + m;
 };
 
+/** Fingerprint of what the brief depends on most: open tasks for today/overdue and today's events. */
+export function briefBasis(todos: Todo[], events: CalendarEvent[], today = dayKey()): string {
+  const tasks = todos
+    .filter((t) => isForToday(t, today) || (!t.completed && t.priority === "high"))
+    .map((t) => `${t.id}:${t.title}:${t.completed ? 1 : 0}:${t.dueDate ?? ""}:${t.plannedFor ?? ""}`)
+    .sort();
+  const evts = events.map((e) => `${e.id}:${e.start}:${e.title}`).sort();
+  return `${tasks.join("|")}#${evts.join("|")}`;
+}
+
 export function greeting(d = new Date()): string {
   const h = d.getHours();
   return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";

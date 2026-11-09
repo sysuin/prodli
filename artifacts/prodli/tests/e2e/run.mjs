@@ -50,6 +50,17 @@ const suites = {
     await sleep(500);
     const { todos = [] } = await p.storage(["todos"]);
     check("Smoke: To-Dos adds a task", todos.some((t) => t.title === "E2E task"));
+    // Smart add: "tomorrow" and "!high" become the due date and priority.
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Add a new task"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Call Sam tomorrow !high"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await sleep(150);
+    const preview = await p.eval(`document.querySelector('[data-testid="smart-add-preview"]')?.innerText ?? ""`);
+    await p.eval(`document.querySelector('input[placeholder^="Add a new task"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+    await sleep(500);
+    const smart = ((await p.storage(["todos"])).todos ?? []).find((t) => t.title === "Call Sam");
+    const tmr = new Date(Date.now() + 86_400_000);
+    const tmrKey = `${tmr.getFullYear()}-${String(tmr.getMonth() + 1).padStart(2, "0")}-${String(tmr.getDate()).padStart(2, "0")}`;
+    check("To-Dos: smart add previews and sets the date and priority", preview.includes("Tomorrow") && smart?.dueDate === tmrKey && smart?.priority === "high", `${preview} | ${JSON.stringify(smart)}`);
+    check("To-Dos: 'By date' groups tasks (Tomorrow)", await p.eval(`!!document.querySelector('[data-testid="todo-group-tomorrow"]')?.innerText.includes("Call Sam")`));
     // Habits: the page renders its create button.
     await p.goto("habits");
     check("Smoke: Habits renders", (await p.lowerText()).includes("new habit"));
