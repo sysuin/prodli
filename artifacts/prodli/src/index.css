@@ -419,6 +419,9 @@
   .todo-add-row > input:first-child { flex: 1 0 100% !important; }
   .todo-row { flex-wrap: wrap; }
   .todo-row .todo-title { flex: 1 1 calc(100% - 70px) !important; min-width: 0; }
+  /* Today: one column. */
+  .today-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .today-page { padding: 14px 12px 32px !important; }
   /* Meetings: list above the selected meeting. */
   .meetings-layout { flex-direction: column; }
   .meetings-layout .meetings-list { width: 100% !important; }

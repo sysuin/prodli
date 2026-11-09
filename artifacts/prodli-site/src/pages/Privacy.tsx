@@ -50,6 +50,7 @@ For each signed-in device we keep a session: a random sign-in token (we store on
 • meetings: titles, transcripts and summaries (text only; audio recordings are never uploaded)
 • Pomodoro history and your completed-session count
 • Time Tracker history (hostnames and seconds per day)
+• your Today page: each day's focus, reflection and daily brief
 Settings and your Claude API key are never uploaded. Each account's data is kept in its own separate database.
 
 You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it.
@@ -57,11 +58,17 @@ You can stop a computer from uploading the meetings it records (account window �
 If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged into your account once, the first time you sign in, and Drive sync then turns off.`,
   },
   {
-    title: "AI meeting summaries (optional)",
-    body: `You can ask ProdLi to summarize a meeting in two ways:
+    title: "AI daily brief and meeting summaries (optional)",
+    body: `Daily brief: with an account, ProdLi can write a short plan for your day. To do this, our server sends Anthropic's Claude API the parts of your day the brief needs: your open tasks (titles, priorities, due dates, estimates), habit names and streaks, today's calendar events (titles and times, if you connected Google Calendar), recent meeting action items, yesterday's top websites and focus sessions, and your focus and reflection notes. The brief is saved with that day and synced to your devices; we don't keep a separate copy of what was sent. We count how many briefs you use each month. Without an account, a basic brief is made on your device without AI and nothing is sent.
+
+Meeting summaries: you can ask ProdLi to summarize a meeting in two ways:
 • Through your ProdLi account (a free monthly allowance). Our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting. We don't keep a separate copy of what was sent. We count how many summaries you use each month.
 • With your own Claude API key (extension only). Your browser sends the transcript directly to Anthropic with your key. ProdLi never receives the key, the transcript or the summary.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
+  },
+  {
+    title: "Google Calendar (optional)",
+    body: `If you connect Google Calendar on the Today page, ProdLi asks Google for read-only access to your calendar (scope calendar.readonly) and reads today's events in your browser to show your agenda. Events are not stored on ProdLi's servers. Their titles and times are included in your daily brief only if you have an account and use the AI brief. You can disconnect at any time on the Today page, and remove ProdLi's access in your Google Account settings.`,
   },
   {
     title: "Technical data and logs",
@@ -77,7 +84,7 @@ ProdLi doesn't use advertising or analytics cookies. When you use the web app, G
     title: "Why we use your data (legal bases)",
     body: `• To provide ProdLi: your account, sync, backups and summaries you ask for. This is necessary to perform our contract with you.
 • To keep ProdLi secure, prevent abuse, fix problems and enforce limits. This is our legitimate interest in running a safe service.
-• To upload meeting transcripts and create AI summaries: your choice to use these features. You can stop at any time.
+• To upload meeting transcripts, create AI summaries and daily briefs, and read your calendar: your choice to use these features. You can stop at any time.
 • To comply with the law where required.
 Under India's Digital Personal Data Protection Act, 2023, we process your personal data on the basis of the consent you give when you sign in, and for the purposes described here.`,
   },
@@ -85,7 +92,7 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
     title: "Who processes data for us",
     body: `• Cloudflare, Inc.: hosting, databases, sync, backups and request logs
 • Google LLC: sign-in
-• Anthropic, PBC: AI summaries, only when you request one through your account
+• Anthropic, PBC: AI daily briefs and meeting summaries, only when you use them with your account
 These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
   },
   {
@@ -127,7 +134,7 @@ Depending on where you live (for example under the EU/UK GDPR or India's DPDP Ac
   },
   {
     title: "Google API data",
-    body: `ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We use your Google profile information only to sign you in and show your account, and we don't transfer it to others except our service providers as described above.`,
+    body: `ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We use your Google profile information only to sign you in and show your account, and your calendar events (if you connect your calendar) only to show your agenda and plan your day. We don't transfer Google data to others except our service providers as described above, and never use it for advertising.`,
   },
   {
     title: "Children",
@@ -170,11 +177,11 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data and 20 AI summaries per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries and 62 AI daily briefs per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
   },
   {
-    title: "AI summaries",
-    body: `Summaries are generated automatically by Anthropic's Claude models. They can be incomplete or wrong. Check important details against the transcript before you rely on them.`,
+    title: "AI summaries and briefs",
+    body: `Summaries and daily briefs are generated automatically by Anthropic's Claude models. They can be incomplete or wrong. Check important details against the transcript before you rely on them.`,
   },
   {
     title: "Our software",

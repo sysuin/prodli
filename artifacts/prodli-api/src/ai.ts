@@ -86,16 +86,19 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
 
 export const monthKey = (now: number) => new Date(now).toISOString().slice(0, 7);
 
-export async function aiUsage(db: D1Database, userId: string, now: number): Promise<number> {
-  const row = await db.prepare(`SELECT count FROM ai_usage WHERE user_id = ?1 AND month = ?2`).bind(userId, monthKey(now)).first<{ count: number }>();
+/** Monthly counters: meeting summaries (ai_usage) and daily briefs (brief_usage). */
+export type UsageTable = "ai_usage" | "brief_usage";
+
+export async function aiUsage(db: D1Database, userId: string, now: number, table: UsageTable = "ai_usage"): Promise<number> {
+  const row = await db.prepare(`SELECT count FROM ${table} WHERE user_id = ?1 AND month = ?2`).bind(userId, monthKey(now)).first<{ count: number }>();
   return row?.count ?? 0;
 }
 
-/** Reserves one summary if the user is under `limit`. Returns the new count, or null when the allowance is used up. */
-export async function reserveAi(db: D1Database, userId: string, now: number, limit: number): Promise<number | null> {
+/** Reserves one use if the user is under `limit`. Returns the new count, or null when the allowance is used up. */
+export async function reserveAi(db: D1Database, userId: string, now: number, limit: number, table: UsageTable = "ai_usage"): Promise<number | null> {
   const row = await db
     .prepare(
-      `INSERT INTO ai_usage (user_id, month, count) VALUES (?1, ?2, 1)
+      `INSERT INTO ${table} (user_id, month, count) VALUES (?1, ?2, 1)
        ON CONFLICT (user_id, month) DO UPDATE SET count = count + 1 WHERE count < ?3
        RETURNING count`,
     )
@@ -104,7 +107,7 @@ export async function reserveAi(db: D1Database, userId: string, now: number, lim
   return row?.count ?? null;
 }
 
-/** Gives a reserved summary back (the call failed). */
-export async function refundAi(db: D1Database, userId: string, now: number): Promise<void> {
-  await db.prepare(`UPDATE ai_usage SET count = MAX(count - 1, 0) WHERE user_id = ?1 AND month = ?2`).bind(userId, monthKey(now)).run();
+/** Gives a reserved use back (the call failed). */
+export async function refundAi(db: D1Database, userId: string, now: number, table: UsageTable = "ai_usage"): Promise<void> {
+  await db.prepare(`UPDATE ${table} SET count = MAX(count - 1, 0) WHERE user_id = ?1 AND month = ?2`).bind(userId, monthKey(now)).run();
 }

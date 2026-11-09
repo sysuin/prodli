@@ -77,6 +77,7 @@ const friendly: Record<string, string> = {
   ai_unavailable: "ProdLi summaries aren't available right now. Try again later, or add your own Claude API key in the extension (Meetings → Setup).",
   ai_busy: "Summaries are busy right now. Try again in a minute.",
   ai_failed: "Summarizing failed. Try again.",
+  brief_quota_exceeded: "You've used this month's AI briefs — here's a basic brief instead. They reset on the 1st.",
   ai_refused: "Claude declined to summarize this meeting.",
   ai_truncated: "The summary was cut off. Try again.",
 };
@@ -152,6 +153,7 @@ export interface AiUsage {
   used: number;
   limit: number;
   available: boolean;
+  briefs?: { used: number; limit: number };
 }
 
 /** This month's AI summaries through ProdLi. */

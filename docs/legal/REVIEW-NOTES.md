@@ -36,6 +36,8 @@ Both were checked line by line against the code on 9 November 2026. This page li
 | Nightly backup of the synced items | R2 `prodli-backups`, `users/<id>/<date>/` | 30 days (bucket rule); deleted immediately with the account | `src/backup.ts` |
 | Request logs (IP, user agent, URL, status, time), never request bodies | Cloudflare Workers Logs | 7 days | `observability` in `wrangler.jsonc` |
 | Live-update ticket (random, single use) | Durable Object | 60 seconds | `src/userStore.ts` |
+| Daily briefs used per month (a count only) | D1 `brief_usage` | until account deletion | `src/brief.ts` |
+| Today: each day's focus, reflection and the brief text | the user's Durable Object (`days` collection) | until deleted | `artifacts/prodli/src/sections/TodaySection.tsx` |
 
 **Never stored on ProdLi's servers:**
 - meeting audio;
@@ -44,6 +46,12 @@ Both were checked line by line against the code on 9 November 2026. This page li
 - the content sent to Anthropic, beyond the resulting summary saved with the meeting.
 
 **Account deletion:** deletes the user row, sessions, AI counts and backup row in D1; wipes the user's Durable Object; deletes their R2 backups. Cloudflare's own point-in-time recovery for D1 and Durable Objects keeps data for up to 30 days.
+
+**Google Calendar (optional, Today page):**
+- Scope `calendar.readonly`, requested only when the user clicks "Connect Google Calendar".
+- Today's events are read in the browser; they're not stored on the server.
+- Event titles and times go to Anthropic only inside an AI brief request.
+- It's a sensitive scope, so Google verification is needed before publishing the consent screen.
 
 **Google scopes:**
 - ProdLi accounts request only `openid email profile`, in both the extension and the web.
@@ -61,7 +69,7 @@ Both were checked line by line against the code on 9 November 2026. This page li
 |---|---|---|
 | Cloudflare, Inc. | hosting, D1, Durable Objects, R2, logs | everything above |
 | Google LLC | sign-in (Google Identity Services, `chrome.identity`) | Google profile, at sign-in |
-| Anthropic, PBC | AI summaries through ProdLi (Claude Haiku 5.5) | transcript, meeting name and date, only when a summary is requested |
+| Anthropic, PBC | AI summaries and daily briefs through ProdLi (Claude Haiku 5.5) | summaries: transcript, meeting name and date; briefs: open task titles, priorities, due dates and estimates, habit names and streaks, today's calendar event titles and times, recent meeting action items, yesterday's top sites and focus sessions, focus and reflection notes. Sent only when used. |
 
 ## 5. Other places that must match the policy
 - **Google Cloud consent screen:**

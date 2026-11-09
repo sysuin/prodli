@@ -42,6 +42,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
   const deps: Deps = {
     verifyExtension: async (t, clientId) => (calls.push({ kind: "extension", clientId }), fakeIdentity(t)),
     verifyWeb: async (t, clientId) => (calls.push({ kind: "web", clientId }), fakeIdentity(t)),
+    brief: async (ctx) => {
+      calls.push({ kind: "brief", clientId: ctx.date });
+      if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
+      return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
+    },
     summarize: async (input) => {
       calls.push({ kind: "summarize", clientId: input.title });
       if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Summarizing failed. Try again.");

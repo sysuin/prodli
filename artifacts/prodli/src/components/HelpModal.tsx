@@ -238,6 +238,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
                 <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>Action</div>
               </div>
               <div style={{ padding: "4px 14px" }}>
+                <ShortcutRow keys={["Ctrl / ⌘ + 0"]} action="Switch to Today (daily brief)" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 1"]} action="Switch to Editor" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 2"]} action="Switch to To-Dos" />
                 <ShortcutRow keys={["Ctrl / ⌘ + 3"]} action="Switch to Pomodoro" />

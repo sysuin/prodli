@@ -13,7 +13,7 @@
 //   devices merge by taking the larger number per site, so nothing is
 //   double-counted and nothing is lost.
 
-export type Coll = "notes" | "todos" | "habits" | "meetings" | "pomodoroSessions" | "tracking" | "stats";
+export type Coll = "notes" | "todos" | "habits" | "meetings" | "pomodoroSessions" | "tracking" | "stats" | "days";
 export type Kind = "lww" | "max";
 
 export interface LocalItem {

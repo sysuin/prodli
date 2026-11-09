@@ -227,6 +227,25 @@ try {
   await w.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   await sleep(1500);
 
+  // Today: the daily brief (basic here — the local server has no Claude key), planning, focus synced.
+  await w.eval(`localStorage.setItem("prodli_lastSection", JSON.stringify("today"))`);
+  await w.send("Page.reload", {});
+  await sleep(2500);
+  t = await w.text();
+  check("Today: opens with a greeting and a daily brief", /Good (morning|afternoon|evening)/.test(t) && !!(await w.eval(`document.querySelector('[data-testid="daily-brief"]')?.innerText.includes("Top priorities") || document.querySelector('[data-testid="daily-brief"]')?.innerText.includes("Start with")`)), t.slice(0, 400).replace(/\n/g, " | "));
+  check("Today: says when the AI brief isn't available and shows a basic one", t.includes("AI briefs aren't available right now") && t.includes("Basic brief (no AI)"));
+  await w.eval(`document.querySelector('input[aria-label$="main focus"]').focus()`);
+  await w.type("Ship ProdLi 1.4");
+  await w.key("Enter");
+  ms = await waitFor(async () => ((await p.storage(["days"])).days ?? []).some((d) => d.focus === "Ship ProdLi 1.4"));
+  check("Today: the day's focus syncs to the extension", ms >= 0, `waited ${ms} ms`);
+  await w.eval(`document.querySelector('[data-testid="plan-day"] details summary')?.click()`);
+  await sleep(300);
+  const sunBtn = await w.eval(`(() => { const li = [...document.querySelectorAll(".today-task")].find(l => l.innerText.includes("Task from the extension")); const b = li && [...li.querySelectorAll("button")].find(b => b.textContent.includes("☀️")); b?.click(); return !!b; })()`);
+  ms = sunBtn ? await waitFor(async () => ((await p.storage(["todos"])).todos ?? []).some((x) => x.title === "Task from the extension" && x.plannedFor)) : -1;
+  check("Today: planning a task for today syncs to the extension's To-Dos", ms >= 0, `button found: ${sunBtn}; tasks: ${await w.eval(`[...document.querySelectorAll(".today-task")].map(l => l.innerText.slice(0, 40)).join(" / ") + " | plan: " + JSON.stringify(document.querySelector("[data-testid=plan-day]")?.innerText.slice(0, 300)) + " | section: " + document.querySelector("[aria-current=page]")?.title`)}`);
+  check("Today: shows how much is planned against the time left", /planned · .* free/.test(await w.eval(`document.querySelector('[data-testid="workload"]')?.innerText ?? ""`)));
+
   await openAccount(w);
   await sleep(800);
   t = await w.text();
