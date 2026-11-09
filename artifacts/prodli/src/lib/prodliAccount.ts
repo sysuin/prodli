@@ -1,0 +1,224 @@
+// ProdLi account (phase 1 of docs/PLAN-WEB-APP.md): Google sign-in → a session
+// with ProdLi's server (artifacts/prodli-api).
+//
+// Which server, set at build time with VITE_PRODLI_API:
+//   "same-origin"  the web app at app.prodli.com (served by the API Worker)
+//   https://…      an extension build talking to that server
+//   (unset)        no ProdLi account in this build; everything works as before
+//
+// The extension keeps a bearer token in chrome.storage.local. The web app never
+// sees its token: the server sets an HttpOnly cookie.
+
+import { getToken } from "./google";
+import { onStorageChange, storageGet, storageRemove, storageSet } from "./storage";
+
+export const PRODLI_ACCOUNT_KEY = "prodliAccount";
+export const PRODLI_SESSION_KEY = "prodliSession";
+
+export interface ProdliUser {
+  id: string;
+  email: string;
+  name: string;
+  picture: string | null;
+  plan: string;
+  createdAt: number;
+}
+
+export interface Device {
+  id: string;
+  client: "extension" | "web";
+  device: string;
+  createdAt: number;
+  lastUsedAt: number;
+  current: boolean;
+}
+
+interface StoredSession {
+  token: string;
+  expiresAt: number;
+}
+
+export class AccountError extends Error {
+  constructor(
+    message: string,
+    readonly status = 0,
+  ) {
+    super(message);
+  }
+}
+
+const configured = (): string => (import.meta.env.VITE_PRODLI_API as string | undefined)?.trim() ?? "";
+
+/** True when this build talks to ProdLi's server. */
+export function accountsEnabled(): boolean {
+  return configured() !== "";
+}
+
+export function apiBase(): string {
+  const v = configured();
+  return v === "same-origin" ? "" : v.replace(/\/+$/, "");
+}
+
+const isExtension = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.storage?.local;
+
+const friendly: Record<string, string> = {
+  unauthorized: "You've been signed out. Sign in again.",
+  rate_limited: "Too many attempts. Wait a minute and try again.",
+  google_auth_failed: "Google couldn't confirm your sign-in. Try again.",
+  confirmation_mismatch: "The email you typed doesn't match this account.",
+  bad_origin: "This page isn't allowed to change your account.",
+};
+
+async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (isExtension()) {
+    const session = await storageGet<StoredSession | null>(PRODLI_SESSION_KEY, null);
+    if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}${path}`, { ...init, headers, credentials: isExtension() ? "omit" : "include" });
+  } catch {
+    throw new AccountError("Can't reach ProdLi. Check your connection and try again.");
+  }
+  const body = (await res.json().catch(() => ({}))) as { error?: string } & T;
+  if (!res.ok) {
+    if (res.status === 401 && path !== "/api/auth/google") await forgetLocally();
+    throw new AccountError(friendly[body.error ?? ""] ?? `Something went wrong (${res.status}).`, res.status);
+  }
+  return body;
+}
+
+async function forgetLocally(): Promise<void> {
+  await Promise.all([storageRemove(PRODLI_ACCOUNT_KEY), storageRemove(PRODLI_SESSION_KEY)]);
+}
+
+export function getProdliAccount(): Promise<ProdliUser | null> {
+  return storageGet<ProdliUser | null>(PRODLI_ACCOUNT_KEY, null);
+}
+
+export function onProdliAccountChange(cb: (user: ProdliUser | null) => void): () => void {
+  return onStorageChange<ProdliUser>(PRODLI_ACCOUNT_KEY, (v) => cb(v ?? null));
+}
+
+/** Extension: Google (chrome.identity) → ProdLi session. */
+export async function signInFromExtension(interactive = true): Promise<ProdliUser> {
+  const accessToken = await getToken(interactive);
+  const r = await api<{ user: ProdliUser; token: string; session: { expiresAt: number } }>("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ kind: "extension", accessToken }),
+  });
+  await storageSet<StoredSession>(PRODLI_SESSION_KEY, { token: r.token, expiresAt: r.session.expiresAt });
+  await storageSet(PRODLI_ACCOUNT_KEY, r.user);
+  return r.user;
+}
+
+/** Web: a Google Identity Services ID token → ProdLi session (HttpOnly cookie). */
+export async function signInFromWeb(idToken: string): Promise<ProdliUser> {
+  const r = await api<{ user: ProdliUser }>("/api/auth/google", { method: "POST", body: JSON.stringify({ kind: "web", idToken }) });
+  await storageSet(PRODLI_ACCOUNT_KEY, r.user);
+  return r.user;
+}
+
+/** Asks the server who's signed in (and refreshes the cached profile). */
+export async function refreshAccount(): Promise<ProdliUser | null> {
+  try {
+    const { user } = await api<{ user: ProdliUser }>("/api/me");
+    await storageSet(PRODLI_ACCOUNT_KEY, user);
+    return user;
+  } catch (err) {
+    if (err instanceof AccountError && err.status === 401) return null;
+    return getProdliAccount(); // offline: keep showing the cached account
+  }
+}
+
+export async function listDevices(): Promise<Device[]> {
+  return (await api<{ sessions: Device[] }>("/api/sessions")).sessions;
+}
+
+export async function signOutDevice(id: string): Promise<void> {
+  await api(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function signOutHere(): Promise<void> {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Already signed out on the server, or offline — forget locally anyway.
+  }
+  await forgetLocally();
+}
+
+export async function signOutEverywhere(): Promise<void> {
+  await api("/api/auth/logout-all", { method: "POST" });
+  await forgetLocally();
+}
+
+/** Downloads everything ProdLi's server holds about the account. */
+export async function downloadAccountExport(): Promise<void> {
+  const data = await api<Record<string, unknown>>("/api/account/export");
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `prodli-account-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function deleteAccount(confirmEmail: string): Promise<void> {
+  await api("/api/account", { method: "DELETE", body: JSON.stringify({ confirmEmail }) });
+  await forgetLocally();
+}
+
+// ── Google Identity Services (web only) ──────────────────────────────────────
+
+interface GoogleId {
+  accounts: {
+    id: {
+      initialize(opts: { client_id: string; callback: (r: { credential: string }) => void; ux_mode?: "popup"; auto_select?: boolean; use_fedcm_for_prompt?: boolean }): void;
+      renderButton(el: HTMLElement, opts: Record<string, unknown>): void;
+      disableAutoSelect(): void;
+    };
+  };
+}
+
+let gisLoading: Promise<GoogleId> | null = null;
+
+function loadGis(): Promise<GoogleId> {
+  const w = window as unknown as { google?: GoogleId };
+  if (w.google?.accounts?.id) return Promise.resolve(w.google);
+  gisLoading ??= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.onload = () => (w.google ? resolve(w.google) : reject(new AccountError("Google sign-in didn't load.")));
+    s.onerror = () => {
+      gisLoading = null;
+      reject(new AccountError("Google sign-in didn't load. Check your connection."));
+    };
+    document.head.appendChild(s);
+  });
+  return gisLoading;
+}
+
+/** Renders Google's "Sign in with Google" button into `el` (web app only). */
+export async function renderGoogleButton(el: HTMLElement, onSignedIn: (u: ProdliUser) => void, onError: (e: Error) => void): Promise<void> {
+  const { googleWebClientId } = await api<{ googleWebClientId: string | null }>("/api/config");
+  if (!googleWebClientId) throw new AccountError("Google sign-in isn't set up on this server.");
+  const google = await loadGis();
+  google.accounts.id.initialize({
+    client_id: googleWebClientId,
+    ux_mode: "popup",
+    auto_select: false,
+    callback: ({ credential }) => {
+      signInFromWeb(credential).then(onSignedIn, onError);
+    },
+  });
+  google.accounts.id.renderButton(el, { type: "standard", theme: "outline", size: "large", text: "signin_with", shape: "rectangular", width: 280 });
+}
+
+export const isExtensionBuild = isExtension;

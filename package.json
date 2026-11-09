@@ -10,7 +10,8 @@
     "build:extension": "pnpm --filter @workspace/prodli run build:extension",
     "build:web": "node scripts/build-web.mjs",
     "dev:extension": "pnpm --filter @workspace/prodli run dev",
-    "dev:site": "pnpm --filter @workspace/prodli-site run dev"
+    "dev:site": "pnpm --filter @workspace/prodli-site run dev",
+    "test:e2e:server": "pnpm --filter @workspace/prodli run test:e2e:server"
   },
   "private": true,
   "devDependencies": {

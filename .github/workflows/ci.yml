@@ -29,6 +29,8 @@ jobs:
           PRODLI_EXTENSION_KEY: ${{ secrets.PRODLI_EXTENSION_KEY }}
       - name: End-to-end tests (headless Chrome, separate test build without secrets)
         run: pnpm test:e2e
+      - name: Accounts end-to-end (local prodli-api + extension + web app)
+        run: pnpm test:e2e:server
         env:
           CHROME_PATH: /usr/bin/google-chrome
       - uses: actions/upload-artifact@v4
