@@ -6,6 +6,8 @@ import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
 import { AccountButton, AccountModal } from "./components/AccountModal";
+import { accountsEnabled } from "./lib/prodliAccount";
+import { startSync } from "./lib/prodliSync";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -100,6 +102,9 @@ export default function App() {
   const closeAccount = useCallback(() => setShowAccount(false), []);
 
   const pomodoroTimer = usePomodoroTimer();
+
+  // ProdLi account sync (one open ProdLi page leads; the rest stand by).
+  useEffect(() => (accountsEnabled() ? startSync() : undefined), []);
 
   useEffect(() => {
     Promise.all([

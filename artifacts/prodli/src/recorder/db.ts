@@ -67,8 +67,21 @@ async function tx<T>(
 
 // ── Meetings ──────────────────────────────────────────────────────────────────
 
+/** IndexedDB has no change events; this tells ProdLi sync that meetings changed. */
+export const MEETINGS_CHANNEL = "prodli-meetings";
+function announceChange(): void {
+  try {
+    const ch = new BroadcastChannel(MEETINGS_CHANNEL);
+    ch.postMessage("changed");
+    ch.close();
+  } catch {
+    // BroadcastChannel unavailable — sync still runs on its timer
+  }
+}
+
 export async function putMeeting(meeting: Meeting): Promise<void> {
   await tx(MEETINGS, "readwrite", (t) => reqToPromise(t.objectStore(MEETINGS).put(meeting)));
+  announceChange();
 }
 
 export async function getMeeting(id: string): Promise<Meeting | undefined> {
@@ -77,7 +90,7 @@ export async function getMeeting(id: string): Promise<Meeting | undefined> {
 
 /** Read-modify-write a meeting. Returns the updated meeting, or undefined if it doesn't exist. */
 export async function updateMeeting(id: string, patch: (m: Meeting) => Partial<Meeting>): Promise<Meeting | undefined> {
-  return tx(MEETINGS, "readwrite", async (t) => {
+  const updated = await tx(MEETINGS, "readwrite", async (t) => {
     const store = t.objectStore(MEETINGS);
     const current = await reqToPromise(store.get(id) as IDBRequest<Meeting | undefined>);
     if (!current) return undefined;
@@ -85,6 +98,8 @@ export async function updateMeeting(id: string, patch: (m: Meeting) => Partial<M
     await reqToPromise(store.put(next));
     return next;
   });
+  if (updated) announceChange();
+  return updated;
 }
 
 export async function listMeetings(): Promise<Meeting[]> {
@@ -100,6 +115,7 @@ export async function deleteMeeting(id: string, { tombstone = true }: { tombston
   });
   await deleteChunks(id);
   if (tombstone) await recordDeletions("meetings", [id]).catch(() => {});
+  announceChange();
 }
 
 // ── Audio ─────────────────────────────────────────────────────────────────────

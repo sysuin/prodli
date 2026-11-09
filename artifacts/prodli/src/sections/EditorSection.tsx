@@ -367,6 +367,8 @@ export function EditorSection() {
     if (!notesLoaded || !prefsLoaded) return;
     if (notes.length === 0) {
       const welcome = newNote({
+        // The same id on every device, so after signing in to sync there's one welcome note, not one per computer.
+        id: "welcome",
         title: "Welcome to ProdLi",
         autoTitle: false,
         content:

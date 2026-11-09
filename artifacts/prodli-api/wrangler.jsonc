@@ -8,6 +8,7 @@
 //
 // Staging and production are separate Workers with separate databases.
 // Bindings are not inherited by environments, so each one lists its own.
+// UserStore (one Durable Object per user, with its own SQLite) holds synced data.
 // Secrets: `wrangler secret put NAME --env <env>` — never in this file.
 // Google OAuth client IDs are public (they ship in every page/extension), so
 // they live here as plain vars.
@@ -32,7 +33,12 @@
     // Local only (wrangler dev keeps it in .wrangler/); the id is a placeholder.
     { "binding": "DB", "database_name": "prodli-core-dev", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
-  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }],
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "SYNC_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }],
   "env": {
     "staging": {
       "name": "prodli-api-staging",
@@ -45,7 +51,12 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core-staging", "database_id": "b599423c-7434-45eb-b9e1-79aa69458b01", "migrations_dir": "migrations" }
       ],
-      "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "2001", "simple": { "limit": 20, "period": 60 } }]
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "2001", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SYNC_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } }
+      ],
+      "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }]
     },
     "production": {
       "name": "prodli-api",
@@ -59,7 +70,12 @@
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core", "database_id": "58116cae-079a-4a3f-aeeb-20f905a37cd1", "migrations_dir": "migrations" }
       ],
-      "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "3001", "simple": { "limit": 20, "period": 60 } }]
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "3001", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SYNC_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } }
+      ],
+      "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }]
     }
   }
 }
