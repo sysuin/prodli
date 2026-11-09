@@ -23,12 +23,14 @@ Current state (checked 2026-11-08):
 ## 2. Create the Cloudflare Pages project (free)
 
 1. Sign up at dash.cloudflare.com (free plan).
-2. **Workers & Pages → Create → Pages → Upload assets**, project name **`prodli`** (must match the workflow). Upload any folder once (e.g. your local `site-dist/` after `pnpm run build:web`) to create it.
+2. **Workers & Pages → Create → Pages → Upload assets** (Direct Upload), project name **`prodli`** (must match the workflow). Upload the `site-dist` folder once to create it (build it with `pnpm run build:web`; it's in the repo root). Production branch: `main`.
 3. Note your **Account ID** (right sidebar of the dashboard).
-4. **My Profile → API Tokens → Create Token → "Edit Cloudflare Workers"** template (or a custom token with *Account → Cloudflare Pages → Edit*). Copy the token.
-5. In GitHub: **repo → Settings → Secrets and variables → Actions**, add:
+4. **My Profile → API Tokens → Create Token → Custom token**: name `prodli-github-deploy`, permission **Account → Cloudflare Pages → Edit**, account resources: your account. Create and copy the token (shown once).
+5. In GitHub: **repo → Settings → Secrets and variables → Actions → New repository secret**, add:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
+
+   Or from the terminal (it asks for the value without showing it): `gh secret set CLOUDFLARE_API_TOKEN --repo sysuin/prodli` and `gh secret set CLOUDFLARE_ACCOUNT_ID --repo sysuin/prodli`.
 6. Run **Actions → Deploy website → Run workflow**. Check `https://prodli.pages.dev` shows the site, `/privacy` and `/extension/`.
 
 From now on, every push to `main` that touches the site or extension redeploys automatically.
@@ -37,18 +39,42 @@ From now on, every push to `main` that touches the site or extension redeploys a
 
 Recommended: move DNS to Cloudflare (free), keep the domain registered at Hostinger.
 
-1. Cloudflare dashboard → **Add a domain** → `prodli.com` → Free plan. Cloudflare scans and imports existing records.
-2. **Before switching nameservers, check these records exist in Cloudflare** (copy them from Hostinger's DNS page if the scan missed any):
-   - `MX  @  mx1.hostinger.com  priority 5`
-   - `MX  @  mx2.hostinger.com  priority 10`
-   - Any `TXT` records (SPF `v=spf1 …`, DKIM `hostingermail…._domainkey`, DMARC `_dmarc`) — these keep email from going to spam.
-   - Mail-related `CNAME`s if present (e.g. `autodiscover`, `autoconfig`).
-   - Remove the old Replit `A @ 34.111.179.208` record and any Replit verification `TXT`.
-3. In **Pages → prodli → Custom domains**, add `prodli.com` and `www.prodli.com`. Cloudflare creates the records.
-4. In Hostinger: **Domains → prodli.com → DNS / Nameservers → Change nameservers** to the two Cloudflare nameservers shown in step 1.
-5. Wait for Cloudflare to say the domain is **Active** (minutes to a few hours). Then check:
-   - https://prodli.com, https://prodli.com/privacy, https://prodli.com/extension/
-   - Send a test email to `contact@prodli.com` and reply from it.
+### prodli.com records today (looked up 2026-11-09)
+
+**Keep — these run contact@prodli.com (Hostinger Mail).** Set every one to **DNS only** (grey cloud) in Cloudflare:
+
+| Type | Name | Content | Priority |
+|---|---|---|---|
+| MX | `@` | `mx1.hostinger.com` | 5 |
+| MX | `@` | `mx2.hostinger.com` | 10 |
+| TXT | `@` | `v=spf1 include:_spf.mail.hostinger.com ~all` | |
+| TXT | `_dmarc` | `v=DMARC1; p=none` | |
+| CNAME | `hostingermail-a._domainkey` | `hostingermail-a.dkim.mail.hostinger.com` | |
+| CNAME | `hostingermail-b._domainkey` | `hostingermail-b.dkim.mail.hostinger.com` | |
+| CNAME | `hostingermail-c._domainkey` | `hostingermail-c.dkim.mail.hostinger.com` | |
+| CNAME | `autodiscover` | `autodiscover.mail.hostinger.com` | |
+| CNAME | `autoconfig` | `autoconfig.mail.hostinger.com` | |
+
+**Delete — these point to Replit:**
+
+| Type | Name | Content |
+|---|---|---|
+| A | `@` | `34.111.179.208` |
+| A | `www` | `34.111.179.208` |
+| TXT | `@` | `replit-verify=…` |
+| TXT | `www` | `replit-verify=…` (if present) |
+
+### Steps
+
+1. Cloudflare dashboard → **Add a domain** → `prodli.com` → **Free** plan → let it scan the existing records.
+2. On the review screen, compare with the tables above: add anything missing from **Keep**, set those to **DNS only** (grey cloud), and delete the **Replit** rows. Continue.
+3. **Workers & Pages → prodli → Custom domains → Set up a custom domain** → `prodli.com`, then again for `www.prodli.com`. Cloudflare adds the website records itself.
+4. Cloudflare shows two nameservers (like `xxx.ns.cloudflare.com`). In **Hostinger hPanel → Domains → prodli.com → DNS / Nameservers → Change nameservers → Use custom nameservers**, replace `ns1/ns2.dns-parking.com` with Cloudflare's two. Save.
+5. Wait until Cloudflare emails that the domain is **Active** (usually under an hour, up to 24 h). The old Replit site keeps serving until the switch, so there's no downtime.
+6. Check:
+   - https://prodli.com, https://www.prodli.com, https://prodli.com/privacy, https://prodli.com/extension/
+   - Send an email **to** contact@prodli.com from Gmail, and reply **from** it. Both should work; the reply shouldn't land in spam.
+   - Optional: `dig +short prodli.com MX` should still show the two Hostinger servers.
 
 > Alternative if you'd rather not touch email at all: keep DNS at Hostinger and only add `www` as a CNAME to `prodli.pages.dev`, with a redirect from the bare domain. This is fiddlier for the bare `prodli.com`, so moving DNS is recommended.
 
