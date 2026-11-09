@@ -10,6 +10,8 @@ import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
+  SPEECH_ENABLED_STORAGE_KEY,
+  SPEECH_LANG_STORAGE_KEY,
   RECORDER_PERMISSIONS,
   RECORDING_STATE_KEY,
   type BackgroundMessage,
@@ -144,7 +146,9 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
     await setState({ meetingId, tabId: tab.id, startedAt: meeting.startedAt, captionsOn: false });
 
     const withMic = await getLocal<boolean>(MIC_ENABLED_STORAGE_KEY, false);
-    const startCmd: OffscreenCommand = { target: "offscreen", type: "start", meetingId, streamId, withMic };
+    const speechOn = await getLocal<boolean>(SPEECH_ENABLED_STORAGE_KEY, false);
+    const speechLang = speechOn ? await getLocal<string>(SPEECH_LANG_STORAGE_KEY, "en-US") : null;
+    const startCmd: OffscreenCommand = { target: "offscreen", type: "start", meetingId, streamId, withMic, speechLang };
     const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string } | undefined;
     if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
 
@@ -184,10 +188,12 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
       }
     }
 
-    // 2. Stop the audio recorder (it saves the audio before replying).
+    // 2. Stop the audio recorder (it saves the audio, and returns any on-device transcript).
+    let speechEntries: TranscriptEntry[] | undefined;
     try {
       const stopCmd: OffscreenCommand = { target: "offscreen", type: "stop" };
-      await chrome.runtime.sendMessage(stopCmd);
+      const res = (await chrome.runtime.sendMessage(stopCmd)) as { speechEntries?: TranscriptEntry[] } | undefined;
+      speechEntries = res?.speechEntries;
     } catch {
       // Offscreen document already gone.
     }
@@ -196,16 +202,23 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
     // 3. Save the finished meeting.
     const endedAt = new Date();
     const meeting = await updateMeeting(state.meetingId, (m) => {
-      const transcript = entries && entries.length >= m.transcript.length ? entries : m.transcript;
+      const captions = entries && entries.length >= m.transcript.length ? entries : m.transcript;
+      const speech = speechEntries && speechEntries.length >= (m.speechTranscript?.length ?? 0) ? speechEntries : (m.speechTranscript ?? []);
+      // Meet captions have real speaker names, so they win; on-device speech fills in when captions were off.
+      const usedSpeech = captions.length === 0 && speech.length > 0;
+      const transcript = usedSpeech ? speech : captions;
       return {
         transcript,
         endedAt: endedAt.toISOString(),
         durationSec: Math.round((endedAt.getTime() - new Date(m.startedAt).getTime()) / 1000),
         status: "processing",
+        speechTranscript: speech,
         notice:
           transcript.length === 0
-            ? "No captions were captured. Next time, make sure captions (CC) are on in Google Meet — only you can see them."
-            : null,
+            ? "No captions were captured. Next time, make sure captions (CC) are on in Google Meet — only you can see them — or turn on on-device transcription in Meetings → Setup."
+            : usedSpeech
+              ? "Captions were off, so this transcript was made on your computer (speakers: You / Others)."
+              : null,
       };
     });
     if (meeting) await finishMeeting(meeting.id);
@@ -263,6 +276,9 @@ async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
       }));
       return { ok: true };
     }
+    case "speech-update":
+      await updateMeeting(msg.meetingId, (m) => ({ speechTranscript: msg.entries.length >= (m.speechTranscript?.length ?? 0) ? msg.entries : m.speechTranscript }));
+      return { ok: true };
     case "captions-ended":
       await stopRecording("left-call", msg.entries);
       return { ok: true };

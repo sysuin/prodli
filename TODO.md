@@ -1,54 +1,36 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [docs/COSTS.md](docs/COSTS.md)
+Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 
-- [ ] **Turn on Google sign-in** (free, ~10 min): create the Google Cloud OAuth client and add `PRODLI_GOOGLE_CLIENT_ID` — follow [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md). Then try 👤 → Sign in → Back up now → Restore on a second computer.
-- [ ] **Try the new Editor** (v1.3.0): `/` commands, checklists, tables, selection menu, Markdown paste, pin/duplicate/delete-with-undo, outline, print — and editing the same notes in two tabs
-
-- [ ] **Test the recorder on a real Google Meet call**: load `artifacts/prodli/dist-extension` unpacked (`chrome://extensions` → Developer mode → Load unpacked), record a short call, and check:
-  - [ ] Transcript is captured from Meet captions (speaker names correct)
-  - [ ] Audio recording plays back (with and without microphone)
-  - [ ] Summary + action items generate with your Claude API key
-  - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call, closing the tab
-- [ ] **Quick check of this round's changes** in your own Chrome: Files tab, Editor ⬆/⬇ Markdown buttons, Pomodoro across tabs, Backup export
-- [ ] **Leave Replit** — follow [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
-  - [x] Push to a private GitHub repo — https://github.com/sysuin/prodli (CI passed on first run, 2026-11-08)
-  - [ ] Merge `feature/meetings-and-files` into `main` (open a pull request on GitHub)
-  - [ ] Create the free Cloudflare Pages project + add the two GitHub secrets
+- [ ] **Test on a real Google Meet call** (load `artifacts/prodli/dist-extension` unpacked; disable the store copy):
+  - [ ] With captions on: transcript with speaker names
+  - [ ] With captions off + Meetings → Setup → "Transcribe on this computer" (click "Download speech model" once): transcript labelled You / Others
+  - [ ] Audio playback (with and without microphone)
+  - [ ] Summary + action items with your Claude API key
+  - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call (try Meet in another language too), closing the tab
+- [ ] **Turn on Google sign-in** (free, ~10 min): create the Google Cloud OAuth client and set `PRODLI_GOOGLE_CLIENT_ID` — [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md). Then sign in on two computers and check notes sync both ways (including a deletion).
+- [ ] **Leave Replit** — [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
+  - [x] Code on GitHub with CI
+  - [ ] Cloudflare Pages project + `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets
   - [ ] Move prodli.com DNS to Cloudflare, **keeping the Hostinger email (MX/TXT) records**
   - [ ] After a few days on Cloudflare: unpublish the Replit deployment and cancel any Replit plan
-- [ ] **Update the Chrome Web Store listing** for v1.2.0: new description, Meetings and Files screenshots, "all-in-one workspace" wording; remove "keeps running across tabs" caveats (now true)
-- [ ] **Update the privacy policy and store data disclosure**: meeting transcripts can go to Anthropic (Claude) when the user adds their key
-- [ ] Submit v1.2.0 to the Chrome Web Store (expect a slower review because of the tab-audio permission)
+- [ ] **Publish v1.3.0 to the Chrome Web Store** using [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots in `artifacts/prodli/store-assets/`, listing text, permission justifications, data-usage answers). Expect a slower review because of the tab-audio permission.
 
-## Recorder improvements
+## Next ideas
 
-- [ ] Detect "left the call" in languages other than English (only the English "Leave call" button is checked today)
-- [ ] Keep an eye on Meet page changes; the captions reader depends on Meet's page structure (`pnpm test:e2e` covers it against a simulated Meet page)
-- [ ] Transcription option for when captions aren't on (e.g. a speech-to-text service, or on-device Whisper)
-- [ ] Move AI calls to a ProdLi server before public launch (instead of each user pasting their own key)
-- [ ] Zoom / Microsoft Teams support (web versions first; desktop apps need the future desktop app)
-- [ ] Mobile: mic-based recording for in-person meetings and phone calls
-
-## Files previewer — later improvements
-
-- [ ] Keep a "recent files" list (needs the File System Access API to reopen files)
-- [ ] Syntax highlighting for code files (`.js`, `.py`, `.yaml`, …)
-- [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission, and free extensions already do it)
-
-## Foundation (before accounts and sync)
-
-- [ ] **Cross-device sync** (beyond Drive backup/restore): the per-item merge from `syncedList.ts` already handles tabs; reuse it to merge a Drive copy instead of replacing. Needs deletion markers so deletes sync too.
-- [ ] Add tests for the Time Tracker (incl. background-worker restarts) and Habits (only smoke-tested today)
-- [ ] Split `TimeTrackerSection.tsx` (1,767 lines) into smaller files
-- [ ] Move inline styles into shared UI components, so screens can be reused on web, desktop and mobile
+- [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
+- [ ] Move AI summaries to a ProdLi server for a smoother experience (instead of each user's own key) — only alongside a paid plan
+- [ ] Zoom / Microsoft Teams web support
+- [ ] Mobile: mic-based recording for in-person meetings
+- [ ] Move inline styles into shared UI components (needed before a web/desktop app)
 - [ ] Optional: publish to the Chrome Web Store from CI (the Web Store API is free)
+- [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission; free extensions already do it)
 
 ## Roadmap
 
-- [ ] Accounts + cloud sync on Cloudflare Workers + D1 (free tier; see [docs/COSTS.md](docs/COSTS.md)); keep "use without an account"
+- [ ] Accounts on Cloudflare Workers + D1 (free tier) if/when a server is needed — Drive sync covers cross-device today
 - [ ] Web app (app.prodli.com), reusing the extension's screens
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
 - [ ] Mobile app
@@ -58,24 +40,24 @@ Last updated: 2026-11-08 · Branch: `feature/meetings-and-files` · Cost plan: [
 From the repo root (see README.md for all commands):
 
 - `pnpm run typecheck` — TypeScript
-- `pnpm test` — unit tests (file parsing & sanitizing, Pomodoro timer, backup/restore, Markdown export)
-- `pnpm test:e2e` — builds the extension and drives it in a throwaway headless Chrome (all 7 tabs, Meetings, Files, captions reader, Pomodoro across tabs + background completion, Markdown import/export, backup). Set `CHROME_PATH` if Chrome isn't in the default place.
+- `pnpm test` — 70 unit tests
+- `pnpm test:e2e` — builds the extension and runs ~100 checks in a throwaway headless Chrome (all tabs, Editor incl. two tabs, Meetings, captions reader in English + Spanish, Files, Pomodoro, real Time Tracker tracking incl. worker restarts, Habits, Drive sign-in/sync with a simulated Google, backup, accessibility audit). `E2E_SPEECH=1` adds the real on-device speech test (downloads Chrome's model). Run selected suites with `node artifacts/prodli/tests/e2e/run.mjs editor,files`.
+- `node artifacts/prodli/scripts/store-screenshots.mjs` — regenerate store screenshots after UI changes.
 
 ## Done
 
-- [x] 2026-11-08 — Editor v2: fixed multi-tab overwrites, undo crossing notes, lost last edits on close, silent save failures, no way to remove links; added `/` command menu, checklists, tables, highlight, quotes, code blocks, dividers, smart typography, selection bubble menu, Markdown paste, Ctrl/⌘+K links, auto titles, pin/sort/duplicate, delete with Undo, outline panel, copy as Markdown, print/PDF, save status
-- [x] 2026-11-08 — Multi-tab safe storage for notes, to-dos and habits (merge instead of overwrite); saves report errors; unlimitedStorage
-- [x] 2026-11-08 — Time Tracker keeps tracking after Chrome restarts the background worker (previously stopped until the next tab switch)
-- [x] 2026-11-08 — Sign in with Google + daily backup / restore via the user's own Google Drive app-data folder ($0, no server); account button in the top bar
-- [x] 2026-11-08 — Files → Save to Notes keeps checklists and turns CSV into tables; meeting action items become a checklist in notes
-- [x] 2026-11-08 — Website + privacy policy updated (7 tools, Meetings, Google sign-in, Limited Use statement); onboarding and help updated
-
-- [x] 2026-11-08 — Meeting recorder for Google Meet (no bot, Meet captions, Claude Haiku 5.5 notes, action items → To-Dos)
-- [x] 2026-11-08 — Files previewer: Markdown, JSON / JSON Lines (tree + search), CSV / TSV tables, text and code; drag-and-drop anywhere; Save to Notes
-- [x] 2026-11-08 — Backup now includes Time Tracker history + settings and meetings (no audio; the Claude API key is never exported); old 1.0 backups still restore
-- [x] 2026-11-08 — Pomodoro keeps running across tabs and when ProdLi is closed; the background finishes phases, logs sessions and notifies
-- [x] 2026-11-08 — Editor: import a Markdown file as a note, export a note as Markdown
-- [x] 2026-11-08 — Top bar fits on smaller screens (icons only below ~1040 px)
-- [x] 2026-11-08 — Automated tests: 31 unit tests + 44 browser checks
-- [x] 2026-11-08 — Markdown safety: never show unsanitized HTML if the sanitizer can't run
-- [x] 2026-11-08 — Independent of Replit: removed Replit config/plugins/packages and the unused backend template; builds on any OS; `pnpm run build:web` produces a static website for free hosting; GitHub Actions CI + Cloudflare Pages deploy workflows; build output no longer committed; website-only files removed from the extension zip
+- [x] 2026-11-09 — On-device transcription when Meet captions are off (Chrome's built-in speech recognition; You / Others; free, audio stays local)
+- [x] 2026-11-09 — Accessibility: WCAG 2.1 AA axe audit passes on every tab (light + dark, with data) and every pop-up; visible keyboard focus
+- [x] 2026-11-09 — Files: syntax highlighting (~20 languages) and Recent files
+- [x] 2026-11-09 — Time Tracker: "Clear all" no longer wipes settings; All-time view no longer stale; file split; real tracking tests
+- [x] 2026-11-09 — Two-way Google Drive sync (item-by-item merge, deletions sync)
+- [x] 2026-11-09 — New tab ~5× faster (352 ms → 63 ms to the Editor)
+- [x] 2026-11-09 — Meet recorder works in any Meet language
+- [x] 2026-11-09 — Store screenshots + v1.3.0 submission kit; Editor toolbar fits on one line
+- [x] 2026-11-08 — Editor v2 (data-loss fixes, `/` menu, checklists, tables, bubble menu, Markdown paste, pin/sort/duplicate, undo delete, outline, print)
+- [x] 2026-11-08 — Multi-tab safe storage for notes, to-dos and habits; saves report errors; unlimitedStorage
+- [x] 2026-11-08 — Time Tracker keeps tracking after background-worker restarts
+- [x] 2026-11-08 — Sign in with Google + Google Drive backup ($0, no server)
+- [x] 2026-11-08 — Website + privacy policy updated; independent of Replit; CI + Cloudflare deploy workflows
+- [x] 2026-11-08 — Backup includes Time Tracker + meetings; Pomodoro survives closed tabs; Markdown import/export
+- [x] 2026-11-08 — Meeting recorder for Google Meet; Files previewer

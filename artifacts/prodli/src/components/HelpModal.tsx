@@ -59,6 +59,11 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Help and keyboard shortcuts"
+      tabIndex={-1}
+      autoFocus
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 10000,
@@ -129,7 +134,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
             <Row label={<Tag>Sort & search</Tag>} desc="Sort by recently edited, newest, or A–Z. Search matches titles and text, with an excerpt." />
             <Row label={<Tag>☰ Outline</Tag>} desc="Shows the note's headings; click one to jump there." />
-            <Row label={<><Tag>⧉</Tag><Tag>⬆</Tag><Tag>⬇</Tag><Tag>🖨</Tag></>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
+            <Row label={<Tag>⋯ More</Tag>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
             <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar for distraction-free writing. Press Escape to exit." />
             <Row label={<Tag>Saving</Tag>} desc="Notes save automatically (the status bar shows Saving… / Saved). Edits in several ProdLi tabs are merged — nothing gets overwritten." />
           </Section>
@@ -175,6 +180,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <Section emoji="🎙️" title="Meetings">
             <Row label={<Tag>⚙ Setup</Tag>} desc="Add your Claude API key, turn on the recorder (Chrome asks for permission), and optionally include your microphone." />
             <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call; ProdLi reads Meet's captions, which only you can see." />
+            <Row label={<Tag>Captions off?</Tag>} desc="Turn on “Transcribe on this computer” in Setup. Chrome's built-in speech recognition transcribes the call on your device (speakers: You / Others). One free download per language; audio never leaves your computer." />
             <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku using your own API key." />
             <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
@@ -190,10 +196,10 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </Section>
 
           {/* Account */}
-          <Section emoji="👤" title="Account & Google Drive backup">
-            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to back up everything to a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
-            <Row label={<Tag>Back up now</Tag>} desc="Saves notes, to-dos, habits, Pomodoro data, time tracking and meeting notes to Drive. Auto-backup runs once a day while signed in. Your Claude API key is never included." />
-            <Row label={<Tag>Restore</Tag>} desc="Replaces this device's data with the Drive backup — use it to move to a new computer." />
+          <Section emoji="👤" title="Account & Google Drive sync">
+            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to sync through a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
+            <Row label={<Tag>Sync now</Tag>} desc="Merges this computer with the copy in Drive, item by item: the newest edit of each note, task, habit or meeting wins, and deletions sync too. Runs automatically about every hour while signed in. Your Claude API key and settings are never synced." />
+            <Row label={<Tag>Replace</Tag>} desc="Overwrites this computer with the Drive copy — only for starting fresh." />
           </Section>
 
           {/* Keyboard Shortcuts */}

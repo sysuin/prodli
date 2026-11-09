@@ -68,15 +68,16 @@ export function Privacy() {
               body: `When you turn on the meeting recorder and start a recording on a Google Meet tab, ProdLi:
 • records the tab's audio (and your microphone, if you allow it) and stores the recording on your device only;
 • reads Google Meet's live captions on that tab to build a transcript, stored on your device;
+• if you turn on "Transcribe on this computer", uses Chrome's built-in on-device speech recognition on the call audio instead (Chrome downloads a language pack once; the audio is processed on your device and is not sent anywhere);
 • if you have added your own Claude API key, sends the transcript to Anthropic's API to generate a summary and action items. This request is made directly from your browser with your key and is subject to Anthropic's privacy policy. ProdLi never sees your key or transcripts.
 
 No bot joins the call. You are responsible for informing participants and obtaining consent where the law requires it.`,
             },
             {
-              title: "Google sign-in and Google Drive backup (optional)",
+              title: "Google sign-in and Google Drive sync (optional)",
               body: `If you choose "Sign in with Google", ProdLi uses Chrome's identity API to get your name, email address and profile picture (shown in the extension) and permission to use ProdLi's own hidden app-data folder in your Google Drive (scope drive.appdata). ProdLi cannot see any other files in your Drive.
 
-Backups contain your notes, tasks, habits, Pomodoro data, time-tracking data and meeting notes (not audio, and never your Claude API key). They are sent directly from your browser to your own Google Drive; ProdLi has no copy. You can restore, sign out (which revokes access) or delete the backup from Google Drive settings → Manage apps at any time.
+Sync stores one file with your notes, tasks, habits, Pomodoro data, time-tracking data, meeting notes and deletion markers (not audio, settings or your Claude API key) in that folder, and merges it with each computer where you sign in. Data goes directly between your browser and your own Google Drive; ProdLi has no copy. You can restore, sign out (which revokes access) or delete the backup from Google Drive settings → Manage apps at any time.
 
 ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.`,
             },

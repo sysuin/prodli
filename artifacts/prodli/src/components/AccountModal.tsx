@@ -3,7 +3,7 @@ import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import {
   ACCOUNT_KEY,
   AUTO_BACKUP_KEY,
-  backupToDrive,
+  syncWithDrive,
   getAccount,
   googleConfigured,
   LAST_BACKUP_KEY,
@@ -124,7 +124,7 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
     <div role="dialog" aria-modal="true" aria-label="Account" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px, 100%)", background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "3px solid #000", boxShadow: "6px 6px 0 #FFD700", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ background: "#000", color: "#FFD700", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>Account & Google Drive backup</span>
+          <span style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>Account & Google Drive sync</span>
           <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "transparent", color: "#FFD700", fontSize: 20, cursor: "pointer", fontWeight: 900 }}>×</button>
         </div>
 
@@ -137,9 +137,9 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
           ) : !account ? (
             <>
               <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-                Sign in to back up your notes, to-dos, habits, Pomodoro history, time tracking and meeting notes to <strong>your own Google Drive</strong>, and restore them on another computer.
+                Sign in to sync your notes, to-dos, habits, Pomodoro history and meeting notes across your computers through <strong>your own Google Drive</strong> — edits from every computer are merged, nothing gets overwritten.
                 <ul style={{ margin: "8px 0 0", paddingLeft: 18, listStyle: "disc" }}>
-                  <li>Backups go to a private ProdLi folder in your Drive that only ProdLi can see — not your other files.</li>
+                  <li>Your data goes to a private ProdLi folder in your Drive that only ProdLi can see — not your other files.</li>
                   <li>No ProdLi servers, no cost. Your Claude API key is never backed up.</li>
                   <li>ProdLi keeps working without an account.</li>
                 </ul>
@@ -148,7 +148,10 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
                 onClick={() => void act("signin", async () => {
                   const a = await signIn();
                   setAccount(a);
-                  setMessage({ tone: "ok", text: `Signed in as ${a.email}` });
+                  setMessage({ tone: "ok", text: `Signed in as ${a.email}. Syncing…` });
+                  const r = await syncWithDrive();
+                  setLast(r);
+                  setMessage({ tone: "ok", text: `Signed in as ${a.email} and synced${r.changes ? ` — ${r.changes} update(s) from your other computers` : ""}.` });
                 })}
                 disabled={!!busy}
                 style={{ ...btn(false, !!busy), display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", color: "#1f1f1f", textTransform: "none", fontSize: 14, padding: "10px 16px" }}
@@ -167,9 +170,9 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
               </div>
 
               <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }}>
-                <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Google Drive backup</div>
+                <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Google Drive sync</div>
                 <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-                  Last backup from this device: <strong>{fmt(last?.at)}</strong>
+                  Last synced from this computer: <strong>{fmt(last?.at)}</strong>
                   {last ? ` (${kb(last.bytes)}${last.auto ? ", automatic" : ""})` : ""}
                   <br />
                   Latest copy in Drive: <strong>{driveCopy === undefined ? "checking…" : driveCopy ? fmt(driveCopy.modifiedTime) : "none yet"}</strong>
@@ -183,28 +186,28 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
                       await storageSet(AUTO_BACKUP_KEY, !auto);
                     }}
                   />
-                  Back up automatically once a day
+                  Sync automatically (about every hour)
                 </label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     disabled={!!busy}
                     style={btn(true, !!busy)}
                     onClick={() => void act("backup", async () => {
-                      const info = await backupToDrive();
+                      const info = await syncWithDrive();
                       setLast(info);
-                      setMessage({ tone: "ok", text: `Backed up to Google Drive (${kb(info.bytes)}).` });
+                      setMessage({ tone: "ok", text: `Synced with Google Drive (${kb(info.bytes)})${info.changes ? ` — ${info.changes} update(s) from other computers` : ""}.` });
                     })}
                   >
-                    {busy === "backup" ? "Backing up…" : "Back up now"}
+                    {busy === "backup" ? "Syncing…" : "Sync now"}
                   </button>
                   <button disabled={!!busy || !driveCopy} style={btn(false, !!busy || !driveCopy)} onClick={() => setConfirmRestore(true)}>
-                    Restore from Drive
+                    Replace with Drive copy…
                   </button>
                 </div>
                 {confirmRestore && (
                   <div style={{ border: "2px solid #E53935", padding: 10, fontSize: 13, display: "grid", gap: 8 }}>
-                    <strong>Replace everything on this device with the Drive backup from {fmt(driveCopy?.modifiedTime)}?</strong>
-                    <span>Notes, to-dos, habits, Pomodoro data, time tracking and meetings here will be overwritten. This can’t be undone.</span>
+                    <strong>Replace everything on this computer with the Drive copy from {fmt(driveCopy?.modifiedTime)}?</strong>
+                    <span>Normally “Sync now” is what you want — it merges. Replacing overwrites notes, to-dos, habits, Pomodoro data, time tracking and meetings here. This can’t be undone.</span>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         style={{ ...btn(false, !!busy), background: "#E53935", color: "#fff" }}

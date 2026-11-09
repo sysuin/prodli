@@ -30,11 +30,7 @@ export function markdownToNoteHtml(markdown: string): string {
   return toEditorHtml(markdownToSafeHtml(markdown));
 }
 
-/** Heuristic: does pasted plain text look like Markdown worth converting? */
-export function looksLikeMarkdown(text: string): boolean {
-  if (!text.includes("\n")) return /\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|`[^`]+`/.test(text);
-  return /^(#{1,6}\s|\s*[-*+]\s\[[ xX]\]\s|\s*[-*+]\s|\s*\d+\.\s|>\s|```|\|.+\|)/m.test(text);
-}
+export { looksLikeMarkdown } from "./markdownDetect";
 
 /** CSV/TSV rows → an HTML table the Editor can edit. */
 export function rowsToTableHtml(rows: string[][], header = true): string {

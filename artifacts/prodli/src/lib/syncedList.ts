@@ -11,6 +11,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onStorageChange, storageGet, storageSet } from "./storage";
+import { recordDeletions, type Collection } from "./tombstones";
+
+const SYNCED_COLLECTIONS: ReadonlySet<string> = new Set(["notes", "todos", "habits"]);
 
 export interface SyncItem {
   id: string;
@@ -27,13 +30,14 @@ const stamp = (x: SyncItem) => x.updatedAt ?? x.createdAt ?? "";
  * - Items this tab deleted (`deleted`) stay deleted.
  * - Untouched items take the incoming version; if they're gone from
  *   `incoming`, another tab deleted them.
- * - Items only in `incoming` (created elsewhere) are added at the top.
- * Order follows `local`, so drag-and-drop ordering is preserved.
+ * - Items only in `incoming` (created elsewhere) are placed right after the
+ *   item that precedes them there (or first), so both tabs show the same order
+ *   whether a list adds new items at the top (notes, to-dos) or bottom (habits).
+ * Otherwise order follows `local`, so drag-and-drop ordering is preserved.
  */
 export function mergeLists<T extends SyncItem>(local: T[], incoming: T[], dirty: ReadonlySet<string>, deleted: ReadonlySet<string>): T[] {
   const incomingById = new Map(incoming.map((i) => [i.id, i]));
   const localIds = new Set(local.map((l) => l.id));
-  const added = incoming.filter((i) => !localIds.has(i.id) && !deleted.has(i.id));
   const kept: T[] = [];
   for (const l of local) {
     if (deleted.has(l.id)) continue;
@@ -44,7 +48,20 @@ export function mergeLists<T extends SyncItem>(local: T[], incoming: T[], dirty:
       kept.push(l); // created or edited here, not saved yet
     }
   }
-  return [...added, ...kept];
+  const result = kept;
+  incoming.forEach((item, idx) => {
+    if (localIds.has(item.id) || deleted.has(item.id)) return;
+    let at = 0;
+    for (let j = idx - 1; j >= 0; j--) {
+      const pos = result.findIndex((r) => r.id === incoming[j].id);
+      if (pos !== -1) {
+        at = pos + 1;
+        break;
+      }
+    }
+    result.splice(at, 0, item);
+  });
+  return result;
 }
 
 export interface SyncedList<T> {
@@ -101,6 +118,8 @@ export function useSyncedList<T extends SyncItem>(
       const nowById = new Map(itemsRef.current.map((i) => [i.id, i]));
       for (const id of dirtySnap) if (nowById.get(id) === snapById.get(id)) dirty.current.delete(id);
       for (const id of deletedSnap) deleted.current.delete(id);
+      // Remember deletions so cross-device sync doesn't bring items back.
+      if (deletedSnap.size && SYNCED_COLLECTIONS.has(key)) void recordDeletions(key as Collection, [...deletedSnap]).catch(() => {});
       // Pick up anything other tabs added while we were saving.
       if (itemsRef.current === localSnap) apply(merged);
       else apply(mergeLists(itemsRef.current, merged, dirty.current, deleted.current));

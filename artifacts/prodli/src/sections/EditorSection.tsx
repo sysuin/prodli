@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { EditorState } from "@tiptap/pm/state";
+import { ListOrdered } from "lucide-react";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/700.css";
 import "@fontsource/inter/800.css";
@@ -13,9 +14,12 @@ import { storageGet, storageSet } from "../lib/storage";
 import { useSyncedList } from "../lib/syncedList";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
-import { downloadText, noteToMarkdown, safeFileName } from "../lib/markdownExport";
-import { MAX_NOTE_BYTES } from "../lib/filePreview";
-import { looksLikeMarkdown, markdownToNoteHtml } from "../lib/editorHtml";
+import { looksLikeMarkdown, MAX_NOTE_BYTES } from "../lib/markdownDetect";
+
+// Loaded on demand so the Editor opens faster: Markdown conversion
+// (marked + DOMPurify) for paste/import, and turndown for export.
+const loadMarkdownImport = () => import("../lib/editorHtml");
+const loadMarkdownExport = () => import("../lib/markdownExport");
 import { buildExtensions } from "./editor/extensions";
 import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashState } from "./editor/SlashMenu";
 import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
@@ -98,7 +102,7 @@ function ToolbarButton({ onClick, active, disabled, title, children, wide }: Too
         fontFamily: "inherit",
       }}
     >
-      {children}
+      <span aria-hidden="true">{children}</span>
     </button>
   );
 }
@@ -111,6 +115,7 @@ export function EditorSection() {
   const [sort, setSort] = useState<NoteSort>("updated");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
@@ -270,7 +275,8 @@ export function EditorSection() {
           const html = event.clipboardData?.getData("text/html") ?? "";
           const ed = editorRef.current;
           if (!ed || html || !text || ed.isActive("codeBlock") || !looksLikeMarkdown(text)) return false;
-          ed.chain().focus().insertContent(markdownToNoteHtml(text)).run();
+          event.preventDefault();
+          void loadMarkdownImport().then((m) => ed.chain().focus().insertContent(m.markdownToNoteHtml(text)).run());
           return true;
         },
       },
@@ -466,18 +472,20 @@ export function EditorSection() {
 
   const activeNote = notes.find((n) => n.id === activeId) ?? null;
 
-  const currentMarkdown = () => {
+  const currentMarkdown = async () => {
     const ed = editorRef.current;
+    const { noteToMarkdown } = await loadMarkdownExport();
     return noteToMarkdown(activeNote?.title || "Untitled", ed?.getHTML() ?? activeNote?.content ?? "");
   };
 
-  const exportMarkdown = () => {
+  const exportMarkdown = async () => {
     if (!activeNote) return;
-    downloadText(safeFileName(activeNote.title || "note", "md"), currentMarkdown());
+    const [{ downloadText, safeFileName }, md] = await Promise.all([loadMarkdownExport(), currentMarkdown()]);
+    downloadText(safeFileName(activeNote.title || "note", "md"), md);
   };
 
   const copyMarkdown = async () => {
-    await navigator.clipboard.writeText(currentMarkdown());
+    await navigator.clipboard.writeText(await currentMarkdown());
     showToast("Copied as Markdown");
   };
 
@@ -487,6 +495,7 @@ export function EditorSection() {
       return;
     }
     const text = await file.text();
+    const { markdownToNoteHtml } = await loadMarkdownImport();
     const note = newNote({ title: file.name.replace(/\.(md|markdown|txt)$/i, "") || "Imported note", content: markdownToNoteHtml(text), autoTitle: false });
     setNotes((prev) => [note, ...prev]);
     selectNote(note.id);
@@ -499,6 +508,16 @@ export function EditorSection() {
     window.print();
     document.documentElement.classList.remove("printing-note");
   };
+
+  // Close the More menu when clicking elsewhere.
+  useEffect(() => {
+    if (!showMore) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[aria-label="More note actions"], [title^="More: copy"]')) setShowMore(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showMore]);
 
   // Escape leaves full screen; Alt+N makes a new note.
   useEffect(() => {
@@ -585,7 +604,9 @@ export function EditorSection() {
           <ToolbarButton onClick={setLink} active={t?.link} title="Link (Ctrl/⌘+K)">🔗</ToolbarButton>
           <Divider />
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBulletList().run())} active={t?.bullet} title="Bullet list">•</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} title="Numbered list">1.</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} title="Numbered list">
+            <ListOrdered size={16} strokeWidth={2.5} aria-hidden="true" />
+          </ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleTaskList().run())} active={t?.task} title="Checklist">☑</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} title="Quote">❝</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} title="Code block">{"{}"}</ToolbarButton>
@@ -605,10 +626,34 @@ export function EditorSection() {
           </select>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} title="Outline (headings in this note)">☰</ToolbarButton>
-            <ToolbarButton onClick={() => void copyMarkdown()} title="Copy note as Markdown">⧉</ToolbarButton>
-            <ToolbarButton onClick={() => importInputRef.current?.click()} title="Import a Markdown file as a new note">⬆</ToolbarButton>
-            <ToolbarButton onClick={exportMarkdown} title="Export this note as Markdown (.md)">⬇</ToolbarButton>
-            <ToolbarButton onClick={printNote} title="Print or save as PDF">🖨</ToolbarButton>
+            <div style={{ position: "relative" }}>
+              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: copy, import, export, print">⋯</ToolbarButton>
+              {showMore && (
+                <div role="menu" aria-label="More note actions" style={{ position: "absolute", right: 0, top: 38, zIndex: 30, minWidth: 220, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}>
+                  {[
+                    { icon: "⧉", label: "Copy as Markdown", title: "Copy note as Markdown", run: () => void copyMarkdown() },
+                    { icon: "⬆", label: "Import Markdown file…", title: "Import a Markdown file as a new note", run: () => importInputRef.current?.click() },
+                    { icon: "⬇", label: "Export as Markdown (.md)", title: "Export this note as Markdown (.md)", run: exportMarkdown },
+                    { icon: "🖨", label: "Print / save as PDF", title: "Print or save as PDF", run: printNote },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      role="menuitem"
+                      title={item.title}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setShowMore(false);
+                        item.run();
+                      }}
+                      style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", color: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      <span style={{ width: 18, textAlign: "center" }}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <input
               ref={importInputRef}
               type="file"

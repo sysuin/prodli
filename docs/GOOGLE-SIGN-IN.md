@@ -1,6 +1,6 @@
-# Turning on "Sign in with Google" (free)
+# Turning on "Sign in with Google" + Drive sync (free)
 
-ProdLi's Google sign-in uses Chrome's built-in identity API and backs up to the user's **own** Google Drive app-data folder. There's no ProdLi server, and everything below is free.
+ProdLi's Google sign-in uses Chrome's built-in identity API and syncs (merges item by item, deletions included) through the user's **own** Google Drive app-data folder. There's no ProdLi server, and everything below is free.
 
 The code is done; it needs a Google OAuth **client ID** that belongs to you. Until one is set, the 👤 button explains that sign-in isn't set up and everything else works normally.
 
@@ -33,7 +33,7 @@ PRODLI_GOOGLE_CLIENT_ID="1234-abc.apps.googleusercontent.com" PRODLI_EXTENSION_K
 
 > Tip: keep them in your shell profile or a local `.env` you `source` — never commit them. (`.env*` is git-ignored.)
 
-Load `artifacts/prodli/dist-extension` unpacked; its ID now matches the store, and 👤 → **Sign in with Google** works. Disable the store copy while testing (same ID).
+Load `artifacts/prodli/dist-extension` unpacked; its ID now matches the store, and 👤 → **Sign in with Google** works (it syncs right away, then about every hour). Disable the store copy while testing (same ID).
 
 ## 3. CI and releases
 

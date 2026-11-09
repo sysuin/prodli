@@ -4,10 +4,28 @@ import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
 import { deleteMeeting, getAudio, listMeetings } from "../recorder/db";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
+import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
+
+const SPEECH_LANGS: { code: string; label: string }[] = [
+  { code: "en-US", label: "English (US)" },
+  { code: "en-GB", label: "English (UK)" },
+  { code: "en-IN", label: "English (India)" },
+  { code: "hi-IN", label: "हिन्दी (Hindi)" },
+  { code: "es-ES", label: "Español" },
+  { code: "fr-FR", label: "Français" },
+  { code: "de-DE", label: "Deutsch" },
+  { code: "it-IT", label: "Italiano" },
+  { code: "pt-BR", label: "Português (Brasil)" },
+  { code: "ja-JP", label: "日本語" },
+  { code: "ko-KR", label: "한국어" },
+  { code: "zh-CN", label: "中文 (简体)" },
+];
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
+  SPEECH_ENABLED_STORAGE_KEY,
+  SPEECH_LANG_STORAGE_KEY,
   RECORDER_PERMISSIONS,
   RECORDING_STATE_KEY,
   type ActionItem,
@@ -119,6 +137,7 @@ function SetupPanel({
   onToggleMic,
   autoSummarize,
   onToggleAuto,
+  speech,
 }: {
   apiKey: string;
   onSaveKey: (k: string) => void;
@@ -128,6 +147,7 @@ function SetupPanel({
   onToggleMic: () => void;
   autoSummarize: boolean;
   onToggleAuto: () => void;
+  speech: { on: boolean; lang: string; status: SpeechAvailability | "checking" | "installing"; toggle: () => void; setLang: (l: string) => void; install: () => void };
 }) {
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
@@ -187,6 +207,36 @@ function SetupPanel({
           <li>ProdLi turns on captions (only you see them) and takes notes. No bot joins the call.</li>
           <li>Click <strong>Stop</strong> on the yellow badge, or leave the call.</li>
         </ol>
+      </div>
+
+      <div>
+        <div style={label}>4 · When captions are off</div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600, marginTop: 8 }}>
+          <input type="checkbox" checked={speech.on} onChange={speech.toggle} disabled={speech.status === "unsupported"} /> Transcribe on this computer
+        </label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+          <select
+            aria-label="Transcription language"
+            value={speech.lang}
+            onChange={(e) => speech.setLang(e.target.value)}
+            style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "4px 6px" }}
+          >
+            {SPEECH_LANGS.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+          {(speech.status === "downloadable" || speech.status === "installing" || speech.status === "downloading") && (
+            <button style={btn("primary", speech.status !== "downloadable")} disabled={speech.status !== "downloadable"} onClick={speech.install}>
+              {speech.status === "downloadable" ? "Download speech model (free)" : "Downloading…"}
+            </button>
+          )}
+          {speech.status === "available" && <strong style={{ fontSize: 12 }}>✓ Ready</strong>}
+        </div>
+        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.85 }}>
+          {speech.status === "unsupported" || speech.status === "unavailable"
+            ? "On-device transcription isn't available in this browser or language. Use Meet captions instead."
+            : "Uses Chrome's built-in speech recognition. Audio never leaves your computer. Speakers are labelled You (your mic) and Others (the call)."}
+        </p>
       </div>
 
       <div>
@@ -413,6 +463,9 @@ export function MeetingsSection() {
   const [apiKey, setApiKey] = useState("");
   const [recorderOn, setRecorderOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
+  const [speechOn, setSpeechOn] = useState(false);
+  const [speechLang, setSpeechLang] = useState("en-US");
+  const [speechStatus, setSpeechStatus] = useState<SpeechAvailability | "checking" | "installing">("checking");
   const [autoSummarize, setAutoSummarize] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -433,9 +486,11 @@ export function MeetingsSection() {
   useEffect(() => {
     if (!ext) return;
     void (async () => {
-      const [key, mic, auto, granted, session] = await Promise.all([
+      const [key, mic, , , auto, granted, session] = await Promise.all([
         storageGet<string>(CLAUDE_KEY_STORAGE_KEY, ""),
         storageGet<boolean>(MIC_ENABLED_STORAGE_KEY, false),
+        storageGet<boolean>(SPEECH_ENABLED_STORAGE_KEY, false).then(setSpeechOn),
+        storageGet<string>(SPEECH_LANG_STORAGE_KEY, navigator.language && SPEECH_LANGS.some((l) => l.code === navigator.language) ? navigator.language : "en-US").then(setSpeechLang),
         storageGet<boolean>(AUTO_SUMMARIZE_STORAGE_KEY, true),
         chrome.permissions.contains(RECORDER_PERMISSIONS),
         chrome.storage.session.get(RECORDING_STATE_KEY),
@@ -505,6 +560,40 @@ export function MeetingsSection() {
     }
   };
 
+  // On-device transcription: check readiness for the chosen language.
+  useEffect(() => {
+    if (!ext) return;
+    setSpeechStatus("checking");
+    void speechAvailability(speechLang).then(setSpeechStatus);
+  }, [ext, speechLang]);
+
+  const toggleSpeech = async () => {
+    const next = !speechOn;
+    setSpeechOn(next);
+    await storageSet(SPEECH_ENABLED_STORAGE_KEY, next);
+  };
+
+  const changeSpeechLang = async (lang: string) => {
+    setSpeechLang(lang);
+    await storageSet(SPEECH_LANG_STORAGE_KEY, lang);
+  };
+
+  const installSpeechModel = () => {
+    // Must run directly from the click (Chrome requires a user gesture to download).
+    setSpeechStatus("installing");
+    installSpeech(speechLang).then(
+      async (ok) => {
+        setSpeechStatus(await speechAvailability(speechLang));
+        if (ok && !speechOn) await toggleSpeech();
+        flash(ok ? "Speech model ready — on-device transcription is on" : "Couldn't download the speech model");
+      },
+      async () => {
+        setSpeechStatus(await speechAvailability(speechLang));
+        flash("Couldn't download the speech model");
+      },
+    );
+  };
+
   const toggleAuto = async () => {
     await storageSet(AUTO_SUMMARIZE_STORAGE_KEY, !autoSummarize);
     setAutoSummarize(!autoSummarize);
@@ -534,7 +623,7 @@ export function MeetingsSection() {
     <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
-        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "hsl(var(--foreground))", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
           AI notes · Google Meet
         </span>
       </div>
@@ -588,6 +677,7 @@ export function MeetingsSection() {
             onToggleMic={() => void toggleMic()}
             autoSummarize={autoSummarize}
             onToggleAuto={() => void toggleAuto()}
+            speech={{ on: speechOn, lang: speechLang, status: speechStatus, toggle: () => void toggleSpeech(), setLang: (l) => void changeSpeechLang(l), install: installSpeechModel }}
           />
         )}
 

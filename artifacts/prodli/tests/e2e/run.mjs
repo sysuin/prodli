@@ -2,183 +2,17 @@
 // headless Chrome profile over the DevTools protocol and drives the real UI.
 //
 //   pnpm test:e2e            (builds first)
-//   CHROME_PATH=/path/to/chrome node tests/e2e/run.mjs
+//   CHROME_PATH=/path/to/chrome node tests/e2e/run.mjs [suite]
+//   E2E_SPEECH=1 …            also runs the on-device speech test (downloads Chrome's model)
 //
 // Needs Google Chrome (or Chromium) 126+ for Extensions.loadUnpacked.
 
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import http from "node:http";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { Browser, EXT, FIXTURES, sleep, waitForDownload } from "./cdp.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const EXT = path.resolve(here, "../../dist-extension");
-const FIXTURES = path.join(here, "fixtures");
-const CHROME =
-  process.env.CHROME_PATH ??
-  ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find(existsSync);
-const only = process.argv[2]; // optional suite name filter
-
-if (!CHROME) throw new Error("Chrome not found — set CHROME_PATH.");
-if (!existsSync(path.join(EXT, "manifest.json"))) throw new Error("dist-extension missing — run pnpm build:extension first.");
-
-// ── Minimal CDP client over --remote-debugging-pipe ───────────────────────────
-
-class Browser {
-  constructor() {
-    this.profile = mkdtempSync(path.join(tmpdir(), "prodli-e2e-"));
-    this.downloads = mkdtempSync(path.join(tmpdir(), "prodli-dl-"));
-    this.proc = spawn(
-      CHROME,
-      ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", ...(process.env.CI ? ["--no-sandbox"] : []), "about:blank"],
-      { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] },
-    );
-    this.nextId = 1;
-    this.pending = new Map();
-    this.events = [];
-    let buf = "";
-    this.proc.stdio[4].on("data", (d) => {
-      buf += d;
-      let i;
-      while ((i = buf.indexOf("\0")) >= 0) {
-        const msg = JSON.parse(buf.slice(0, i));
-        buf = buf.slice(i + 1);
-        if (msg.id && this.pending.has(msg.id)) {
-          const p = this.pending.get(msg.id);
-          this.pending.delete(msg.id);
-          msg.error ? p.reject(new Error(`${p.method}: ${msg.error.message}`)) : p.resolve(msg.result);
-        } else if (msg.method) this.events.push(msg);
-      }
-    });
-  }
-  send(method, params = {}, sessionId) {
-    const id = this.nextId++;
-    this.proc.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + "\0");
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject, method }));
-  }
-  async loadExtension() {
-    const { id } = await this.send("Extensions.loadUnpacked", { path: EXT });
-    this.extId = id;
-    await this.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: this.downloads, eventsEnabled: true });
-    await sleep(1000);
-    return id;
-  }
-  async openPage(url = `chrome-extension://${this.extId}/index.html`) {
-    const { targetId } = await this.send("Target.createTarget", { url });
-    const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true });
-    await this.send("Runtime.enable", {}, sessionId);
-    await this.send("Page.enable", {}, sessionId);
-    await this.send("DOM.enable", {}, sessionId);
-    await this.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await sleep(1200);
-    return new Page(this, sessionId, targetId);
-  }
-  async serviceWorker() {
-    const { targetInfos } = await this.send("Target.getTargets");
-    const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.includes(this.extId));
-    if (!sw) return null;
-    const { sessionId } = await this.send("Target.attachToTarget", { targetId: sw.targetId, flatten: true });
-    await this.send("Runtime.enable", {}, sessionId);
-    return new Page(this, sessionId, sw.targetId);
-  }
-  jsErrors() {
-    return this.events.filter((e) => e.method === "Runtime.exceptionThrown" || (e.method === "Runtime.consoleAPICalled" && e.params.type === "error"));
-  }
-  close() {
-    this.proc.kill();
-    try {
-      rmSync(this.profile, { recursive: true, force: true });
-      rmSync(this.downloads, { recursive: true, force: true });
-    } catch {}
-  }
-}
-
-class Page {
-  constructor(browser, sessionId, targetId) {
-    Object.assign(this, { browser, sessionId, targetId });
-  }
-  send(method, params) {
-    return this.browser.send(method, params, this.sessionId);
-  }
-  async eval(expression) {
-    const r = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
-    return r.result.value;
-  }
-  text() {
-    return this.eval("document.body.innerText");
-  }
-  async lowerText() {
-    return (await this.text()).toLowerCase();
-  }
-  click(label, { exact = true } = {}) {
-    return this.eval(`(() => {
-      const want = ${JSON.stringify(label.toLowerCase())};
-      const b = [...document.querySelectorAll("button")].find(b => { const t = b.textContent.trim().toLowerCase(); return ${exact} ? t === want : t.includes(want); });
-      if (!b) throw new Error("No button: " + want);
-      b.click(); return true;
-    })()`);
-  }
-  async goto(section) {
-    await this.eval(`chrome.storage.local.set({ lastSection: ${JSON.stringify(section)}, hasSeenOnboarding: true })`);
-    await this.send("Page.reload", {});
-    await sleep(1800);
-  }
-  async setFile(selector, fileName) {
-    const { root } = await this.send("DOM.getDocument", { depth: -1 });
-    const { nodeId } = await this.send("DOM.querySelector", { nodeId: root.nodeId, selector });
-    if (!nodeId) throw new Error(`No element ${selector}`);
-    await this.send("DOM.setFileInputFiles", { nodeId, files: [path.join(FIXTURES, fileName)] });
-    await sleep(700);
-  }
-  storage(keys) {
-    return this.eval(`chrome.storage.local.get(${JSON.stringify(keys)})`);
-  }
-  async type(text) {
-    await this.send("Input.insertText", { text });
-    await sleep(60);
-  }
-  async key(key, { mod = false, shift = false } = {}) {
-    const codes = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, Backspace: 8, Tab: 9 };
-    const modifiers = (mod ? (process.platform === "darwin" ? 4 : 2) : 0) | (shift ? 8 : 0);
-    const vk = codes[key] ?? key.toUpperCase().charCodeAt(0);
-    const code = codes[key] ? key : `Key${key.toUpperCase()}`;
-    const text = key === "Enter" ? "\r" : undefined;
-    await this.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code, windowsVirtualKeyCode: vk, modifiers });
-    if (text && !mod) await this.send("Input.dispatchKeyEvent", { type: "char", key, text, modifiers });
-    await this.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: vk, modifiers });
-    await sleep(80);
-  }
-  async focusEditor(where = "end") {
-    await this.eval(`(() => { const el = document.querySelector(".ProseMirror"); el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(${where === "end" ? "false" : "true"}); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
-    await sleep(100);
-  }
-  /** Saves a screenshot when E2E_SHOTS is set to a folder. */
-  async shot(name) {
-    if (!process.env.E2E_SHOTS) return;
-    const { data } = await this.send("Page.captureScreenshot", { format: "png" });
-    writeFileSync(path.join(process.env.E2E_SHOTS, `${name}.png`), Buffer.from(data, "base64"));
-  }
-  editorHtml() {
-    return this.eval(`document.querySelector(".ProseMirror").innerHTML`);
-  }
-  close() {
-    return this.browser.send("Target.closeTarget", { targetId: this.targetId });
-  }
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function waitForDownload(browser, prefix, timeoutMs = 5000) {
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    const f = readdirSync(browser.downloads).find((n) => n.startsWith(prefix) && !n.endsWith(".crdownload"));
-    if (f) return readFileSync(path.join(browser.downloads, f), "utf8");
-    await sleep(200);
-  }
-  throw new Error(`No download starting with ${prefix}`);
-}
+const only = process.argv[2]; // optional suite filter, e.g. "editor" or "files,tracker"
 
 // ── Suites ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +21,19 @@ const suites = {
     // Every tab opens with its keyboard shortcut and renders without errors.
     const p = await b.openPage();
     await p.goto("editor");
+
+    // Speed: a new tab must render the last section directly — never through
+    // the Suspense fallback, which React 19 holds for ~300 ms.
+    await p.send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__fallbackSeen = false; window.__t0 = performance.now(); new MutationObserver(() => { if (document.querySelector("[data-suspense-fallback]")) window.__fallbackSeen = true; if (!window.__editorAt && document.querySelector(".ProseMirror")) window.__editorAt = Math.round(performance.now()); }).observe(document, { childList: true, subtree: true });` });
+    let fallbackSeen = false;
+    const times = [];
+    for (let i = 0; i < 3; i++) {
+      await p.send("Page.reload", {});
+      await sleep(1200);
+      fallbackSeen ||= await p.eval("window.__fallbackSeen");
+      times.push(await p.eval("window.__editorAt || 99999"));
+    }
+    check("Speed: new tab shows the Editor without a loading placeholder", !fallbackSeen, `editor visible at ${times.join(", ")} ms`);
     const tabs = ["Editor", "To-Dos", "Pomodoro", "Habits", "Tracker", "Meetings", "Files"];
     const headings = ["words", "to-do list", "pomodoro", "habit", "time tracker", "meetings", "files"];
     for (let i = 0; i < tabs.length; i++) {
@@ -288,8 +135,20 @@ const suites = {
     await p.setFile('input[type="file"]', "people.csv");
     const rows = await p.eval(`[...document.querySelectorAll("table tr")].map(r => [...r.children].map(c => c.textContent))`);
     check("Files: CSV with quoted fields", rows[1]?.[1] === "Shah, Priya" && rows[1]?.[3] === 'Says "hi"\nsecond line');
+    await p.setFile('input[type="file"]', "demo.ts");
+    await sleep(500);
+    if (process.env.E2E_SHOTS) { const { data } = await p.send("Page.captureScreenshot", { format: "png" }); writeFileSync(path.join(process.env.E2E_SHOTS, "files-code.png"), Buffer.from(data, "base64")); }
+    check("Files: code files are syntax-highlighted", await p.eval(`!!document.querySelector('.code-preview[data-language="typescript"] .hljs-keyword')`));
     await p.setFile('input[type="file"]', "blob.bin");
     check("Files: binary rejected", (await p.text()).includes("looks like a binary file"));
+    // Recent files: close the preview and reopen from the list.
+    await p.click("Close");
+    await sleep(400);
+    const recentNames = await p.eval(`[...document.querySelectorAll('[aria-label="Recent files"] button div:first-child')].map(d => d.textContent)`);
+    check("Files: recent files are listed (newest first)", recentNames[0] === "demo.ts" && recentNames.includes("sample.md") && !recentNames.includes("blob.bin"), recentNames.join(", "));
+    await p.eval(`[...document.querySelectorAll('[aria-label="Recent files"] button')].find(b => b.textContent.includes("people.csv")).click()`);
+    await sleep(500);
+    check("Files: reopen a recent file with one click", (await p.text()).includes("Shah, Priya"));
     // Drop onto another section
     await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.textContent.includes("Editor")).click()`);
     await sleep(1000);
@@ -351,6 +210,32 @@ const suites = {
     await sleep(7000);
     check("Captions: leaving the call ends recording", await p.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
     await p.close();
+
+    // Same flow with Meet in Spanish: labels are translated, icon names are not.
+    const es = await b.openPage("about:blank");
+    await es.eval(`
+      document.title = "Meet - Reunión semanal";
+      document.body.innerHTML = '<button aria-label="Salir de la llamada"><i class="google-symbols" aria-hidden="true">call_end</i></button>' +
+        '<button aria-label="Activar subtítulos" aria-pressed="false"><i class="google-symbols" aria-hidden="true">closed_caption_off</i></button>';
+      document.querySelector('[aria-label="Activar subtítulos"]').addEventListener('click', () => {
+        const r = document.createElement('div'); r.setAttribute('role','region'); r.setAttribute('aria-label','Subtítulos'); r.id='cap'; document.body.appendChild(r);
+      });
+      window.__sent = []; window.__listeners = [];
+      window.chrome = { runtime: { sendMessage: (m) => { window.__sent.push(JSON.parse(JSON.stringify(m))); return Promise.resolve({ ok: true }); }, onMessage: { addListener: (f) => window.__listeners.push(f), removeListener: () => {} } } };
+      window.__block = (s, t) => { const d = document.createElement('div'); d.innerHTML = '<img alt=""><div>' + s + '</div><div class="t">' + t + '</div>'; document.getElementById('cap').appendChild(d); return d; };
+      true`);
+    await es.eval(script + ";true");
+    await es.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "es1", startedAtMs: Date.now() }, {}, r))`);
+    await sleep(300);
+    check("Captions (Spanish UI): turns captions on via the icon", await es.eval(`!!document.getElementById('cap')`));
+    await es.eval(`__block('Tú', 'Hola a todos, empecemos'); true`);
+    await sleep(3500);
+    const esUpdates = await es.eval(`window.__sent.filter(m => m.type === 'captions-update')`);
+    check("Captions (Spanish UI): transcript captured", esUpdates.at(-1)?.entries?.[0]?.text === "Hola a todos, empecemos" && esUpdates.at(-1)?.title === "Reunión semanal");
+    await es.eval(`document.querySelector('[aria-label="Salir de la llamada"]').remove(); true`);
+    await sleep(7000);
+    check("Captions (Spanish UI): leaving the call ends recording", await es.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
+    await es.close();
   },
 
   async pomodoro(b, check) {
@@ -504,6 +389,8 @@ const suites = {
     const imported = notes.find((n) => n.title === "sample");
     check("Editor: import Markdown keeps checklist and table", !!imported && imported.content.includes("<h1>Project Plan</h1>") && imported.content.includes('data-type="taskList"') && imported.content.includes("<table") && !/<script/i.test(imported.content));
     await sleep(300);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await sleep(200);
     await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
     const md = await waitForDownload(b, "sample");
     check("Editor: export note as Markdown", md.startsWith("# Project Plan") && md.includes("**bold**") && md.includes("[safe link](https://example.com)") && md.includes("- [x] Write spec") && /\|\s*Name\s*\|\s*Role\s*\|/.test(md), md.slice(0, 160).replace(/\n/g, "⏎"));
@@ -549,7 +436,8 @@ const suites = {
       window.fetch = async (url, init = {}) => {
         url = String(url);
         if (url.includes("oauth2/v3/userinfo")) return Response.json({ sub: "1", name: "Test User", email: "test@example.com", picture: null });
-        if (url.includes("/upload/drive/v3/files")) { window.__drive = init.body; return Response.json({ id: "f1" }); }
+        if (url.includes("/upload/drive/v3/files")) { window.__drive = init.body; window.__uploads = (window.__uploads || 0) + 1; return Response.json({ id: "f1" }); }
+        if (url.includes("/drive/v3/files/f1") && url.includes("alt=media")) return new Response(window.__drive.split(String.fromCharCode(13, 10, 13, 10))[2].split(String.fromCharCode(13, 10) + "--")[0], { headers: { "Content-Type": "application/json" } });
         if (url.includes("/drive/v3/files?")) return Response.json({ files: window.__drive ? [{ id: "f1", modifiedTime: new Date().toISOString(), size: "100" }] : [] });
         if (url.includes("oauth2.googleapis.com/revoke")) return new Response("");
         return realFetch(url, init);
@@ -563,18 +451,220 @@ const suites = {
     let t = await p.text();
     await p.shot("account-signed-in");
     check("Account: sign in shows the Google profile", t.includes("Test User") && t.includes("test@example.com"));
+    check("Account: signing in syncs right away", (await p.eval("window.__uploads || 0")) === 1 && t.includes("synced"));
     check("Account: avatar appears in the top bar", await p.eval(`!!document.querySelector('nav button[aria-label="Account: test@example.com"]')`));
-    await p.click("Back up now");
+    await p.click("Sync now");
     await sleep(800);
     t = await p.text();
     const uploaded = await p.eval("window.__drive || ''");
-    check("Account: back up to Google Drive (private app folder, no API key)", t.includes("Backed up to Google Drive") && uploaded.includes('"version":"1.1"') && uploaded.includes("appDataFolder") && !uploaded.includes("claudeApiKey"), uploaded.slice(0, 200));
+    check("Account: sync with Google Drive (private app folder, no API key)", t.includes("Synced with Google Drive") && (await p.eval("window.__uploads")) === 2 && uploaded.includes('"version":"1.1"') && uploaded.includes('"tombstones"') && !uploaded.includes("claudeApiKey"), uploaded.slice(0, 200));
     await sleep(500);
     check("Account: shows the latest Drive copy", !(await p.text()).includes("Latest copy in Drive: none yet"));
     await p.click("Sign out");
     await sleep(500);
     const { googleAccount } = await p.storage(["googleAccount"]);
     check("Account: sign out forgets the account", !googleAccount && (await p.text()).includes("Signed out"));
+    await p.close();
+  },
+
+  async tracker(b, check) {
+    // A real local website the tracker can time.
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<title>Test site</title><h1>Hello from a test site</h1>");
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const port = server.address().port;
+    try {
+      const ext = await b.openPage();
+      await ext.goto("tracker");
+      const dayKey = await ext.eval(`(() => { const d = new Date(); return "tt_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+      const secondsOnSite = async () => ((await ext.storage([dayKey]))[dayKey] ?? {})["127.0.0.1"] ?? 0;
+
+      const sw = await b.serviceWorker();
+      const trackingSite = async () => {
+        // Wait until the tracker has actually started timing the site (not just a fixed delay).
+        for (let i = 0; i < 40; i++) {
+          const { tt_session } = await sw.eval(`chrome.storage.session.get("tt_session")`);
+          if (tt_session?.domain === "127.0.0.1") return true;
+          await sleep(250);
+        }
+        return false;
+      };
+      const waitForSeconds = async (min) => {
+        for (let i = 0; i < 20; i++) {
+          const v = await secondsOnSite();
+          if (v >= min) return v;
+          await sleep(250);
+        }
+        return secondsOnSite();
+      };
+
+      // The tracker (correctly) pauses when the computer is idle. A long test run sends no
+      // input for minutes, so use a long idle threshold — as for an active user.
+      await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 3600, notifyEnabled: false, notifyTime: "20:00", focusList: [], excludedDomains: [] } })`);
+      await sleep(500);
+
+      const site = await b.openPage(`http://127.0.0.1:${port}/`);
+      await b.send("Target.activateTarget", { targetId: site.targetId });
+      const started = await trackingSite();
+      const diag = started ? "" : JSON.stringify(await sw.eval(`(async () => ({
+        active: (await chrome.tabs.query({ active: true, lastFocusedWindow: true })).map((t) => t.url),
+        windows: (await chrome.windows.getAll({ populate: true })).map((w) => ({ focused: w.focused, tabs: w.tabs.map((t) => (t.active ? "*" : "") + t.url.slice(0, 40)) })),
+        idle: await chrome.idle.queryState(60),
+        settings: (await chrome.storage.local.get("tt_settings")).tt_settings ?? null,
+      }))()`));
+      await sleep(4000);
+      await b.send("Target.activateTarget", { targetId: ext.targetId });
+      const first = await waitForSeconds(3);
+      check("Tracker: time on a website is recorded", started && first >= 3, `${started ? "" : "session never started; " + diag + "; "}${first}s`);
+
+      // Chrome stops idle extension workers; tracking must continue across that.
+      await b.send("Target.activateTarget", { targetId: site.targetId });
+      await trackingSite();
+      await sleep(1500);
+      await ext.send("ServiceWorker.enable", {});
+      await ext.send("ServiceWorker.stopAllWorkers", {});
+      await sleep(4000);
+      await b.send("Target.activateTarget", { targetId: ext.targetId });
+      const second = await waitForSeconds(first + 4);
+      check("Tracker: keeps counting after the background worker restarts", second - first >= 4, `${first}s → ${second}s`);
+
+      await ext.send("Page.reload", {});
+      await sleep(1800);
+      check("Tracker: Today view lists the site", (await ext.text()).includes("127.0.0.1"));
+
+      // Clearing history keeps settings.
+      await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 60, notifyEnabled: true, notifyTime: "20:00", focusList: [{ id: "r1", domain: "youtube.com", limitMinutes: 30, redirectEnabled: false }], excludedDomains: ["bank.example"] } })`);
+      await ext.eval(`window.confirm = () => true`);
+      await ext.click("⚙ Settings", { exact: false }).catch(() => ext.click("Settings", { exact: false }));
+      await sleep(500);
+      await ext.click("Clear all tracking data", { exact: false });
+      await sleep(800);
+      const after = await ext.storage([dayKey, "tt_settings"]);
+      check("Tracker: “Clear all tracking data” keeps Focus List and excluded sites", !after[dayKey] && after.tt_settings?.focusList?.[0]?.domain === "youtube.com" && after.tt_settings?.excludedDomains?.[0] === "bank.example");
+      await site.close();
+      await ext.close();
+    } finally {
+      server.close();
+    }
+  },
+
+  async habits(b, check) {
+    const p = await b.openPage();
+    await p.goto("habits");
+    const today = await p.eval(`(() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    const habits = async () => (await p.storage(["habits"])).habits ?? [];
+
+    await p.click("+ New Habit");
+    await sleep(200);
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder="Habit name..."]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Drink water"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await p.click("Save");
+    await sleep(400);
+    let list = await habits();
+    check("Habits: create a habit", list.some((h) => h.name === "Drink water" && !h.archived));
+
+    await p.eval(`document.querySelector('button[title="Mark today done"]').click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: mark today done", list.find((h) => h.name === "Drink water")?.completedDays.includes(today));
+    await p.eval(`document.querySelector('button[title="Unmark today"]').click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: unmark today", !list.find((h) => h.name === "Drink water")?.completedDays.includes(today));
+
+    // Streaks from a seeded history of 5 days in a row.
+    const days = await p.eval(`[0,1,2,3,4].map(i => { const d = new Date(); d.setDate(d.getDate() - i); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })`);
+    await p.eval(`chrome.storage.local.get("habits").then(({ habits }) => chrome.storage.local.set({ habits: [...habits, { id: "streaky", name: "Read", emoji: "📚", color: "#60a5fa", completedDays: ${JSON.stringify(days)}, createdAt: new Date(Date.now() - 864e6).toISOString(), archived: false }] }))`);
+    await sleep(500);
+    check("Habits: shows a 5-day streak", /5\s*(day|🔥)|🔥\s*5/i.test(await p.text()));
+
+    await p.eval(`[...document.querySelectorAll('button[title="Archive"]')].find(b => b.closest("div").parentElement.innerText.includes("Read") || b.parentElement.parentElement.innerText.includes("Read")).click()`);
+    await sleep(400);
+    list = await habits();
+    check("Habits: archive keeps the history", list.find((h) => h.id === "streaky")?.archived === true && list.find((h) => h.id === "streaky")?.completedDays.length === 5 && list.find((h) => h.name === "Drink water")?.archived === false, JSON.stringify(list.map((h) => [h.name, h.archived])));
+    check("Habits: a habit added in another tab appears at the bottom, like local ones", (await habits()).map((h) => h.id).at(-1) === "streaky");
+    await p.close();
+  },
+
+  async a11y(b, check) {
+    // Automated accessibility audit (axe-core, WCAG 2 A/AA) of every tab, light and dark.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("editor");
+    const report = [];
+    for (const theme of ["light", "dark"]) {
+      for (const section of ["editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
+        await p.eval(`chrome.storage.local.set({ lastSection: "${section}", theme: "${theme}" })`);
+        await p.send("Page.reload", {});
+        await sleep(1500);
+        await p.eval(axeSource + ";true");
+        const violations = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => ({ id: v.id, impact: v.impact, count: v.nodes.length, sample: v.nodes.slice(0, 4).map(n => n.html.slice(0, 90) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + " = " + n.any[0].data.contrastRatio + "]" : "")).join(" | ") })))`);
+        for (const v of violations) report.push(`${theme}/${section}: ${v.id} (${v.impact}, ${v.count}) e.g. ${v.sample}`);
+        check(`A11y (${theme}): ${section} has no serious accessibility problems`, violations.length === 0, violations.map((v) => `${v.id}×${v.count}`).join(", "));
+      }
+    }
+    // Pop-ups: Help, Backup, Account, Welcome.
+    await p.eval(`chrome.storage.local.set({ lastSection: "editor", theme: "light" })`);
+    for (const [name, open] of [
+      ["help", `document.querySelector('button[aria-label="Help and keyboard shortcuts"]').click()`],
+      ["backup", `document.querySelector('button[aria-label="Backup and restore"]').click()`],
+      ["account", `document.querySelector('nav button[aria-label="Sign in"]').click()`],
+      ["welcome", `chrome.storage.local.set({ hasSeenOnboarding: false }).then(() => location.reload())`],
+    ]) {
+      await p.send("Page.reload", {});
+      await sleep(1300);
+      await p.eval(open);
+      await sleep(name === "welcome" ? 1600 : 500);
+      await p.eval(axeSource + ";true");
+      const violations = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => ({ id: v.id, count: v.nodes.length, sample: v.nodes.slice(0, 3).map(n => n.html.slice(0, 90) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + " = " + n.any[0].data.contrastRatio + "]" : "")).join(" | ") })))`);
+      const isDialog = await p.eval(`!!document.querySelector('[role="dialog"][aria-modal="true"]')`);
+      for (const v of violations) report.push(`popup/${name}: ${v.id} (${v.count}) e.g. ${v.sample}`);
+      check(`A11y: ${name} pop-up is an accessible dialog with no serious problems`, violations.length === 0 && isDialog, `${isDialog ? "" : "not a dialog; "}${violations.map((v) => `${v.id}×${v.count}`).join(", ")}`);
+      await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
+    }
+    if (process.env.A11Y_REPORT) console.log(report.join("\n"));
+    await p.close();
+  },
+
+  async speech(b, check) {
+    // On-device transcription with Chrome's real speech model. Opt-in (downloads a language pack):
+    //   E2E_SPEECH=1 node tests/e2e/run.mjs speech
+    if (!process.env.E2E_SPEECH) {
+      console.log("  – skipped (set E2E_SPEECH=1 to download Chrome's speech model and run it)");
+      return;
+    }
+    const p = await b.openPage();
+    await p.goto("meetings");
+    check("Speech: setup offers on-device transcription", (await p.lowerText()).includes("when captions are off"));
+    const box = await p.eval(`(() => { const b = [...document.querySelectorAll("button")].find(b => b.textContent.includes("Download speech model")); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    if (box) {
+      for (const type of ["mousePressed", "mouseReleased"]) await p.send("Input.dispatchMouseEvent", { type, x: box.x, y: box.y, button: "left", clickCount: 1 });
+    }
+    let ready = false;
+    for (let i = 0; i < 90 && !ready; i++) {
+      await sleep(1000);
+      ready = (await p.text()).includes("✓ Ready");
+    }
+    const { recorderSpeechEnabled } = await p.storage(["recorderSpeechEnabled"]);
+    check("Speech: one click downloads the model and turns transcription on", ready && recorderSpeechEnabled === true);
+
+    // Run the recorder's transcriber on recorded speech inside the offscreen page.
+    const wav = readFileSync(path.join(FIXTURES, "speech-en.wav")).toString("base64");
+    const off = await b.openPage(`chrome-extension://${b.extId}/offscreen.html`);
+    const heard = await off.eval(`(async () => {
+      const { LiveTranscriber } = window.__prodliSpeech;
+      const bytes = Uint8Array.from(atob("${wav}"), (c) => c.charCodeAt(0));
+      const ctx = new AudioContext(); await ctx.resume();
+      const buf = await ctx.decodeAudioData(bytes.buffer);
+      const dest = ctx.createMediaStreamDestination(); const src = ctx.createBufferSource(); src.buffer = buf; src.connect(dest);
+      const t = new LiveTranscriber(dest.stream.getAudioTracks()[0], "Others", "en-US", Date.now());
+      t.start(); src.start();
+      await new Promise((r) => setTimeout(r, (buf.duration + 4) * 1000));
+      return (await t.stop()).map((e) => e.speaker + ": " + e.text).join(" | ");
+    })()`);
+    check("Speech: transcribes call audio on-device", /ship the beta on Friday/i.test(heard) && heard.startsWith("Others:"), heard);
+    await off.close();
     await p.close();
   },
 
@@ -599,7 +689,7 @@ let failures = 0;
 try {
   await browser.loadExtension();
   for (const [name, suite] of Object.entries(suites)) {
-    if (only && name !== only) continue;
+    if (only && !only.split(",").includes(name)) continue;
     const check = (label, ok, detail = "") => {
       if (!ok) failures++;
       console.log(`${ok ? "  ✓" : "  ✗"} ${label}${!ok && detail ? ` — ${detail}` : ""}`);
@@ -611,6 +701,9 @@ try {
       failures++;
       console.log(`  ✗ ${name} crashed: ${err.message}`);
     }
+    // Isolation: close any tabs a suite left open so suites can't affect each other.
+    const { targetInfos } = await browser.send("Target.getTargets");
+    for (const t of targetInfos) if (t.type === "page" && t.url !== "about:blank") await browser.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
   }
   const errors = browser.jsErrors();
   if (errors.length) {

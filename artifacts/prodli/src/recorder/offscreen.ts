@@ -3,7 +3,11 @@
 // crash or closed tab loses at most a few seconds.
 
 import { appendAudioChunk, finalizeAudio } from "./db";
-import type { BackgroundMessage, OffscreenCommand } from "./types";
+import { LiveTranscriber, mergeSpeechEntries, speechAvailability } from "./speech";
+
+// Test hook: lets the end-to-end tests exercise on-device transcription here.
+(globalThis as unknown as { __prodliSpeech?: unknown }).__prodliSpeech = { LiveTranscriber, mergeSpeechEntries, speechAvailability };
+import type { BackgroundMessage, OffscreenCommand, TranscriptEntry } from "./types";
 
 const CHUNK_MS = 10_000;
 
@@ -15,6 +19,7 @@ interface Session {
   mimeType: string;
   seq: number;
   pendingWrites: Promise<void>[];
+  transcribers: LiveTranscriber[];
 }
 
 let session: Session | null = null;
@@ -30,7 +35,7 @@ function pickMimeType(): string {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 }
 
-async function start(meetingId: string, streamId: string, withMic: boolean): Promise<void> {
+async function start(meetingId: string, streamId: string, withMic: boolean, speechLang: string | null): Promise<void> {
   if (session) await stop();
 
   const tabStream = await navigator.mediaDevices.getUserMedia({
@@ -68,7 +73,18 @@ async function start(meetingId: string, streamId: string, withMic: boolean): Pro
     audioBitsPerSecond: 32_000,
   });
 
-  const s: Session = { meetingId, recorder, audioCtx, streams, mimeType: recorder.mimeType || mimeType || "audio/webm", seq: 0, pendingWrites: [] };
+  // Optional on-device transcription: "Others" from the tab, "You" from the mic.
+  const transcribers: LiveTranscriber[] = [];
+  if (speechLang && (await speechAvailability(speechLang)) === "available") {
+    const startedAt = Date.now();
+    const tabTrack = tabStream.getAudioTracks()[0];
+    if (tabTrack) transcribers.push(new LiveTranscriber(tabTrack, "Others", speechLang, startedAt));
+    const micTrack = streams[1]?.getAudioTracks()[0];
+    if (micTrack) transcribers.push(new LiveTranscriber(micTrack, "You", speechLang, startedAt));
+    transcribers.forEach((t) => t.start());
+  }
+
+  const s: Session = { meetingId, recorder, audioCtx, streams, mimeType: recorder.mimeType || mimeType || "audio/webm", seq: 0, pendingWrites: [], transcribers };
   recorder.ondataavailable = (e) => {
     if (e.data.size === 0) return;
     s.pendingWrites.push(appendAudioChunk(meetingId, s.seq++, e.data));
@@ -80,13 +96,21 @@ async function start(meetingId: string, streamId: string, withMic: boolean): Pro
 
   recorder.start(CHUNK_MS);
   session = s;
+  if (transcribers.length) {
+    const tick = setInterval(() => {
+      if (session !== s) return clearInterval(tick);
+      send({ target: "background", type: "speech-update", meetingId, entries: mergeSpeechEntries(...transcribers.map((t) => t.list())) });
+    }, 5000);
+  }
   send({ target: "background", type: "offscreen-started", meetingId, micIncluded });
 }
 
-async function stop(): Promise<void> {
+async function stop(): Promise<TranscriptEntry[]> {
   const s = session;
-  if (!s) return;
+  if (!s) return [];
   session = null;
+  // Collect the on-device transcript before the audio tracks are stopped.
+  const speech = mergeSpeechEntries(...(await Promise.all(s.transcribers.map((t) => t.stop()))));
 
   if (s.recorder.state !== "inactive") {
     await new Promise<void>((resolve) => {
@@ -105,12 +129,13 @@ async function stop(): Promise<void> {
     hasAudio = false;
   }
   send({ target: "background", type: "offscreen-stopped", meetingId: s.meetingId, hasAudio, mimeType: hasAudio ? s.mimeType : null });
+  return speech;
 }
 
 chrome.runtime.onMessage.addListener((msg: OffscreenCommand, _sender, sendResponse) => {
   if (msg?.target !== "offscreen") return;
   if (msg.type === "start") {
-    start(msg.meetingId, msg.streamId, msg.withMic)
+    start(msg.meetingId, msg.streamId, msg.withMic, msg.speechLang ?? null)
       .then(() => sendResponse({ ok: true }))
       .catch((err: unknown) => {
         // The background's start flow reports this failure to the user.
@@ -119,7 +144,7 @@ chrome.runtime.onMessage.addListener((msg: OffscreenCommand, _sender, sendRespon
     return true;
   }
   if (msg.type === "stop") {
-    stop().then(() => sendResponse({ ok: true }));
+    stop().then((speechEntries) => sendResponse({ ok: true, speechEntries }));
     return true;
   }
   return undefined;

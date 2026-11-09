@@ -32,7 +32,27 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   let sendTimer: number | undefined;
   let badge: HTMLDivElement | null = null;
 
-  const CAPTION_REGION_LABEL = /caption|subt[ií]t|legend|untertitel|sous-titre|字幕|자막/i;
+  // Captions panel label in Meet's UI language (en, es/pt, de, fr, it, nl, ru, tr, pl, hi, ja/zh, ko…).
+  const CAPTION_REGION_LABEL = /caption|subt[ií]t|legend|untertitel|sous-titre|sottotitol|ondertitel|субтитр|altyaz|napisy|कैप्शन|字幕|자막/i;
+
+  /**
+   * Meet draws button icons with an icon font whose ligature names are the
+   * same in every UI language (e.g. "call_end", "closed_caption_off").
+   * Matching them makes detection work regardless of the user's language.
+   */
+  function hasIcon(el: Element, names: string[]): boolean {
+    for (const node of el.querySelectorAll("i, span")) {
+      if (node.children.length === 0 && names.includes((node.textContent ?? "").trim())) return true;
+    }
+    return false;
+  }
+
+  function findLeaveButton(): Element | null {
+    const byLabel = document.querySelector('button[aria-label*="Leave call" i]');
+    if (byLabel) return byLabel;
+    for (const b of document.querySelectorAll("button")) if (hasIcon(b, ["call_end"])) return b;
+    return null;
+  }
 
   function send(msg: BackgroundMessage): void {
     try {
@@ -52,10 +72,12 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
 
   function tryTurnOnCaptions(): void {
     if (captionClickAttempts >= 3) return;
-    const buttons = document.querySelectorAll<HTMLButtonElement>("button[aria-label]");
-    for (const b of buttons) {
+    for (const b of document.querySelectorAll<HTMLButtonElement>("button")) {
       const label = b.getAttribute("aria-label") ?? "";
-      if (/turn on captions/i.test(label) || (/captions/i.test(label) && b.getAttribute("aria-pressed") === "false")) {
+      const englishOff = /turn on captions/i.test(label) || (/captions/i.test(label) && b.getAttribute("aria-pressed") === "false");
+      // Any language: the "captions off" icon, or the captions icon on an unpressed toggle.
+      const iconOff = hasIcon(b, ["closed_caption_off", "subtitles_off"]) || (hasIcon(b, ["closed_caption", "subtitles"]) && b.getAttribute("aria-pressed") === "false");
+      if (englishOff || iconOff) {
         captionClickAttempts++;
         b.click();
         return;
@@ -96,9 +118,8 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     if (!meetingId) return;
     const now = Date.now() - startedAtMs;
 
-    // Detect leaving the call (English UI; other languages stop via the badge,
-    // the shortcut, or closing the tab).
-    const leave = document.querySelector('button[aria-label*="Leave call" i]');
+    // Detect leaving the call: the "leave call" button disappears (any UI language).
+    const leave = findLeaveButton();
     if (leave) {
       sawLeaveButton = true;
       leaveMissingSince = null;

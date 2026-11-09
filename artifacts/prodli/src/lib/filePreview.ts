@@ -19,7 +19,7 @@ export interface OpenedFile {
 }
 
 export const MAX_PREVIEW_BYTES = 10 * 1024 * 1024; // 10 MB
-export const MAX_NOTE_BYTES = 1024 * 1024; // notes live in chrome.storage.local, keep them small
+export { MAX_NOTE_BYTES } from "./markdownDetect";
 
 const MARKDOWN_EXT = new Set(["md", "markdown", "mdown", "mkd", "mdx"]);
 const JSON_EXT = new Set(["json", "geojson", "webmanifest", "har", "ipynb", "map"]);

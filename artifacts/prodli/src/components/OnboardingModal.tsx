@@ -67,6 +67,11 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to ProdLi"
+      tabIndex={-1}
+      autoFocus
       style={{
         position: "fixed", inset: 0, zIndex: 10001,
         background: "rgba(0,0,0,0.93)",
@@ -94,7 +99,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               background: "#FFD700", color: "#000", fontWeight: 900,
               fontSize: 13, padding: "2px 10px", letterSpacing: "0.02em",
             }}>ProdLi</span>
-            <span style={{ color: "#555", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>New Tab Extension</span>
+            <span style={{ color: "#aaa", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>New Tab Extension</span>
           </div>
           <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, lineHeight: 1.15, letterSpacing: "-0.01em" }}>
             Your productivity hub is ready.

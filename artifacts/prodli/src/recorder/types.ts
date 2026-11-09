@@ -48,6 +48,8 @@ export interface Meeting {
   notice: string | null;
   hasAudio: boolean;
   micIncluded: boolean;
+  /** On-device transcript (used when Meet captions weren't available) */
+  speechTranscript?: TranscriptEntry[];
   audioMimeType: string | null;
   updatedAt: string;
 }
@@ -63,6 +65,8 @@ export interface RecordingState {
 export const RECORDING_STATE_KEY = "rec_state";
 export const CLAUDE_KEY_STORAGE_KEY = "claudeApiKey";
 export const MIC_ENABLED_STORAGE_KEY = "recorderMicEnabled";
+export const SPEECH_ENABLED_STORAGE_KEY = "recorderSpeechEnabled";
+export const SPEECH_LANG_STORAGE_KEY = "recorderSpeechLang";
 export const AUTO_SUMMARIZE_STORAGE_KEY = "recorderAutoSummarize";
 
 /** Optional permissions requested when the user turns the recorder on. */
@@ -74,7 +78,7 @@ export const RECORDER_PERMISSIONS: chrome.permissions.Permissions = {
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 export type OffscreenCommand =
-  | { target: "offscreen"; type: "start"; meetingId: string; streamId: string; withMic: boolean }
+  | { target: "offscreen"; type: "start"; meetingId: string; streamId: string; withMic: boolean; speechLang: string | null }
   | { target: "offscreen"; type: "stop" };
 
 export type BackgroundMessage =
@@ -83,6 +87,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "offscreen-error"; meetingId: string; error: string }
   | { target: "background"; type: "captions-update"; meetingId: string; entries: TranscriptEntry[]; captionsOn: boolean; title: string | null }
   | { target: "background"; type: "captions-ended"; meetingId: string; entries: TranscriptEntry[] }
+  | { target: "background"; type: "speech-update"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "stop-recording" }
   | { target: "background"; type: "summarize"; meetingId: string };
 

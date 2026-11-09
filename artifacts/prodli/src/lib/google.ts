@@ -7,6 +7,10 @@
 
 import { buildBackup, restoreBackup, type ImportResult } from "./backupRestore";
 import { storageGet, storageRemove, storageSet } from "./storage";
+import { mergeSnapshots, type SyncSnapshot } from "./syncMerge";
+import { getTombstones, TOMBSTONES_KEY } from "./tombstones";
+import { deleteMeeting, listMeetings, putMeeting } from "../recorder/db";
+import type { Meeting } from "../recorder/types";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 export const SCOPES = ["openid", "email", "profile", DRIVE_SCOPE];
@@ -137,19 +141,87 @@ function multipartBody(metadata: object, content: string): { body: string; conte
   return { body, contentType: `multipart/related; boundary=${boundary}` };
 }
 
-/** Uploads a full ProdLi backup to Drive (replacing the previous one; Drive keeps old revisions). */
-export async function backupToDrive(auto = false): Promise<BackupInfo> {
-  const json = JSON.stringify(await buildBackup());
+async function uploadSnapshot(json: string): Promise<void> {
   const existing = await findBackupFile();
   const { body, contentType } = existing
     ? multipartBody({ mimeType: "application/json" }, json)
     : multipartBody({ name: BACKUP_FILE_NAME, parents: ["appDataFolder"], mimeType: "application/json" }, json);
   const url = existing ? `${DRIVE_UPLOAD}/${existing.id}?uploadType=multipart&fields=id,modifiedTime,size` : `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,modifiedTime,size`;
   await authedFetch(url, { method: existing ? "PATCH" : "POST", headers: { "Content-Type": contentType }, body });
-  const info: BackupInfo = { at: new Date().toISOString(), bytes: new Blob([json]).size, auto };
+}
+
+async function downloadSnapshot(): Promise<SyncSnapshot | null> {
+  const file = await findBackupFile();
+  if (!file) return null;
+  const res = await authedFetch(`${DRIVE_FILES}/${file.id}?alt=media`);
+  try {
+    const parsed = (await res.json()) as SyncSnapshot;
+    if (!parsed || typeof parsed !== "object" || !parsed.data || !["1.0", "1.1"].includes(parsed.version)) {
+      throw new GoogleError("The copy in Google Drive is from a newer version of ProdLi. Update ProdLi on this computer.");
+    }
+    return parsed;
+  } catch (err) {
+    if (err instanceof GoogleError) throw err;
+    throw new GoogleError("The copy in Google Drive couldn't be read.");
+  }
+}
+
+const SYNCED_KEYS = ["notes", "todos", "habits", "pomodoroSessions", "completedPomodoros"] as const;
+
+/** Writes merged data back to this device (only what changed). */
+async function applyLocally(local: SyncSnapshot, merged: SyncSnapshot): Promise<number> {
+  let changes = 0;
+  for (const key of SYNCED_KEYS) {
+    if (JSON.stringify(local.data[key]) !== JSON.stringify(merged.data[key])) {
+      await storageSet(key, merged.data[key]);
+      changes++;
+    }
+  }
+  await storageSet(TOMBSTONES_KEY, merged.tombstones ?? {});
+  const localMeetings = new Map((await listMeetings()).map((m) => [m.id, m]));
+  const mergedIds = new Set<string>();
+  for (const m of (merged.meetings ?? []) as Meeting[]) {
+    mergedIds.add(m.id);
+    const mine = localMeetings.get(m.id);
+    if (mine?.status === "recording" || mine?.status === "processing") continue; // never touch a live recording
+    if (!mine || mine.updatedAt !== m.updatedAt) {
+      await putMeeting({ ...m, status: m.status === "recording" || m.status === "processing" ? "ready" : m.status, hasAudio: mine?.hasAudio ?? false, audioMimeType: mine?.audioMimeType ?? null });
+      changes++;
+    }
+  }
+  for (const [id, mine] of localMeetings) {
+    if (!mergedIds.has(id) && mine.status !== "recording" && mine.status !== "processing") {
+      await deleteMeeting(id, { tombstone: false });
+      changes++;
+    }
+  }
+  return changes;
+}
+
+export interface SyncResult extends BackupInfo {
+  /** Number of local collections/meetings updated from the other device(s) */
+  changes: number;
+}
+
+/**
+ * Two-way sync with the user's Google Drive: download the Drive copy, merge it
+ * item by item with this device, save the result here, and upload it.
+ * Safe to run from several devices; the newest edit of each item wins.
+ */
+export async function syncWithDrive(auto = false): Promise<SyncResult> {
+  const remote = await downloadSnapshot();
+  const local: SyncSnapshot = { ...(await buildBackup()), tombstones: await getTombstones() };
+  const merged = mergeSnapshots(local, remote);
+  const changes = remote ? await applyLocally(local, merged) : 0;
+  const json = JSON.stringify(merged);
+  await uploadSnapshot(json);
+  const info: SyncResult = { at: new Date().toISOString(), bytes: new Blob([json]).size, auto, changes };
   await storageSet(LAST_BACKUP_KEY, info);
   return info;
 }
+
+/** Kept for compatibility: a backup is now a sync. */
+export const backupToDrive = syncWithDrive;
 
 export async function latestDriveBackup(): Promise<{ modifiedTime: string | null; bytes: number } | null> {
   const file = await findBackupFile();
@@ -170,12 +242,15 @@ export async function restoreFromDrive(): Promise<ImportResult> {
   return restoreBackup(parsed);
 }
 
-/** Background: back up once a day while signed in with auto-backup on. */
-export async function autoBackupIfDue(now = Date.now()): Promise<boolean> {
+/** Background: sync about once an hour while signed in with auto-sync on. */
+export async function autoSyncIfDue(now = Date.now()): Promise<boolean> {
   if (!googleConfigured()) return false;
   const [account, enabled, last] = await Promise.all([getAccount(), storageGet<boolean>(AUTO_BACKUP_KEY, true), storageGet<BackupInfo | null>(LAST_BACKUP_KEY, null)]);
   if (!account || !enabled) return false;
-  if (last && now - new Date(last.at).getTime() < 20 * 60 * 60 * 1000) return false;
-  await backupToDrive(true);
+  if (last && now - new Date(last.at).getTime() < 55 * 60 * 1000) return false;
+  await syncWithDrive(true);
   return true;
 }
+
+/** @deprecated use autoSyncIfDue */
+export const autoBackupIfDue = autoSyncIfDue;

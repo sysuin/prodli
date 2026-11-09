@@ -12,7 +12,7 @@ Goal: zero or minimal cost for the whole product, now and as it grows. Prices an
 | DNS | Cloudflare | Free plan | $0 |
 | Extension distribution | Chrome Web Store | One-time $5 developer fee | $0 (already paid) |
 | AI meeting notes | User's own Claude API key, Claude Haiku 5.5 | — | $0 to you (users pay ~<1¢ per meeting) |
-| Sign in with Google + cross-device backup | Chrome identity API + each user's own Google Drive app-data folder | Drive API is free; backups use the user's own Drive space | $0 |
+| Sign in with Google + cross-device sync | Chrome identity API + each user's own Google Drive app-data folder | Drive API is free; backups use the user's own Drive space | $0 |
 | Domain `prodli.com` | Hostinger (or Cloudflare Registrar at cost when it renews) | — | ~$10–15/year |
 | Email `contact@prodli.com` | Hostinger Mail, or Cloudflare Email Routing (forwarding) | Email Routing is free | $0 if forwarding |
 

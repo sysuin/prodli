@@ -1,9 +1,9 @@
-// Background: daily Google Drive backup while the user is signed in.
-import { autoBackupIfDue, DRIVE_ALARM } from "./google";
+// Background: hourly two-way sync with Google Drive while the user is signed in.
+import { autoSyncIfDue, DRIVE_ALARM } from "./google";
 
 async function run(): Promise<void> {
   try {
-    await autoBackupIfDue();
+    await autoSyncIfDue();
   } catch {
     // Offline, token expired, Drive full… try again at the next alarm.
   }
