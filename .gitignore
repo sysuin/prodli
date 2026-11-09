@@ -47,6 +47,7 @@ Thumbs.db
 # Build output (CI builds these; never commit them)
 artifacts/prodli/dist-extension/
 artifacts/prodli/dist-extension-test/
+artifacts/prodli/dist-extension-server-test/
 artifacts/prodli/*.staging/
 prodli-extension.zip
 site-dist/
@@ -59,3 +60,4 @@ site-dist/
 .cache/
 .local/
 .wrangler/
+artifacts/prodli-api/app-dist/

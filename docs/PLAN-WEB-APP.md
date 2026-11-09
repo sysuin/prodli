@@ -1,6 +1,6 @@
 # ProdLi web app + accounts — build plan
 
-Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging); next: phase 1.
+Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging). Phase 1 (accounts) done on staging; next: phase 2 (sync).
 
 Decisions so far:
 - Everything runs on Cloudflare, in the same account as your other products, with guardrails.
