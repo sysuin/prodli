@@ -198,16 +198,20 @@ try {
   await w.send("Page.reload", {});
   await sleep(1800);
   const phone = await w.eval(`(() => {
-    const tabs = document.querySelector(".nav-tabs").getBoundingClientRect();
-    const brand = document.querySelector(".nav-brand").getBoundingClientRect();
-    return { tabsBelow: tabs.top >= brand.bottom - 1, tabsFull: Math.round(tabs.width) === innerWidth, noSideScroll: document.documentElement.scrollWidth <= innerWidth,
+    const bar = document.querySelector(".mobile-tabbar").getBoundingClientRect();
+    return { tabbar: getComputedStyle(document.querySelector(".mobile-tabbar")).display === "flex" && Math.round(bar.width) === innerWidth && bar.bottom >= innerHeight - 1,
+      sidebarHidden: getComputedStyle(document.querySelector(".app-sidebar")).display === "none", noSideScroll: document.documentElement.scrollWidth <= innerWidth,
       listHidden: getComputedStyle(document.querySelector(".editor-sidebar")).display === "none", back: !!document.querySelector(".editor-back") && getComputedStyle(document.querySelector(".editor-back")).display !== "none" };
   })()`);
-  check("Phone: section tabs get their own full-width row", phone.tabsBelow && phone.tabsFull, JSON.stringify(phone));
+  check("Phone: bottom tab bar instead of the sidebar", phone.tabbar && phone.sidebarHidden, JSON.stringify(phone));
   check("Phone: the editor shows the note with a way back to the list, no sideways scrolling", phone.listHidden && phone.back && phone.noSideScroll, JSON.stringify(phone));
   await w.eval(`document.querySelector(".editor-back").click()`);
   await sleep(300);
   check("Phone: 'All notes' shows the full-width list", await w.eval(`getComputedStyle(document.querySelector(".editor-sidebar")).display !== "none" && getComputedStyle(document.querySelector(".editor-main")).display === "none"`));
+  await w.eval(`[...document.querySelectorAll(".tab-btn")].find(b => /more/i.test(b.innerText)).click()`);
+  await sleep(300);
+  check("Phone: 'More' lists every section", await w.eval(`["Today","To-Dos","Habits","Notes","Meetings","Files","Pomodoro","Time Tracker"].every(l => [...document.querySelectorAll(".more-item")].some(b => b.innerText.includes(l)))`));
+  await w.eval(`document.querySelector(".more-sheet-backdrop").click()`);
   await w.send("Emulation.clearDeviceMetricsOverride", {});
 
   // Security headers on the app's pages, and offline use.
@@ -244,6 +248,40 @@ try {
   const sunBtn = await w.eval(`(() => { const li = [...document.querySelectorAll(".today-task")].find(l => l.innerText.includes("Task from the extension")); const b = li && [...li.querySelectorAll("button")].find(b => b.textContent.includes("☀️")); b?.click(); return !!b; })()`);
   ms = sunBtn ? await waitFor(async () => ((await p.storage(["todos"])).todos ?? []).some((x) => x.title === "Task from the extension" && x.plannedFor)) : -1;
   check("Today: planning a task for today syncs to the extension's To-Dos", ms >= 0, `button found: ${sunBtn}; tasks: ${await w.eval(`[...document.querySelectorAll(".today-task")].map(l => l.innerText.slice(0, 40)).join(" / ") + " | plan: " + JSON.stringify(document.querySelector("[data-testid=plan-day]")?.innerText.slice(0, 300)) + " | section: " + document.querySelector("[aria-current=page]")?.title`)}`);
+  // Command palette: Ctrl/⌘+K, type, add as a to-do.
+  await w.eval(`document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+  await sleep(300);
+  check("Palette: Ctrl/⌘+K opens search & commands", await w.eval(`!!document.querySelector('input[aria-label="Search commands"]')`));
+  await w.type("Buy stamps");
+  await sleep(200);
+  await w.eval(`[...document.querySelectorAll('[role=option]')].find(o => o.innerText.includes("Add to-do"))?.click()`);
+  ms = await waitFor(async () => ((await p.storage(["todos"])).todos ?? []).some((x) => x.title === "Buy stamps"));
+  check("Palette: typing then 'Add to-do' adds it (and it syncs to the extension)", ms >= 0);
+  // Ask ProdLi from Today (the local server has no Claude key: a clear message).
+  await w.eval(`document.querySelector('input[aria-label="Ask ProdLi about your day"]').focus()`);
+  await w.type("What should I do next?");
+  await w.key("Enter");
+  ms = await waitFor(async () => (await w.eval(`document.querySelector('[aria-label="Ask ProdLi"]')?.innerText ?? ""`)).includes("isn't available right now"), 8000);
+  check("Ask ProdLi: opens from Today, asks, and explains when AI is unavailable", ms >= 0, await w.eval(`document.querySelector('[aria-label="Ask ProdLi"]')?.innerText.slice(0, 200) ?? "no panel"`));
+  await w.eval(`document.querySelector('[aria-label="Ask ProdLi"] [aria-label="Close"]').click()`);
+  // Phone share sheet / app shortcut: /?title=…&url=… opens Quick add.
+  await w.send("Page.navigate", { url: `${SERVER}/?title=Shared%20article&url=https%3A%2F%2Fexample.com%2Fpost` });
+  await sleep(2200);
+  check("Quick add: a shared link opens Quick add, pre-filled", await w.eval(`document.querySelector('[aria-label="Quick add"] input[aria-label="Title"]')?.value === "Shared article"`));
+  await w.eval(`[...document.querySelectorAll('[aria-label="Quick add"] button')].find(b => b.textContent.trim() === "Save").click()`);
+  ms = await waitFor(async () => ((await p.storage(["todos"])).todos ?? []).some((x) => x.title === "Shared article" && x.subtasks?.some((st) => st.title === "https://example.com/post")));
+  check("Quick add: saves the shared link as a to-do (synced to the extension)", ms >= 0);
+  // Extension: the Quick add window (Alt+Shift+A) saves a note.
+  const qa = await b.openPage(`chrome-extension://${b.extId}/index.html#quick-add?title=From%20a%20page&url=https%3A%2F%2Fexample.org%2F`);
+  await sleep(1200);
+  await qa.eval(`[...document.querySelectorAll('[role=radio]')].find(b => b.textContent.includes("Note")).click()`);
+  await qa.eval(`[...document.querySelectorAll("button")].find(b => b.textContent.trim() === "Save").click()`);
+  ms = await waitFor(async () => ((await p.storage(["notes"])).notes ?? []).some((n) => n.title === "From a page" && n.content.includes("https://example.org/")));
+  check("Quick add window (extension): saves a note with its source link", ms >= 0);
+  await qa.close().catch(() => {});
+  await w.send("Page.navigate", { url: `${SERVER}/` });
+  await sleep(2000);
+
   check("Today: shows how much is planned against the time left", /planned · .* free/.test(await w.eval(`document.querySelector('[data-testid="workload"]')?.innerText ?? ""`)));
 
   await openAccount(w);

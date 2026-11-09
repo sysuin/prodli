@@ -17,7 +17,8 @@
     "tabs",
     "idle",
     "alarms",
-    "identity"
+    "identity",
+    "contextMenus"
   ],
   "optional_permissions": [
     "scripting",
@@ -33,6 +34,12 @@
         "default": "Alt+Shift+R"
       },
       "description": "Start or stop recording the current Google Meet"
+    },
+    "quick-add": {
+      "suggested_key": {
+        "default": "Alt+Shift+A"
+      },
+      "description": "Quick add a to-do or note to ProdLi"
     }
   },
   "icons": {
@@ -41,7 +48,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "ProdLi \u2014 click on a Google Meet tab to record",
+    "default_title": "ProdLi — click on a Google Meet tab to record",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

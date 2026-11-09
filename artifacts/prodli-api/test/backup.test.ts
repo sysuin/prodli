@@ -16,7 +16,7 @@ let env: Env & { BACKUPS: ReturnType<typeof fakeR2> };
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch(["backups", "ai_usage", "brief_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
+  await base.DB.batch(["backups", "ai_usage", "brief_usage", "ask_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
   env = { ...base, BACKUPS: fakeR2(), USER_STORE: fakeUserStoreNamespace(), ADMIN_TOKEN: ADMIN } as typeof env;
 });
 

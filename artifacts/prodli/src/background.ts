@@ -8,6 +8,7 @@ import { registerDriveBackup } from "./lib/driveBackground";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { registerBackgroundSync } from "./lib/prodliSync";
 import { registerTodayReminder } from "./lib/todayBackground";
+import { registerCapture } from "./lib/captureBackground";
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
@@ -19,6 +20,8 @@ registerDriveBackup();
 if (accountsEnabled()) registerBackgroundSync();
 // Today: a daily "plan your day" reminder (Today → Settings).
 registerTodayReminder();
+// "Add to ProdLi": right-click menus and the Quick add shortcut (Alt+Shift+A).
+registerCapture();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,

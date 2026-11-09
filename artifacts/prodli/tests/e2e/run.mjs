@@ -34,7 +34,7 @@ const suites = {
       times.push(await p.eval("window.__editorAt || 99999"));
     }
     check("Speed: new tab shows the Editor without a loading placeholder", !fallbackSeen, `editor visible at ${times.join(", ")} ms`);
-    const tabs = ["Editor", "To-Dos", "Pomodoro", "Habits", "Tracker", "Meetings", "Files"];
+    const tabs = ["Notes", "To-Dos", "Pomodoro", "Habits", "Tracker", "Meetings", "Files"];
     const headings = ["words", "to-do list", "pomodoro", "habit", "time tracker", "meetings", "files"];
     for (let i = 0; i < tabs.length; i++) {
       await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "${i + 1}", ctrlKey: true, bubbles: true }))`);
@@ -150,7 +150,7 @@ const suites = {
     await sleep(500);
     check("Files: reopen a recent file with one click", (await p.text()).includes("Shah, Priya"));
     // Drop onto another section
-    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.textContent.includes("Editor")).click()`);
+    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.textContent.includes("Notes")).click()`);
     await sleep(1000);
     const data = { items: [], files: [path.join(FIXTURES, "people.csv")], dragOperationsMask: 1 };
     await p.send("Input.dispatchDragEvent", { type: "dragEnter", x: 700, y: 500, data });
@@ -594,7 +594,7 @@ const suites = {
     await p.goto("editor");
     const report = [];
     for (const theme of ["light", "dark"]) {
-      for (const section of ["editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
+      for (const section of ["today", "editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
         await p.eval(`chrome.storage.local.set({ lastSection: "${section}", theme: "${theme}" })`);
         await p.send("Page.reload", {});
         await sleep(1500);

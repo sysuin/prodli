@@ -74,8 +74,8 @@ export function Avatar({ account, size = 28 }: { account: Profile; size?: number
   );
 }
 
-/** Top-bar account button: shows the avatar when signed in. */
-export function AccountButton({ onClick }: { onClick: () => void }) {
+/** Sidebar / top-bar account button: shows the avatar (and name) when signed in. */
+export function AccountButton({ onClick, className = "side-btn" }: { onClick: () => void; className?: string }) {
   const [account, setAccount] = useState<Profile | null>(null);
   useEffect(() => {
     if (accountsEnabled()) {
@@ -88,11 +88,12 @@ export function AccountButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
+      className={className}
       title={account ? `Signed in as ${account.email}` : accountsEnabled() ? "Sign in to your ProdLi account" : "Sign in with Google to back up to Drive"}
       aria-label={account ? `Account: ${account.email}` : "Sign in"}
-      style={{ border: "none", borderLeft: "2px solid #222", background: "transparent", color: "#888", cursor: "pointer", padding: "0 12px", display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", flexShrink: 0 }}
     >
-      {account ? <Avatar account={account} size={26} /> : <span>👤 Sign in</span>}
+      <span className="side-icon">{account ? <Avatar account={account} size={24} /> : "👤"}</span>
+      <span className="side-label">{account ? account.name || account.email : "Sign in"}</span>
     </button>
   );
 }

@@ -48,7 +48,7 @@ function Card({ title, right, children, testId }: { title: string; right?: React
   );
 }
 
-export function TodaySection() {
+export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } = {}) {
   const today = dayKey();
   const { items: todos, setItems: setTodos } = useSyncedList<Todo>("todos");
   const { items: habits, setItems: setHabits } = useSyncedList<Habit>("habits");
@@ -64,6 +64,7 @@ export function TodaySection() {
   const [showWrap, setShowWrap] = useState(() => new Date().getHours() >= 17);
   const [focusDraft, setFocusDraft] = useState("");
   const [reflectionDraft, setReflectionDraft] = useState("");
+  const [askDraft, setAskDraft] = useState("");
   const autoTried = useRef(false);
 
   const record = days.find((d) => d.id === today);
@@ -235,6 +236,28 @@ export function TodaySection() {
             style={{ flex: 1, minWidth: 220, border: "none", borderBottom: "2px solid hsl(var(--foreground))", background: "transparent", color: "inherit", fontSize: 18, fontWeight: 800, padding: "4px 2px", fontFamily: "inherit", outline: "none" }}
           />
         </section>
+
+        {onAsk && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              onAsk(askDraft.trim() || undefined);
+              setAskDraft("");
+            }}
+            style={{ display: "flex", gap: 8 }}
+          >
+            <input
+              value={askDraft}
+              onChange={(e) => setAskDraft(e.target.value)}
+              placeholder="✨ Ask ProdLi — “What should I do next?”"
+              aria-label="Ask ProdLi about your day"
+              style={{ flex: 1, minWidth: 0, border: "var(--nb-border)", padding: "10px 12px", fontFamily: "inherit", fontSize: 14, background: "hsl(var(--card))", color: "inherit" }}
+            />
+            <button type="submit" style={{ ...btn(), background: "#A78BFA", color: "#000" }}>
+              Ask
+            </button>
+          </form>
+        )}
 
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 16, alignItems: "start" }}>
           <div style={{ display: "grid", gap: 16 }}>
@@ -475,7 +498,7 @@ function BriefView({ brief, onAddPriority, plannedTitles }: { brief: DailyBrief;
       )}
 
       {brief.tip && <p style={{ margin: "12px 0 0", fontSize: 13, opacity: 0.85 }}>💡 {brief.tip}</p>}
-      <div style={{ fontSize: 11, opacity: 0.55, marginTop: 8 }}>
+      <div style={{ fontSize: 11, opacity: 0.75, marginTop: 8 }}>
         {brief.source === "ai" ? "Written by ProdLi AI" : "Basic brief (no AI)"} · {new Date(brief.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </div>
     </div>

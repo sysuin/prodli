@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AI_MONTHLY_LIMIT } from "../src/ai";
 import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
+import { ASK_MONTHLY_LIMIT } from "../src/ask";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
 
@@ -9,7 +10,7 @@ let dispose: () => Promise<void>;
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
+  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM ask_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
 });
 
 const withKey = () => ({ ...base, ANTHROPIC_API_KEY: "sk-test" }) as Env;
@@ -31,7 +32,7 @@ describe("AI summaries", () => {
     expect(await res.json()).toMatchObject({ summary: { title: "Notes: Standup" }, usage: { used: 1, limit: AI_MONTHLY_LIMIT.free } });
     expect(calls.filter((c) => c.kind === "summarize")).toHaveLength(1);
     const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
-    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free } });
+    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free } });
   });
 
   it("stops at the monthly limit, and the allowance resets next month", async () => {
@@ -121,5 +122,36 @@ describe("daily brief", () => {
     expect((await app.request("/api/ai/brief", json({ ...day, focus: "x".repeat(50_000) }, auth), env)).status).toBe(413);
     expect((await app.request("/api/ai/brief", json(day, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
     expect((await app.request("/api/ai/brief", json(day, auth), base)).status).toBe(503);
+  });
+});
+
+describe("Ask ProdLi", () => {
+  const ask = (question: string, extra: Record<string, unknown> = {}) => ({ question, context: day, snippets: [{ kind: "note", title: "Ideas", text: "Launch blog post" }], history: [{ role: "user", text: "hi" }, { role: "assistant", text: "Hello!" }], ...extra });
+
+  it("answers with suggested actions, counted separately from briefs and summaries", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/ask", json(ask("What should I do first?"), auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ answer: "Start with Write release notes.", actions: [{ type: "plan_today", title: "Write release notes", details: "" }], usage: { used: 1, limit: ASK_MONTHLY_LIMIT.free } });
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ used: 0, briefs: { used: 0 }, asks: { used: 1 } });
+  });
+
+  it("refunds failures, enforces the limit and validates input", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/ask", json(ask("FAIL"), auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ asks: { used: 0 } });
+    expect((await app.request("/api/ai/ask", json(ask(""), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/ask", json(ask("q", { history: Array.from({ length: 20 }, () => ({ role: "user", text: "x" })) }), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/ask", json(ask("q", { snippets: [{ kind: "email", title: "x", text: "y" }] }), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/ask", json(ask("x".repeat(2000), { history: Array.from({ length: 10 }, () => ({ role: "user", text: "h".repeat(4000) })), snippets: Array.from({ length: 12 }, () => ({ kind: "note", title: "t".repeat(300), text: "y".repeat(3000) })) }), auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/ask", json(ask("q"), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    for (let i = 0; i < ASK_MONTHLY_LIMIT.free; i++) await app.request("/api/ai/ask", json(ask("q"), auth), env);
+    const over = await app.request("/api/ai/ask", json(ask("q"), auth), env);
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: "ask_quota_exceeded" });
   });
 });

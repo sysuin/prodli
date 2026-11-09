@@ -37,6 +37,7 @@ Both were checked line by line against the code on 9 November 2026. This page li
 | Request logs (IP, user agent, URL, status, time), never request bodies | Cloudflare Workers Logs | 7 days | `observability` in `wrangler.jsonc` |
 | Live-update ticket (random, single use) | Durable Object | 60 seconds | `src/userStore.ts` |
 | Daily briefs used per month (a count only) | D1 `brief_usage` | until account deletion | `src/brief.ts` |
+| Ask ProdLi questions used per month (a count only) | D1 `ask_usage` | until account deletion | `src/ask.ts` |
 | Today: each day's focus, reflection and the brief text | the user's Durable Object (`days` collection) | until deleted | `artifacts/prodli/src/sections/TodaySection.tsx` |
 
 **Never stored on ProdLi's servers:**
@@ -58,6 +59,11 @@ Both were checked line by line against the code on 9 November 2026. This page li
 - Builds without a ProdLi server (Drive sync) also request `drive.appdata`.
 - A device that used Drive sync before has its Drive copy merged once, using the permission it already granted.
 
+**Add to ProdLi (extension):**
+- The right-click menu uses the `contextMenus` permission, which shows no install warning.
+- It reads the page title, URL and selection only when the user clicks the menu, and saves them locally as a to-do or note.
+- The Quick add shortcut reads the active tab's title and URL.
+
 **Cookies:**
 - One strictly necessary cookie, `__Host-prodli_session` (HttpOnly, Secure, SameSite=Lax, up to 30 days), set only by app.prodli.com.
 - No analytics or advertising.
@@ -69,7 +75,7 @@ Both were checked line by line against the code on 9 November 2026. This page li
 |---|---|---|
 | Cloudflare, Inc. | hosting, D1, Durable Objects, R2, logs | everything above |
 | Google LLC | sign-in (Google Identity Services, `chrome.identity`) | Google profile, at sign-in |
-| Anthropic, PBC | AI summaries and daily briefs through ProdLi (Claude Haiku 5.5) | summaries: transcript, meeting name and date; briefs: open task titles, priorities, due dates and estimates, habit names and streaks, today's calendar event titles and times, recent meeting action items, yesterday's top sites and focus sessions, focus and reflection notes. Sent only when used. |
+| Anthropic, PBC | AI summaries and daily briefs through ProdLi (Claude Haiku 5.5) | summaries: transcript, meeting name and date; briefs: open task titles, priorities, due dates and estimates, habit names and streaks, today's calendar event titles and times, recent meeting action items, yesterday's top sites and focus sessions, focus and reflection notes; Ask ProdLi: the question, the last few chat messages, the same day context, and up to 8 short note or meeting excerpts matching the question (chosen on the device). Sent only when used. Chats aren't stored. |
 
 ## 5. Other places that must match the policy
 - **Google Cloud consent screen:**
