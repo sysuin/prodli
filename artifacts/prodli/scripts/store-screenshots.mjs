@@ -2,7 +2,7 @@
 // Generates Chrome Web Store screenshots (1280×800, the store's preferred size)
 // from the real built extension, filled with demo content.
 //
-//   pnpm run build:extension && node scripts/store-screenshots.mjs
+//   pnpm run build:extension:test && node scripts/store-screenshots.mjs
 //
 // Output: artifacts/prodli/store-assets/screenshot-<n>-<name>.png (the store accepts up to 5)
 

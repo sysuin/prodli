@@ -9,7 +9,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const here = path.dirname(fileURLToPath(import.meta.url));
-export const EXT = path.resolve(here, "../../dist-extension");
+// Tests run against their own build (see package.json "test:e2e") so they never
+// replace the dist-extension folder you may have loaded in Chrome.
+export const EXT = path.resolve(here, "../..", process.env.PRODLI_OUT_DIR || "dist-extension-test");
 export const FIXTURES = path.join(here, "fixtures");
 export const CHROME =
   process.env.CHROME_PATH ??
@@ -21,7 +23,7 @@ export const CHROME =
 export class Browser {
   constructor() {
     if (!CHROME) throw new Error("Chrome not found — set CHROME_PATH.");
-    if (!existsSync(path.join(EXT, "manifest.json"))) throw new Error("dist-extension missing — run pnpm build:extension first.");
+    if (!existsSync(path.join(EXT, "manifest.json"))) throw new Error(`${path.basename(EXT)} missing — run: PRODLI_OUT_DIR=${path.basename(EXT)} node scripts/build-extension.mjs`);
     this.profile = mkdtempSync(path.join(tmpdir(), "prodli-e2e-"));
     this.downloads = mkdtempSync(path.join(tmpdir(), "prodli-dl-"));
     this.proc = spawn(

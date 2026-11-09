@@ -27,8 +27,8 @@ jobs:
           # Optional: enables "Sign in with Google" in the built zip (see docs/GOOGLE-SIGN-IN.md)
           PRODLI_GOOGLE_CLIENT_ID: ${{ secrets.PRODLI_GOOGLE_CLIENT_ID }}
           PRODLI_EXTENSION_KEY: ${{ secrets.PRODLI_EXTENSION_KEY }}
-      - name: End-to-end tests (headless Chrome)
-        run: node artifacts/prodli/tests/e2e/run.mjs
+      - name: End-to-end tests (headless Chrome, separate test build without secrets)
+        run: pnpm test:e2e
         env:
           CHROME_PATH: /usr/bin/google-chrome
       - uses: actions/upload-artifact@v4
