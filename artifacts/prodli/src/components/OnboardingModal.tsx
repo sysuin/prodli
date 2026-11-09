@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 import { storageSet } from "../lib/storage";
+import { accountsEnabled } from "../lib/prodliAccount";
+
+const EXT = typeof chrome !== "undefined" && !!chrome.runtime?.id;
+const INTRO = accountsEnabled()
+  ? `Seven tools${EXT ? ", one new tab" : " in one place"}. Works without an account and offline — sign in with Google (👤 at the top) to keep everything in sync between the extension and app.prodli.com.`
+  : "Seven tools, one new tab. Everything stays on your device — no account needed (sign in with Google only if you want Drive backup).";
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -99,13 +105,13 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               background: "#FFD700", color: "#000", fontWeight: 900,
               fontSize: 13, padding: "2px 10px", letterSpacing: "0.02em",
             }}>ProdLi</span>
-            <span style={{ color: "#aaa", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>New Tab Extension</span>
+            <span style={{ color: "#aaa", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{EXT ? "New Tab Extension" : "Web app"}</span>
           </div>
           <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, lineHeight: 1.15, letterSpacing: "-0.01em" }}>
             Your productivity hub is ready.
           </div>
           <div style={{ color: "#888", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-            Seven tools, one new tab. Everything stays on your device — no account needed (sign in with Google only if you want Drive backup).
+            {INTRO}
           </div>
         </div>
 
