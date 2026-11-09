@@ -7,6 +7,7 @@ import { registerPomodoro } from "./lib/pomodoroBackground";
 import { registerDriveBackup } from "./lib/driveBackground";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { registerBackgroundSync } from "./lib/prodliSync";
+import { registerTodayReminder } from "./lib/todayBackground";
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
@@ -16,6 +17,8 @@ registerPomodoro();
 registerDriveBackup();
 // ProdLi account sync: every 15 minutes, even with no ProdLi tab open (open tabs sync live).
 if (accountsEnabled()) registerBackgroundSync();
+// Today: a daily "plan your day" reminder (Today → Settings).
+registerTodayReminder();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,

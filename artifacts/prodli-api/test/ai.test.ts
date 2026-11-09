@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AI_MONTHLY_LIMIT } from "../src/ai";
+import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
 
@@ -8,7 +9,7 @@ let dispose: () => Promise<void>;
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
+  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
 });
 
 const withKey = () => ({ ...base, ANTHROPIC_API_KEY: "sk-test" }) as Env;
@@ -30,7 +31,7 @@ describe("AI summaries", () => {
     expect(await res.json()).toMatchObject({ summary: { title: "Notes: Standup" }, usage: { used: 1, limit: AI_MONTHLY_LIMIT.free } });
     expect(calls.filter((c) => c.kind === "summarize")).toHaveLength(1);
     const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
-    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true });
+    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free } });
   });
 
   it("stops at the monthly limit, and the allowance resets next month", async () => {
@@ -72,5 +73,53 @@ describe("AI summaries", () => {
     expect((await app.request("/api/ai/summarize", json({ ...meeting, transcript: "x".repeat(700_000) }, auth), withKey())).status).toBe(413);
     expect((await app.request("/api/ai/summarize", json(meeting, auth), base)).status).toBe(503);
     expect(await (await app.request("/api/config", {}, base)).json()).toMatchObject({ ai: false });
+  });
+});
+
+const day = {
+  date: "2026-11-10",
+  weekday: "Tuesday",
+  now: "08:30",
+  workHours: { start: "09:00", end: "18:00" },
+  focus: "Ship the release",
+  tasks: [{ title: "Write release notes", priority: "high", planned: true, estimateMin: 60 }, { title: "Reply to Priya", overdue: true }],
+  habits: [{ name: "Drink water", doneToday: false, streak: 4 }],
+  events: [{ title: "Standup", start: "10:00", end: "10:15" }],
+};
+
+describe("daily brief", () => {
+  it("writes a brief with its own monthly allowance (separate from summaries)", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/brief", json(day, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ brief: { headline: "Your Tuesday", priorities: [{ title: "Write release notes" }, { title: "Reply to Priya" }] }, usage: { used: 1, limit: BRIEF_MONTHLY_LIMIT.free } });
+    expect(calls.filter((c) => c.kind === "brief")).toEqual([{ kind: "brief", clientId: "2026-11-10" }]);
+    const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
+    expect(usage).toMatchObject({ used: 0, briefs: { used: 1 } });
+  });
+
+  it("stops at the monthly limit and doesn't count failures", async () => {
+    const clock = { now: Date.UTC(2026, 10, 10) };
+    const { app } = makeApp(clock);
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/brief", json({ ...day, focus: "FAIL" }, auth), env)).status).toBe(502);
+    for (let i = 0; i < BRIEF_MONTHLY_LIMIT.free; i++) expect((await app.request("/api/ai/brief", json(day, auth), env)).status).toBe(200);
+    const over = await app.request("/api/ai/brief", json(day, auth), env);
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: "brief_quota_exceeded" });
+  });
+
+  it("validates the day it's given", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/brief", json({ ...day, date: "tomorrow" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/brief", json({ ...day, tasks: Array.from({ length: 200 }, () => ({ title: "x" })) }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/brief", json({ ...day, focus: "x".repeat(50_000) }, auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/brief", json(day, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    expect((await app.request("/api/ai/brief", json(day, auth), base)).status).toBe(503);
   });
 });

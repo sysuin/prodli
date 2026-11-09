@@ -206,7 +206,7 @@ export function TodoSection() {
     setPriority("none");
   };
 
-  const toggle = (id: string) => save(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggle = (id: string) => save(todos.map(t => t.id === id ? { ...t, completed: !t.completed, completedAt: t.completed ? undefined : new Date().toISOString() } : t));
   const del = (id: string) => save(todos.filter(t => t.id !== id));
   const edit = (id: string, title: string) => save(todos.map(t => t.id === id ? { ...t, title } : t));
   const clearCompleted = () => save(todos.filter(t => !t.completed));

@@ -8,6 +8,7 @@ import { BackupModal } from "./components/BackupModal";
 import { AccountButton, AccountModal } from "./components/AccountModal";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
+import { dayKey, getTodaySettings } from "./lib/today";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -17,6 +18,7 @@ import { startSync } from "./lib/prodliSync";
 // fallback): React 19 holds a shown fallback for at least ~300 ms, which made
 // every new tab wait that long even though the code loads in a few ms.
 const loadedModules: {
+  today?: typeof import("./sections/TodaySection");
   editor?: typeof import("./sections/EditorSection");
   todos?: typeof import("./sections/TodoSection");
   pomodoro?: typeof import("./sections/PomodoroSection");
@@ -34,6 +36,7 @@ function once<K extends keyof typeof loadedModules>(key: K, load: () => Promise<
     }));
 }
 const importers = {
+  today: once("today", () => import("./sections/TodaySection")),
   editor: once("editor", () => import("./sections/EditorSection")),
   todos: once("todos", () => import("./sections/TodoSection")),
   pomodoro: once("pomodoro", () => import("./sections/PomodoroSection")),
@@ -61,6 +64,7 @@ function rememberSectionHint(s: Section) {
   void (importers[(hint && hint in importers ? hint : "editor") as Section])();
 })();
 
+const TodaySection = lazy(() => importers.today().then(m => ({ default: m.TodaySection })));
 const EditorSection = lazy(() => importers.editor().then(m => ({ default: m.EditorSection })));
 const TodoSection = lazy(() => importers.todos().then(m => ({ default: m.TodoSection })));
 const PomodoroSection = lazy(() => importers.pomodoro().then(m => ({ default: m.PomodoroSection })));
@@ -70,6 +74,7 @@ const MeetingsSection = lazy(() => importers.meetings().then(m => ({ default: m.
 const FilesSection = lazy(() => importers.files().then(m => ({ default: m.FilesSection })));
 
 const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[] = [
+  { key: "today", label: "Today", emoji: "☀️", accent: "#F59E0B" },
   { key: "editor", label: "Editor", emoji: "✍️", accent: "#FFD700" },
   { key: "todos", label: "To-Dos", emoji: "✅", accent: "#00BCD4" },
   { key: "pomodoro", label: "Pomodoro", emoji: "🍅", accent: "#FF6B6B" },
@@ -111,7 +116,16 @@ export default function App() {
       storageGet<Section>("lastSection", "editor"),
       storageGet<string>("theme", "light"),
       storageGet<boolean>("hasSeenOnboarding", false),
-    ]).then(async ([s, theme, seenOnboarding]) => {
+      getTodaySettings(),
+      storageGet<string | null>("lastTodayOpen", null),
+    ]).then(async ([last, theme, seenOnboarding, todaySettings, lastTodayOpen]) => {
+      // Assistant mode: the first ProdLi tab of each day opens on Today.
+      let s = last;
+      const todayStr = dayKey();
+      if (lastTodayOpen !== todayStr) {
+        if (seenOnboarding && lastTodayOpen !== null && todaySettings.startOnToday) s = "today";
+        void storageSet("lastTodayOpen", todayStr);
+      }
       // Have the section's code ready before the first render (no fallback flash).
       await (importers[s] ?? importers.editor)().catch(() => {});
       setSection(s);
@@ -175,7 +189,7 @@ export default function App() {
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-        const map: Partial<Record<string, Section>> = { "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker", "6": "meetings", "7": "files" };
+        const map: Partial<Record<string, Section>> = { "0": "today", "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker", "6": "meetings", "7": "files" };
         if (map[e.key]) { e.preventDefault(); handleSectionChange(map[e.key]!); return; }
       }
 
@@ -202,6 +216,7 @@ export default function App() {
   const activeSection = SECTIONS.find(s => s.key === section)!;
 
   // Already-loaded sections render directly; others go through lazy/Suspense.
+  const Today = loadedModules.today?.TodaySection ?? TodaySection;
   const Editor = loadedModules.editor?.EditorSection ?? EditorSection;
   const Todos = loadedModules.todos?.TodoSection ?? TodoSection;
   const Pomodoro = loadedModules.pomodoro?.PomodoroSection ?? PomodoroSection;
@@ -384,6 +399,7 @@ export default function App() {
 
       <main id="main" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LoadingFallback />}>
+          {section === "today" && <Today />}
           {section === "editor" && <Editor />}
           {section === "todos" && <Todos />}
           {section === "pomodoro" && <Pomodoro {...pomodoroTimer} />}

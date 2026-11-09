@@ -28,6 +28,7 @@ import {
   type Client,
 } from "./accounts";
 import { GoogleAuthError, verifyExtensionAccessToken, verifyWebIdToken, type GoogleIdentity } from "./google";
+import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
@@ -59,10 +60,11 @@ export interface Deps {
   verifyExtension: (accessToken: string, clientId: string) => Promise<GoogleIdentity>;
   verifyWeb: (idToken: string, clientId: string) => Promise<GoogleIdentity>;
   summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
+  brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -133,7 +135,7 @@ export function createApp(deps: Deps = realDeps) {
   const smallBody = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
   const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
   const aiBody = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
-  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/summarize" ? aiBody(c, next) : smallBody(c, next)));
+  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/summarize" || c.req.path === "/api/ai/brief" ? aiBody(c, next) : smallBody(c, next)));
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
@@ -327,9 +329,46 @@ export function createApp(deps: Deps = realDeps) {
   // ── AI summaries ───────────────────────────────────────────────────────────
   const aiLimit = (plan: string) => AI_MONTHLY_LIMIT[plan as keyof typeof AI_MONTHLY_LIMIT] ?? AI_MONTHLY_LIMIT.free;
 
+  const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
+
   app.get("/api/ai/usage", requireAuth, async (c) => {
     const auth = c.get("auth");
-    return c.json({ used: await aiUsage(c.env.DB, auth.user.id, deps.now()), limit: aiLimit(auth.user.plan), available: !!c.env.ANTHROPIC_API_KEY });
+    const now = deps.now();
+    return c.json({
+      used: await aiUsage(c.env.DB, auth.user.id, now),
+      limit: aiLimit(auth.user.plan),
+      available: !!c.env.ANTHROPIC_API_KEY,
+      briefs: { used: await aiUsage(c.env.DB, auth.user.id, now, "brief_usage"), limit: briefLimit(auth.user.plan) },
+    });
+  });
+
+  // POST <BriefContext> → { brief, usage }. The context is sent to Anthropic and not stored.
+  app.post("/api/ai/brief", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_BRIEF_CONTEXT_CHARS) return c.json({ error: "too_large" }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const ctx = BriefContextSchema.safeParse(parsed);
+    if (!ctx.success) return c.json({ error: "bad_request", message: "That day doesn't look right." }, 400);
+    const now = deps.now();
+    const limit = briefLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "brief_usage");
+    if (used === null) return c.json({ error: "brief_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const brief = await deps.brief(ctx.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ brief, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "brief_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
   });
 
   // POST { title, date: "YYYY-MM-DD", transcript } → { summary, usage }

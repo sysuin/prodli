@@ -11,7 +11,7 @@ beforeAll(async () => {
 });
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await env.DB.batch([env.DB.prepare("DELETE FROM ai_usage"), env.DB.prepare("DELETE FROM sessions"), env.DB.prepare("DELETE FROM users")]);
+  await env.DB.batch([env.DB.prepare("DELETE FROM ai_usage"), env.DB.prepare("DELETE FROM brief_usage"), env.DB.prepare("DELETE FROM sessions"), env.DB.prepare("DELETE FROM users")]);
 });
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0 Safari/537.36";

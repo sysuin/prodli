@@ -22,6 +22,12 @@ export interface Todo {
   priority?: "high" | "medium" | "low";
   dueDate?: string;
   subtasks?: Subtask[];
+  /** Day (YYYY-MM-DD) the user planned to do it — set from Today → Plan your day. */
+  plannedFor?: string;
+  /** Rough time estimate in minutes (Plan your day). */
+  estimateMin?: number;
+  /** When it was completed (ISO) — lets the evening review and tomorrow's brief see what got done. */
+  completedAt?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -37,7 +43,42 @@ export interface Habit {
   archived: boolean;
 }
 
-export type Section = "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
+/** One record per day (Today section): focus, the AI brief, the evening reflection. Synced. */
+export interface DayRecord {
+  id: string; // YYYY-MM-DD
+  focus?: string;
+  reflection?: string;
+  brief?: DailyBrief;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface DailyBrief {
+  headline: string;
+  summary: string;
+  priorities: { title: string; reason: string }[];
+  schedule: { start: string; end: string; title: string; kind: "meeting" | "focus" | "task" | "break" | "habit" }[];
+  watchouts: string[];
+  habits: string[];
+  tip: string;
+  model: string;
+  generatedAt: string;
+  /** "ai" from ProdLi's server, "basic" built on the device without AI. */
+  source?: "ai" | "basic";
+}
+
+export interface TodaySettings {
+  workStart: string; // HH:MM
+  workEnd: string;
+  /** Daily reminder time (extension notification), or null for none. */
+  reminder: string | null;
+  /** Open ProdLi on Today the first time each day. */
+  startOnToday: boolean;
+  /** Write the AI brief automatically the first time Today opens each day. */
+  autoBrief: boolean;
+}
+
+export type Section = "today" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
 
 export interface FocusRule {
   id: string;

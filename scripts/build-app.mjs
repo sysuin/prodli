@@ -105,7 +105,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https://*.googleusercontent.com",
-  "connect-src 'self' https://accounts.google.com/gsi/",
+  "connect-src 'self' https://accounts.google.com/gsi/ https://www.googleapis.com/calendar/",
   "frame-src https://accounts.google.com/gsi/",
   "worker-src 'self'",
   "object-src 'none'",

@@ -12,7 +12,7 @@
 // device adds its own part, so the server merges them (larger number per
 // site) instead of letting one device's copy replace another's.
 
-export const COLLECTIONS = ["notes", "todos", "habits", "meetings", "pomodoroSessions", "tracking", "stats"] as const;
+export const COLLECTIONS = ["notes", "todos", "habits", "meetings", "pomodoroSessions", "tracking", "stats", "days"] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 /** Merged by taking the larger number (per key), not replaced. */
 export const MERGED_COLLECTIONS: ReadonlySet<CollectionName> = new Set(["tracking", "stats"]);
