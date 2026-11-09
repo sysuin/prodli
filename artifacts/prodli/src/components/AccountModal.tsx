@@ -281,7 +281,7 @@ function ProdliAccountPanel() {
           </ul>
           <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
             By signing in you agree to the <a href="https://prodli.com/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Terms</a> and{" "}
-            <a href="https://prodli.com/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Privacy Policy</a>.
+            <a href="https://prodli.com/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Privacy Policy</a>, and confirm you’re 18 or older.
           </div>
         </div>
         {ext ? (

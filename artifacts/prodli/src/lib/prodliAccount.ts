@@ -9,7 +9,7 @@
 // The extension keeps a bearer token in chrome.storage.local. The web app never
 // sees its token: the server sets an HttpOnly cookie.
 
-import { getToken } from "./google";
+import { getToken, PROFILE_SCOPES } from "./google";
 import { onStorageChange, storageGet, storageRemove, storageSet } from "./storage";
 
 export const PRODLI_ACCOUNT_KEY = "prodliAccount";
@@ -117,7 +117,9 @@ export function onProdliAccountChange(cb: (user: ProdliUser | null) => void): ()
 
 /** Extension: Google (chrome.identity) → ProdLi session. */
 export async function signInFromExtension(interactive = true): Promise<ProdliUser> {
-  const accessToken = await getToken(interactive);
+  // Profile only: ProdLi accounts don't need Google Drive (a device that used the
+  // old Drive sync already granted it, and its Drive copy is imported once).
+  const accessToken = await getToken(interactive, PROFILE_SCOPES);
   const r = await accountRequest<{ user: ProdliUser; token: string; session: { expiresAt: number } }>("/api/auth/google", {
     method: "POST",
     body: JSON.stringify({ kind: "extension", accessToken }),
