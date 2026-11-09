@@ -13,7 +13,10 @@ import { deleteMeeting, listMeetings, putMeeting } from "../recorder/db";
 import type { Meeting } from "../recorder/types";
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
-export const SCOPES = ["openid", "email", "profile", DRIVE_SCOPE];
+/** Just who you are — all a ProdLi account needs. */
+export const PROFILE_SCOPES = ["openid", "email", "profile"];
+/** Google Drive sync (builds without a ProdLi server) also needs ProdLi's private Drive folder. */
+export const SCOPES = [...PROFILE_SCOPES, DRIVE_SCOPE];
 export const ACCOUNT_KEY = "googleAccount";
 export const AUTO_BACKUP_KEY = "driveAutoBackup";
 export const LAST_BACKUP_KEY = "driveLastBackup";
@@ -55,10 +58,10 @@ function friendlyAuthError(message: string): string {
   return message || "Google sign-in failed.";
 }
 
-export async function getToken(interactive: boolean): Promise<string> {
+export async function getToken(interactive: boolean, scopes: string[] = SCOPES): Promise<string> {
   if (!googleConfigured()) throw new GoogleError("Google sign-in isn't set up in this build.");
   try {
-    const result = (await chrome.identity.getAuthToken({ interactive, scopes: SCOPES })) as { token?: string } | string | undefined;
+    const result = (await chrome.identity.getAuthToken({ interactive, scopes })) as { token?: string } | string | undefined;
     const token = typeof result === "string" ? result : result?.token;
     if (!token) throw new Error("No token");
     return token;

@@ -49,11 +49,23 @@ jobs:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: echo "present=$([ -n "$TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+      # The privacy policy and terms have [placeholders] (operator name, address,
+      # grievance officer, court city) until they're legally reviewed. Don't
+      # publish the website while any remain; everything else still deploys.
+      - name: Check the legal pages are ready to publish
+        id: legal
+        run: |
+          if grep -nE '\[(legal name|postal address|name|city)[^]]*\]' artifacts/prodli-site/src/pages/Privacy.tsx; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Website not deployed: fill in the [placeholders] in the privacy policy / terms first (docs/legal/REVIEW-NOTES.md)."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build website
         if: github.event.inputs.target != 'production-api'
         run: pnpm run build:web
       - name: Deploy website (prodli.com)
-        if: steps.creds.outputs.present == 'true' && github.event.inputs.target != 'production-api'
+        if: steps.creds.outputs.present == 'true' && steps.legal.outputs.ready == 'true' && github.event.inputs.target != 'production-api'
         working-directory: artifacts/prodli-api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

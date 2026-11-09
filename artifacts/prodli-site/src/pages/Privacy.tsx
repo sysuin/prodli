@@ -1,98 +1,145 @@
 import { Link } from "wouter";
 
 /*
- * DRAFT for review before launch (see docs/LAUNCH-CHECKLIST.md). Have a lawyer
- * check it against India's DPDP Act 2023 and the GDPR before publishing the
- * Google consent screen. It describes ProdLi as built: local-first app,
- * optional ProdLi account (Google sign-in), sync on Cloudflare, optional AI
- * summaries through Anthropic.
+ * DRAFT for legal review (see docs/legal/REVIEW-NOTES.md). Every factual
+ * statement here was checked against the code on 2026-11-09; if the product
+ * changes, update this text and the review notes together. Items in
+ * [square brackets] must be filled in before publishing.
  */
+export const LAST_UPDATED = "9 November 2026";
+
 export const PRIVACY_SECTIONS: { title: string; body: string }[] = [
   {
-    title: "Overview",
-    body: `ProdLi is a productivity workspace — notes, to-dos, habits, Pomodoro, meeting notes, a time tracker and a file viewer — available as a Chrome extension and as a web app at app.prodli.com. It works without an account: your data is then stored only on your device. If you create a free ProdLi account, your data is also stored on ProdLi's servers so it stays the same on every device you use.
-
-We don't sell your data, use it for advertising, or let anyone else use it for their own purposes. This policy explains what we store, why, where, and the choices you have.`,
+    title: "Summary",
+    body: `• ProdLi works without an account. Without one, your data stays in your browser on your device.
+• With a free ProdLi account (Google sign-in), we also store your data on our servers so it's the same on every device.
+• We use your data only to provide ProdLi. We don't sell it, use it for advertising, or let others use it for their own purposes.
+• You can download or delete everything at any time from the account window.`,
   },
   {
     title: "Who we are",
-    body: `ProdLi ("we", "us") is the data controller for personal data processed through the ProdLi account and sync service. Contact: contact@prodli.com.`,
+    body: `ProdLi is operated by [legal name of the person or company], [postal address] ("ProdLi", "we", "us"). We are responsible for (the "controller" of) the personal data described in this policy. Contact: contact@prodli.com.
+
+Grievance officer (India): [name], contact@prodli.com.`,
   },
   {
-    title: "Data on your device",
-    body: `Whether or not you have an account, ProdLi stores your data in your browser (chrome.storage, localStorage and IndexedDB):
-• Notes, to-dos (with priorities, due dates and subtasks), habits and check-ins
+    title: "What this policy covers",
+    body: `The ProdLi Chrome extension, the web app at app.prodli.com, the website prodli.com, and the ProdLi account and sync service.`,
+  },
+  {
+    title: "Data stored only on your device",
+    body: `ProdLi stores your workspace in your browser (extension storage, localStorage and IndexedDB):
+• notes, to-dos (priorities, due dates, subtasks), habits and check-ins
 • Pomodoro settings, timer and completed sessions
-• Time Tracker: the hostname (e.g. "github.com") of the active tab and seconds per day — never full URLs, page titles or page content
-• Meetings (if you use the recorder): transcripts, summaries and optional audio recordings
-• Settings such as theme and fonts, and your own Claude API key if you add one`,
+• Time Tracker (extension): the hostname of the website in your active tab (for example "github.com") and the seconds spent per day. Never full web addresses, page titles or page content.
+• Meetings (extension, only if you use the recorder): transcripts, summaries and optional audio recordings
+• settings such as theme and fonts, and your own Claude API key if you add one
+
+Without an account, none of this is sent to ProdLi. Uninstalling the extension or clearing the website's data deletes it.`,
   },
   {
     title: "Your ProdLi account (optional)",
-    body: `When you sign in with Google, we receive your Google account ID, name, email address and profile picture, and we store them with your plan (Free or Pro) and when you joined. For each signed-in device we store a session (a random token kept only as a one-way hash), the kind of device ("Extension" or "Web"), the browser and operating system name, and when it was last used. We use this to keep you signed in, show you your devices and protect your account.
+    body: `When you sign in with Google we receive your Google account ID, name, email address and profile picture. We ask Google only for basic profile information (openid, email and profile). We store this with your plan (Free or Pro) and when you created and last used your account.
 
-We ask Google only for basic profile information (openid, email, profile). The extension may also ask for access to ProdLi's private app-data folder in your Google Drive, used only to bring in a backup made with ProdLi's older Drive sync.`,
+For each signed-in device we keep a session: a random sign-in token (we store only a one-way hash of it), whether it's the extension or the web app, the browser and operating system name (for example "Chrome on macOS"), and when it was created and last used. Sessions end after 180 days (extension) or 30 days (web app) without use, or when you sign out. We use this to keep you signed in, show your signed-in devices and protect your account.`,
   },
   {
-    title: "Sync",
-    body: `With an account, these are stored on ProdLi's servers and kept in sync across your devices: notes, to-dos, habits, meeting transcripts and summaries (text only — never audio), Pomodoro history, and Time Tracker history (hostnames and seconds per day). Each account's data is kept in its own separate database. Settings and your Claude API key are never uploaded.
+    title: "Sync: data stored on our servers",
+    body: `With an account, the following are stored on our servers and kept the same on all your devices:
+• notes, to-dos and habits
+• meetings: titles, transcripts and summaries (text only; audio recordings are never uploaded)
+• Pomodoro history and your completed-session count
+• Time Tracker history (hostnames and seconds per day)
+Settings and your Claude API key are never uploaded. Each account's data is kept in its own separate database.
 
-You can stop uploading meetings recorded on a computer (account window → Sync). Meeting transcripts contain what other participants said: you are responsible for telling participants that you take notes and for getting consent where the law requires it.`,
+You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it.
+
+If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged into your account once, the first time you sign in, and Drive sync then turns off.`,
   },
   {
-    title: "AI meeting summaries",
-    body: `There are two ways to summarize a meeting:
-• Through your ProdLi account (free monthly allowance): the transcript, meeting name and date are sent from ProdLi's servers to Anthropic's Claude API to write the summary. ProdLi doesn't keep a separate copy of what was sent; the resulting summary is saved with the meeting. We count how many summaries you use each month.
-• With your own Claude API key (extension only): your browser sends the transcript directly to Anthropic with your key. ProdLi never sees the key or the request.
-Anthropic processes this data under its commercial API terms, which by default don't allow it to be used to train models.`,
+    title: "AI meeting summaries (optional)",
+    body: `You can ask ProdLi to summarize a meeting in two ways:
+• Through your ProdLi account (a free monthly allowance). Our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting. We don't keep a separate copy of what was sent. We count how many summaries you use each month.
+• With your own Claude API key (extension only). Your browser sends the transcript directly to Anthropic with your key. ProdLi never receives the key, the transcript or the summary.
+Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
   },
   {
-    title: "Where data is stored and who processes it",
-    body: `• Cloudflare (hosting, databases, backups) — data is encrypted in transit and at rest, and may be processed in Cloudflare's global network, including outside your country
-• Google (sign-in)
-• Anthropic (AI summaries, only when you ask for one through your account)
-We share data with these providers only to run ProdLi, under contracts that restrict their use of it. We don't share it with anyone else unless the law requires us to.`,
+    title: "Technical data and logs",
+    body: `Like any online service, our hosting provider processes technical information about each request: IP address, browser type, the address requested, time and response status. We use it to deliver ProdLi, keep it secure and prevent abuse (for example, limiting sign-in attempts per IP address). Request logs are kept for up to 7 days. They never contain the content of your notes, tasks or meetings.`,
+  },
+  {
+    title: "Cookies and similar technologies",
+    body: `The web app sets one cookie: a strictly necessary sign-in cookie that scripts can't read. It lasts up to 30 days and is removed when you sign out. ProdLi also uses your browser's storage to keep your data on your device and to work offline.
+
+ProdLi doesn't use advertising or analytics cookies. When you use the web app, Google's sign-in service and Google Fonts are loaded from Google, which receives your IP address and may set its own cookies under Google's privacy policy. The extension bundles its own fonts.`,
+  },
+  {
+    title: "Why we use your data (legal bases)",
+    body: `• To provide ProdLi: your account, sync, backups and summaries you ask for. This is necessary to perform our contract with you.
+• To keep ProdLi secure, prevent abuse, fix problems and enforce limits. This is our legitimate interest in running a safe service.
+• To upload meeting transcripts and create AI summaries: your choice to use these features. You can stop at any time.
+• To comply with the law where required.
+Under India's Digital Personal Data Protection Act, 2023, we process your personal data on the basis of the consent you give when you sign in, and for the purposes described here.`,
+  },
+  {
+    title: "Who processes data for us",
+    body: `• Cloudflare, Inc.: hosting, databases, sync, backups and request logs
+• Google LLC: sign-in
+• Anthropic, PBC: AI summaries, only when you request one through your account
+These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
+  },
+  {
+    title: "International transfers",
+    body: `Our providers operate worldwide, so your data may be stored or processed outside your country, including in the United States and the European Union. Where the law requires it (for example, for transfers out of the EU or UK), these transfers are covered by safeguards such as the European Commission's standard contractual clauses in our providers' data processing terms.`,
+  },
+  {
+    title: "How long we keep data",
+    body: `• Synced data and your account: until you delete them.
+• Request logs: up to 7 days.
+• Backups: we back up synced data nightly. Each copy is deleted automatically after 30 days. Our hosting provider's automatic recovery points also expire within 30 days.
+• "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
+• Signing out keeps your data on that device. Data stored only in your browser stays until you delete it.`,
   },
   {
     title: "Security",
-    body: `Connections use HTTPS. Sessions are random tokens stored only as hashes; the web app's session cookie can't be read by scripts. Each account's synced data is in its own database that only that account's sessions can reach. ProdLi staff have no tool for browsing users' data, and our logs don't contain note or meeting content.`,
+    body: `• All connections use HTTPS, and our provider encrypts stored data.
+• Sign-in tokens are stored only as one-way hashes, and the web app's sign-in cookie can't be read by scripts.
+• Each account's synced data is in its own database that only that account's sessions can reach.
+• Access to our systems is limited to the people who operate ProdLi and is protected by two-factor authentication.
+• We have no tool for viewing users' data, and our logs don't contain your content.
+• If a personal data breach affects you, we'll tell you and the relevant authorities as the law requires.`,
   },
   {
-    title: "Retention and deletion",
-    body: `• Data on your device stays until you delete it or uninstall the extension / clear the site's data.
-• Signing out keeps the data on that device.
-• "Delete account" (account window) immediately deletes your account, sessions, AI usage counts and all synced data from our live systems. Encrypted backups that may contain it are deleted automatically within 30 days.`,
-  },
-  {
-    title: "Your rights",
-    body: `You can see and download all synced data at any time (account window → Download my data), correct it in the app, and delete it (Delete account). Depending on where you live (for example under India's Digital Personal Data Protection Act 2023 or the EU/UK GDPR) you may also have rights to object, restrict processing, data portability, withdraw consent, nominate someone to exercise your rights, and complain to a data protection authority. Contact contact@prodli.com to exercise any of them; we reply within 30 days.
+    title: "Your rights and choices",
+    body: `• Access and portability: download everything synced at any time (account window → Download my data).
+• Correction: edit your content in the app. Your name, email and picture come from your Google account.
+• Deletion: delete your account and synced data at any time (account window → Delete account).
+• Withdrawing consent: sign out, turn off meeting uploads, or stop using AI summaries.
 
-Legal bases (GDPR): providing the service you signed up for (contract); keeping it secure and preventing abuse (legitimate interests); AI summaries and meeting uploads (your request / consent, which you can withdraw).`,
+Depending on where you live (for example under the EU/UK GDPR or India's DPDP Act), you may also have the right to object to or restrict processing, to nominate someone to exercise your rights, and to complain to your data protection authority (in India, the Data Protection Board). Contact contact@prodli.com; we'll reply within 30 days.`,
   },
   {
     title: "Browser permissions (extension)",
-    body: `• storage, unlimitedStorage — save your data on your device
-• tabs, idle, alarms, notifications — time tracking, Pomodoro, reminders and background sync
-• identity — Google sign-in
-• Optional, requested only when you turn a feature on: tabCapture, offscreen and access to meet.google.com (meeting recorder); scripting and access to sites (Focus List auto-redirect).`,
+    body: `• storage, unlimitedStorage: save your data on your device
+• tabs, idle, alarms, notifications: Time Tracker, Pomodoro, reminders and background sync
+• identity: Google sign-in
+• Requested only when you turn a feature on: tabCapture, offscreen and meet.google.com (meeting recorder); scripting and access to websites (Focus List auto-redirect). You can remove them at any time in Chrome's extension settings.`,
   },
   {
-    title: "No ads, analytics or tracking",
-    body: `ProdLi doesn't use advertising, analytics or third-party tracking SDKs. The web app loads Google's sign-in script and fonts from Google; the extension bundles its code and fonts.
-
-ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.`,
+    title: "Google API data",
+    body: `ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We use your Google profile information only to sign you in and show your account, and we don't transfer it to others except our service providers as described above.`,
   },
   {
     title: "Children",
-    body: `ProdLi isn't directed at children under 13 (or under 18 where the law requires parental consent, as in India), and we don't knowingly collect their personal data. If you believe a child has created an account, contact us and we'll delete it.`,
+    body: `ProdLi accounts are for people aged 18 or over. We don't knowingly collect personal data from children. If you believe a child has created an account, contact us and we'll delete it.`,
   },
   {
-    title: "Changes",
-    body: `If we change this policy we'll update the date above, and for significant changes we'll tell signed-in users in the app or by email before the change takes effect.`,
+    title: "Changes to this policy",
+    body: `We'll update the date at the top when this policy changes. For significant changes, we'll tell signed-in users in the app or by email before the changes take effect.`,
   },
   {
     title: "Contact",
-    body: `Questions or requests: contact@prodli.com.`,
+    body: `Questions, requests or complaints: contact@prodli.com.`,
   },
 ];
 
@@ -100,44 +147,64 @@ const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknf
 
 export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
-    title: "The service",
-    body: `ProdLi provides a productivity workspace as a Chrome extension and a web app, with an optional free account that syncs your data between devices and optional AI meeting summaries. By using ProdLi you agree to these terms and to the Privacy Policy.`,
+    title: "Agreement",
+    body: `These terms are an agreement between you and [legal name] ("ProdLi", "we", "us") for your use of the ProdLi Chrome extension, the web app at app.prodli.com and the ProdLi account and sync service ("ProdLi"). By using ProdLi you accept these terms. Our Privacy Policy explains how we handle personal data.`,
+  },
+  {
+    title: "Using ProdLi",
+    body: `You can use ProdLi without an account. Your data then stays in your browser. A free account, created by signing in with Google, adds sync between your devices, backups and AI meeting summaries. You must be at least 18 to create an account.`,
   },
   {
     title: "Your account",
-    body: `You sign in with a Google account and must be old enough to agree to these terms where you live. Keep your devices secure; you're responsible for activity on your account. You can sign out of any device and delete your account at any time from the account window.`,
+    body: `Keep your Google account and devices secure. You're responsible for what happens in your ProdLi account. You can sign out any device, or delete your account, at any time from the account window. Tell us at contact@prodli.com if you think someone else has used your account.`,
   },
   {
     title: "Your content",
-    body: `Your notes, tasks, meetings and other content belong to you. You give ProdLi only the permission needed to store, sync, back up and (when you ask) summarize it for you. You're responsible for your content and for having the right to record and process meetings — including telling participants and getting consent where the law requires it.`,
+    body: `Your notes, tasks, meetings and other content belong to you. You give us permission to store, copy, sync, back up and process your content only as needed to provide ProdLi to you. This includes sending meeting transcripts to our AI provider when you ask for a summary. This permission ends when you delete the content or your account, except for backup copies that expire as described in the Privacy Policy.
+
+You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it.`,
   },
   {
     title: "Acceptable use",
-    body: `Don't use ProdLi to break the law, infringe others' rights, store malware, or attack, overload or try to get around the limits or security of the service, and don't access other people's accounts.`,
+    body: `Don't use ProdLi to break the law or to infringe other people's rights. Don't upload malware. Don't try to access other people's accounts or data, or to disrupt, overload or get around the security or limits of ProdLi. Don't use AI summaries in ways that break Anthropic's Usage Policy.`,
   },
   {
     title: "Free plan and limits",
-    body: `The free plan includes fair limits — currently 100 MB of synced data and 20 AI summaries per month — which we may change with notice. A paid plan may be offered later; its price and terms will be shown before you buy.`,
+    body: `The free plan currently includes 100 MB of synced data and 20 AI summaries per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
   },
   {
     title: "AI summaries",
-    body: `Summaries are generated by Anthropic's Claude models and can be incomplete or wrong. Check important details against the transcript before relying on them.`,
+    body: `Summaries are generated automatically by Anthropic's Claude models. They can be incomplete or wrong. Check important details against the transcript before you rely on them.`,
   },
   {
-    title: "Availability and changes",
-    body: `We work to keep ProdLi available and your data safe, with backups, but the service is provided "as is" without guarantees of uninterrupted availability. Keep your own copies of important data (Download my data, or Backup in the app). We may change or discontinue features; if we shut down the sync service we'll give at least 30 days' notice so you can export your data.`,
+    title: "Our software",
+    body: `ProdLi's software, design and name belong to us. We give you a personal, non-exclusive, non-transferable licence to use ProdLi under these terms. If you send us feedback, we may use it without obligation to you.`,
   },
   {
-    title: "Liability",
-    body: `To the extent the law allows, ProdLi isn't liable for indirect or consequential losses, or for loss of data beyond restoring from our backups where possible. Nothing in these terms limits rights you have under consumer protection laws that can't be excluded.`,
+    title: "Availability, changes and backups",
+    body: `We work to keep ProdLi available and your data safe, including with nightly backups. But ProdLi is provided "as is", without a guarantee that it will always be available or error-free. Keep your own copies of important data (account window → Download my data, or 💾 Backup in the app).
+
+We may change or remove features. If we decide to shut down the sync service, we'll give you at least 30 days' notice so you can download your data.`,
   },
   {
     title: "Ending",
-    body: `You can stop using ProdLi and delete your account at any time. We may suspend accounts that break these terms, telling you why unless the law prevents it.`,
+    body: `You can stop using ProdLi and delete your account at any time. We may suspend or close an account that seriously or repeatedly breaks these terms, or where the law requires it. Unless the law prevents it, we'll tell you why and give you a chance to download your data.`,
   },
   {
-    title: "Law and contact",
-    body: `These terms are governed by the laws of India, without affecting mandatory protections where you live. Questions: contact@prodli.com.`,
+    title: "Liability",
+    body: `To the extent the law allows, we aren't liable for indirect or consequential losses, or for loss of data beyond restoring it from our backups where possible. Our total liability to you for any claim is limited to the amount you paid us in the 12 months before the claim (or ₹1,000 / US$15 if you use the free plan). Nothing in these terms limits liability that the law doesn't allow us to limit, or your rights as a consumer.`,
+  },
+  {
+    title: "Changes to these terms",
+    body: `We may update these terms. For significant changes, we'll tell signed-in users in the app or by email at least 15 days before the changes take effect. If you keep using ProdLi after that, the new terms apply. If you don't agree, you can delete your account.`,
+  },
+  {
+    title: "Law and disputes",
+    body: `These terms are governed by the laws of India, and the courts of [city], India, have jurisdiction. This doesn't take away any mandatory consumer protection you have under the law of the country where you live, including the right to bring claims in your local courts.`,
+  },
+  {
+    title: "Contact",
+    body: `contact@prodli.com`,
   },
 ];
 
@@ -187,7 +254,7 @@ function LegalPage({ title, sections }: { title: string; sections: { title: stri
             {title}
           </h1>
           <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 40 }}>
-            Last updated: November 2026
+            Last updated: {LAST_UPDATED}
           </p>
 
           {sections.map((section, i) => (
