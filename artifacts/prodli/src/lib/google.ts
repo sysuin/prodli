@@ -49,7 +49,9 @@ export function googleConfigured(): boolean {
 function friendlyAuthError(message: string): string {
   if (/did not approve|canceled|cancelled|user.*(closed|denied)/i.test(message)) return "Sign-in was cancelled.";
   if (/not signed in|no.*account/i.test(message)) return "Sign in to Chrome with your Google account first, then try again.";
-  if (/bad client id|invalid.*client|oauth2/i.test(message)) return "Google sign-in isn't set up correctly for this copy of ProdLi.";
+  // e.g. "OAuth2 not granted or revoked." — the user hasn't (or no longer) allowed ProdLi's permissions.
+  if (/not granted|revoked|consent/i.test(message)) return "ProdLi needs your permission to use its Google Drive folder. Click Sync now (or sign out and sign in again) and allow every permission.";
+  if (/bad client id|invalid.*client|redirect_uri|oauth2 client/i.test(message)) return `Google sign-in isn't set up correctly for this copy of ProdLi (${message}).`;
   return message || "Google sign-in failed.";
 }
 
@@ -126,9 +128,12 @@ interface DriveFile {
   size?: string;
 }
 
-export async function findBackupFile(): Promise<DriveFile | null> {
+// `interactive`: true when the user clicked something, so Chrome may show its
+// permission prompt (it shows nothing if access is already granted). Background
+// syncs stay non-interactive.
+export async function findBackupFile(interactive = false): Promise<DriveFile | null> {
   const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}' and trashed=false`);
-  const res = await authedFetch(`${DRIVE_FILES}?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime,size)&orderBy=modifiedTime desc&pageSize=1`);
+  const res = await authedFetch(`${DRIVE_FILES}?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime,size)&orderBy=modifiedTime desc&pageSize=1`, {}, interactive);
   const data = (await res.json()) as { files?: DriveFile[] };
   return data.files?.[0] ?? null;
 }
@@ -141,19 +146,19 @@ function multipartBody(metadata: object, content: string): { body: string; conte
   return { body, contentType: `multipart/related; boundary=${boundary}` };
 }
 
-async function uploadSnapshot(json: string): Promise<void> {
-  const existing = await findBackupFile();
+async function uploadSnapshot(json: string, interactive: boolean): Promise<void> {
+  const existing = await findBackupFile(interactive);
   const { body, contentType } = existing
     ? multipartBody({ mimeType: "application/json" }, json)
     : multipartBody({ name: BACKUP_FILE_NAME, parents: ["appDataFolder"], mimeType: "application/json" }, json);
   const url = existing ? `${DRIVE_UPLOAD}/${existing.id}?uploadType=multipart&fields=id,modifiedTime,size` : `${DRIVE_UPLOAD}?uploadType=multipart&fields=id,modifiedTime,size`;
-  await authedFetch(url, { method: existing ? "PATCH" : "POST", headers: { "Content-Type": contentType }, body });
+  await authedFetch(url, { method: existing ? "PATCH" : "POST", headers: { "Content-Type": contentType }, body }, interactive);
 }
 
-async function downloadSnapshot(): Promise<SyncSnapshot | null> {
-  const file = await findBackupFile();
+async function downloadSnapshot(interactive: boolean): Promise<SyncSnapshot | null> {
+  const file = await findBackupFile(interactive);
   if (!file) return null;
-  const res = await authedFetch(`${DRIVE_FILES}/${file.id}?alt=media`);
+  const res = await authedFetch(`${DRIVE_FILES}/${file.id}?alt=media`, {}, interactive);
   try {
     const parsed = (await res.json()) as SyncSnapshot;
     if (!parsed || typeof parsed !== "object" || !parsed.data || !["1.0", "1.1"].includes(parsed.version)) {
@@ -208,13 +213,13 @@ export interface SyncResult extends BackupInfo {
  * item by item with this device, save the result here, and upload it.
  * Safe to run from several devices; the newest edit of each item wins.
  */
-export async function syncWithDrive(auto = false): Promise<SyncResult> {
-  const remote = await downloadSnapshot();
+export async function syncWithDrive(auto = false, interactive = !auto): Promise<SyncResult> {
+  const remote = await downloadSnapshot(interactive);
   const local: SyncSnapshot = { ...(await buildBackup()), tombstones: await getTombstones() };
   const merged = mergeSnapshots(local, remote);
   const changes = remote ? await applyLocally(local, merged) : 0;
   const json = JSON.stringify(merged);
-  await uploadSnapshot(json);
+  await uploadSnapshot(json, interactive);
   const info: SyncResult = { at: new Date().toISOString(), bytes: new Blob([json]).size, auto, changes };
   await storageSet(LAST_BACKUP_KEY, info);
   return info;
@@ -230,9 +235,9 @@ export async function latestDriveBackup(): Promise<{ modifiedTime: string | null
 
 /** Replaces local data with the backup stored in Drive. */
 export async function restoreFromDrive(): Promise<ImportResult> {
-  const file = await findBackupFile();
+  const file = await findBackupFile(true);
   if (!file) return { ok: false, error: "No ProdLi backup found in your Google Drive yet." };
-  const res = await authedFetch(`${DRIVE_FILES}/${file.id}?alt=media`);
+  const res = await authedFetch(`${DRIVE_FILES}/${file.id}?alt=media`, {}, true);
   let parsed: unknown;
   try {
     parsed = await res.json();
