@@ -42,13 +42,30 @@ The approaches split into **automatic schedulers** (Motion, Reclaim) and **guide
 - **Allowance:** 62 AI briefs a month on Free (two a day), 200 on Pro. Separate from meeting summaries. Failed briefs aren't counted.
 - **Sync:** a new `days` collection (focus, reflection, brief). To-dos gain `plannedFor`, `estimateMin` and `completedAt`.
 
+## Built next: Ask ProdLi, Add to ProdLi, new layout
+
+- **Ask ProdLi** (`/api/ai/ask`; 100 questions a month on Free, 1,000 on Pro):
+  - **Where:** a chat panel that opens from the sidebar, the phone tab bar, the command palette ("Ask ProdLi: …") or the box on Today.
+  - **What it reads:** the same day information as the brief, plus up to 8 note and meeting excerpts that match the question, chosen on the device (`pickSnippets`).
+  - **Actions:** answers can suggest them (add a to-do, plan for today, save a note), and they apply only when clicked.
+  - **Privacy:** the chat isn't stored or synced.
+- **Add to ProdLi:**
+  - **Right-click menu** on any page, link or selection: "Add to ProdLi to-dos" or "Save to ProdLi notes", with the source link.
+  - **Quick add window:** Alt+Shift+A.
+  - **Phones:** "Share → ProdLi" (web app share target) and app shortcuts (Today, Quick add).
+  - **Command palette:** type anything, then "Add to-do".
+- **Layout:**
+  - **Section list:** one list (`src/sections/registry.ts`) drives the sidebar, phone tabs, palette and shortcuts. A new section is one entry plus its component.
+  - **Desktop sidebar:** grouped Plan / Create / Focus, with Ask ProdLi, Search ⌘K, Quick add, account, backup, help, theme and clock. You can collapse it to icons, and it does so automatically on narrower windows.
+  - **Phones:** a slim top bar and bottom tabs (Today, Notes, To-Dos, Ask, More). More lists every section and setting.
+  - **Command palette (Ctrl/⌘+K):** go anywhere, run any action, add a to-do or ask ProdLi.
+  - **Naming:** "Editor" is now "Notes".
+
 ## Next (proposed)
 
-1. **Ask ProdLi:** a chat box on Today ("what should I do next?", "summarize this week's meetings") that answers from the user's data.
-2. **Weekly review:** a Friday summary of what got done, habits, focus time, and next week's priorities.
-3. **Time-blocking on the calendar:** write the suggested focus blocks to Google Calendar (needs write access, so ask first).
-4. **Email in the brief:** important unread Gmail. This uses a restricted scope that needs Google's security assessment, so it's later, and only if users ask for it.
-5. **Capture from anywhere:** right-click "Add to ProdLi" on any page or selection, and a quick-add keyboard shortcut.
+1. **Weekly review:** a Friday summary of what got done, habits, focus time, and next week's priorities.
+2. **Time-blocking on the calendar:** write the suggested focus blocks to Google Calendar (needs write access, so ask first).
+3. **Email in the brief:** important unread Gmail. This uses a restricted scope that needs Google's security assessment, so it's later, and only if users ask for it.
 
 ## Needs you
 - **Google Cloud console:**

@@ -9,6 +9,11 @@ import { AccountButton, AccountModal } from "./components/AccountModal";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
 import { dayKey, getTodaySettings } from "./lib/today";
+import { GROUPS, MOBILE_TABS, SECTIONS, sectionByKey, sectionByShortcut } from "./sections/registry";
+import { CommandPalette } from "./components/CommandPalette";
+import { AskPanel } from "./components/AskPanel";
+import { QuickAddModal } from "./components/QuickAdd";
+import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -73,16 +78,7 @@ const TimeTrackerSection = lazy(() => importers.tracker().then(m => ({ default: 
 const MeetingsSection = lazy(() => importers.meetings().then(m => ({ default: m.MeetingsSection })));
 const FilesSection = lazy(() => importers.files().then(m => ({ default: m.FilesSection })));
 
-const SECTIONS: { key: Section; label: string; emoji: string; accent: string }[] = [
-  { key: "today", label: "Today", emoji: "☀️", accent: "#F59E0B" },
-  { key: "editor", label: "Editor", emoji: "✍️", accent: "#FFD700" },
-  { key: "todos", label: "To-Dos", emoji: "✅", accent: "#00BCD4" },
-  { key: "pomodoro", label: "Pomodoro", emoji: "🍅", accent: "#FF6B6B" },
-  { key: "habits", label: "Habits", emoji: "🎯", accent: "#66BB6A" },
-  { key: "tracker", label: "Tracker", emoji: "⏱", accent: "#A78BFA" },
-  { key: "meetings", label: "Meetings", emoji: "🎙️", accent: "#FF4FA3" },
-  { key: "files", label: "Files", emoji: "📄", accent: "#FF9800" },
-];
+
 
 function LoadingFallback() {
   return (
@@ -105,6 +101,41 @@ export default function App() {
   const [draggingFile, setDraggingFile] = useState(false);
   const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
   const closeAccount = useCallback(() => setShowAccount(false), []);
+  const [showPalette, setShowPalette] = useState(false);
+  const [ask, setAsk] = useState<{ open: boolean; question?: string }>({ open: false });
+  const [quickAdd, setQuickAdd] = useState<{ open: boolean; initial?: CaptureInput }>({ open: false });
+  const [showMore, setShowMore] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("prodli_sidebar_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const closeAsk = useCallback(() => setAsk({ open: false }), []);
+  const closeQuickAdd = useCallback(() => setQuickAdd({ open: false }), []);
+  const flash = useCallback((m: string) => {
+    setToast(m);
+    setTimeout(() => setToast(null), 2600);
+  }, []);
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem("prodli_sidebar_collapsed", c ? "0" : "1");
+      } catch {
+        // ignore
+      }
+      return !c;
+    });
+
+  // Shared from another app (phone share sheet → web app share target).
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const shared = captureFromUrl(location.search);
+    if (shared || params.has("quickadd")) setQuickAdd({ open: true, initial: shared ?? undefined });
+    if (shared || params.has("quickadd")) history.replaceState(null, "", location.pathname);
+  }, []);
 
   const pomodoroTimer = usePomodoroTimer();
 
@@ -121,10 +152,16 @@ export default function App() {
     ]).then(async ([last, theme, seenOnboarding, todaySettings, lastTodayOpen]) => {
       // Assistant mode: the first ProdLi tab of each day opens on Today.
       let s = last;
+      // App shortcut / link: ?section=today
+      const urlSection = new URLSearchParams(location.search).get("section");
       const todayStr = dayKey();
       if (lastTodayOpen !== todayStr) {
         if (seenOnboarding && lastTodayOpen !== null && todaySettings.startOnToday) s = "today";
         void storageSet("lastTodayOpen", todayStr);
+      }
+      if (urlSection && urlSection in importers) {
+        s = urlSection as Section;
+        history.replaceState(null, "", location.pathname);
       }
       // Have the section's code ready before the first render (no fallback flash).
       await (importers[s] ?? importers.editor)().catch(() => {});
@@ -189,8 +226,10 @@ export default function App() {
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-        const map: Partial<Record<string, Section>> = { "0": "today", "1": "editor", "2": "todos", "3": "pomodoro", "4": "habits", "5": "tracker", "6": "meetings", "7": "files" };
-        if (map[e.key]) { e.preventDefault(); handleSectionChange(map[e.key]!); return; }
+        // Ctrl/⌘+K: command palette (inside a note it stays the editor's link shortcut).
+        if (e.key.toLowerCase() === "k" && !target.closest?.(".ProseMirror")) { e.preventDefault(); setShowPalette(true); return; }
+        const s = sectionByShortcut(e.key);
+        if (s) { e.preventDefault(); handleSectionChange(s.key); return; }
       }
 
       if (e.key === " " && !e.ctrlKey && !e.metaKey && !isTyping && section === "pomodoro" && !showHelp) {
@@ -213,7 +252,7 @@ export default function App() {
     await storageSet("theme", next ? "dark" : "light");
   };
 
-  const activeSection = SECTIONS.find(s => s.key === section)!;
+  const activeSection = sectionByKey(section);
 
   // Already-loaded sections render directly; others go through lazy/Suspense.
   const Today = loadedModules.today?.TodaySection ?? TodaySection;
@@ -225,6 +264,17 @@ export default function App() {
   const Meetings = loadedModules.meetings?.MeetingsSection ?? MeetingsSection;
   const Files = loadedModules.files?.FilesSection ?? FilesSection;
 
+  const paletteActions = {
+    go: (s: Section) => void handleSectionChange(s),
+    ask: (question?: string) => setAsk({ open: true, question }),
+    addTask: (title: string) => void addTask({ title }).then((t) => flash(`Added to-do: ${t.title}`)),
+    quickAdd: () => setQuickAdd({ open: true }),
+    toggleTheme: () => void toggleTheme(),
+    account: () => setShowAccount(true),
+    backup: () => setShowBackup(true),
+    help: () => setShowHelp(true),
+  };
+
   if (!loaded) {
     return (
       <div style={{ minHeight: "100vh", background: "hsl(var(--background))", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -233,173 +283,79 @@ export default function App() {
     );
   }
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      background: "hsl(var(--background))",
-      fontFamily: "Space Grotesk, Inter, sans-serif",
-      overflow: "hidden",
-    }}>
-      <nav aria-label="Sections" className="app-nav" style={{
-        display: "flex",
-        alignItems: "stretch",
-        borderBottom: isDark ? "3px solid #FFD700" : "3px solid #000",
-        background: "#000",
-        height: 52,
-        flexShrink: 0,
-      }}>
-        <div className="nav-brand" style={{
-          padding: "0 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          borderRight: "2px solid #333",
-          flexShrink: 0,
-        }}>
-          <span style={{
-            background: "#FFD700",
-            color: "#000",
-            fontWeight: 900,
-            fontSize: 16,
-            padding: "4px 10px",
-            letterSpacing: "-0.02em",
-            boxShadow: "2px 2px 0 #FFD700",
-            border: "2px solid #FFD700",
-          }}>ProdLi</span>
-        </div>
+  const navButton = (s: (typeof SECTIONS)[number], className = "nav-tab") => (
+    <button
+      key={s.key}
+      className={className}
+      title={collapsed ? `${s.label} (${navigator.platform.includes("Mac") ? "⌘" : "Ctrl+"}${s.shortcut})` : s.label}
+      aria-current={section === s.key ? "page" : undefined}
+      onClick={() => {
+        setShowMore(false);
+        void handleSectionChange(s.key);
+      }}
+      onMouseEnter={() => void importers[s.key]()}
+      style={{ ["--accent" as string]: s.accent }}
+    >
+      <span className="side-icon" aria-hidden>{s.emoji}</span>
+      <span className="side-label">{s.label}</span>
+      {s.key === "pomodoro" && pomodoroTimer.running && section !== "pomodoro" && <span className="timer-pulse nav-dot" title="Timer running" />}
+    </button>
+  );
 
-        <div className="nav-tabs" style={{ display: "flex", flex: 1, minWidth: 0, overflowX: "auto" }}>
-          {SECTIONS.map(s => (
-            <button
-              key={s.key}
-              className="nav-tab"
-              title={s.label}
-              aria-current={section === s.key ? "page" : undefined}
-              onClick={() => handleSectionChange(s.key)}
-              onMouseEnter={() => void importers[s.key]()}
-              style={{
-                border: "none",
-                borderRight: "2px solid #222",
-                borderBottom: section === s.key ? `3px solid ${s.accent}` : "3px solid transparent",
-                padding: "0 20px",
-                background: section === s.key ? "#111" : "transparent",
-                color: section === s.key ? s.accent : "#888",
-                fontWeight: 800,
-                fontSize: 12,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontFamily: "inherit",
-                transition: "all 0.15s",
-                flexShrink: 0,
-              }}
-            >
-              <span>{s.emoji}</span>
-              <span className="nav-label">{s.label}</span>
-              {s.key === "pomodoro" && pomodoroTimer.running && section !== "pomodoro" && (
-                <span
-                  className="timer-pulse"
-                  title="Timer running"
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "#FF6B6B",
-                    display: "inline-block",
-                    marginLeft: 2,
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-            </button>
+  return (
+    <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`} style={{ ["--accent" as string]: activeSection.accent }}>
+      <nav aria-label="Sections" className="app-sidebar">
+        <div className="side-brand">
+          <span className="brand-badge">{collapsed ? "P" : "ProdLi"}</span>
+          <button className="side-collapse" onClick={toggleCollapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            {collapsed ? "»" : "«"}
+          </button>
+        </div>
+        <button className="side-btn side-ask" onClick={() => setAsk({ open: true })} title="Ask ProdLi (AI assistant)">
+          <span className="side-icon" aria-hidden>✨</span>
+          <span className="side-label">Ask ProdLi</span>
+        </button>
+        <button className="side-btn side-search" onClick={() => setShowPalette(true)} title="Search and commands">
+          <span className="side-icon" aria-hidden>🔎</span>
+          <span className="side-label">Search</span>
+          <kbd className="side-kbd">{navigator.platform.includes("Mac") ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
+
+        <div className="nav-tabs">
+          {GROUPS.map((g) => (
+            <div key={g.id} className="side-group" role="group" aria-label={g.label}>
+              <div className="side-group-label">{g.label}</div>
+              {SECTIONS.filter((s) => s.group === g.id).map((s) => navButton(s))}
+            </div>
           ))}
         </div>
 
-        <div className="nav-actions" style={{ display: "flex", alignItems: "stretch" }}>
-          <AccountButton onClick={() => setShowAccount(true)} />
-          <button
-            onClick={() => setShowBackup(true)}
-            title="Backup & Restore"
-            aria-label="Backup and restore"
-            style={{
-              border: "none",
-              borderLeft: "2px solid #222",
-              background: "transparent",
-              color: "#888",
-              cursor: "pointer",
-              padding: "0 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 15,
-              fontWeight: 900,
-              flexShrink: 0,
-              fontFamily: "inherit",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#FFD700")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#888")}
-            className="nav-backup"
-          >💾</button>
-          <button
-            onClick={() => setShowHelp(true)}
-            title="Help & shortcuts"
-            aria-label="Help and keyboard shortcuts"
-            style={{
-              border: "none",
-              borderLeft: "2px solid #222",
-              background: "transparent",
-              color: "#888",
-              cursor: "pointer",
-              padding: "0 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 16,
-              fontWeight: 900,
-              flexShrink: 0,
-              fontFamily: "inherit",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#FFD700")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#888")}
-          >?</button>
-          <button
-            onClick={toggleTheme}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            style={{
-              border: "none",
-              borderLeft: "2px solid #222",
-              background: "transparent",
-              color: isDark ? "#FFD700" : "#888",
-              cursor: "pointer",
-              padding: "0 16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 18,
-              transition: "color 0.15s",
-              flexShrink: 0,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = isDark ? "#fff" : "#FFD700")}
-            onMouseLeave={e => (e.currentTarget.style.color = isDark ? "#FFD700" : "#888")}
-          >
-            {isDark ? "☀️" : "🌙"}
+        <div className="side-bottom">
+          <button className="side-btn" onClick={() => setQuickAdd({ open: true })} title="Quick add a to-do or note">
+            <span className="side-icon" aria-hidden>➕</span>
+            <span className="side-label">Quick add</span>
           </button>
+          <AccountButton onClick={() => setShowAccount(true)} />
+          <div className="side-row">
+            <button className="side-mini" onClick={() => setShowBackup(true)} title="Backup & Restore" aria-label="Backup and restore">💾</button>
+            <button className="side-mini" onClick={() => setShowHelp(true)} title="Help & shortcuts" aria-label="Help and keyboard shortcuts">?</button>
+            <button className="side-mini" onClick={toggleTheme} title={isDark ? "Switch to light mode" : "Switch to dark mode"} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>{isDark ? "☀️" : "🌙"}</button>
+          </div>
           <LiveClock accent={activeSection.accent} />
         </div>
       </nav>
 
-      <main id="main" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* Phones: slim top bar + bottom tabs (the sidebar is hidden). */}
+      <header className="mobile-topbar">
+        <span className="brand-badge">ProdLi</span>
+        <span className="mobile-title">{activeSection.emoji} {activeSection.label}</span>
+        <button className="mobile-icon" onClick={() => setQuickAdd({ open: true })} aria-label="Quick add">➕</button>
+        <AccountButton onClick={() => setShowAccount(true)} className="mobile-icon mobile-account" />
+      </header>
+
+      <main id="main" className="app-main">
         <Suspense fallback={<LoadingFallback />}>
-          {section === "today" && <Today />}
+          {section === "today" && <Today onAsk={(question) => setAsk({ open: true, question })} />}
           {section === "editor" && <Editor />}
           {section === "todos" && <Todos />}
           {section === "pomodoro" && <Pomodoro {...pomodoroTimer} />}
@@ -410,6 +366,37 @@ export default function App() {
         </Suspense>
       </main>
 
+      <nav aria-label="Sections (phone)" className="mobile-tabbar">
+        {MOBILE_TABS.map((k) => navButton(sectionByKey(k), "tab-btn"))}
+        <button className="tab-btn" onClick={() => setAsk({ open: true })}>
+          <span className="side-icon" aria-hidden>✨</span>
+          <span className="side-label">Ask</span>
+        </button>
+        <button className="tab-btn" onClick={() => setShowMore(true)} aria-current={!MOBILE_TABS.includes(section) ? "page" : undefined} aria-haspopup="dialog">
+          <span className="side-icon" aria-hidden>☰</span>
+          <span className="side-label">More</span>
+        </button>
+      </nav>
+
+      {showMore && (
+        <div role="dialog" aria-modal="true" aria-label="More" className="more-sheet-backdrop" onClick={() => setShowMore(false)}>
+          <div className="more-sheet" onClick={(e) => e.stopPropagation()}>
+            {GROUPS.map((g) => (
+              <div key={g.id} className="side-group">
+                <div className="side-group-label">{g.label}</div>
+                <div className="more-grid">{SECTIONS.filter((s) => s.group === g.id).map((s) => navButton(s, "more-item"))}</div>
+              </div>
+            ))}
+            <div className="more-grid" style={{ marginTop: 10 }}>
+              <button className="more-item" onClick={() => { setShowMore(false); setShowPalette(true); }}><span className="side-icon">🔎</span><span className="side-label">Search</span></button>
+              <button className="more-item" onClick={() => { setShowMore(false); setShowBackup(true); }}><span className="side-icon">💾</span><span className="side-label">Backup</span></button>
+              <button className="more-item" onClick={() => { setShowMore(false); setShowHelp(true); }}><span className="side-icon">?</span><span className="side-label">Help</span></button>
+              <button className="more-item" onClick={() => { setShowMore(false); void toggleTheme(); }}><span className="side-icon">{isDark ? "☀️" : "🌙"}</span><span className="side-label">{isDark ? "Light" : "Dark"}</span></button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {draggingFile && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
           <div style={{ background: "#FF9800", color: "#000", border: "3px solid #000", boxShadow: "6px 6px 0 #000", padding: "24px 36px", fontWeight: 900, fontSize: 20, textTransform: "uppercase" }}>
@@ -418,6 +405,10 @@ export default function App() {
         </div>
       )}
 
+      {toast && <div role="status" className="app-toast">{toast}</div>}
+      {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
+      {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} />}
+      {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {showBackup && <BackupModal onClose={() => setShowBackup(false)} />}
@@ -429,26 +420,13 @@ export default function App() {
 function LiveClock({ accent }: { accent: string }) {
   const [time, setTime] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
+    const id = setInterval(() => setTime(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
-
-  const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateStr = time.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-
   return (
-    <div className="nav-clock" style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      padding: "0 20px",
-      borderLeft: "2px solid #222",
-      flexShrink: 0,
-    }}>
-      <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: 18, fontWeight: 900, color: accent, letterSpacing: "-0.03em", fontFamily: "Space Mono, monospace" }}>{timeStr}</div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.08em" }}>{dateStr}</div>
-      </div>
+    <div className="nav-clock side-clock" aria-hidden>
+      <div style={{ fontSize: 18, fontWeight: 900, color: accent, letterSpacing: "-0.03em", fontFamily: "Space Mono, monospace" }}>{time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+      <div className="side-label" style={{ fontSize: 10, fontWeight: 700, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.08em" }}>{time.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div>
     </div>
   );
 }

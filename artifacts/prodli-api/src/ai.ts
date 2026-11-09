@@ -87,7 +87,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
 export const monthKey = (now: number) => new Date(now).toISOString().slice(0, 7);
 
 /** Monthly counters: meeting summaries (ai_usage) and daily briefs (brief_usage). */
-export type UsageTable = "ai_usage" | "brief_usage";
+export type UsageTable = "ai_usage" | "brief_usage" | "ask_usage";
 
 export async function aiUsage(db: D1Database, userId: string, now: number, table: UsageTable = "ai_usage"): Promise<number> {
   const row = await db.prepare(`SELECT count FROM ${table} WHERE user_id = ?1 AND month = ?2`).bind(userId, monthKey(now)).first<{ count: number }>();

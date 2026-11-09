@@ -28,6 +28,7 @@ import {
   type Client,
 } from "./accounts";
 import { GoogleAuthError, verifyExtensionAccessToken, verifyWebIdToken, type GoogleIdentity } from "./google";
+import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAnswer, type AskInput } from "./ask";
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
@@ -61,10 +62,11 @@ export interface Deps {
   verifyWeb: (idToken: string, clientId: string) => Promise<GoogleIdentity>;
   summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
+  ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, ask: askClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -135,7 +137,7 @@ export function createApp(deps: Deps = realDeps) {
   const smallBody = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
   const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
   const aiBody = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
-  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/summarize" || c.req.path === "/api/ai/brief" ? aiBody(c, next) : smallBody(c, next)));
+  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : smallBody(c, next)));
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
@@ -329,6 +331,7 @@ export function createApp(deps: Deps = realDeps) {
   // ── AI summaries ───────────────────────────────────────────────────────────
   const aiLimit = (plan: string) => AI_MONTHLY_LIMIT[plan as keyof typeof AI_MONTHLY_LIMIT] ?? AI_MONTHLY_LIMIT.free;
 
+  const askLimit = (plan: string) => ASK_MONTHLY_LIMIT[plan as keyof typeof ASK_MONTHLY_LIMIT] ?? ASK_MONTHLY_LIMIT.free;
   const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
 
   app.get("/api/ai/usage", requireAuth, async (c) => {
@@ -339,6 +342,7 @@ export function createApp(deps: Deps = realDeps) {
       limit: aiLimit(auth.user.plan),
       available: !!c.env.ANTHROPIC_API_KEY,
       briefs: { used: await aiUsage(c.env.DB, auth.user.id, now, "brief_usage"), limit: briefLimit(auth.user.plan) },
+      asks: { used: await aiUsage(c.env.DB, auth.user.id, now, "ask_usage"), limit: askLimit(auth.user.plan) },
     });
   });
 
@@ -393,6 +397,35 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ summary, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now);
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST <AskInput> → { answer, actions, usage }. Sent to Anthropic, not stored.
+  app.post("/api/ai/ask", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_ASK_CHARS) return c.json({ error: "too_large" }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = AskInputSchema.safeParse(parsed);
+    if (!input.success) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = askLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "ask_usage");
+    if (used === null) return c.json({ error: "ask_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.ask(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ answer: r.answer, actions: r.actions, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "ask_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
       throw err;
     }

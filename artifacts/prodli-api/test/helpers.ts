@@ -42,6 +42,12 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
   const deps: Deps = {
     verifyExtension: async (t, clientId) => (calls.push({ kind: "extension", clientId }), fakeIdentity(t)),
     verifyWeb: async (t, clientId) => (calls.push({ kind: "web", clientId }), fakeIdentity(t)),
+    ask: async (input) => {
+      calls.push({ kind: "ask", clientId: input.question });
+      if (input.question === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try asking again.");
+      const top = input.context?.tasks[0]?.title;
+      return { answer: top ? `Start with ${top}.` : "You have nothing planned.", actions: top ? [{ type: "plan_today", title: top, details: "" }] : [], model: "test" };
+    },
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
