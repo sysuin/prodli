@@ -83,7 +83,11 @@ await new Promise((resolvePromise, reject) => {
   });
   archive.on("error", reject);
   archive.pipe(output);
-  archive.directory(distDir, false);
+  // The Web Store rejects uploads whose manifest has a "key", so the zip gets
+  // the manifest without it (the unpacked dist-extension folder keeps it).
+  archive.directory(distDir, false, (entry) => (entry.name === "manifest.json" ? false : entry));
+  const { key: _unpackedOnly, ...storeManifest } = manifest;
+  archive.append(JSON.stringify(storeManifest, null, 2), { name: "manifest.json" });
   archive.finalize();
 });
 

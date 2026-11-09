@@ -10,7 +10,12 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
   - [ ] Audio playback (with and without microphone)
   - [ ] Summary + action items with your Claude API key
   - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call (try Meet in another language too), closing the tab
-- [ ] **Turn on Google sign-in** (free, ~10 min): create the Google Cloud OAuth client and set `PRODLI_GOOGLE_CLIENT_ID` — [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md). Then sign in on two computers and check notes sync both ways (including a deletion).
+- [ ] **Google sign-in** — [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md):
+  - [x] Google Cloud project, consent screen (Testing), OAuth client, test user
+  - [x] Local builds use the store ID + client ID (`source .env.local && pnpm run build:extension`)
+  - [ ] Add the `PRODLI_GOOGLE_CLIENT_ID` GitHub secret: `gh secret set PRODLI_GOOGLE_CLIENT_ID --repo sysuin/prodli`
+  - [ ] Sign in on two computers and check notes sync both ways (including a deletion)
+  - [ ] Before the store release: **Publish app** in Google Auth Platform → Audience
 - [ ] **Leave Replit** — [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
   - [x] Code on GitHub with CI
   - [ ] Cloudflare Pages project + `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets
