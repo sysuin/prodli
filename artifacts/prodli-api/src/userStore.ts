@@ -47,6 +47,21 @@ export class UserStore extends DurableObject<Env> {
     return { bytes: this.store.bytes(), counts: this.store.counts() };
   }
 
+  async backupChunk(after: number, maxBytes: number) {
+    return this.store.backupChunk(after, maxBytes);
+  }
+
+  async seq(): Promise<number> {
+    return this.store.seq();
+  }
+
+  /** Restore from a backup. "merge": newest still wins. "overwrite": the backup's versions win. Bypasses the quota. */
+  async restore(changes: ChangeIn[], deviceId: string): Promise<number> {
+    const r = this.store.sync(Number.MAX_SAFE_INTEGER, changes, Number.MAX_SAFE_INTEGER);
+    if (r.accepted) this.notify(deviceId, this.store.seq());
+    return r.accepted;
+  }
+
   async exportAll() {
     return this.store.exportAll();
   }

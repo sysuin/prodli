@@ -28,6 +28,8 @@ import {
   signOutDevice,
   signOutEverywhere,
   signOutHere,
+  getAiUsage,
+  type AiUsage,
   type Device,
   type ProdliUser,
 } from "../lib/prodliAccount";
@@ -109,6 +111,10 @@ const mb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024)
 /** Sync status, "Sync now" and what this device uploads. */
 function SyncBox({ ext }: { ext: boolean }) {
   const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [ai, setAi] = useState<AiUsage | null>(null);
+  useEffect(() => {
+    getAiUsage().then(setAi, () => setAi(null));
+  }, []);
   const [meetings, setMeetings] = useState(true);
   const [running, setRunning] = useState(false);
   const [, tick] = useState(0);
@@ -144,6 +150,14 @@ function SyncBox({ ext }: { ext: boolean }) {
           <>
             <br />
             <span style={{ opacity: 0.75 }}>Using {mb(s.usage.bytes)} of {mb(s.usage.quota)}.</span>
+          </>
+        )}
+        {ai?.available && (
+          <>
+            <br />
+            <span style={{ opacity: 0.75 }} data-testid="ai-usage">
+              AI meeting summaries: {Math.max(0, ai.limit - ai.used)} of {ai.limit} free left this month.
+            </span>
           </>
         )}
         {!!s?.tooLarge && (
@@ -265,6 +279,10 @@ function ProdliAccountPanel() {
             <li>Your Claude API key and meeting audio are never uploaded.</li>
             <li>You can download or delete your account any time.</li>
           </ul>
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
+            By signing in you agree to the <a href="https://prodli.com/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Terms</a> and{" "}
+            <a href="https://prodli.com/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Privacy Policy</a>.
+          </div>
         </div>
         {ext ? (
           <button

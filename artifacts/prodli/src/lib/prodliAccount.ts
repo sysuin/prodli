@@ -73,6 +73,12 @@ const friendly: Record<string, string> = {
   quota_exceeded: "Your ProdLi storage is full. Delete some notes or meetings to keep syncing.",
   item_too_large: "One item is too large to sync.",
   too_large: "That's too much to send at once.",
+  ai_quota_exceeded: "You've used this month's free AI summaries. They reset on the 1st — or add your own Claude API key in the extension (Meetings → Setup).",
+  ai_unavailable: "ProdLi summaries aren't available right now. Try again later, or add your own Claude API key in the extension (Meetings → Setup).",
+  ai_busy: "Summaries are busy right now. Try again in a minute.",
+  ai_failed: "Summarizing failed. Try again.",
+  ai_refused: "Claude declined to summarize this meeting.",
+  ai_truncated: "The summary was cut off. Try again.",
 };
 
 /** A request to ProdLi's server with this device's session. */
@@ -138,6 +144,17 @@ export async function refreshAccount(): Promise<ProdliUser | null> {
     if (err instanceof AccountError && err.status === 401) return null;
     return getProdliAccount(); // offline: keep showing the cached account
   }
+}
+
+export interface AiUsage {
+  used: number;
+  limit: number;
+  available: boolean;
+}
+
+/** This month's AI summaries through ProdLi. */
+export async function getAiUsage(): Promise<AiUsage> {
+  return accountRequest<AiUsage>("/api/ai/usage");
 }
 
 export async function listDevices(): Promise<Device[]> {

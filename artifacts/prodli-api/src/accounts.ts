@@ -137,5 +137,9 @@ export async function deleteAllSessions(db: D1Database, userId: string): Promise
 
 /** Permanently deletes the account and every session. */
 export async function deleteUser(db: D1Database, userId: string): Promise<void> {
-  await db.batch([db.prepare(`DELETE FROM sessions WHERE user_id = ?1`).bind(userId), db.prepare(`DELETE FROM users WHERE id = ?1`).bind(userId)]);
+  await db.batch([
+    db.prepare(`DELETE FROM sessions WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM ai_usage WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM users WHERE id = ?1`).bind(userId),
+  ]);
 }

@@ -2,6 +2,7 @@
 //   Phase 0: health, CORS, security headers.
 //   Phase 1: Google sign-in → ProdLi session, account (me, devices, export, delete).
 //   Phase 2: sync — each user's data lives in their own UserStore Durable Object.
+//   Phase 4: AI meeting summaries with ProdLi's Claude key and a monthly allowance.
 // The same Worker serves the web app's static files (everything outside /api).
 //
 // Sessions: the extension sends `Authorization: Bearer <token>`; the web app
@@ -27,6 +28,8 @@ import {
   type Client,
 } from "./accounts";
 import { GoogleAuthError, verifyExtensionAccessToken, verifyWebIdToken, type GoogleIdentity } from "./google";
+import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
+import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import type { SyncOutcome, UserStore } from "./userStore";
 
@@ -39,6 +42,13 @@ export interface Env {
   GOOGLE_WEB_CLIENT_ID: string;
   AUTH_LIMITER?: RateLimit;
   SYNC_LIMITER?: RateLimit;
+  AI_LIMITER?: RateLimit;
+  /** Secret (`wrangler secret put ANTHROPIC_API_KEY --env …`). Without it, server summaries are off. */
+  ANTHROPIC_API_KEY?: string;
+  /** R2 bucket for nightly backups (src/backup.ts). */
+  BACKUPS?: R2Bucket;
+  /** Secret for the admin backup/restore endpoints. Unset = those endpoints don't exist. */
+  ADMIN_TOKEN?: string;
   USER_STORE: DurableObjectNamespace<UserStore>;
   ASSETS?: Fetcher;
   /** Local end-to-end tests only: `wrangler dev --var DEV_FAKE_GOOGLE:true`. Ignored unless ENV is "development". */
@@ -48,10 +58,11 @@ export interface Env {
 export interface Deps {
   verifyExtension: (accessToken: string, clientId: string) => Promise<GoogleIdentity>;
   verifyWeb: (idToken: string, clientId: string) => Promise<GoogleIdentity>;
+  summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -90,6 +101,17 @@ const storeFor = (env: Env, userId: string) => env.USER_STORE.get(env.USER_STORE
 
 const clearSessionCookie = (c: Ctx) => deleteCookie(c, SESSION_COOKIE, { path: "/", secure: true });
 
+/** Constant-time comparison (via SHA-256 digests, so lengths don't leak either). */
+async function sameSecret(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [x, y] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(a)), crypto.subtle.digest("SHA-256", enc.encode(b))]);
+  const u = new Uint8Array(x);
+  const v = new Uint8Array(y);
+  let diff = 0;
+  for (let i = 0; i < u.length; i++) diff |= u[i] ^ v[i];
+  return diff === 0;
+}
+
 export function createApp(deps: Deps = realDeps) {
   const app = new Hono<AppEnv>();
 
@@ -110,7 +132,8 @@ export function createApp(deps: Deps = realDeps) {
   const tooLarge = (c: Ctx) => c.json({ error: "too_large" }, 413);
   const smallBody = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
   const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
-  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : smallBody(c, next)));
+  const aiBody = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
+  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/summarize" ? aiBody(c, next) : smallBody(c, next)));
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
@@ -154,7 +177,7 @@ export function createApp(deps: Deps = realDeps) {
   app.get("/api/health", (c) => c.json({ ok: true, service: "prodli-api", env: c.env.ENV, time: new Date(deps.now()).toISOString() }));
 
   /** Public settings the web app needs before signing in. */
-  app.get("/api/config", (c) => c.json({ env: c.env.ENV, googleWebClientId: c.env.GOOGLE_WEB_CLIENT_ID || null }));
+  app.get("/api/config", (c) => c.json({ env: c.env.ENV, googleWebClientId: c.env.GOOGLE_WEB_CLIENT_ID || null, ai: !!c.env.ANTHROPIC_API_KEY }));
 
   // ── Sign in ────────────────────────────────────────────────────────────────
   app.post("/api/auth/google", rateLimitAuth, async (c) => {
@@ -246,6 +269,7 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ error: "confirmation_mismatch" }, 400);
     }
     await storeFor(c.env, auth.user.id).wipe();
+    await deleteBackups(c.env, auth.user.id);
     await deleteUser(c.env.DB, auth.user.id);
     clearSessionCookie(c);
     return c.json({ deleted: true });
@@ -298,6 +322,79 @@ export function createApp(deps: Deps = realDeps) {
     // Don't wake (or create) a Durable Object for ids that aren't real accounts.
     if (!(await c.env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first())) return c.json({ error: "unauthorized" }, 401);
     return storeFor(c.env, userId).fetch(c.req.raw);
+  });
+
+  // ── AI summaries ───────────────────────────────────────────────────────────
+  const aiLimit = (plan: string) => AI_MONTHLY_LIMIT[plan as keyof typeof AI_MONTHLY_LIMIT] ?? AI_MONTHLY_LIMIT.free;
+
+  app.get("/api/ai/usage", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    return c.json({ used: await aiUsage(c.env.DB, auth.user.id, deps.now()), limit: aiLimit(auth.user.plan), available: !!c.env.ANTHROPIC_API_KEY });
+  });
+
+  // POST { title, date: "YYYY-MM-DD", transcript } → { summary, usage }
+  // The transcript is sent to Anthropic and not stored here (the meeting itself syncs separately).
+  app.post("/api/ai/summarize", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const body = (await c.req.json().catch(() => null)) as Partial<SummarizeInput> | null;
+    const title = typeof body?.title === "string" ? body.title.slice(0, 300) : "";
+    const date = typeof body?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : new Date(deps.now()).toISOString().slice(0, 10);
+    const transcript = typeof body?.transcript === "string" ? body.transcript.trim() : "";
+    if (!transcript) return c.json({ error: "bad_request", message: "There is no transcript to summarize." }, 400);
+    if (transcript.length > MAX_TRANSCRIPT_CHARS) return c.json({ error: "too_large", message: "This transcript is too long to summarize." }, 413);
+
+    const now = deps.now();
+    const limit = aiLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit);
+    if (used === null) return c.json({ error: "ai_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const summary = await deps.summarize({ title, date, transcript }, c.env.ANTHROPIC_API_KEY);
+      return c.json({ summary, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now);
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // ── Admin: backups and restore (only when the ADMIN_TOKEN secret is set) ────
+  // Used for the restore drill and to help a user who lost data. There is no
+  // endpoint to read a user's data.
+  const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+    const expected = c.env.ADMIN_TOKEN ?? "";
+    if (expected.length < 32) return c.json({ error: "not_found" }, 404);
+    if (c.env.AUTH_LIMITER && !(await c.env.AUTH_LIMITER.limit({ key: `admin:${c.req.header("CF-Connecting-IP") ?? "unknown"}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const given = c.req.header("Authorization")?.replace(/^Bearer\s+/, "") ?? "";
+    if (!(await sameSecret(given, expected))) return c.json({ error: "not_found" }, 404);
+    console.log(JSON.stringify({ msg: "admin_request", path: c.req.path, method: c.req.method }));
+    return next();
+  };
+  const adminUser = async (c: Ctx, userId: unknown) =>
+    typeof userId === "string" && /^[0-9a-f-]{36}$/.test(userId) && !!(await c.env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first());
+
+  app.post("/api/admin/backup", requireAdmin, async (c) => {
+    const { userId } = ((await c.req.json().catch(() => ({}))) ?? {}) as { userId?: unknown };
+    if (!(await adminUser(c, userId))) return c.json({ error: "unknown_user" }, 404);
+    return c.json({ result: await backupUser(c.env, userId as string, deps.now(), true) });
+  });
+
+  app.get("/api/admin/backups", requireAdmin, async (c) => {
+    const userId = c.req.query("userId");
+    if (!(await adminUser(c, userId))) return c.json({ error: "unknown_user" }, 404);
+    return c.json({ dates: await listBackups(c.env, userId!) });
+  });
+
+  app.post("/api/admin/restore", requireAdmin, async (c) => {
+    const { userId, date, mode } = ((await c.req.json().catch(() => ({}))) ?? {}) as { userId?: unknown; date?: unknown; mode?: unknown };
+    if (!(await adminUser(c, userId))) return c.json({ error: "unknown_user" }, 404);
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || (mode !== "merge" && mode !== "overwrite")) return c.json({ error: "bad_request" }, 400);
+    try {
+      return c.json(await restoreUser(c.env, userId as string, date, mode, deps.now()));
+    } catch (err) {
+      return c.json({ error: "restore_failed", message: err instanceof Error ? err.message : String(err) }, 400);
+    }
   });
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));

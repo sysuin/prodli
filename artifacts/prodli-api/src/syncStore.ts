@@ -53,6 +53,12 @@ export interface SyncResult {
   usage: { bytes: number; quota: number };
 }
 
+export interface BackupChunk {
+  rows: { c: CollectionName; id: string; u: string; v: unknown }[];
+  last: number;
+  done: boolean;
+}
+
 export class SyncError extends Error {
   constructor(
     readonly code: "bad_request" | "item_too_large" | "quota_exceeded",
@@ -184,6 +190,23 @@ export class SyncStore {
       out[r.c]?.push(r.c === "tracking" || r.c === "stats" ? { id: r.id, value: JSON.parse(r.v) } : JSON.parse(r.v));
     }
     return out;
+  }
+
+  /** Live items after sequence number `after`, up to ~`maxBytes` (for backups). */
+  backupChunk(after: number, maxBytes: number): BackupChunk {
+    const rows: { c: CollectionName; id: string; u: string; v: unknown }[] = [];
+    let last = after;
+    let bytes = 0;
+    for (;;) {
+      const page = this.sql.exec<{ c: CollectionName; id: string; u: string; v: string; s: number }>(`SELECT c, id, u, v, s FROM items WHERE s > ? AND d = 0 ORDER BY s LIMIT 200`, last).toArray();
+      if (!page.length) return { rows, last, done: true };
+      for (const r of page) {
+        rows.push({ c: r.c, id: r.id, u: r.u, v: JSON.parse(r.v) });
+        last = r.s;
+        bytes += r.v.length;
+        if (bytes >= maxBytes) return { rows, last, done: false };
+      }
+    }
   }
 
   counts(): Record<string, number> {

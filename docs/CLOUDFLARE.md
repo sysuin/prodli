@@ -20,6 +20,18 @@ ProdLi shares the Cloudflare account that hosts your other projects (jobscanner,
 |---|---|---|
 | `UserStore` (SQLite) | `prodli-api-staging`, `prodli-api` | one object per user: that user's synced notes, to-dos, habits, meetings (text), Pomodoro and Time Tracker history |
 
+| R2 bucket | Used by | Holds |
+|---|---|---|
+| `prodli-backups-staging` | `prodli-api-staging` | nightly copies of each account's synced data; expire after 30 days |
+| `prodli-backups` | `prodli-api` | the same for production |
+
+Both Workers run a cron at 03:17 UTC for these backups (`src/backup.ts`).
+
+| Secret (per environment) | Enables |
+|---|---|
+| `ANTHROPIC_API_KEY` | AI summaries through ProdLi (phase 4) |
+| `ADMIN_TOKEN` (32+ chars) | `/api/admin/backup`, `/backups` and `/restore` (restore drill; see [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md)) |
+
 D1 schema changes live in `artifacts/prodli-api/migrations/`; the deploy scripts apply them before deploying. `UserStore` creates its own tables. Its class migrations (`new_sqlite_classes`) are in `wrangler.jsonc`.
 
 - The site's routes (`prodli.com/*`, `www.prodli.com/*`) attach to the proxied DNS records. Requests never reach the old Replit address the A records still show.

@@ -12,8 +12,10 @@
     "deploy:production": "node ../../scripts/build-app.mjs && wrangler d1 migrations apply DB --env production --remote && wrangler deploy --env production"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "hono": "^4.10.0",
-    "jose": "^6.2.15"
+    "jose": "^6.2.15",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251001.0",

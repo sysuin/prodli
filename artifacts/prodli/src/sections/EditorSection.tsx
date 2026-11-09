@@ -405,6 +405,13 @@ export function EditorSection() {
   }, [commitEdit]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
+  // Phones show the note list or the open note, not both.
+  const [mobilePane, setMobilePane] = useState<"list" | "note">("note");
+  const openNote = (id: string) => {
+    selectNote(id);
+    setMobilePane("note");
+  };
+
   function selectNote(id: string) {
     if (pendingEdit.current) commitEdit();
     activeIdRef.current = id;
@@ -416,6 +423,7 @@ export function EditorSection() {
     const note = newNote();
     setNotes((prev) => [note, ...prev]);
     selectNote(note.id);
+    setMobilePane("note");
     setTimeout(() => editorRef.current?.commands.focus("start"), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNotes]);
@@ -551,7 +559,7 @@ export function EditorSection() {
 
   return (
     <div
-      className="editor-root"
+      className={`editor-root mobile-${mobilePane}`}
       style={{
         display: "flex",
         height: "100%",
@@ -565,7 +573,7 @@ export function EditorSection() {
           activeId={activeId}
           sort={sort}
           onSortChange={changeSort}
-          onSelect={selectNote}
+          onSelect={openNote}
           onCreate={createNote}
           onRename={renameNote}
           onTogglePin={togglePin}
@@ -574,7 +582,10 @@ export function EditorSection() {
         />
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div className="editor-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <button className="mobile-only editor-back" onClick={() => setMobilePane("list")} aria-label="Back to all notes">
+          ← All notes <span style={{ opacity: 0.6, fontWeight: 600 }}>({notes.length})</span>
+        </button>
         {/* Toolbar */}
         <div className="editor-toolbar" role="toolbar" aria-label="Formatting" style={{ borderBottom: "var(--nb-border)", padding: "8px 16px", display: "flex", gap: 4, flexWrap: "wrap", background: "hsl(var(--muted))", alignItems: "center" }}>
           <ToolbarButton onClick={run((e) => e.chain().focus().undo().run())} disabled={!t?.canUndo} title="Undo (Ctrl/⌘+Z)">↩</ToolbarButton>

@@ -503,12 +503,18 @@ importers:
 
   artifacts/prodli-api:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^1.6.0
+        version: 1.6.0(zod@3.25.76)
       hono:
         specifier: ^4.10.0
         version: 4.13.17
       jose:
         specifier: ^6.2.15
         version: 6.2.15
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251001.0

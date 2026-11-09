@@ -13,7 +13,7 @@ describe("prodli-api basics", () => {
 
   it("shares the public web sign-in settings", async () => {
     const res = await app.request("/api/config", {}, env("production"));
-    expect(await res.json()).toEqual({ env: "production", googleWebClientId: "y" });
+    expect(await res.json()).toEqual({ env: "production", googleWebClientId: "y", ai: false });
   });
 
   it("sends security headers", async () => {

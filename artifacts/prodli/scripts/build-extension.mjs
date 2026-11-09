@@ -69,7 +69,7 @@ console.log("==> Applying build settings to manifest...");
 
 console.log("==> Removing website-only files from the extension...");
 // public/ is shared with the web preview; these files are only used by the website.
-for (const f of ["store-assets", "promo.html", "opengraph.jpg", "favicon.svg", "icon-16.png", "icon-48.png", "icon-128.png"]) {
+for (const f of ["store-assets", "promo.html", "opengraph.jpg", "favicon.svg", "icon-16.png", "icon-48.png", "icon-128.png", "icon-192.png", "icon-512.png"]) {
   rmSync(resolve(distDir, f), { recursive: true, force: true });
 }
 

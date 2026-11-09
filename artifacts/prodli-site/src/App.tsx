@@ -1,6 +1,6 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { Landing } from "@/pages/Landing";
-import { Privacy } from "@/pages/Privacy";
+import { Privacy, Terms } from "@/pages/Privacy";
 
 function NotFound() {
   return (
@@ -19,6 +19,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformProxy } from "wrangler";
+import { AiError } from "../src/ai";
 import { GoogleAuthError, type GoogleIdentity } from "../src/google";
 import { createApp, type Deps, type Env } from "../src/app";
 import { fakeUserStoreNamespace } from "./userStoreFake";
@@ -41,6 +42,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
   const deps: Deps = {
     verifyExtension: async (t, clientId) => (calls.push({ kind: "extension", clientId }), fakeIdentity(t)),
     verifyWeb: async (t, clientId) => (calls.push({ kind: "web", clientId }), fakeIdentity(t)),
+    summarize: async (input) => {
+      calls.push({ kind: "summarize", clientId: input.title });
+      if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Summarizing failed. Try again.");
+      return { title: `Notes: ${input.title}`, overview: "o", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
+    },
     now: () => clock.now,
   };
   return { app: createApp(deps), clock, calls };

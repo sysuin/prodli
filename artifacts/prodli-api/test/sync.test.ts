@@ -103,7 +103,7 @@ describe("/api/sync", () => {
   beforeAll(async () => ({ env, dispose } = await makeEnv()));
   afterAll(async () => dispose());
   beforeEach(async () => {
-    await env.DB.batch([env.DB.prepare("DELETE FROM sessions"), env.DB.prepare("DELETE FROM users")]);
+    await env.DB.batch([env.DB.prepare("DELETE FROM ai_usage"), env.DB.prepare("DELETE FROM sessions"), env.DB.prepare("DELETE FROM users")]);
   });
 
   async function signIn(app: ReturnType<typeof makeApp>["app"], who = "a") {

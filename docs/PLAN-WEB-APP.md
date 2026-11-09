@@ -1,6 +1,6 @@
 # ProdLi web app + accounts — build plan
 
-Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging). Phase 1 (accounts) and phase 2 (sync) done on staging; next: phase 3 (web app).
+Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging). Phases 1–5 built and on staging; production and launch steps that need you are in [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md).
 
 Decisions so far:
 - Everything runs on Cloudflare, in the same account as your other products, with guardrails.
@@ -125,6 +125,26 @@ Nothing is deployed to production until staging passes.
 - **Known limits:**
   - Two people editing the *same* note at the same second: the newest wins; there's no conflict copy yet.
   - Signing in to a *different* account on the same browser merges that browser's local data into it.
+
+### Phases 3–5 as built
+
+- **Web app (3):**
+  - Every section works in a browser.
+  - Meetings: view meetings synced from the extension, search transcripts and summaries, and summarize. Recording stays in the extension.
+  - Time Tracker shows synced history.
+  - Phone layout: section tabs get their own row, and the editor shows either the note list or the note.
+  - Installable (web app manifest) and offline (a service worker caches the built files; sync catches up later).
+  - Strict security headers. Production is at app.prodli.com (custom domain in `wrangler.jsonc`).
+- **AI (4):**
+  - `POST /api/ai/summarize` uses ProdLi's Claude key: Haiku 5.5, the same prompt as the extension.
+  - Monthly allowance in D1 `ai_usage`: free 20, Pro 300. Failed calls are refunded.
+  - The app uses your own key if one is saved, otherwise your ProdLi account.
+- **Hardening (5):** see [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md).
+  - Nightly R2 backups with 30-day expiry, deleted together with the account.
+  - Admin restore, enabled only by a secret.
+  - Uptime checks.
+  - Load test.
+  - Privacy and terms drafts.
 
 ## 5. What I'll need from you (at the time it's needed)
 

@@ -1,3 +1,4 @@
+import { onStorageChange } from "./storage";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { storageSet } from "./storage";
 import { formatTime } from "./utils";
@@ -93,7 +94,16 @@ export function usePomodoroTimer() {
 
   useEffect(() => {
     void reloadAll().then(() => setLoaded(true));
-    if (!isExtension()) return;
+    if (!isExtension()) {
+      // Web app: other tabs and ProdLi sync (history, completed count).
+      const offs = [
+        onStorageChange<TimerState>(TIMER_KEY, (v) => v && applyTimer(v)),
+        onStorageChange<PomodoroSession[]>("pomodoroSessions", (v) => setSessions(v ?? [])),
+        onStorageChange<number>("completedPomodoros", (v) => setCompletedPomodoros(v ?? 0)),
+        onStorageChange<PomodoroSettings>("pomodoroSettings", (v) => v && setSettings(v)),
+      ];
+      return () => offs.forEach((off) => off());
+    }
     // Keep in sync with other tabs and the background worker.
     const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area !== "local") return;

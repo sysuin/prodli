@@ -169,6 +169,64 @@ try {
   ms = await waitFor(async () => JSON.parse((await w.eval(`localStorage.getItem("prodli_todos")`)) ?? "[]").some((t) => t.title === "Task from the extension"));
   check("Sync: a to-do added in the extension appears on the website", ms >= 0, `waited ${ms} ms`);
 
+  // A meeting recorded in the extension shows up in the web app's Meetings, searchable.
+  await p.eval(`(async () => {
+    const db = await new Promise((res, rej) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const t = db.transaction("meetings", "readwrite");
+    const now = new Date().toISOString();
+    t.objectStore("meetings").put({ id: "e2e-meeting", platform: "google-meet", title: "Quarterly planning", meetingCode: null, url: "https://meet.google.com/x", startedAt: now, endedAt: now, durationSec: 600, status: "ready",
+      transcript: [{ id: "e1", speaker: "Priya", text: "Budget review moves to Thursday", startMs: 0, endMs: 1000 }], summary: null, error: null, notice: null, hasAudio: true, micIncluded: false, audioMimeType: "audio/webm", updatedAt: now });
+    await new Promise((r) => (t.oncomplete = r));
+    new BroadcastChannel("prodli-meetings").postMessage("changed");
+    return true;
+  })()`);
+  await w.eval(`localStorage.setItem("prodli_lastSection", JSON.stringify("meetings"))`);
+  ms = await waitFor(async () => {
+    await w.send("Page.reload", {});
+    await sleep(1500);
+    return (await w.text()).includes("Quarterly planning");
+  }, 15_000);
+  check("Web app: a meeting recorded in the extension appears in Meetings", ms >= 0, (await w.text()).slice(0, 300));
+  await w.eval(`(() => { const i = document.querySelector('input[aria-label="Search meetings"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "thursday"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+  await sleep(300);
+  check("Web app: searching meetings looks inside transcripts", (await w.text()).includes("Quarterly planning"));
+  check("Web app: meeting audio stays on the extension's computer", !(await w.eval(`!!document.querySelector("audio")`)));
+
+  // Phones: sections on their own row; the editor shows the list or the note.
+  await w.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
+  await w.eval(`localStorage.setItem("prodli_lastSection", JSON.stringify("editor"))`);
+  await w.send("Page.reload", {});
+  await sleep(1800);
+  const phone = await w.eval(`(() => {
+    const tabs = document.querySelector(".nav-tabs").getBoundingClientRect();
+    const brand = document.querySelector(".nav-brand").getBoundingClientRect();
+    return { tabsBelow: tabs.top >= brand.bottom - 1, tabsFull: Math.round(tabs.width) === innerWidth, noSideScroll: document.documentElement.scrollWidth <= innerWidth,
+      listHidden: getComputedStyle(document.querySelector(".editor-sidebar")).display === "none", back: !!document.querySelector(".editor-back") && getComputedStyle(document.querySelector(".editor-back")).display !== "none" };
+  })()`);
+  check("Phone: section tabs get their own full-width row", phone.tabsBelow && phone.tabsFull, JSON.stringify(phone));
+  check("Phone: the editor shows the note with a way back to the list, no sideways scrolling", phone.listHidden && phone.back && phone.noSideScroll, JSON.stringify(phone));
+  await w.eval(`document.querySelector(".editor-back").click()`);
+  await sleep(300);
+  check("Phone: 'All notes' shows the full-width list", await w.eval(`getComputedStyle(document.querySelector(".editor-sidebar")).display !== "none" && getComputedStyle(document.querySelector(".editor-main")).display === "none"`));
+  await w.send("Emulation.clearDeviceMetricsOverride", {});
+
+  // Security headers on the app's pages, and offline use.
+  const headers = await w.eval(`fetch("/").then(r => ({ csp: r.headers.get("content-security-policy") || "", frame: r.headers.get("x-frame-options") }))`);
+  check("Web app: pages are served with a strict Content-Security-Policy", headers.csp.includes("default-src 'self'") && headers.csp.includes("frame-ancestors 'none'") && headers.frame === "DENY", JSON.stringify(headers));
+  ms = await waitFor(() => w.eval(`navigator.serviceWorker.getRegistration().then(r => !!r?.active)`), 10_000);
+  check("Web app: installs its offline cache", ms >= 0);
+  await w.send("Network.enable", {});
+  await w.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await w.send("Page.reload", {});
+  await sleep(2500);
+  check("Web app: opens and shows your notes with no connection", await w.eval(`!!document.querySelector(".ProseMirror") && document.body.innerText.includes("Welcome to ProdLi")`));
+  await openAccount(w);
+  await sleep(1500);
+  check("Web app: offline is shown as offline, not as an error", /Offline — your changes are saved here|Synced/.test(await w.text()), (await w.text()).slice(0, 400));
+  await w.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
+  await w.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await sleep(1500);
+
   await openAccount(w);
   await sleep(800);
   t = await w.text();
@@ -204,7 +262,7 @@ try {
   const { prodliSession: gone, prodliAccount } = await p.storage(["prodliSession", "prodliAccount"]);
   check("…and forgets it on this device", !gone && !prodliAccount);
 
-  const errors = b.jsErrors().filter((e) => !JSON.stringify(e).includes("Failed to load resource"));
+  const errors = b.jsErrors().filter((e) => !/Failed to load resource|ERR_INTERNET_DISCONNECTED|Failed to fetch|ERR_NETWORK_CHANGED/.test(JSON.stringify(e)));
   for (const e of errors) console.log("   JS error:", e.params.exceptionDetails?.exception?.description?.slice(0, 600) ?? JSON.stringify(e.params.args ?? e.params).slice(0, 600));
   check("No JavaScript errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)).slice(0, 400));
 } finally {
