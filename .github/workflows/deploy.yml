@@ -1,0 +1,80 @@
+# Deploys ProdLi to Cloudflare (account of the CLOUDFLARE_ACCOUNT_ID secret).
+#
+#   push to main    → prodli.com (website) + prodli-api-staging
+#   manual run      → choose what to deploy, including the production API
+#
+# Needs repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# (token permissions: docs/CLOUDFLARE.md). Until they exist, jobs build and
+# test but skip the deploy.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/**"
+      - "scripts/build-web.mjs"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        type: choice
+        default: site-and-staging
+        options: [site-and-staging, production-api]
+
+concurrency:
+  group: deploy-${{ github.event.inputs.target || 'site-and-staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.event.inputs.target == 'production-api' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/prodli-api run typecheck
+      - run: pnpm --filter @workspace/prodli-api run test
+      - name: Check for Cloudflare credentials
+        id: creds
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: echo "present=$([ -n "$TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build website
+        if: github.event.inputs.target != 'production-api'
+        run: pnpm run build:web
+      - name: Deploy website (prodli.com)
+        if: steps.creds.outputs.present == 'true' && github.event.inputs.target != 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy -c ../prodli-site/wrangler.jsonc
+      - name: Deploy API (staging)
+        if: steps.creds.outputs.present == 'true' && github.event.inputs.target != 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm run deploy:staging
+
+      - name: Deploy API (production)
+        if: steps.creds.outputs.present == 'true' && github.event.inputs.target == 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm run deploy:production
+
+      - name: Skipped deploy
+        if: steps.creds.outputs.present != 'true'
+        run: echo "::notice::Built and tested but not deployed — add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets (docs/CLOUDFLARE.md)."

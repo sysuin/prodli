@@ -16,11 +16,13 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
   - [ ] Add the `PRODLI_GOOGLE_CLIENT_ID` GitHub secret: `gh secret set PRODLI_GOOGLE_CLIENT_ID --repo sysuin/prodli`
   - [ ] Sign in on two computers and check notes sync both ways (including a deletion)
   - [ ] Before the store release: **Publish app** in Google Auth Platform → Audience
-- [ ] **Leave Replit** — [docs/MOVING-OFF-REPLIT.md](docs/MOVING-OFF-REPLIT.md):
+- [ ] **Leave Replit** — [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md):
   - [x] Code on GitHub with CI
-  - [ ] Cloudflare Pages project + `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets
-  - [ ] Move prodli.com DNS to Cloudflare, **keeping the Hostinger email (MX/TXT) records**
-  - [ ] After a few days on Cloudflare: unpublish the Replit deployment and cancel any Replit plan
+  - [x] prodli.com DNS on Cloudflare (Hostinger email records kept, DNS only)
+  - [x] Website served by Cloudflare (`prodli-site` Worker)
+  - [ ] Add `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets so CI deploys
+  - [ ] After a few days: unpublish the Replit deployment, cancel any Replit plan, delete the `replit-verify` TXT records
+- [ ] **Web app + accounts** — [docs/PLAN-WEB-APP.md](docs/PLAN-WEB-APP.md): phase 0 (foundations) in review; next phase 1 (accounts)
 - [ ] **Publish v1.3.0 to the Chrome Web Store** using [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots in `artifacts/prodli/store-assets/`, listing text, permission justifications, data-usage answers). Expect a slower review because of the tab-audio permission.
 
 ## Next ideas
@@ -45,7 +47,7 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
 From the repo root (see README.md for all commands):
 
 - `pnpm run typecheck` — TypeScript
-- `pnpm test` — 70 unit tests
+- `pnpm test` — unit tests (extension + API)
 - `pnpm test:e2e` — builds the extension and runs ~100 checks in a throwaway headless Chrome (all tabs, Editor incl. two tabs, Meetings, captions reader in English + Spanish, Files, Pomodoro, real Time Tracker tracking incl. worker restarts, Habits, Drive sign-in/sync with a simulated Google, backup, accessibility audit). `E2E_SPEECH=1` adds the real on-device speech test (downloads Chrome's model). Run selected suites with `node artifacts/prodli/tests/e2e/run.mjs editor,files`.
 - `node artifacts/prodli/scripts/store-screenshots.mjs` — regenerate store screenshots after UI changes.
 

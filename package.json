@@ -5,7 +5,7 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "typecheck": "pnpm -r --if-present run typecheck",
-    "test": "pnpm --filter @workspace/prodli run test",
+    "test": "pnpm -r --if-present run test",
     "test:e2e": "pnpm --filter @workspace/prodli run test:e2e",
     "build:extension": "pnpm --filter @workspace/prodli run build:extension",
     "build:web": "node scripts/build-web.mjs",

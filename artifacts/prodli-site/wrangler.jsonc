@@ -1,0 +1,34 @@
+// prodli.com — marketing site, privacy policy and the /extension/ web preview,
+// served as static files by a Cloudflare Worker (free; no bandwidth charges).
+//
+//   pnpm run build:web                                         (from the repo root)
+//   npx wrangler deploy -c artifacts/prodli-site/wrangler.jsonc               → prodli.com
+//   npx wrangler deploy -c artifacts/prodli-site/wrangler.jsonc --env preview → workers.dev only
+//
+// Routes attach to the existing proxied DNS records of prodli.com, so switching
+// is instant and needs no DNS change.
+{
+  "$schema": "../prodli-api/node_modules/wrangler/config-schema.json",
+  "name": "prodli-site",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "../../site-dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "none"
+  },
+  "observability": { "enabled": true },
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "prodli.com/*", "zone_name": "prodli.com" },
+    { "pattern": "www.prodli.com/*", "zone_name": "prodli.com" }
+  ],
+  "env": {
+    "preview": {
+      "name": "prodli-site-preview",
+      "workers_dev": true,
+      "routes": []
+    }
+  }
+}
