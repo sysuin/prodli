@@ -80,7 +80,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
         background: todo.completed ? "hsl(var(--muted))" : "hsl(var(--card))",
         animation: justCompleted ? "todo-pop 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97)" : undefined,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px" }}>
+        <div className="todo-row" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px" }}>
           {/* Drag handle */}
           <span {...attributes} {...listeners} style={{ cursor: "grab", fontSize: 16, color: "hsl(var(--muted-foreground))", userSelect: "none", flexShrink: 0 }}>⠿</span>
           {/* Checkbox */}
@@ -118,6 +118,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           ) : (
             <span
               onDoubleClick={() => { setEditing(true); setEditText(todo.title); }}
+              className="todo-title"
               style={{
                 flex: 1,
                 fontSize: 14,
@@ -284,7 +285,7 @@ export function TodoSection() {
 
       {/* Input area */}
       <div style={{ borderBottom: "var(--nb-border)", padding: "12px 24px", background: "hsl(var(--card))", display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="todo-add-row" style={{ display: "flex", gap: 8 }}>
           <input
             value={input}
             onChange={e => setInput(e.target.value)}

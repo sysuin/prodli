@@ -1,6 +1,6 @@
 # ProdLi web app + accounts — build plan
 
-Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging); next: phase 1.
+Status: **approved** (2026-11-09). Phase 0 done (site on Cloudflare, API on staging). Phases 1–5 built and on staging; production and launch steps that need you are in [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md).
 
 Decisions so far:
 - Everything runs on Cloudflare, in the same account as your other products, with guardrails.
@@ -106,6 +106,45 @@ Testing at every phase:
 - headless-browser end-to-end tests of the extension and web app against a local server;
 - accessibility checks.
 Nothing is deployed to production until staging passes.
+
+### Phase 2 as built
+
+- **Server:** one `UserStore` Durable Object per user (`artifacts/prodli-api/src/userStore.ts`, logic in `syncStore.ts`). `POST /api/sync` pushes changes and pulls everything after the device's last sequence number. `/api/sync/live` is a hibernating WebSocket that only says "something changed"; it never carries data. Tickets are one-time and last one minute.
+- **App:** `src/lib/prodliSync.ts` (I/O) and `syncCore.ts` (pure logic).
+  - One open ProdLi page leads (Web Locks). It syncs about 0.7 s after a local edit and keeps the live connection.
+  - The extension background syncs every 15 minutes.
+  - Time Tracker days are pushed at most every 15 minutes.
+- **What syncs:**
+  - Notes, to-dos and habits (newest edit wins).
+  - Meetings: text only. Audio never syncs, and there's a per-device opt-out.
+  - Pomodoro history and the completed count.
+  - Time Tracker history, merged by taking the larger number per site so nothing is double-counted.
+  - Settings stay per device.
+- **First sign-in:** what's on the device is added to the account. If the device was signed in to Google Drive sync, the Drive copy is merged in first, then Drive sync turns off. Server builds no longer show Drive sync.
+- **Limits:** 100 MB per user (free), 1.5 MB per item, 300 sync requests a minute per user.
+- **Known limits:**
+  - Two people editing the *same* note at the same second: the newest wins; there's no conflict copy yet.
+  - Signing in to a *different* account on the same browser merges that browser's local data into it.
+
+### Phases 3–5 as built
+
+- **Web app (3):**
+  - Every section works in a browser.
+  - Meetings: view meetings synced from the extension, search transcripts and summaries, and summarize. Recording stays in the extension.
+  - Time Tracker shows synced history.
+  - Phone layout: section tabs get their own row, and the editor shows either the note list or the note.
+  - Installable (web app manifest) and offline (a service worker caches the built files; sync catches up later).
+  - Strict security headers. Production is at app.prodli.com (custom domain in `wrangler.jsonc`).
+- **AI (4):**
+  - `POST /api/ai/summarize` uses ProdLi's Claude key: Haiku 5.5, the same prompt as the extension.
+  - Monthly allowance in D1 `ai_usage`: free 20, Pro 300. Failed calls are refunded.
+  - The app uses your own key if one is saved, otherwise your ProdLi account.
+- **Hardening (5):** see [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md).
+  - Nightly R2 backups with 30-day expiry, deleted together with the account.
+  - Admin restore, enabled only by a secret.
+  - Uptime checks.
+  - Load test.
+  - Privacy and terms drafts.
 
 ## 5. What I'll need from you (at the time it's needed)
 

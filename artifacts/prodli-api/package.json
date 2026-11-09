@@ -4,14 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
+    "build:app": "node ../../scripts/build-app.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "deploy:staging": "wrangler deploy --env staging",
-    "deploy:production": "wrangler deploy --env production"
+    "deploy:staging": "node ../../scripts/build-app.mjs && wrangler d1 migrations apply DB --env staging --remote && wrangler deploy --env staging",
+    "deploy:production": "node ../../scripts/build-app.mjs && wrangler d1 migrations apply DB --env production --remote && wrangler deploy --env production"
   },
   "dependencies": {
-    "hono": "^4.10.0"
+    "@anthropic-ai/sdk": "^1.6.0",
+    "hono": "^4.10.0",
+    "jose": "^6.2.15",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251001.0",

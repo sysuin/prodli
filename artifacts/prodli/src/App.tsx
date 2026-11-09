@@ -6,6 +6,8 @@ import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
 import { AccountButton, AccountModal } from "./components/AccountModal";
+import { accountsEnabled } from "./lib/prodliAccount";
+import { startSync } from "./lib/prodliSync";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -100,6 +102,9 @@ export default function App() {
   const closeAccount = useCallback(() => setShowAccount(false), []);
 
   const pomodoroTimer = usePomodoroTimer();
+
+  // ProdLi account sync (one open ProdLi page leads; the rest stand by).
+  useEffect(() => (accountsEnabled() ? startSync() : undefined), []);
 
   useEffect(() => {
     Promise.all([
@@ -223,7 +228,7 @@ export default function App() {
       fontFamily: "Space Grotesk, Inter, sans-serif",
       overflow: "hidden",
     }}>
-      <nav aria-label="Sections" style={{
+      <nav aria-label="Sections" className="app-nav" style={{
         display: "flex",
         alignItems: "stretch",
         borderBottom: isDark ? "3px solid #FFD700" : "3px solid #000",
@@ -231,7 +236,7 @@ export default function App() {
         height: 52,
         flexShrink: 0,
       }}>
-        <div style={{
+        <div className="nav-brand" style={{
           padding: "0 20px",
           display: "flex",
           alignItems: "center",
@@ -301,7 +306,7 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ display: "flex", alignItems: "stretch" }}>
+        <div className="nav-actions" style={{ display: "flex", alignItems: "stretch" }}>
           <AccountButton onClick={() => setShowAccount(true)} />
           <button
             onClick={() => setShowBackup(true)}
@@ -325,6 +330,7 @@ export default function App() {
             }}
             onMouseEnter={e => (e.currentTarget.style.color = "#FFD700")}
             onMouseLeave={e => (e.currentTarget.style.color = "#888")}
+            className="nav-backup"
           >💾</button>
           <button
             onClick={() => setShowHelp(true)}
@@ -415,7 +421,7 @@ function LiveClock({ accent }: { accent: string }) {
   const dateStr = time.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <div style={{
+    <div className="nav-clock" style={{
       display: "flex",
       alignItems: "center",
       gap: 4,

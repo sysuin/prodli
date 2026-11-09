@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 import { storageGet, storageSet } from "../lib/storage";
 import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
+import { accountsEnabled } from "../lib/prodliAccount";
 import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
@@ -270,7 +271,7 @@ export function TimeTrackerSection() {
           </div>
           {!isExtension() && (
             <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginTop: 2 }}>
-              Web preview — install the extension to start tracking
+              {accountsEnabled() ? "Time tracked by the ProdLi extension on your computers (synced)" : "Web preview — install the extension to start tracking"}
             </div>
           )}
         </div>

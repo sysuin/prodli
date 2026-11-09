@@ -1,0 +1,31 @@
+# Uptime check: every 15 minutes, ask production and staging if they're healthy.
+# A failed run makes GitHub email the repository owner (Settings → Notifications
+# → Actions: "Send notifications for failed workflows only").
+# Free: about 3,000 short runs a month (the job takes a few seconds).
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        url:
+          - https://app.prodli.com/api/health
+          - https://prodli-api-staging.sunnysinghnitb.workers.dev/api/health
+          - https://prodli.com/
+    steps:
+      - name: Check ${{ matrix.url }}
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 15 "${{ matrix.url }}" || true)
+            if [ "$code" = "200" ]; then echo "OK ($code)"; exit 0; fi
+            echo "Attempt $i: HTTP $code"; sleep 20
+          done
+          echo "::error::${{ matrix.url }} is down (last status $code)"; head -c 500 /tmp/body || true; exit 1

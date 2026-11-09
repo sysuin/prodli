@@ -1,30 +1,93 @@
-// ProdLi's server: accounts, sync and AI (see docs/PLAN-WEB-APP.md).
+// ProdLi's server: accounts, sync and AI, plus the web app's static files
+// (see docs/PLAN-WEB-APP.md and docs/CLOUDFLARE.md).
 //
-//   pnpm --filter @workspace/prodli-api dev                 local (http://localhost:8787)
-//   pnpm --filter @workspace/prodli-api deploy:staging      prodli-api-staging (workers.dev)
-//   pnpm --filter @workspace/prodli-api deploy:production   prodli-api (app.prodli.com, from phase 1)
+//   pnpm --filter @workspace/prodli-api build:app            build the web app into app-dist/
+//   pnpm --filter @workspace/prodli-api dev                  local (http://localhost:8787, local D1)
+//   pnpm --filter @workspace/prodli-api deploy:staging       prodli-api-staging (workers.dev)
+//   pnpm --filter @workspace/prodli-api deploy:production    prodli-api (app.prodli.com)
 //
-// Staging and production are separate Workers with separate data; nothing is
-// shared between them. Secrets are set per environment with
-// `wrangler secret put NAME --env <env>` and never live in this file.
+// Staging and production are separate Workers with separate databases.
+// Bindings are not inherited by environments, so each one lists its own.
+// UserStore (one Durable Object per user, with its own SQLite) holds synced data.
+// Secrets: `wrangler secret put NAME --env <env>` — never in this file.
+//   ANTHROPIC_API_KEY  enables AI summaries through ProdLi (phase 4)
+//   ADMIN_TOKEN        (32+ chars) enables /api/admin/* backup + restore (phase 5)
+// Google OAuth client IDs are public (they ship in every page/extension), so
+// they live here as plain vars.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "prodli-api-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
-  "vars": { "ENV": "development" },
+  "assets": {
+    "directory": "./app-dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "ENV": "development",
+    "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
+    "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com"
+  },
+  "d1_databases": [
+    // Local only (wrangler dev keeps it in .wrangler/); the id is a placeholder.
+    { "binding": "DB", "database_name": "prodli-core-dev", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "SYNC_LIMITER", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "AI_LIMITER", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }],
   "env": {
     "staging": {
       "name": "prodli-api-staging",
       "workers_dev": true,
-      "vars": { "ENV": "staging" }
+      "vars": {
+        "ENV": "staging",
+        "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
+        "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "prodli-core-staging", "database_id": "b599423c-7434-45eb-b9e1-79aa69458b01", "migrations_dir": "migrations" }
+      ],
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "2001", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SYNC_LIMITER", "namespace_id": "2002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "AI_LIMITER", "namespace_id": "2003", "simple": { "limit": 10, "period": 60 } }
+      ],
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups-staging" }],
+      // Nightly backups (src/backup.ts), 03:17 UTC.
+      "triggers": { "crons": ["17 3 * * *"] },
+      "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }]
     },
     "production": {
       "name": "prodli-api",
-      // Served at app.prodli.com/api once phase 1 adds the route; no public URL until then.
+      // The web app + API at app.prodli.com (Cloudflare creates the DNS record and certificate).
       "workers_dev": false,
-      "vars": { "ENV": "production" }
+      "routes": [{ "pattern": "app.prodli.com", "custom_domain": true }],
+      "vars": {
+        "ENV": "production",
+        "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
+        "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "prodli-core", "database_id": "58116cae-079a-4a3f-aeeb-20f905a37cd1", "migrations_dir": "migrations" }
+      ],
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "3001", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SYNC_LIMITER", "namespace_id": "3002", "simple": { "limit": 300, "period": 60 } },
+        { "name": "AI_LIMITER", "namespace_id": "3003", "simple": { "limit": 10, "period": 60 } }
+      ],
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups" }],
+      // Nightly backups (src/backup.ts), 03:17 UTC.
+      "triggers": { "crons": ["17 3 * * *"] },
+      "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }]
     }
   }
 }

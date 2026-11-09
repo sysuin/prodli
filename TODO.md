@@ -22,7 +22,7 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
   - [x] Website served by Cloudflare (`prodli-site` Worker)
   - [ ] Add `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets so CI deploys
   - [ ] After a few days: unpublish the Replit deployment, cancel any Replit plan, delete the `replit-verify` TXT records
-- [ ] **Web app + accounts** — [docs/PLAN-WEB-APP.md](docs/PLAN-WEB-APP.md): phase 0 (foundations) in review; next phase 1 (accounts)
+- [ ] **Web app + accounts** — [docs/PLAN-WEB-APP.md](docs/PLAN-WEB-APP.md): phases 0–5 built and on staging; your launch steps are in [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md)
 - [ ] **Publish v1.3.0 to the Chrome Web Store** using [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots in `artifacts/prodli/store-assets/`, listing text, permission justifications, data-usage answers). Expect a slower review because of the tab-audio permission.
 
 ## Next ideas
@@ -37,7 +37,6 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
 
 ## Roadmap
 
-- [ ] Accounts on Cloudflare Workers + D1 (free tier) if/when a server is needed — Drive sync covers cross-device today
 - [ ] Web app (app.prodli.com), reusing the extension's screens
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
 - [ ] Mobile app

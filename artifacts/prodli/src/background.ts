@@ -5,6 +5,8 @@ import type { TrackerSettings, FocusRule } from "./types";
 import { registerRecorder } from "./recorder/controller";
 import { registerPomodoro } from "./lib/pomodoroBackground";
 import { registerDriveBackup } from "./lib/driveBackground";
+import { accountsEnabled } from "./lib/prodliAccount";
+import { registerBackgroundSync } from "./lib/prodliSync";
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
@@ -12,6 +14,8 @@ registerRecorder();
 registerPomodoro();
 // Google Drive: daily backup while signed in (no-op otherwise).
 registerDriveBackup();
+// ProdLi account sync: every 15 minutes, even with no ProdLi tab open (open tabs sync live).
+if (accountsEnabled()) registerBackgroundSync();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,

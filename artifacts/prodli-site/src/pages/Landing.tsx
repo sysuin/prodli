@@ -124,15 +124,15 @@ export function Landing() {
             <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 14, padding: "16px 36px" }}>
               Add to Chrome — it's free →
             </a>
-            <a href="/extension" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
-              Try it live ↗
+            <a href="https://app.prodli.com" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
+              Open the web app ↗
             </a>
             <a href="#features" className="nb-btn nb-btn-ghost" style={{ fontSize: 14, padding: "16px 28px" }}>
               See all features
             </a>
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)" }}>
-            Try it live — no install required
+            Use it in Chrome or on any device at app.prodli.com — sign in once, synced everywhere
           </span>
         </div>
 
@@ -284,6 +284,7 @@ export function Landing() {
         <div className="site-footer-links" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
           <a href="mailto:contact@prodli.com" style={{ color: "#888", fontSize: 12, fontWeight: 700 }}>contact@prodli.com</a>
           <a href="/privacy" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Privacy Policy</a>
+          <a href="/terms" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Terms</a>
           <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Chrome Store →</a>
         </div>
       </footer>

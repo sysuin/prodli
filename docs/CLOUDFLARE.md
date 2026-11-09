@@ -8,8 +8,31 @@ ProdLi shares the Cloudflare account that hosts your other projects (jobscanner,
 |---|---|---|---|
 | `prodli-site` | https://prodli.com (www and http:// redirect to it) | `artifacts/prodli-site` (static files from `pnpm run build:web`) | CI on push to main |
 | `prodli-site-preview` | https://prodli-site-preview.sunnysinghnitb.workers.dev (manual previews) | same, `--env preview` | by hand |
-| `prodli-api-staging` | https://prodli-api-staging.sunnysinghnitb.workers.dev/api/health | `artifacts/prodli-api` | CI on push to main |
-| `prodli-api` (production) | app.prodli.com/api, from phase 1 | `artifacts/prodli-api` | CI, manual run only |
+| `prodli-api-staging` | https://prodli-api-staging.sunnysinghnitb.workers.dev: web app + `/api` | `artifacts/prodli-api` | CI on push to main |
+| `prodli-api` (production) | app.prodli.com: web app + `/api` (not deployed yet) | `artifacts/prodli-api` | CI, manual run only |
+
+| D1 database | Used by | Holds |
+|---|---|---|
+| `prodli-core-staging` | `prodli-api-staging` | accounts + sessions (staging) |
+| `prodli-core` | `prodli-api` | accounts + sessions (production) |
+
+| Durable Object class | Used by | Holds |
+|---|---|---|
+| `UserStore` (SQLite) | `prodli-api-staging`, `prodli-api` | one object per user: that user's synced notes, to-dos, habits, meetings (text), Pomodoro and Time Tracker history |
+
+| R2 bucket | Used by | Holds |
+|---|---|---|
+| `prodli-backups-staging` | `prodli-api-staging` | nightly copies of each account's synced data; expire after 30 days |
+| `prodli-backups` | `prodli-api` | the same for production |
+
+Both Workers run a cron at 03:17 UTC for these backups (`src/backup.ts`).
+
+| Secret (per environment) | Enables |
+|---|---|
+| `ANTHROPIC_API_KEY` | AI summaries through ProdLi (phase 4) |
+| `ADMIN_TOKEN` (32+ chars) | `/api/admin/backup`, `/backups` and `/restore` (restore drill; see [LAUNCH-CHECKLIST.md](LAUNCH-CHECKLIST.md)) |
+
+D1 schema changes live in `artifacts/prodli-api/migrations/`; the deploy scripts apply them before deploying. `UserStore` creates its own tables. Its class migrations (`new_sqlite_classes`) are in `wrangler.jsonc`.
 
 - The site's routes (`prodli.com/*`, `www.prodli.com/*`) attach to the proxied DNS records. Requests never reach the old Replit address the A records still show.
 - Email DNS (Hostinger Mail) is **DNS only** and must stay that way. That covers MX, SPF, DMARC, the three `hostingermail-*._domainkey` DKIM records, `autoconfig` and `autodiscover`.

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
-import { deleteMeeting, getAudio, listMeetings } from "../recorder/db";
+import { deleteMeeting, getAudio, listMeetings, updateMeeting } from "../recorder/db";
+import { canUseProdliAi, summarizeAny } from "../recorder/summarize";
+import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
 
@@ -36,6 +38,17 @@ import {
 
 const ACCENT = "#FF4FA3";
 const DISCLOSURE_TEXT = "Heads-up: I'm taking AI-assisted notes of this call so I can share a summary afterwards.";
+
+const NO_AI_HINT = accountsEnabled() ? "Sign in to your ProdLi account (free summaries) or add your own Claude API key in Setup" : "Add your Claude API key in Setup";
+
+/** Does the meeting match a search (title, summary, transcript)? */
+export function meetingMatches(m: Meeting, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const s = m.summary;
+  const hay = [m.title, s?.title, s?.overview, ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
+  return hay.some((h) => h?.toLowerCase().includes(q));
+}
 
 function isExtension(): boolean {
   return typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.permissions;
@@ -138,7 +151,9 @@ function SetupPanel({
   autoSummarize,
   onToggleAuto,
   speech,
+  ai,
 }: {
+  ai: { signedIn: boolean; usage: AiUsage | null };
   apiKey: string;
   onSaveKey: (k: string) => void;
   recorderOn: boolean;
@@ -156,7 +171,7 @@ function SetupPanel({
   return (
     <div style={{ ...card, display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: 16 }}>
       <div>
-        <div style={label}>1 · Claude API key</div>
+        <div style={label}>1 · Claude API key{ai.signedIn ? " (optional)" : ""}</div>
         {apiKey ? (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
             <code style={{ fontSize: 13, fontWeight: 700 }}>✓ {masked}</code>
@@ -180,6 +195,12 @@ function SetupPanel({
         <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>
           Stored only in this browser and sent only to Anthropic. Summaries use {SUMMARY_MODEL} (low-cost) — usually under 1¢ per meeting.
         </p>
+        {!apiKey && ai.signedIn && (
+          <p style={{ fontSize: 12, marginTop: 4, fontWeight: 700 }} data-testid="ai-allowance">
+            No key needed: summaries use your ProdLi account
+            {ai.usage ? ` — ${Math.max(0, ai.usage.limit - ai.usage.used)} of ${ai.usage.limit} free this month.` : "."}
+          </p>
+        )}
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={autoSummarize} onChange={onToggleAuto} /> Summarize automatically when a meeting ends
         </label>
@@ -360,7 +381,7 @@ function MeetingDetail({
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button style={btn("primary", !canSummarize)} disabled={!canSummarize} onClick={onSummarize} title={hasKey ? "" : "Add your Claude API key in Setup"}>
+          <button style={btn("primary", !canSummarize)} disabled={!canSummarize} onClick={onSummarize} title={hasKey ? "" : NO_AI_HINT}>
             {meeting.status === "processing" ? "Summarizing…" : s ? "Re-summarize" : "✨ Summarize"}
           </button>
           <button style={btn("plain", busy)} disabled={busy} onClick={saveAsNote}>Save as note</button>
@@ -372,7 +393,7 @@ function MeetingDetail({
       {meeting.status === "recording" && <Banner tone="info">Recording in progress — notes appear here when the meeting ends.</Banner>}
       {meeting.notice && <Banner tone="warn">{meeting.notice}</Banner>}
       {meeting.error && <Banner tone="error">{meeting.error}</Banner>}
-      {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">Add your Claude API key in Setup to turn this transcript into notes and action items.</Banner>}
+      {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">{NO_AI_HINT} to turn this transcript into notes and action items.</Banner>}
 
       {audioUrl && (
         <Section title={`Audio${meeting.micIncluded ? "" : " (other participants only)"}`}>
@@ -468,6 +489,9 @@ export function MeetingsSection() {
   const [speechStatus, setSpeechStatus] = useState<SpeechAvailability | "checking" | "installing">("checking");
   const [autoSummarize, setAutoSummarize] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
+  const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -482,6 +506,25 @@ export function MeetingsSection() {
     setMeetings(list);
     setSelectedId((cur) => (cur && list.some((m) => m.id === cur) ? cur : (list[0]?.id ?? null)));
   }, []);
+
+  // ProdLi account: free summaries without a key (and, on the web, meetings synced from the extension).
+  useEffect(() => {
+    const check = () =>
+      void canUseProdliAi().then((ok) => {
+        setSignedIn(ok);
+        if (ok) getAiUsage().then(setAiUsage, () => setAiUsage(null));
+      });
+    check();
+    return onProdliAccountChange(check);
+  }, []);
+
+  // Web app: meetings arrive through sync; IndexedDB has no change events, so poll.
+  useEffect(() => {
+    if (ext) return;
+    void refresh().then(() => setLoaded(true));
+    const poll = setInterval(() => void refresh(), 3000);
+    return () => clearInterval(poll);
+  }, [ext, refresh]);
 
   useEffect(() => {
     if (!ext) return;
@@ -601,10 +644,28 @@ export function MeetingsSection() {
 
   const summarize = async (id: string) => {
     setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, status: "processing", error: null } : m)));
+    if (!ext) {
+      // Web app: no background worker — summarize here through the ProdLi account.
+      const meeting = await updateMeeting(id, () => ({ status: "processing", error: null }));
+      if (!meeting) return;
+      try {
+        const summary = await summarizeAny(meeting, "");
+        await updateMeeting(id, (m) => ({ status: "ready", summary, title: m.title.startsWith("Google Meet · ") && summary.title ? summary.title : m.title }));
+        flash("Notes ready");
+      } catch (err) {
+        const error = err instanceof Error ? err.message : "Summarizing failed";
+        await updateMeeting(id, () => ({ status: "ready", error }));
+        flash(error);
+      }
+      if (signedIn) getAiUsage().then(setAiUsage, () => {});
+      await refresh();
+      return;
+    }
     const msg: BackgroundMessage = { target: "background", type: "summarize", meetingId: id };
     const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean; error?: string } | undefined;
     await refresh();
     flash(res?.ok ? "Notes ready" : (res?.error ?? "Summarizing failed"));
+    if (signedIn) getAiUsage().then(setAiUsage, () => {});
   };
 
   const remove = async (id: string) => {
@@ -635,7 +696,7 @@ export function MeetingsSection() {
     </div>
   );
 
-  if (!ext) {
+  if (!ext && !signedIn && meetings.length === 0) {
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         {header}
@@ -643,6 +704,7 @@ export function MeetingsSection() {
           <div style={card}>
             <strong>Meeting notes work in the ProdLi Chrome extension.</strong>
             <p style={{ fontSize: 14 }}>Install ProdLi, join a Google Meet, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
+            {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
           </div>
         </div>
       </div>
@@ -678,6 +740,7 @@ export function MeetingsSection() {
             autoSummarize={autoSummarize}
             onToggleAuto={() => void toggleAuto()}
             speech={{ on: speechOn, lang: speechLang, status: speechStatus, toggle: () => void toggleSpeech(), setLang: (l) => void changeSpeechLang(l), install: installSpeechModel }}
+            ai={{ signedIn, usage: aiUsage }}
           />
         )}
 
@@ -685,12 +748,23 @@ export function MeetingsSection() {
           <div style={{ ...card, textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>
-            <p style={{ fontSize: 14, opacity: 0.8 }}>Join a Google Meet and click the ProdLi icon (or press Alt+Shift+R) to start taking notes.</p>
+            <p style={{ fontSize: 14, opacity: 0.8 }}>
+              {ext ? "Join a Google Meet and click the ProdLi icon (or press Alt+Shift+R) to start taking notes." : "Meetings you record with the ProdLi extension appear here."}
+            </p>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-            <div style={{ width: 280, flexShrink: 0, display: "grid", gap: 8 }}>
-              {meetings.map((m) => {
+          <div className="meetings-layout" style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+            <div className="meetings-list" style={{ width: 280, flexShrink: 0, display: "grid", gap: 8 }}>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search meetings…"
+                aria-label="Search meetings"
+                style={{ border: "var(--nb-border)", padding: "7px 10px", fontFamily: "inherit", fontSize: 13, background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
+              />
+              {query && !meetings.some((m) => meetingMatches(m, query)) && <div style={{ fontSize: 13, opacity: 0.7 }}>No meetings match “{query}”.</div>}
+              {meetings.filter((m) => meetingMatches(m, query)).map((m) => {
                 const active = m.id === selectedId;
                 return (
                   <button
@@ -722,7 +796,7 @@ export function MeetingsSection() {
                 <MeetingDetail
                   key={selected.id}
                   meeting={selected}
-                  hasKey={!!apiKey}
+                  hasKey={!!apiKey || signedIn}
                   onSummarize={() => void summarize(selected.id)}
                   onDelete={() => void remove(selected.id)}
                   flash={flash}

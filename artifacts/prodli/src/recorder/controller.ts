@@ -5,7 +5,7 @@
 // user actions, which is why recording can't start from a button inside Meet.
 
 import { getMeeting, putMeeting, updateMeeting } from "./db";
-import { summarizeMeeting, SummarizeError } from "./summarize";
+import { summarizeAny, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
@@ -246,7 +246,7 @@ export async function runSummary(meetingId: string): Promise<{ ok: boolean; erro
   if (!meeting) return { ok: false, error: "Meeting not found." };
   const apiKey = await getLocal<string>(CLAUDE_KEY_STORAGE_KEY, "");
   try {
-    const summary = await summarizeMeeting(meeting, apiKey);
+    const summary = await summarizeAny(meeting, apiKey);
     await updateMeeting(meetingId, (m) => ({
       status: "ready",
       summary,

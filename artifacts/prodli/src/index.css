@@ -391,6 +391,39 @@
   .nav-tab { padding: 0 14px !important; font-size: 16px !important; }
 }
 
+/* ── Phones and narrow windows (the web app at app.prodli.com) ──────────── */
+.mobile-only { display: none !important; }
+@media (max-width: 720px) {
+  .mobile-only { display: flex !important; }
+  .desktop-only { display: none !important; }
+  /* Top bar: brand + actions on one row, sections as a full-width row below. */
+  .app-nav { flex-wrap: wrap; height: auto !important; }
+  .app-nav .nav-brand { padding: 0 12px !important; height: 48px; border-right: none !important; flex: 1; }
+  .app-nav .nav-actions { height: 48px; }
+  .app-nav .nav-clock, .app-nav .nav-backup { display: none !important; }
+  .app-nav .nav-tabs { order: 3; flex: 0 0 100% !important; border-top: 2px solid #222; height: 46px; }
+  .app-nav .nav-tab { flex: 1 0 auto; justify-content: center; padding: 0 10px !important; font-size: 18px !important; min-width: 44px; }
+  .app-nav .nav-actions > button { padding: 0 11px !important; }
+  /* Editor: list or note, full width. */
+  .editor-root .editor-sidebar { width: 100% !important; border-right: none !important; }
+  .editor-root.mobile-note .editor-sidebar { display: none !important; }
+  .editor-root.mobile-list .editor-main { display: none !important; }
+  .editor-back { border: none; border-bottom: var(--nb-border); background: hsl(var(--background)); color: hsl(var(--foreground)); padding: 10px 14px; font: inherit; font-weight: 800; font-size: 13px; text-align: left; cursor: pointer; align-items: center; gap: 6px; }
+  .editor-toolbar { flex-wrap: nowrap !important; overflow-x: auto; padding: 6px 10px !important; }
+  .editor-toolbar > * { flex-shrink: 0; }
+  .editor-outline { display: none !important; }
+  .editor-status { gap: 10px !important; padding: 4px 10px !important; }
+  .editor-page { padding-left: 4px; padding-right: 4px; }
+  /* To-dos: the task input gets its own line; long titles get the full width. */
+  .todo-add-row { flex-wrap: wrap; }
+  .todo-add-row > input:first-child { flex: 1 0 100% !important; }
+  .todo-row { flex-wrap: wrap; }
+  .todo-row .todo-title { flex: 1 1 calc(100% - 70px) !important; min-width: 0; }
+  /* Meetings: list above the selected meeting. */
+  .meetings-layout { flex-direction: column; }
+  .meetings-layout .meetings-list { width: 100% !important; }
+}
+
 /* ── Editor: blocks added in v1.3 ───────────────────────────────────────── */
 .tiptap blockquote {
   border-left: 4px solid var(--nb-section-border);

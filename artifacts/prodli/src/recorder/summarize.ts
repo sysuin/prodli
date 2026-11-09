@@ -1,5 +1,7 @@
 // Turns a meeting transcript into a summary, decisions and action items with
-// Claude, using the API key the user saved in ProdLi settings.
+// Claude — with the user's own API key if they saved one, otherwise through
+// their ProdLi account (ProdLi's key, a free monthly allowance; see
+// artifacts/prodli-api/src/ai.ts, which uses the same prompt and output shape).
 //
 // Model choice: Claude Haiku 5.5 — the lowest-cost Claude model ($0.10 / $0.50
 // per million input / output tokens for prompts up to 100K tokens), run at low
@@ -10,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod/v4";
 import { SUMMARY_MODEL, transcriptToText } from "./format";
+import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "../lib/prodliAccount";
 import type { Meeting, MeetingSummary } from "./types";
 
 
@@ -91,4 +94,34 @@ export async function summarizeMeeting(meeting: Meeting, apiKey: string): Promis
     }
     throw new SummarizeError(err instanceof Error ? err.message : "Summarizing failed.");
   }
+}
+
+/** Summary through the user's ProdLi account (no API key needed; monthly allowance). */
+export async function summarizeViaProdli(meeting: Meeting): Promise<MeetingSummary> {
+  if (meeting.transcript.length === 0) throw new SummarizeError("There is no transcript to summarize.");
+  try {
+    const r = await accountRequest<{ summary: MeetingSummary }>("/api/ai/summarize", {
+      method: "POST",
+      body: JSON.stringify({ title: meeting.title, date: new Date(meeting.startedAt).toISOString().slice(0, 10), transcript: transcriptToText(meeting.transcript) }),
+    });
+    return r.summary;
+  } catch (err) {
+    throw new SummarizeError(err instanceof AccountError ? err.message : "Summarizing failed.");
+  }
+}
+
+/** Can this device summarize without a key? (signed in to a ProdLi account) */
+export async function canUseProdliAi(): Promise<boolean> {
+  return accountsEnabled() && !!(await getProdliAccount());
+}
+
+/** Own key if there is one (direct to Anthropic, unlimited), otherwise the ProdLi account. */
+export async function summarizeAny(meeting: Meeting, apiKey: string): Promise<MeetingSummary> {
+  if (apiKey) return summarizeMeeting(meeting, apiKey);
+  if (await canUseProdliAi()) return summarizeViaProdli(meeting);
+  throw new SummarizeError(
+    accountsEnabled()
+      ? "Sign in to your ProdLi account for free summaries, or add your own Claude API key in Meetings → Setup."
+      : "Add your Claude API key in Meetings → Setup to generate summaries.",
+  );
 }

@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { app, EXTENSION_ORIGIN, type Env } from "../src/index";
+import { app, EXTENSION_ORIGIN, type Env } from "../src/app";
 
-const env = (ENV: Env["ENV"]): Env => ({ ENV });
+const env = (ENV: Env["ENV"]) => ({ ENV, GOOGLE_EXTENSION_CLIENT_ID: "x", GOOGLE_WEB_CLIENT_ID: "y" }) as unknown as Env;
 
-describe("prodli-api", () => {
+describe("prodli-api basics", () => {
   it("reports health with the environment name", async () => {
     const res = await app.request("/api/health", {}, env("staging"));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.json()).toMatchObject({ ok: true, service: "prodli-api", env: "staging" });
+  });
+
+  it("shares the public web sign-in settings", async () => {
+    const res = await app.request("/api/config", {}, env("production"));
+    expect(await res.json()).toEqual({ env: "production", googleWebClientId: "y", ai: false });
   });
 
   it("sends security headers", async () => {
@@ -39,9 +44,18 @@ describe("prodli-api", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe(EXTENSION_ORIGIN);
   });
 
-  it("returns JSON 404s", async () => {
+  it("returns JSON 404s for unknown API routes", async () => {
     const res = await app.request("/api/nope", {}, env("staging"));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
+  });
+
+  it("rejects oversized request bodies", async () => {
+    const res = await app.request(
+      "/api/auth/google",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "web", idToken: "x".repeat(70_000) }) },
+      env("staging"),
+    );
+    expect(res.status).toBe(413);
   });
 });
