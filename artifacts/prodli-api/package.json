@@ -1,0 +1,21 @@
+{
+  "name": "@workspace/prodli-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "dependencies": {
+    "hono": "^4.10.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251001.0",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.40.0"
+  }
+}

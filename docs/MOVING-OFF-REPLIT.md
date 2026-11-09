@@ -1,5 +1,16 @@
 # Moving ProdLi off Replit — checklist
 
+> **Status 2026-11-09: the website has moved.**
+> - prodli.com's DNS is on Cloudflare, and the Hostinger Mail records are fixed to "DNS only".
+> - The site is served by the `prodli-site` Worker; see [CLOUDFLARE.md](CLOUDFLARE.md). It runs on Workers, not the Pages project described below.
+>
+> What's left:
+> 1. Add the CI secrets (CLOUDFLARE.md → "CI secrets").
+> 2. After a few days without problems, unpublish the Replit deployment and cancel any Replit plan.
+> 3. Then delete the two `replit-verify` TXT records in Cloudflare DNS.
+>
+> The rest of this file is kept for reference.
+
 The code no longer depends on Replit (no Replit config, plugins or packages). What's left is moving the **running website** and the **copy of the code** to free services. Do these in order; each step is reversible until step 5.
 
 Current state (checked 2026-11-08):

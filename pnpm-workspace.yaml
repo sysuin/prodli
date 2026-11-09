@@ -55,3 +55,4 @@ overrides:
 
 allowBuilds:
   esbuild: true
+  workerd: true # Cloudflare's Workers runtime (wrangler dev); sets up its platform binary

@@ -4,11 +4,11 @@
 //   /privacy     privacy policy      (same app)
 //   /extension/  live web preview    (artifacts/prodli, web build)
 //
-// site-dist is a plain static folder: it can be hosted for free on
-// Cloudflare Pages (recommended), GitHub Pages or Netlify.
+// site-dist is a plain static folder, served on Cloudflare Workers by
+// artifacts/prodli-site (see its wrangler.jsonc).
 
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,34 +28,7 @@ mkdirSync(out, { recursive: true });
 cpSync(path.join(root, "artifacts/prodli-site/dist/public"), out, { recursive: true });
 cpSync(path.join(root, "artifacts/prodli/dist/public"), path.join(out, "extension"), { recursive: true });
 
-// Cloudflare Pages / Netlify routing rules.
-writeFileSync(
-  path.join(out, "_redirects"),
-  [
-    "/extension   /extension/   301",
-    "/extension/* /extension/index.html 200",
-    "/*           /index.html   200",
-    "",
-  ].join("\n"),
-);
-
-// Security + caching headers (Cloudflare Pages / Netlify).
-writeFileSync(
-  path.join(out, "_headers"),
-  [
-    "/*",
-    "  X-Content-Type-Options: nosniff",
-    "  Referrer-Policy: strict-origin-when-cross-origin",
-    "  X-Frame-Options: DENY",
-    "  Permissions-Policy: camera=(), microphone=(), geolocation=()",
-    "",
-    "/assets/*",
-    "  Cache-Control: public, max-age=31536000, immutable",
-    "",
-    "/extension/assets/*",
-    "  Cache-Control: public, max-age=31536000, immutable",
-    "",
-  ].join("\n"),
-);
+// Routing (www → apex, app routes) and security/caching headers are handled by
+// the Worker in artifacts/prodli-site/worker/index.js, which serves this folder.
 
 console.log(`\n✓ Website ready in ${path.relative(root, out)}/`);
