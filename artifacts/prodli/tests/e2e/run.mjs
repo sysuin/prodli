@@ -86,6 +86,7 @@ const suites = {
     const p = await b.openPage();
     await p.goto("meetings");
     const t = await p.lowerText();
+    check("Meetings: setup says transcripts need Meet captions", t.includes("transcripts come from meet’s captions") || t.includes("transcripts come from meet's captions"));
     check("Meetings: setup panel on first run (no API key asked)", t.includes("ai summaries") && t.includes("turn on recorder") && !t.includes("claude api key") && !t.includes("sk-ant"));
     check("Meetings: empty state", t.includes("no meetings yet"));
     await p.eval(`new Promise((resolve, reject) => {

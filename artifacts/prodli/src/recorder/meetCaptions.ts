@@ -18,6 +18,8 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   w.__prodliCaptions = true;
 
   const SEND_EVERY_MS = 3_000;
+  /** Give Meet this long to show captions (ProdLi turns them on) before warning. */
+  const CAPTIONS_GRACE_MS = 15_000;
   const SCAN_EVERY_MS = 1_000;
 
   let meetingId: string | null = null;
@@ -33,6 +35,9 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   let scanTimer: number | undefined;
   let sendTimer: number | undefined;
   let badge: HTMLDivElement | null = null;
+  let showIndicator = false;
+  let captionsMissing = false;
+  let warning: HTMLDivElement | null = null;
 
   // Captions panel label in Meet's UI language (en, es/pt, de, fr, it, nl, ru, tr, pl, hi, ja/zh, ko…).
   const CAPTION_REGION_LABEL = /caption|subt[ií]t|legend|untertitel|sous-titre|sottotitol|ondertitel|субтитр|altyaz|napisy|कैप्शन|字幕|자막/i;
@@ -204,7 +209,14 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     }
 
     const region = findCaptionRegion();
+    if (captionsOn !== !!region) dirty = true; // tell the background (toolbar icon) right away
     captionsOn = !!region;
+    const missing = !captionsOn && now > CAPTIONS_GRACE_MS;
+    if (missing !== captionsMissing) {
+      captionsMissing = missing;
+      dirty = true;
+      updateWarning();
+    }
     if (!region) {
       tryTurnOnCaptions();
       updateBadge();
@@ -244,7 +256,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   function flush(force = false): void {
     if (!meetingId || (!dirty && !force)) return;
     dirty = false;
-    send({ target: "background", type: "captions-update", meetingId, entries, captionsOn, title: meetingTitle() });
+    send({ target: "background", type: "captions-update", meetingId, entries, captionsOn, title: meetingTitle(), captionsMissing });
   }
 
   function updateBadge(): void {
@@ -254,6 +266,37 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       status.textContent = captionsOn ? "ProdLi" : "ProdLi · turn on CC";
       badge.title = captionsOn ? `ProdLi is taking notes (${entries.length} lines). Only you can see this.` : "ProdLi is recording. Turn on captions (CC) for the transcript.";
     }
+  }
+
+  /**
+   * Shown in the call only when captions still aren't on after the grace
+   * period, whatever the label setting: without captions there's no transcript.
+   */
+  function updateWarning(): void {
+    if (!captionsMissing) {
+      warning?.remove();
+      warning = null;
+      return;
+    }
+    if (warning) return;
+    warning = document.createElement("div");
+    warning.setAttribute("data-prodli-captions-warning", "");
+    warning.setAttribute("role", "status");
+    Object.assign(warning.style, {
+      position: "fixed",
+      left: "12px",
+      bottom: showIndicator ? "120px" : "88px",
+      zIndex: "2147483647",
+      maxWidth: "320px",
+      padding: "8px 12px",
+      background: "#F59E0B",
+      color: "#000",
+      borderRadius: "10px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+      font: "600 12px/1.35 system-ui, sans-serif",
+    } satisfies Partial<CSSStyleDeclaration>);
+    warning.textContent = "ProdLi: turn on captions (CC) so it can transcribe. Only the audio is being recorded until then. Only you can see captions and this note.";
+    document.body.appendChild(warning);
   }
 
   function showBadge(): void {
@@ -295,7 +338,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     updateBadge();
   }
 
-  function begin(id: string, startMs: number, showIndicator: boolean): void {
+  function begin(id: string, startMs: number, withIndicator: boolean): void {
     if (meetingId === id) return;
     meetingId = id;
     startedAtMs = startMs;
@@ -303,6 +346,8 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     sawLeaveButton = false;
     leaveMissingSince = null;
     captionClickAttempts = 0;
+    captionsMissing = false;
+    showIndicator = withIndicator;
     if (showIndicator) showBadge();
     tryTurnOnCaptions();
     scanTimer = window.setInterval(scan, SCAN_EVERY_MS);
@@ -316,6 +361,8 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     window.clearInterval(sendTimer);
     badge?.remove();
     badge = null;
+    warning?.remove();
+    warning = null;
     meetingId = null;
     w.__prodliCaptions = false;
     chrome.runtime.onMessage.removeListener(onMessage);

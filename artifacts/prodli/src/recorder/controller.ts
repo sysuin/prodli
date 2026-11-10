@@ -113,13 +113,23 @@ async function openMeetingsSection(): Promise<void> {
   await chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
 }
 
-async function setRecordingBadge(tabId: number | null): Promise<void> {
+const DEFAULT_TITLE = "ProdLi — click on a Google Meet tab to record";
+
+/** REC (red) while recording with captions; CC (amber) when captions are missing, so there's no transcript. */
+async function setRecordingBadge(tabId: number | null, captionsMissing = false): Promise<void> {
   if (tabId === null) {
     await chrome.action.setBadgeText({ text: "" });
+    await chrome.action.setTitle({ title: DEFAULT_TITLE });
     return;
   }
-  await chrome.action.setBadgeBackgroundColor({ color: "#E53935" });
-  await chrome.action.setBadgeText({ text: "REC" });
+  await chrome.action.setBadgeBackgroundColor({ color: captionsMissing ? "#F59E0B" : "#E53935" });
+  await chrome.action.setBadgeTextColor?.({ color: captionsMissing ? "#000000" : "#FFFFFF" });
+  await chrome.action.setBadgeText({ text: captionsMissing ? "CC" : "REC" });
+  await chrome.action.setTitle({
+    title: captionsMissing
+      ? "ProdLi is recording audio, but captions are off — turn on captions (CC) in Meet for a transcript. Click to stop."
+      : "ProdLi is recording and taking notes from captions. Click to stop.",
+  });
 }
 
 // ── Start / stop ──────────────────────────────────────────────────────────────
@@ -304,6 +314,7 @@ async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
       if (state?.meetingId === msg.meetingId && state.captionsOn !== msg.captionsOn) {
         await setState({ ...state, captionsOn: msg.captionsOn });
       }
+      if (state?.meetingId === msg.meetingId) await setRecordingBadge(state.tabId, !!msg.captionsMissing);
       await updateMeeting(msg.meetingId, (m) => ({
         transcript: msg.entries.length >= m.transcript.length ? msg.entries : m.transcript,
         title: msg.title && m.title.startsWith("Google Meet · ") ? msg.title : m.title,

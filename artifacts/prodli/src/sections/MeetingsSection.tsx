@@ -213,9 +213,12 @@ function SetupPanel({
         <ol style={{ fontSize: 13, paddingLeft: 18, marginTop: 8, lineHeight: 1.6, listStyle: "decimal" }}>
           <li>Join a call on <strong>meet.google.com</strong>.</li>
           <li>Click the <strong>ProdLi icon</strong> in the toolbar (pin it), or press <strong>Alt+Shift+R</strong>.</li>
-          <li>ProdLi turns on captions (only you see them) and takes notes. No bot joins the call.</li>
+          <li>ProdLi turns on Meet’s captions (only you see them) and takes notes from them. No bot joins the call.</li>
           <li>To stop, click the ProdLi icon again (or Alt+Shift+R), or just leave the call.</li>
         </ol>
+        <p data-testid="captions-requirement" style={{ fontSize: 12, marginTop: 8, padding: "6px 8px", border: "var(--nb-border)", background: "#FFF3CD", color: "#000", fontWeight: 600 }}>
+          Transcripts come from Meet’s captions (CC). If captions are off, only the audio is recorded — the ProdLi icon shows an amber <strong>CC</strong> and a note appears in the call. Set the caption language in Meet (CC → settings) to the language people speak.
+        </p>
       </div>
 
       <div>
@@ -737,7 +740,7 @@ export function MeetingsSection() {
         <div style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13 }}>
           <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
           Recording · {formatTimestamp(elapsed * 1000)}
-          <span style={{ opacity: 0.7 }}>{recState.captionsOn ? "Captions on — transcript is being captured" : "Waiting for captions — turn on CC in Meet if they don't appear"}</span>
+          <span style={{ opacity: 0.85 }}>{recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("primary"), marginLeft: "auto" }} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
       )}

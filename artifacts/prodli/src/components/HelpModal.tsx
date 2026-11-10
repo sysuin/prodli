@@ -179,7 +179,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           {/* Meetings */}
           <Section emoji="🎙️" title="Meetings">
             <Row label={<Tag>⚙ Setup</Tag>} desc="Turn on the recorder (Chrome asks for permission) and optionally include your microphone." />
-            <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call; ProdLi reads Meet's captions, which only you can see." />
+            <Row label={<Tag>Record</Tag>} desc="On a Google Meet tab, click the ProdLi toolbar icon or press Alt+Shift+R. No bot joins the call. The transcript comes from Meet's captions (CC), which ProdLi turns on for you and only you can see — if captions are off, only audio is recorded and the icon shows an amber CC." />
             <Row label={<Tag>Captions off?</Tag>} desc="Turn on “Transcribe on this computer” in Setup. Chrome's built-in speech recognition transcribes the call on your device (speakers: You / Others). One free download per language; audio never leaves your computer." />
             <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku through your ProdLi account (free monthly allowance)." />
