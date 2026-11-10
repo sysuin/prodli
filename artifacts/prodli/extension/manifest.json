@@ -24,7 +24,8 @@
   "optional_permissions": [
     "scripting",
     "tabCapture",
-    "offscreen"
+    "offscreen",
+    "downloads"
   ],
   "optional_host_permissions": [
     "<all_urls>",

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
-import { FILE_ORIGINS, localFileAccess, OPEN_LOCAL_FILES_KEY, type LocalFileAccess } from "../lib/localFiles";
+import { FILE_ORIGINS, FILE_PERMISSIONS, localFileAccess, OPEN_LOCAL_FILES_KEY, type LocalFileAccess } from "../lib/localFiles";
 import type { Note } from "../types";
 import { addRecent, clearRecent, listRecent, MAX_RECENT, removeRecent, type RecentFile } from "../lib/recentFiles";
 import {
@@ -351,7 +351,7 @@ function OpenAnywhereCard() {
   const turnOn = async () => {
     await storageSet(OPEN_LOCAL_FILES_KEY, true);
     setEnabled(true);
-    if (!access.permission) await chrome.permissions.request({ origins: FILE_ORIGINS });
+    if (!access.permission) await chrome.permissions.request({ origins: FILE_ORIGINS, permissions: FILE_PERMISSIONS });
     refresh();
   };
   return (

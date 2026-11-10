@@ -10,6 +10,8 @@
 
 export const OPEN_LOCAL_FILES_KEY = "openLocalFilesInProdli";
 export const FILE_ORIGINS = ["file:///*"];
+/** Chrome downloads some local files (CSV) instead of showing them; ProdLi cancels that and opens them. */
+export const FILE_PERMISSIONS: chrome.runtime.ManifestPermission[] = ["downloads"];
 
 /** File types ProdLi's viewer handles better than Chrome (HTML, PDF, images stay with Chrome). */
 const OPENABLE = new Set([
@@ -47,7 +49,7 @@ export interface LocalFileAccess {
 
 export async function localFileAccess(): Promise<LocalFileAccess> {
   if (typeof chrome === "undefined" || !chrome.permissions || !chrome.extension?.isAllowedFileSchemeAccess) return { permission: false, fileUrls: false };
-  const [permission, fileUrls] = await Promise.all([chrome.permissions.contains({ origins: FILE_ORIGINS }), chrome.extension.isAllowedFileSchemeAccess()]);
+  const [permission, fileUrls] = await Promise.all([chrome.permissions.contains({ origins: FILE_ORIGINS, permissions: FILE_PERMISSIONS }), chrome.extension.isAllowedFileSchemeAccess()]);
   return { permission, fileUrls };
 }
 
