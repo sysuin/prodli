@@ -87,7 +87,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "offscreen-started"; meetingId: string; micIncluded: boolean }
   | { target: "background"; type: "offscreen-stopped"; meetingId: string; hasAudio: boolean; mimeType: string | null }
   | { target: "background"; type: "offscreen-error"; meetingId: string; error: string }
-  | { target: "background"; type: "captions-update"; meetingId: string; entries: TranscriptEntry[]; captionsOn: boolean; title: string | null }
+  | { target: "background"; type: "captions-update"; meetingId: string; entries: TranscriptEntry[]; captionsOn: boolean; title: string | null; /** Still no captions after the grace period: warn the user. */ captionsMissing?: boolean }
   | { target: "background"; type: "captions-ended"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "speech-update"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "stop-recording" }

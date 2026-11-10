@@ -53,6 +53,13 @@ const MEET_HTML = `<!doctype html><html><head><title>Meet - Weekly product sync<
   window.__say = (who, text) => { const d = document.createElement('div'); d.innerHTML = '<img alt=""><div>' + who + '</div><div class="t">' + text + '</div>'; document.getElementById('cap').appendChild(d); };
 </script></body></html>`;
 
+// A call where captions don't come on by themselves (e.g. a work account where ProdLi can't find the CC button).
+const NO_CC_HTML = `<!doctype html><html><head><title>Meet - Captions off call</title></head><body>
+<button aria-label="Leave call">Leave</button>
+<script>
+  window.__captionsOn = () => { const r = document.createElement('div'); r.setAttribute('role', 'region'); r.setAttribute('aria-label', 'Captions'); r.id = 'cap'; document.body.appendChild(r); };
+</script></body></html>`;
+
 const b = new Browser();
 try {
   const id = await b.loadExtension();
@@ -69,7 +76,8 @@ try {
     for (const e of b.events) {
       if (e.method !== "Fetch.requestPaused" || served.has(e.params.requestId)) continue;
       served.add(e.params.requestId);
-      void b.send("Fetch.fulfillRequest", { requestId: e.params.requestId, responseCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }], body: Buffer.from(MEET_HTML).toString("base64") }, e.sessionId);
+      const html = e.params.request.url.includes("zzz-yyyy-xxx") ? NO_CC_HTML : MEET_HTML;
+      void b.send("Fetch.fulfillRequest", { requestId: e.params.requestId, responseCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }], body: Buffer.from(html).toString("base64") }, e.sessionId);
     }
   }, 50);
   await b.send("Page.navigate", { url: "https://meet.google.com/abc-defg-hij?authuser=0" }, sessionId);
@@ -111,6 +119,28 @@ try {
   check("…and the transcript from captions", JSON.stringify((m?.transcript ?? []).map((e) => `${e.speaker}: ${e.text}`)) === JSON.stringify(["Priya Shah: Let us ship the onboarding emails on Friday.", "You: I will prepare the release notes."]), JSON.stringify(m?.transcript));
   check("…and the audio recording", m?.hasAudio === true, JSON.stringify({ hasAudio: m?.hasAudio, error: m?.error, notice: m?.notice }));
   check("…and it isn't left in an error state", m && m.status !== "error" && !String(m.error ?? "").startsWith("Recording couldn't start"), `${m?.status} ${m?.error}`);
+
+  // Captions don't come on: warn in the call and turn the icon amber (CC); clear both once they're on.
+  const { targetId: t2 } = await b.send("Target.createTarget", { url: "about:blank" });
+  const { sessionId: s2 } = await b.send("Target.attachToTarget", { targetId: t2, flatten: true });
+  await b.send("Runtime.enable", {}, s2);
+  await b.send("Page.enable", {}, s2);
+  await b.send("Fetch.enable", { patterns: [{ urlPattern: "https://meet.google.com/*" }] }, s2);
+  await b.send("Page.navigate", { url: "https://meet.google.com/zzz-yyyy-xxx" }, s2);
+  await sleep(1500);
+  const noCc = { eval: async (expr) => (await b.send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }, s2)).result.value };
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://meet.google.com/zzz-yyyy-xxx*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(4000);
+  check("Captions off: no warning during the first seconds (ProdLi is still turning them on)", !(await noCc.eval(`!!document.querySelector('[data-prodli-captions-warning]')`)) && (await swEval("chrome.action.getBadgeText({})")) === "REC");
+  await sleep(14000);
+  const warnText = await noCc.eval(`document.querySelector('[data-prodli-captions-warning]')?.textContent ?? ""`);
+  check("Captions off: a note in the call asks to turn on CC", /turn on captions \(CC\)/i.test(warnText), warnText);
+  check("Captions off: the ProdLi icon turns amber CC", (await swEval("chrome.action.getBadgeText({})")) === "CC" && /captions are off/i.test(await swEval("chrome.action.getTitle({})")));
+  await noCc.eval(`__captionsOn(); true`);
+  await sleep(4500);
+  check("Captions on again: the note goes away and the icon is back to REC", !(await noCc.eval(`!!document.querySelector('[data-prodli-captions-warning]')`)) && (await swEval("chrome.action.getBadgeText({})")) === "REC");
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://meet.google.com/zzz-yyyy-xxx*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(2500);
 
   // Clicking on a page that isn't a Meet call explains why instead of silently opening ProdLi.
   const other = await b.openPage("https://example.com/");
