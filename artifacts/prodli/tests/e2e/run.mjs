@@ -628,6 +628,7 @@ const suites = {
     const { todos, days } = await p.storage(["todos", "days"]);
     check("Review: plans a priority for next Monday", todos.find((t) => t.id === "r2")?.plannedFor === nextMonday, JSON.stringify(todos.find((t) => t.id === "r2")));
     check("Review: is saved with the week (synced)", !!days?.find((d) => d.id === monday)?.review?.headline);
+    await p.eval(`chrome.storage.local.set({ todos: [], days: [] })`); // leave a clean slate for later suites
     await p.close();
   },
 
