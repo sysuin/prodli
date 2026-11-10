@@ -601,42 +601,6 @@ const suites = {
     }
   },
 
-  async blocks(b, check) {
-    // Time blocks on Today: Block time puts planned tasks into free time; reminders are scheduled.
-    const p = await b.openPage();
-    const [day, nowMin] = await p.eval(`(() => { const d = new Date(); return [d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"), d.getHours() * 60 + d.getMinutes()]; })()`);
-    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: true }, todos: [
-      { id: "b1", title: "Write release notes", completed: false, plannedFor: "${day}", estimateMin: 15, priority: "high", createdAt: new Date().toISOString() },
-      { id: "b2", title: "Reply to Priya", completed: false, plannedFor: "${day}", estimateMin: 15, createdAt: new Date().toISOString() }
-    ] })`);
-    await p.goto("today");
-    await sleep(800);
-    await p.eval(`document.querySelector('[data-testid="block-time"]').click()`);
-    await sleep(800);
-    const { todos } = await p.storage(["todos"]);
-    const room = 23 * 60 + 59 - nowMin;
-    if (room >= 50) {
-      const [w, r] = ["b1", "b2"].map((id) => todos.find((t) => t.id === id)?.block);
-      check("Blocks: Block time puts planned tasks into free time, high priority first", w?.day === day && r?.day === day && w.start < r.start, JSON.stringify([w, r]));
-      check("Blocks: they show on the agenda", (await p.eval(`document.querySelectorAll('[data-testid="time-block"]').length`)) === 2);
-      const alarms = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
-      // (A block starting right now gets no reminder: you just planned it.)
-      const ahead = (blk) => Number(blk.start.slice(0, 2)) * 60 + Number(blk.start.slice(3)) > nowMin + 1;
-      check("Blocks: a reminder is scheduled for each block ahead", (!ahead(w) || alarms.includes("block:b1")) && alarms.includes("block:b2"), JSON.stringify(alarms));
-      const href = await p.eval(`document.querySelector('[data-testid="time-block"] a[href*="calendar.google.com"]')?.href ?? ""`);
-      check("Blocks: each block can be added to Google Calendar", href.includes("action=TEMPLATE") && href.includes("Write+release+notes"), href.slice(0, 120));
-      await p.eval(`document.querySelector('[aria-label="Remove time block for Write release notes"]').click()`);
-      await sleep(800);
-      const after = await p.storage(["todos"]);
-      const alarmsAfter = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
-      check("Blocks: removing a block cancels its reminder", !after.todos.find((t) => t.id === "b1").block && !alarmsAfter.includes("block:b1") && alarmsAfter.includes("block:b2"), JSON.stringify(alarmsAfter));
-      check("Blocks: blocks don't overlap", (await p.eval(`document.body.innerText.includes("OVERLAPS")`)) === false);
-    } else {
-      check("Blocks: late at night, Block time says the tasks don't fit", /didn't fit/.test(await p.eval(`document.querySelector('[data-testid="agenda"]').innerText`)));
-    }
-    await p.close();
-  },
-
   async habits(b, check) {
     const p = await b.openPage();
     await p.goto("habits");
@@ -711,6 +675,42 @@ const suites = {
       await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
     }
     if (process.env.A11Y_REPORT) console.log(report.join("\n"));
+    await p.close();
+  },
+
+  async blocks(b, check) {
+    // Time blocks on Today: Block time puts planned tasks into free time; reminders are scheduled.
+    const p = await b.openPage();
+    const [day, nowMin] = await p.eval(`(() => { const d = new Date(); return [d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"), d.getHours() * 60 + d.getMinutes()]; })()`);
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: true }, todos: [
+      { id: "b1", title: "Write release notes", completed: false, plannedFor: "${day}", estimateMin: 15, priority: "high", createdAt: new Date().toISOString() },
+      { id: "b2", title: "Reply to Priya", completed: false, plannedFor: "${day}", estimateMin: 15, createdAt: new Date().toISOString() }
+    ] })`);
+    await p.goto("today");
+    await sleep(800);
+    await p.eval(`document.querySelector('[data-testid="block-time"]').click()`);
+    await sleep(800);
+    const { todos } = await p.storage(["todos"]);
+    const room = 23 * 60 + 59 - nowMin;
+    if (room >= 50) {
+      const [w, r] = ["b1", "b2"].map((id) => todos.find((t) => t.id === id)?.block);
+      check("Blocks: Block time puts planned tasks into free time, high priority first", w?.day === day && r?.day === day && w.start < r.start, JSON.stringify([w, r]));
+      check("Blocks: they show on the agenda", (await p.eval(`document.querySelectorAll('[data-testid="time-block"]').length`)) === 2);
+      const alarms = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
+      // (A block starting right now gets no reminder: you just planned it.)
+      const ahead = (blk) => Number(blk.start.slice(0, 2)) * 60 + Number(blk.start.slice(3)) > nowMin + 1;
+      check("Blocks: a reminder is scheduled for each block ahead", (!ahead(w) || alarms.includes("block:b1")) && alarms.includes("block:b2"), JSON.stringify(alarms));
+      const href = await p.eval(`document.querySelector('[data-testid="time-block"] a[href*="calendar.google.com"]')?.href ?? ""`);
+      check("Blocks: each block can be added to Google Calendar", href.includes("action=TEMPLATE") && href.includes("Write+release+notes"), href.slice(0, 120));
+      await p.eval(`document.querySelector('[aria-label="Remove time block for Write release notes"]').click()`);
+      await sleep(800);
+      const after = await p.storage(["todos"]);
+      const alarmsAfter = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
+      check("Blocks: removing a block cancels its reminder", !after.todos.find((t) => t.id === "b1").block && !alarmsAfter.includes("block:b1") && alarmsAfter.includes("block:b2"), JSON.stringify(alarmsAfter));
+      check("Blocks: blocks don't overlap", (await p.eval(`document.body.innerText.includes("OVERLAPS")`)) === false);
+    } else {
+      check("Blocks: late at night, Block time says the tasks don't fit", /didn't fit/.test(await p.eval(`document.querySelector('[data-testid="agenda"]').innerText`)));
+    }
     await p.close();
   },
 

@@ -11,9 +11,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useSyncedList } from "../lib/syncedList";
 import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, type AiUsage, type ProdliUser } from "../lib/prodliAccount";
+import { agenda, autoSchedule, blockMinutes, blockOf, googleCalendarLink, toHM } from "../lib/timeBlocks";
 import { calendarAvailable, connectCalendar, disconnectCalendar, isCalendarConnected, todaysEvents, type CalendarEvent } from "../lib/calendar";
 import { briefBasis, buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
-import { agenda, autoSchedule, blockMinutes, blockOf, googleCalendarLink, toHM } from "../lib/timeBlocks";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 
 const ACCENT = "#F59E0B";
