@@ -189,7 +189,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           }}>{todo.priority ? PRIORITY_LABELS[todo.priority] : PRIORITY_LABELS.none}</span>
           {/* Due date */}
           {todo.dueDate && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: todo.dueDate < today && !todo.completed ? "#C62828" : "hsl(var(--muted-foreground))", flexShrink: 0 }} title={todo.dueDate}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: todo.dueDate < today && !todo.completed ? "var(--danger-text)" : "hsl(var(--muted-foreground))", flexShrink: 0 }} title={todo.dueDate}>
               📅 {dueLabel(todo.dueDate, today)}
             </span>
           )}
@@ -225,7 +225,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
                   {sub.completed && <span style={{ color: "#FFD700", fontSize: 10, fontWeight: 900 }}>✓</span>}
                 </button>
                 <span style={{ flex: 1, fontSize: 12, textDecoration: sub.completed ? "line-through" : "none", opacity: sub.completed ? 0.5 : 1 }}>{sub.title}</span>
-                <button onClick={() => onDeleteSubtask(todo.id, sub.id)} aria-label={`Delete subtask: ${sub.title}`} style={{ border: "none", background: "none", cursor: "pointer", color: "#C62828", fontSize: 14, fontWeight: 900 }}>×</button>
+                <button onClick={() => onDeleteSubtask(todo.id, sub.id)} aria-label={`Delete subtask: ${sub.title}`} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--danger-text)", fontSize: 14, fontWeight: 900 }}>×</button>
               </div>
             ))}
           </div>
@@ -356,7 +356,7 @@ export function TodoSection() {
     <SortableTodo key={todo.id} todo={todo} onToggle={toggle} onDelete={del} onEdit={edit} onAddSubtask={addSubtask} onToggleSubtask={toggleSubtask} onDeleteSubtask={deleteSubtask} onTogglePlan={togglePlan} draggable={draggable} />
   );
   const heading = (label: string, count: number, tone?: "warn") => (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "14px 0 6px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: tone === "warn" ? "#C62828" : "hsl(var(--muted-foreground))" }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "14px 0 6px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: tone === "warn" ? "var(--danger-text)" : "hsl(var(--muted-foreground))" }}>
       {label} <span style={{ fontWeight: 700 }}>{count}</span>
     </div>
   );
@@ -501,7 +501,7 @@ export function TodoSection() {
         {completedCount > 0 && (
           <button
             onClick={clearCompleted}
-            style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 16px", background: "transparent", color: "#C62828", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit" }}
+            style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 16px", background: "transparent", color: "var(--danger-text)", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit" }}
           >Clear Done</button>
         )}
       </div>
