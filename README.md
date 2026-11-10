@@ -27,7 +27,8 @@ pnpm install
 
 | Command | What it does |
 |---|---|
-| `pnpm run build:extension` | Builds the extension into `artifacts/prodli/dist-extension/` and `prodli-extension.zip` |
+| `pnpm run build:extension` | Builds the extension for your own testing into `artifacts/prodli/dist-extension/` (account server from `.env.local`) |
+| `pnpm run build:extension:store` | Builds the Web Store version against https://app.prodli.com into `prodli-extension-store.zip` (doesn't touch `dist-extension/`) |
 | `pnpm run dev:extension` | Web preview of the new tab at http://localhost:5173/extension/ (hot reload) |
 | `pnpm run dev:site` | Website at http://localhost:5174 |
 | `pnpm run build:web` | Builds the website + preview into `site-dist/` (what gets deployed) |
@@ -44,8 +45,8 @@ pnpm install
 ### Release a new version
 
 1. Bump `version` in `artifacts/prodli/extension/manifest.json`.
-2. Push — CI attaches `prodli-extension.zip` to the run (Actions → the run → Artifacts). Or build it locally.
-3. Upload the zip in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole). See `STORE_SUBMISSION.md`.
+2. `pnpm run build:extension:store` → `prodli-extension-store.zip` (production server, Google sign-in from `.env.local`).
+3. Upload that zip in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole). See `STORE_SUBMISSION.md`.
 
 ## Hosting & cost
 

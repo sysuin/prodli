@@ -8,6 +8,7 @@
     "test": "pnpm -r --if-present run test",
     "test:e2e": "pnpm --filter @workspace/prodli run test:e2e",
     "build:extension": "pnpm --filter @workspace/prodli run build:extension",
+    "build:extension:store": "pnpm --filter @workspace/prodli run build:extension:store",
     "build:web": "node scripts/build-web.mjs",
     "dev:extension": "pnpm --filter @workspace/prodli run dev",
     "dev:site": "pnpm --filter @workspace/prodli-site run dev",
