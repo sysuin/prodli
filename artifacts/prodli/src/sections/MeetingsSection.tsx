@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { storageGet, storageSet } from "../lib/storage";
+import { onStorageChange, storageGet, storageRemove, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
 import { deleteMeeting, getAudio, listMeetings, updateMeeting } from "../recorder/db";
@@ -503,6 +503,14 @@ export function MeetingsSection() {
   const [signedIn, setSignedIn] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [query, setQuery] = useState("");
+  // Why the last click on the ProdLi icon didn't start recording (recorder/controller.ts).
+  const [problem, setProblem] = useState<{ message: string; at: string } | null>(null);
+  useEffect(() => {
+    if (!ext) return;
+    const fresh = (p: { message: string; at: string } | null | undefined) => (p && Date.now() - new Date(p.at).getTime() < 30 * 60_000 ? p : null);
+    void storageGet<{ message: string; at: string } | null>("recorderLastProblem", null).then((p) => setProblem(fresh(p)));
+    return onStorageChange<{ message: string; at: string }>("recorderLastProblem", (p) => setProblem(fresh(p)));
+  }, [ext]);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -729,6 +737,15 @@ export function MeetingsSection() {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
       {header}
+
+      {problem && !recState && (
+        <div role="alert" data-testid="recorder-problem" style={{ borderBottom: "var(--nb-border)", background: "#FFF3CD", color: "#000", padding: "10px 24px", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 600 }}>
+          <span style={{ flex: 1 }}>
+            <strong>Recording didn't start.</strong> {problem.message}
+          </span>
+          <button style={btn("plain")} onClick={() => void storageRemove("recorderLastProblem").then(() => setProblem(null))}>Dismiss</button>
+        </div>
+      )}
 
       {recState && (
         <div style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13 }}>

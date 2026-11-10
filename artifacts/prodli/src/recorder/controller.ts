@@ -22,15 +22,43 @@ import {
   type TranscriptEntry,
 } from "./types";
 
-const MEET_URL = /^https:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})(?:[/?#]|$)/;
+/** Last reason recording didn't start (shown in Meetings), so it never fails silently. */
+export const RECORDER_PROBLEM_KEY = "recorderLastProblem";
 const OFFSCREEN_URL = "offscreen.html";
 
 let stopping = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function meetingCodeFromUrl(url: string | undefined): string | null {
-  return url ? (MEET_URL.exec(url)?.[1] ?? null) : null;
+/** The meeting code (abc-defg-hij) of a Google Meet call URL, wherever it is in the path. */
+export function meetingCodeFromUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "meet.google.com") return null;
+    return /(?:^|\/)([a-z]{3}-[a-z]{4}-[a-z]{3})(?:\/|$)/.exec(u.pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Why recording can't start on this tab, in plain words (null when it can). */
+export function notACallReason(url: string | undefined): string | null {
+  if (meetingCodeFromUrl(url)) return null;
+  if (!url) return "ProdLi couldn't read this tab's address. Click the ProdLi icon while the Google Meet call is the active tab.";
+  try {
+    const u = new URL(url);
+    if (u.hostname === "meet.google.com") return "Join the call first: ProdLi records once you're in a meeting (the address looks like meet.google.com/abc-defg-hij).";
+    if (u.hostname === "mail.google.com" || u.hostname === "calendar.google.com") return "Meet calls inside Gmail or Calendar can't be recorded. Open the call in its own tab at meet.google.com, then click the ProdLi icon.";
+  } catch {
+    // not a normal web address
+  }
+  return "ProdLi records Google Meet calls. Join a call at meet.google.com, then click the ProdLi icon (or press Alt+Shift+R) on that tab.";
+}
+
+async function reportProblem(message: string): Promise<void> {
+  await chrome.storage.local.set({ [RECORDER_PROBLEM_KEY]: { message, at: new Date().toISOString() } });
+  notify("ProdLi didn't start recording", message);
 }
 
 async function getState(): Promise<RecordingState | null> {
@@ -101,18 +129,23 @@ export async function toggleRecording(tab: chrome.tabs.Tab | undefined): Promise
     await stopRecording("user");
     return;
   }
-  const code = meetingCodeFromUrl(tab?.url);
+  // The click's tab normally carries its address; if not, look it up.
+  let url = tab?.url ?? tab?.pendingUrl;
+  if (!url && tab?.id) url = await chrome.tabs.get(tab.id).then((t) => t.url ?? t.pendingUrl, () => undefined);
+  const code = meetingCodeFromUrl(url);
   if (!tab?.id || !code) {
+    await reportProblem(notACallReason(url) ?? "This tab isn't a Google Meet call.");
     await openMeetingsSection();
     return;
   }
-  await startRecording(tab as chrome.tabs.Tab & { id: number }, code);
+  await chrome.storage.local.remove(RECORDER_PROBLEM_KEY);
+  await startRecording({ ...tab, url } as chrome.tabs.Tab & { id: number }, code);
 }
 
 async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: string): Promise<void> {
   const granted = await chrome.permissions.contains(RECORDER_PERMISSIONS);
   if (!granted) {
-    notify("Turn on the meeting recorder", "Open ProdLi → Meetings and click “Turn on recorder” first.");
+    await reportProblem("The recorder isn't allowed to capture Google Meet yet. In Meetings → Setup, click “Turn on recorder” and choose Allow.");
     await openMeetingsSection();
     return;
   }
@@ -163,7 +196,7 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
     await setRecordingBadge(null);
     await closeOffscreenDocument();
     await updateMeeting(meetingId, () => ({ status: "error", error: `Recording couldn't start: ${message}`, endedAt: new Date().toISOString() }));
-    notify("Recording didn't start", message);
+    await reportProblem(`Recording couldn't start: ${message}`);
   }
 }
 
@@ -307,6 +340,9 @@ async function recoverIfStale(): Promise<void> {
 }
 
 export function registerRecorder(): void {
+  // End-to-end tests (test builds only) drive the same code path as the toolbar click.
+  if (import.meta.env.VITE_E2E === "1") (globalThis as Record<string, unknown>).__prodliToggleRecording = toggleRecording;
+
   chrome.action.onClicked.addListener((tab) => {
     void toggleRecording(tab);
   });
