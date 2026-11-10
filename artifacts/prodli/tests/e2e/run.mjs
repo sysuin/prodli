@@ -601,6 +601,36 @@ const suites = {
     }
   },
 
+  async review(b, check) {
+    // Weekly review of this week, from seeded data; no account → the basic review.
+    const p = await b.openPage();
+    const key = (offset) => `(() => { const d = new Date(); const back = (d.getDay() + 6) % 7; d.setDate(d.getDate() - back + ${offset}); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`;
+    const monday = await p.eval(key(0));
+    const nextMonday = await p.eval(key(7));
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, todos: [
+      { id: "r1", title: "Ship the release", completed: true, completedAt: new Date("${monday}T15:00:00").toISOString(), priority: "high", createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "r2", title: "Reply to Priya", completed: false, dueDate: "${monday}", priority: "high", createdAt: "2026-01-01T00:00:00.000Z" }
+    ] })`);
+    await p.goto("review");
+    await sleep(600);
+    check("Review: shows this week's or last week's numbers", /tasks done/i.test(await p.text()));
+    // Look at this week (the default is last week before Friday).
+    if (!(await p.eval(`document.querySelector('[data-testid="review-week"]').parentElement.innerText.includes("This week")`))) await p.click("Next ›");
+    await sleep(500);
+    check("Review: counts the task done this week", (await p.eval(`document.querySelector('[data-testid="stat-done"]').innerText`)).startsWith("1"));
+    check("Review: lists what slipped", (await p.eval(`document.querySelector('[data-testid="review-slipped"]')?.innerText ?? ""`)).includes("Reply to Priya"));
+    await p.click("Write my review");
+    await sleep(800);
+    const text = await p.eval(`document.querySelector('[data-testid="weekly-review"]').innerText`);
+    check("Review: writes a review without an account", /1 task done this week/i.test(text) && /Next week's priorities/i.test(text), text.slice(0, 200));
+    await p.eval(`[...document.querySelectorAll('[data-testid="review-next-week"] button')].find(b => b.textContent.startsWith("Plan for")).click()`);
+    await sleep(500);
+    const { todos, days } = await p.storage(["todos", "days"]);
+    check("Review: plans a priority for next Monday", todos.find((t) => t.id === "r2")?.plannedFor === nextMonday, JSON.stringify(todos.find((t) => t.id === "r2")));
+    check("Review: is saved with the week (synced)", !!days?.find((d) => d.id === monday)?.review?.headline);
+    await p.close();
+  },
+
   async habits(b, check) {
     const p = await b.openPage();
     await p.goto("habits");
@@ -645,7 +675,7 @@ const suites = {
     await p.goto("editor");
     const report = [];
     for (const theme of ["light", "dark"]) {
-      for (const section of ["today", "editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
+      for (const section of ["today", "review", "editor", "todos", "pomodoro", "habits", "tracker", "meetings", "files"]) {
         await p.eval(`chrome.storage.local.set({ lastSection: "${section}", theme: "${theme}" })`);
         await p.send("Page.reload", {});
         await sleep(1500);

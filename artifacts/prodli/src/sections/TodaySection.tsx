@@ -13,6 +13,8 @@ import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, type AiUsage, type ProdliUser } from "../lib/prodliAccount";
 import { calendarAvailable, connectCalendar, disconnectCalendar, isCalendarConnected, todaysEvents, type CalendarEvent } from "../lib/calendar";
 import { briefBasis, buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
+import { reviewDue, weekLabel } from "../lib/review";
+import { openSection } from "./registry";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 
 const ACCENT = "#F59E0B";
@@ -221,6 +223,15 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               </label>
             </div>
           </Card>
+        )}
+
+        {daysLoaded && reviewDue(days) && (
+          <section style={{ ...card, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderLeft: "6px solid #14B8A6" }} data-testid="review-nudge">
+            <span style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 200 }}>📊 Time for your weekly review ({weekLabel(reviewDue(days)!)}): wins, what slipped, and next week's priorities.</span>
+            <button style={{ ...btn(), background: "#14B8A6", color: "#000" }} onClick={() => openSection("review")}>
+              Review my week
+            </button>
+          </section>
         )}
 
         <section style={{ ...card, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderLeft: `6px solid ${ACCENT}` }}>

@@ -125,6 +125,50 @@ describe("daily brief", () => {
   });
 });
 
+const week = {
+  weekStart: "2026-11-02",
+  weekEnd: "2026-11-08",
+  daysSoFar: 7,
+  done: [{ title: "Write release notes", day: "2026-11-03", priority: "high" }],
+  slipped: [{ title: "Reply to Priya", due: "2026-11-05" }],
+  added: 4,
+  perDay: [{ day: "2026-11-02", done: 0, focusMin: 50 }],
+  habits: [{ name: "Drink water", done: 5, of: 7 }],
+  focus: { sessions: 2, minutes: 50 },
+  browsing: { minutes: 600, topSites: [{ site: "github.com", minutes: 200 }] },
+  meetings: { count: 1, minutes: 30, titles: ["Standup"], openActions: [] },
+  notes: { created: 1, edited: 2 },
+  focuses: [{ day: "2026-11-03", text: "Ship the release" }],
+  reflections: [],
+  userNote: "Too many meetings",
+};
+
+describe("weekly review", () => {
+  it("writes a review, counted with daily briefs", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/review", json(week, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ review: { headline: "1 tasks done", nextWeek: [{ title: "Reply to Priya" }] }, usage: { used: 1, limit: BRIEF_MONTHLY_LIMIT.free } });
+    expect(calls.filter((c) => c.kind === "review")).toEqual([{ kind: "review", clientId: "2026-11-02" }]);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ used: 0, briefs: { used: 1 }, asks: { used: 0 } });
+  });
+
+  it("refunds failures and validates the week", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/review", json({ ...week, userNote: "FAIL" }, auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ briefs: { used: 0 } });
+    expect((await app.request("/api/ai/review", json({ ...week, weekStart: "last week" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/review", json({ ...week, done: Array.from({ length: 200 }, () => ({ title: "x", day: "2026-11-03" })) }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/review", json({ ...week, userNote: "x".repeat(60_000) }, auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/review", json(week, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    expect((await app.request("/api/ai/review", json(week, auth), base)).status).toBe(503);
+  });
+});
+
 describe("Ask ProdLi", () => {
   const ask = (question: string, extra: Record<string, unknown> = {}) => ({ question, context: day, snippets: [{ kind: "note", title: "Ideas", text: "Launch blog post" }], history: [{ role: "user", text: "hi" }, { role: "assistant", text: "Hello!" }], ...extra });
 

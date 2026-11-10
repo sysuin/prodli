@@ -50,7 +50,7 @@ For each signed-in device we keep a session: a random sign-in token (we store on
 • meetings: titles, transcripts and summaries (text only; audio recordings are never uploaded)
 • Pomodoro history and your completed-session count
 • Time Tracker history (hostnames and seconds per day)
-• your Today page: each day's focus, reflection and daily brief
+• your Today page: each day's focus, reflection and daily brief, and your weekly reviews and notes on each week
 Settings are never uploaded. Each account's data is kept in its own separate database.
 
 You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it.
@@ -58,10 +58,12 @@ You can stop a computer from uploading the meetings it records (account window �
 If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged into your account once, the first time you sign in, and Drive sync then turns off.`,
   },
   {
-    title: "AI features: daily brief, Ask ProdLi and meeting summaries (optional)",
+    title: "AI features: daily brief, weekly review, Ask ProdLi and meeting summaries (optional)",
     body: `Ask ProdLi (chat): with an account, you can ask questions about your day. Our server sends Anthropic's Claude API your question, the last few messages of the conversation, the same day information as the daily brief, and short excerpts from the notes and meetings that match your question (chosen on your device). The conversation isn't stored on our servers or synced; it stays in the open page. Actions it suggests (such as adding a to-do) happen only when you click them.
 
 Daily brief: with an account, ProdLi can write a short plan for your day. To do this, our server sends Anthropic's Claude API the parts of your day the brief needs: your open tasks (titles, priorities, due dates, estimates), habit names and streaks, today's calendar events (titles and times, if you connected Google Calendar), recent meeting action items, yesterday's top websites and focus sessions, and your focus and reflection notes. The brief is saved with that day and synced to your devices; we don't keep a separate copy of what was sent. We count how many briefs you use each month. Without an account, a basic brief is made on your device without AI and nothing is sent.
+
+Weekly review: with an account, ProdLi can write a short review of your week. Our server sends Anthropic's Claude API a summary of that week made on your device: titles of tasks you finished and tasks that slipped (with priorities and dates), counts per day, habit names and how many days you kept them, focus-session totals, total browsing time and your top five websites, meeting titles and open action items, how many notes you created or edited, your daily focus and reflection notes, and your own notes on the week. The review is saved with that week and synced; we don't keep a separate copy of what was sent. Reviews count toward your monthly briefs. Without an account, a basic review is made on your device without AI and nothing is sent.
 
 Meeting summaries: with an account, our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and meeting audio is never sent. We count how many summaries you use each month.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
@@ -84,7 +86,7 @@ ProdLi doesn't use advertising or analytics cookies. When you use the web app, G
     title: "Why we use your data (legal bases)",
     body: `• To provide ProdLi: your account, sync, backups and summaries you ask for. This is necessary to perform our contract with you.
 • To keep ProdLi secure, prevent abuse, fix problems and enforce limits. This is our legitimate interest in running a safe service.
-• To upload meeting transcripts, create AI summaries and daily briefs, and read your calendar: your choice to use these features. You can stop at any time.
+• To upload meeting transcripts, create AI summaries, daily briefs and weekly reviews, and read your calendar: your choice to use these features. You can stop at any time.
 • To comply with the law where required.
 Under India's Digital Personal Data Protection Act, 2023, we process your personal data on the basis of the consent you give when you sign in, and for the purposes described here.`,
   },
@@ -92,7 +94,7 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
     title: "Who processes data for us",
     body: `• Cloudflare, Inc.: hosting, databases, sync, backups and request logs
 • Google LLC: sign-in
-• Anthropic, PBC: AI daily briefs, Ask ProdLi answers and meeting summaries, only when you use them with your account
+• Anthropic, PBC: AI daily briefs, weekly reviews, Ask ProdLi answers and meeting summaries, only when you use them with your account
 These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
   },
   {
@@ -180,11 +182,11 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
   },
   {
-    title: "AI summaries, briefs and answers",
-    body: `Summaries, daily briefs and Ask ProdLi answers are generated automatically by Anthropic's Claude models. They can be incomplete or wrong. Check important details against the transcript before you rely on them.`,
+    title: "AI summaries, briefs, reviews and answers",
+    body: `Summaries, daily briefs, weekly reviews and Ask ProdLi answers are generated automatically by Anthropic's Claude models. They can be incomplete or wrong. Check important details against the transcript before you rely on them.`,
   },
   {
     title: "Our software",
