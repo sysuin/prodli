@@ -91,9 +91,9 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
   {
     title: "Who processes data for us",
     body: `• Cloudflare, Inc.: hosting, databases, sync, backups and request logs
+• Paddle (Paddle.com Market Limited and its affiliates): if you buy ProdLi Pro. Paddle is our reseller and the merchant of record: it sells you the subscription, takes payment and handles tax and invoices under its own buyer terms and privacy policy. You give your payment details to Paddle, not to us. Paddle tells us your subscription's status, plan, renewal date and Paddle customer and subscription IDs, linked to your ProdLi account; we never receive your card details.
 • Google LLC: sign-in
 • Anthropic, PBC: AI daily briefs, Ask ProdLi answers and meeting summaries, only when you use them with your account
-• Paddle (Paddle.com Market Limited and its affiliates): if you buy ProdLi Pro. Paddle is our reseller and the merchant of record: it sells you the subscription, takes payment and handles tax and invoices under its own buyer terms and privacy policy. You give your payment details to Paddle, not to us. Paddle tells us your subscription's status, plan, renewal date and Paddle customer and subscription IDs, linked to your ProdLi account; we never receive your card details.
 These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
   },
   {
@@ -182,7 +182,7 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them.`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
   },
   {
     title: "ProdLi Pro (paid plan)",

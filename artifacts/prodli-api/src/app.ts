@@ -64,11 +64,12 @@ export interface Deps {
   summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
-  paddle: (apiKey: string, environment: PaddleEnv) => PaddleClient;
+  /** Paddle API client (tests pass a fake). */
+  paddle?: (apiKey: string, environment: PaddleEnv) => PaddleClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, ask: askClaude, paddle: (k, e) => paddleClient(k, e), now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, ask: askClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -282,7 +283,7 @@ export function createApp(deps: Deps = realDeps) {
     if (sub && planFor(sub.status) === "pro") {
       if (!c.env.PADDLE_API_KEY) return c.json({ error: "subscription_active", message: "Cancel your Pro subscription first (Account → Manage subscription), then delete your account." }, 409);
       try {
-        await deps.paddle(c.env.PADDLE_API_KEY, c.env.PADDLE_ENV === "production" ? "production" : "sandbox").cancelNow(sub.subscription_id);
+        await (deps.paddle ?? paddleClient)(c.env.PADDLE_API_KEY, c.env.PADDLE_ENV === "production" ? "production" : "sandbox").cancelNow(sub.subscription_id);
       } catch {
         return c.json({ error: "subscription_active", message: "Couldn't cancel your Pro subscription. Try again, or cancel it in Account → Manage subscription first." }, 502);
       }
@@ -367,7 +368,7 @@ export function createApp(deps: Deps = realDeps) {
     if (!sub) return c.json({ error: "no_subscription" }, 404);
     if (!c.env.PADDLE_API_KEY) return c.json({ error: "billing_unavailable" }, 503);
     try {
-      return c.json({ url: await deps.paddle(c.env.PADDLE_API_KEY, paddleEnv(c)).portalUrl(sub.customer_id, sub.subscription_id) });
+      return c.json({ url: await (deps.paddle ?? paddleClient)(c.env.PADDLE_API_KEY, paddleEnv(c)).portalUrl(sub.customer_id, sub.subscription_id) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the subscription page. Try again." }, 502);
       throw err;
