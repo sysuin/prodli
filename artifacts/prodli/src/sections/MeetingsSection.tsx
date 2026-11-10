@@ -3,7 +3,7 @@ import { onStorageChange, storageGet, storageRemove, storageSet } from "../lib/s
 import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
 import { deleteMeeting, getAudio, listMeetings, updateMeeting } from "../recorder/db";
-import { canUseProdliAi, summarizeAny } from "../recorder/summarize";
+import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting } from "../recorder/summarize";
 import { openAsk } from "../lib/ask";
 import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
@@ -25,7 +25,7 @@ const SPEECH_LANGS: { code: string; label: string }[] = [
 ];
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
-  CLAUDE_KEY_STORAGE_KEY,
+  SHOW_INDICATOR_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
   SPEECH_ENABLED_STORAGE_KEY,
   SPEECH_LANG_STORAGE_KEY,
@@ -40,7 +40,7 @@ import {
 const ACCENT = "#FF4FA3";
 const DISCLOSURE_TEXT = "Heads-up: I'm taking AI-assisted notes of this call so I can share a summary afterwards.";
 
-const NO_AI_HINT = accountsEnabled() ? "Sign in to your ProdLi account (free summaries) or add your own Claude API key in Setup" : "Add your Claude API key in Setup";
+const NO_AI_HINT = SIGN_IN_FOR_SUMMARIES;
 
 /** Does the meeting match a search (title, summary, transcript)? */
 export function meetingMatches(m: Meeting, query: string): boolean {
@@ -143,8 +143,8 @@ function meetingToNoteHtml(m: Meeting): string {
 // ── Setup panel ───────────────────────────────────────────────────────────────
 
 function SetupPanel({
-  apiKey,
-  onSaveKey,
+  indicator,
+  onToggleIndicator,
   recorderOn,
   onToggleRecorder,
   micOn,
@@ -155,8 +155,8 @@ function SetupPanel({
   ai,
 }: {
   ai: { signedIn: boolean; usage: AiUsage | null };
-  apiKey: string;
-  onSaveKey: (k: string) => void;
+  indicator: boolean;
+  onToggleIndicator: () => void;
   recorderOn: boolean;
   onToggleRecorder: () => void;
   micOn: boolean;
@@ -165,43 +165,23 @@ function SetupPanel({
   onToggleAuto: () => void;
   speech: { on: boolean; lang: string; status: SpeechAvailability | "checking" | "installing"; toggle: () => void; setLang: (l: string) => void; install: () => void };
 }) {
-  const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
-  const masked = apiKey ? `${apiKey.slice(0, 10)}…${apiKey.slice(-4)}` : "";
 
   return (
     <div style={{ ...card, display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", marginBottom: 16 }}>
       <div>
-        <div style={label}>1 · Claude API key{ai.signedIn ? " (optional)" : ""}</div>
-        {apiKey ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-            <code style={{ fontSize: 13, fontWeight: 700 }}>✓ {masked}</code>
-            <button style={btn()} onClick={() => onSaveKey("")}>Remove</button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <input
-              type="password"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="sk-ant-…"
-              autoComplete="off"
-              style={{ flex: 1, minWidth: 0, border: "var(--nb-border)", padding: "6px 10px", fontFamily: "inherit", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
-            />
-            <button style={btn("primary", !draft.trim())} disabled={!draft.trim()} onClick={() => { onSaveKey(draft.trim()); setDraft(""); }}>
-              Save
-            </button>
-          </div>
-        )}
-        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>
-          Stored only in this browser and sent only to Anthropic. Summaries use {SUMMARY_MODEL} (low-cost) — usually under 1¢ per meeting.
-        </p>
-        {!apiKey && ai.signedIn && (
-          <p style={{ fontSize: 12, marginTop: 4, fontWeight: 700 }} data-testid="ai-allowance">
-            No key needed: summaries use your ProdLi account
+        <div style={label}>1 · AI summaries</div>
+        {ai.signedIn ? (
+          <p style={{ fontSize: 13, marginTop: 8, fontWeight: 700 }} data-testid="ai-allowance">
+            ✓ Included with your ProdLi account
             {ai.usage ? ` — ${Math.max(0, ai.usage.limit - ai.usage.used)} of ${ai.usage.limit} free this month.` : "."}
           </p>
+        ) : (
+          <p style={{ fontSize: 13, marginTop: 8 }}>{SIGN_IN_FOR_SUMMARIES}</p>
         )}
+        <p style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
+          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Audio never leaves this computer; only the transcript is sent to make the summary.
+        </p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={autoSummarize} onChange={onToggleAuto} /> Summarize automatically when a meeting ends
         </label>
@@ -219,6 +199,13 @@ function SetupPanel({
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={micOn} onChange={onToggleMic} /> Include my microphone in the audio recording
         </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+          <input type="checkbox" checked={indicator} onChange={onToggleIndicator} style={{ marginTop: 3 }} />
+          <span>
+            Show a small “recording” label in the call
+            <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Only you see it. Chrome’s red dot on the tab and REC on the ProdLi icon show recording either way.</span>
+          </span>
+        </label>
       </div>
 
       <div>
@@ -227,7 +214,7 @@ function SetupPanel({
           <li>Join a call on <strong>meet.google.com</strong>.</li>
           <li>Click the <strong>ProdLi icon</strong> in the toolbar (pin it), or press <strong>Alt+Shift+R</strong>.</li>
           <li>ProdLi turns on captions (only you see them) and takes notes. No bot joins the call.</li>
-          <li>Click <strong>Stop</strong> on the yellow badge, or leave the call.</li>
+          <li>To stop, click the ProdLi icon again (or Alt+Shift+R), or just leave the call.</li>
         </ol>
       </div>
 
@@ -492,7 +479,7 @@ export function MeetingsSection() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [recState, setRecState] = useState<RecordingState | null>(null);
-  const [apiKey, setApiKey] = useState("");
+  const [indicator, setIndicator] = useState(false);
   const [recorderOn, setRecorderOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [speechOn, setSpeechOn] = useState(false);
@@ -548,8 +535,8 @@ export function MeetingsSection() {
   useEffect(() => {
     if (!ext) return;
     void (async () => {
-      const [key, mic, , , auto, granted, session] = await Promise.all([
-        storageGet<string>(CLAUDE_KEY_STORAGE_KEY, ""),
+      const [showIndicator, mic, , , auto, granted, session] = await Promise.all([
+        storageGet<boolean>(SHOW_INDICATOR_STORAGE_KEY, false),
         storageGet<boolean>(MIC_ENABLED_STORAGE_KEY, false),
         storageGet<boolean>(SPEECH_ENABLED_STORAGE_KEY, false).then(setSpeechOn),
         storageGet<string>(SPEECH_LANG_STORAGE_KEY, navigator.language && SPEECH_LANGS.some((l) => l.code === navigator.language) ? navigator.language : "en-US").then(setSpeechLang),
@@ -557,12 +544,12 @@ export function MeetingsSection() {
         chrome.permissions.contains(RECORDER_PERMISSIONS),
         chrome.storage.session.get(RECORDING_STATE_KEY),
       ]);
-      setApiKey(key);
+      setIndicator(showIndicator);
       setMicOn(mic);
       setAutoSummarize(auto);
       setRecorderOn(granted);
       setRecState((session[RECORDING_STATE_KEY] as RecordingState | undefined) ?? null);
-      setShowSetup(!key || !granted);
+      setShowSetup(!granted);
       await refresh();
       setLoaded(true);
     })();
@@ -586,10 +573,9 @@ export function MeetingsSection() {
 
   const selected = useMemo(() => meetings.find((m) => m.id === selectedId) ?? null, [meetings, selectedId]);
 
-  const saveKey = async (key: string) => {
-    await storageSet(CLAUDE_KEY_STORAGE_KEY, key);
-    setApiKey(key);
-    flash(key ? "API key saved" : "API key removed");
+  const toggleIndicator = async () => {
+    await storageSet(SHOW_INDICATOR_STORAGE_KEY, !indicator);
+    setIndicator(!indicator);
   };
 
   const toggleRecorder = async () => {
@@ -668,7 +654,7 @@ export function MeetingsSection() {
       const meeting = await updateMeeting(id, () => ({ status: "processing", error: null }));
       if (!meeting) return;
       try {
-        const summary = await summarizeAny(meeting, "");
+        const summary = await summarizeMeeting(meeting);
         await updateMeeting(id, (m) => ({ status: "ready", summary, title: m.title.startsWith("Google Meet · ") && summary.title ? summary.title : m.title }));
         flash("Notes ready");
       } catch (err) {
@@ -759,8 +745,8 @@ export function MeetingsSection() {
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
         {showSetup && (
           <SetupPanel
-            apiKey={apiKey}
-            onSaveKey={(k) => void saveKey(k)}
+            indicator={indicator}
+            onToggleIndicator={() => void toggleIndicator()}
             recorderOn={recorderOn}
             onToggleRecorder={() => void toggleRecorder()}
             micOn={micOn}
@@ -824,7 +810,7 @@ export function MeetingsSection() {
                 <MeetingDetail
                   key={selected.id}
                   meeting={selected}
-                  hasKey={!!apiKey || signedIn}
+                  hasKey={signedIn}
                   onSummarize={() => void summarize(selected.id)}
                   onDelete={() => void remove(selected.id)}
                   flash={flash}

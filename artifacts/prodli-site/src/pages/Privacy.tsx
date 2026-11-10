@@ -33,7 +33,7 @@ Grievance officer (India): [name], contact@prodli.com.`,
 • Pomodoro settings, timer and completed sessions
 • Time Tracker (extension): the hostname of the website in your active tab (for example "github.com") and the seconds spent per day. Never full web addresses, page titles or page content.
 • Meetings (extension, only if you use the recorder): transcripts, summaries and optional audio recordings
-• settings such as theme and fonts, and your own Claude API key if you add one
+• settings such as theme and fonts
 
 Without an account, none of this is sent to ProdLi. Uninstalling the extension or clearing the website's data deletes it.`,
   },
@@ -51,7 +51,7 @@ For each signed-in device we keep a session: a random sign-in token (we store on
 • Pomodoro history and your completed-session count
 • Time Tracker history (hostnames and seconds per day)
 • your Today page: each day's focus, reflection and daily brief
-Settings and your Claude API key are never uploaded. Each account's data is kept in its own separate database.
+Settings are never uploaded. Each account's data is kept in its own separate database.
 
 You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it.
 
@@ -63,9 +63,7 @@ If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged
 
 Daily brief: with an account, ProdLi can write a short plan for your day. To do this, our server sends Anthropic's Claude API the parts of your day the brief needs: your open tasks (titles, priorities, due dates, estimates), habit names and streaks, today's calendar events (titles and times, if you connected Google Calendar), recent meeting action items, yesterday's top websites and focus sessions, and your focus and reflection notes. The brief is saved with that day and synced to your devices; we don't keep a separate copy of what was sent. We count how many briefs you use each month. Without an account, a basic brief is made on your device without AI and nothing is sent.
 
-Meeting summaries: you can ask ProdLi to summarize a meeting in two ways:
-• Through your ProdLi account (a free monthly allowance). Our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting. We don't keep a separate copy of what was sent. We count how many summaries you use each month.
-• With your own Claude API key (extension only). Your browser sends the transcript directly to Anthropic with your key. ProdLi never receives the key, the transcript or the summary.
+Meeting summaries: with an account, our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and meeting audio is never sent. We count how many summaries you use each month.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
   },
   {

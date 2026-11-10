@@ -89,7 +89,7 @@ try {
   const notifications = await swEval(`(async () => { const r = await new Promise((res) => indexedDB.open("prodli-meetings").onsuccess = (e) => { const q = e.target.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result); }); return r.map((m) => m.status + ": " + (m.error ?? "")); })()`);
   check("Clicking ProdLi on a Meet call starts recording (REC badge)", badge === "REC" && !!state, `badge=${JSON.stringify(badge)} state=${JSON.stringify(state)} err=${startErr} notifications=${JSON.stringify(notifications)}`);
   check("No new ProdLi tab was opened instead", !(await b.send("Target.getTargets")).targetInfos.some((t) => t.type === "page" && t.url.startsWith(`chrome-extension://${extId}/index.html`)));
-  check("Captions were switched on and ProdLi's indicator shows in the call", await meet.eval(`!!document.getElementById('cap') && !!document.querySelector('[data-prodli-badge]')`));
+  check("Captions were switched on, with no label in the call (off by default)", await meet.eval(`!!document.getElementById('cap') && !document.querySelector('[data-prodli-badge]')`));
 
   // People talk.
   await meet.eval(`__say('Priya Shah', 'Let us ship the onboarding emails on Friday.'); true`);
