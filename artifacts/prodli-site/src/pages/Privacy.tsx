@@ -177,18 +177,18 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
 You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it.`,
   },
   {
+    title: "ProdLi Pro (paid plan)",
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI briefs and 1,000 Ask ProdLi questions per month). Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders. Paddle provides all customer service inquiries and handles returns.
+
+Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Paddle's buyer terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
+  },
+  {
     title: "Acceptable use",
     body: `Don't use ProdLi to break the law or to infringe other people's rights. Don't upload malware. Don't try to access other people's accounts or data, or to disrupt, overload or get around the security or limits of ProdLi. Don't use AI summaries in ways that break Anthropic's Usage Policy.`,
   },
   {
     title: "Free plan and limits",
     body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
-  },
-  {
-    title: "ProdLi Pro (paid plan)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI briefs and 1,000 Ask ProdLi questions per month). Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders. Paddle provides all customer service inquiries and handles returns.
-
-Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Paddle's buyer terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },
   {
     title: "AI summaries, briefs and answers",
