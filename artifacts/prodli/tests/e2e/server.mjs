@@ -9,6 +9,7 @@
 //   pnpm --filter @workspace/prodli run test:e2e:server
 
 import { execSync, spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -34,7 +35,10 @@ run("node scripts/build-app.mjs", repo);
 console.log("==> Starting the server with a fresh local database");
 const state = mkdtempSync(path.join(tmpdir(), "prodli-api-e2e-"));
 run(`pnpm exec wrangler d1 migrations apply DB --local --persist-to "${state}"`, api, { CI: "true" });
-const server = spawn("pnpm", ["exec", "wrangler", "dev", "--port", String(PORT), "--persist-to", state, "--var", "DEV_FAKE_GOOGLE:true", "--log-level", "warn"], {
+// ProdLi Pro on sale with a test Paddle setup (Paddle's script is blocked in the pages below).
+const PADDLE_SECRET = "pdl_ntfset_e2e";
+const paddleVars = ["PADDLE_CLIENT_TOKEN:test_e2e", "PADDLE_PRICE_MONTHLY:pri_month", "PADDLE_PRICE_YEARLY:pri_year", `PADDLE_WEBHOOK_SECRET:${PADDLE_SECRET}`].flatMap((v) => ["--var", v]);
+const server = spawn("pnpm", ["exec", "wrangler", "dev", "--port", String(PORT), "--persist-to", state, "--var", "DEV_FAKE_GOOGLE:true", ...paddleVars, "--log-level", "warn"], {
   cwd: api,
   detached: true,
   stdio: ["ignore", "inherit", "inherit"],
@@ -103,6 +107,8 @@ try {
 
   console.log("web app");
   const w = await b.openPage(`${SERVER}/`);
+  await w.send("Network.enable", {});
+  await w.send("Network.setBlockedURLs", { urls: ["*paddle.com*"] });
   await w.eval(`localStorage.setItem("prodli_hasSeenOnboarding", "true")`);
   const status = await w.eval(
     `fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "web", idToken: ${JSON.stringify(ALICE)} }) }).then(r => r.status)`,
@@ -307,6 +313,39 @@ try {
   check("Extension: shows signed out after a remote sign-out", (await p.text()).includes("Sign in to your ProdLi account"));
   await p.click("Sign in with Google", { exact: false });
   await sleep(1500);
+  console.log("pro");
+  t = await p.text();
+  check("Pro: a free account sees the plans and an upgrade button", /your plan: free/i.test(t) && /AI meeting summaries\s*20\s*300/i.test(t) && /upgrade to pro/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  const before = new Set((await b.send("Target.getTargets")).targetInfos.map((x) => x.targetId));
+  await p.click("Upgrade to Pro", { exact: false });
+  await sleep(1200);
+  const opened = (await b.send("Target.getTargets")).targetInfos.find((x) => !before.has(x.targetId) && x.type === "page");
+  check("Pro: the extension continues checkout in the web app", opened?.url === `${SERVER}/?upgrade=yearly` || opened?.url?.startsWith(`${SERVER}/`), opened?.url);
+  if (opened) await b.send("Target.closeTarget", { targetId: opened.targetId });
+  const { prodliSession: s2 } = await p.storage(["prodliSession"]);
+  const me = await p.eval(`fetch(${JSON.stringify(SERVER)} + "/api/me", { headers: { Authorization: "Bearer " + ${JSON.stringify("")} + ${JSON.stringify(s2?.token ?? "")} } }).then(r => r.json())`);
+  const webhook = async (type, status, at) => {
+    const raw = JSON.stringify({ event_id: `evt_${type}`, event_type: type, occurred_at: at, data: { id: "sub_e2e", status, customer_id: "ctm_e2e", custom_data: { userId: me.user.id }, items: [{ price: { id: "pri_year" } }], billing_cycle: { interval: "year", frequency: 1 }, current_billing_period: { starts_at: at, ends_at: "2099-01-01T00:00:00.000Z" }, scheduled_change: null } });
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = createHmac("sha256", PADDLE_SECRET).update(`${ts}:${raw}`).digest("hex");
+    return (await fetch(`${SERVER}/api/billing/webhook`, { method: "POST", headers: { "Content-Type": "application/json", "Paddle-Signature": `ts=${ts};h1=${sig}` }, body: raw })).json();
+  };
+  const reopen = async () => {
+    await p.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
+    await sleep(300);
+    await openAccount(p);
+    await sleep(1200);
+    return p.text();
+  };
+  check("Pro: Paddle's signed webhook is accepted", (await webhook("subscription.created", "active", new Date().toISOString())).applied === true);
+  t = await reopen();
+  check("Pro: the account is Pro, with its renewal date", /prodli pro/i.test(t) && /renews/i.test(t) && /300 meeting summaries/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  const unsigned = await fetch(`${SERVER}/api/billing/webhook`, { method: "POST", body: "{}" });
+  check("Pro: unsigned webhooks are refused", unsigned.status === 401);
+  await webhook("subscription.canceled", "canceled", new Date(Date.now() + 1000).toISOString());
+  t = await reopen();
+  check("Pro: cancelling returns the account to Free", /your plan: free/i.test(t), t.slice(0, 300).replace(/\n/g, " | "));
+
   await p.click("Delete account…");
   await sleep(200);
   check("Delete needs the email typed first", await p.eval(`[...document.querySelectorAll("button")].find(b => b.textContent.includes("Delete permanently")).disabled`));

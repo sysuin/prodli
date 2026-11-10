@@ -118,15 +118,16 @@ self.addEventListener("fetch", (event) => {
 
 // Security headers for the app's pages and files (served by Cloudflare's static
 // assets without running the Worker; /api responses get theirs from the Worker).
-// The CSP allows only ProdLi itself plus Google sign-in and Google Fonts.
+// The CSP allows only ProdLi itself plus Google sign-in, Google Fonts and
+// Paddle's checkout (ProdLi Pro payments).
 const csp = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com/gsi/client",
+  "script-src 'self' https://accounts.google.com/gsi/client https://cdn.paddle.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob: https://*.googleusercontent.com",
-  "connect-src 'self' https://accounts.google.com/gsi/ https://www.googleapis.com/calendar/",
-  "frame-src https://accounts.google.com/gsi/",
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://*.paddle.com",
+  "connect-src 'self' https://accounts.google.com/gsi/ https://www.googleapis.com/calendar/ https://*.paddle.com",
+  "frame-src https://accounts.google.com/gsi/ https://*.paddle.com",
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",

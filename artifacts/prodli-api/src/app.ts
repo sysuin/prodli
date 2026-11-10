@@ -33,11 +33,12 @@ import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTE
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
+import { applySubscriptionEvent, BillingError, checkoutConfig, getSubscription, paddleClient, planFor, verifyPaddleSignature, type BillingVars, type PaddleClient, type PaddleEnv, type PaddleEvent } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
 
 export type Environment = "development" | "staging" | "production";
 
-export interface Env {
+export interface Env extends BillingVars {
   ENV: Environment;
   DB: D1Database;
   GOOGLE_EXTENSION_CLIENT_ID: string;
@@ -63,10 +64,11 @@ export interface Deps {
   summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
+  paddle: (apiKey: string, environment: PaddleEnv) => PaddleClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, ask: askClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, ask: askClaude, paddle: (k, e) => paddleClient(k, e), now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -137,7 +139,10 @@ export function createApp(deps: Deps = realDeps) {
   const smallBody = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
   const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
   const aiBody = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
-  app.use("/api/*", (c, next) => (c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : smallBody(c, next)));
+  const webhookBody = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
+  app.use("/api/*", (c, next) =>
+    c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
+  );
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
@@ -272,6 +277,16 @@ export function createApp(deps: Deps = realDeps) {
     if (typeof body?.confirmEmail !== "string" || body.confirmEmail.trim().toLowerCase() !== auth.user.email.toLowerCase()) {
       return c.json({ error: "confirmation_mismatch" }, 400);
     }
+    // A paid subscription ends with the account (otherwise Paddle would keep charging).
+    const sub = await getSubscription(c.env.DB, auth.user.id);
+    if (sub && planFor(sub.status) === "pro") {
+      if (!c.env.PADDLE_API_KEY) return c.json({ error: "subscription_active", message: "Cancel your Pro subscription first (Account → Manage subscription), then delete your account." }, 409);
+      try {
+        await deps.paddle(c.env.PADDLE_API_KEY, c.env.PADDLE_ENV === "production" ? "production" : "sandbox").cancelNow(sub.subscription_id);
+      } catch {
+        return c.json({ error: "subscription_active", message: "Couldn't cancel your Pro subscription. Try again, or cancel it in Account → Manage subscription first." }, 502);
+      }
+    }
     await storeFor(c.env, auth.user.id).wipe();
     await deleteBackups(c.env, auth.user.id);
     await deleteUser(c.env.DB, auth.user.id);
@@ -326,6 +341,55 @@ export function createApp(deps: Deps = realDeps) {
     // Don't wake (or create) a Durable Object for ids that aren't real accounts.
     if (!(await c.env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(userId).first())) return c.json({ error: "unauthorized" }, 401);
     return storeFor(c.env, userId).fetch(c.req.raw);
+  });
+
+  // ── ProdLi Pro (src/billing.ts) ─────────────────────────────────────────────
+  const paddleEnv = (c: Ctx): PaddleEnv => (c.env.PADDLE_ENV === "production" ? "production" : "sandbox");
+
+  /** The user's plan, what each plan includes, and (when Pro is on sale) checkout settings. */
+  app.get("/api/billing", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const sub = await getSubscription(c.env.DB, auth.user.id);
+    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan] });
+    return c.json({
+      plan: auth.user.plan === "pro" ? "pro" : "free",
+      checkout: checkoutConfig(c.env),
+      canManage: !!sub && !!c.env.PADDLE_API_KEY,
+      subscription: sub ? { status: sub.status, interval: sub.billing_interval, renewsAt: sub.cancel_at ? null : sub.period_end, endsAt: sub.cancel_at } : null,
+      limits: { free: limits("free"), pro: limits("pro") },
+    });
+  });
+
+  /** A link to Paddle's customer portal (change plan or card, invoices, cancel). */
+  app.post("/api/billing/portal", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const sub = await getSubscription(c.env.DB, auth.user.id);
+    if (!sub) return c.json({ error: "no_subscription" }, 404);
+    if (!c.env.PADDLE_API_KEY) return c.json({ error: "billing_unavailable" }, 503);
+    try {
+      return c.json({ url: await deps.paddle(c.env.PADDLE_API_KEY, paddleEnv(c)).portalUrl(sub.customer_id, sub.subscription_id) });
+    } catch (err) {
+      if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the subscription page. Try again." }, 502);
+      throw err;
+    }
+  });
+
+  /** Paddle → us. Signed with the destination's secret key; nothing else is trusted. */
+  app.post("/api/billing/webhook", async (c) => {
+    const secret = c.env.PADDLE_WEBHOOK_SECRET;
+    if (!secret) return c.json({ error: "not_found" }, 404);
+    const raw = await c.req.text();
+    if (!(await verifyPaddleSignature(raw, c.req.header("Paddle-Signature"), secret, deps.now()))) return c.json({ error: "bad_signature" }, 401);
+    let event: PaddleEvent;
+    try {
+      event = JSON.parse(raw) as PaddleEvent;
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const result = await applySubscriptionEvent(c.env.DB, event, deps.now());
+    console.log(JSON.stringify({ msg: "paddle_webhook", type: event.event_type, applied: result.applied, ...(result.applied ? { plan: result.plan } : { reason: result.reason }) }));
+    // 200 even when ignored, so Paddle doesn't retry events we can't use.
+    return c.json({ ok: true, applied: result.applied });
   });
 
   // ── AI summaries ───────────────────────────────────────────────────────────
