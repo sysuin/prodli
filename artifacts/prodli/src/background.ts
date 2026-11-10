@@ -9,6 +9,7 @@ import { accountsEnabled } from "./lib/prodliAccount";
 import { registerBackgroundSync } from "./lib/prodliSync";
 import { registerTodayReminder } from "./lib/todayBackground";
 import { registerCapture } from "./lib/captureBackground";
+import { registerLocalFiles } from "./lib/localFilesBackground";
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
@@ -22,6 +23,8 @@ if (accountsEnabled()) registerBackgroundSync();
 registerTodayReminder();
 // "Add to ProdLi": right-click menus and the Quick add shortcut (Alt+Shift+A).
 registerCapture();
+// Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).
+registerLocalFiles();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
