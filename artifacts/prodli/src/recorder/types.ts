@@ -8,6 +8,8 @@ export interface TranscriptEntry {
   startMs: number;
   /** ms since the recording started */
   endMs: number;
+  /** "device": from on-device transcription, filling a gap in Meet's captions. */
+  source?: "device";
 }
 
 export interface ActionItem {

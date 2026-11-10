@@ -222,7 +222,7 @@ function SetupPanel({
       </div>
 
       <div>
-        <div style={label}>4 · When captions are off</div>
+        <div style={label}>4 · When captions are off or miss something</div>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600, marginTop: 8 }}>
           <input type="checkbox" checked={speech.on} onChange={speech.toggle} disabled={speech.status === "unsupported"} /> Transcribe on this computer
         </label>
@@ -247,7 +247,7 @@ function SetupPanel({
         <p style={{ fontSize: 12, marginTop: 8, opacity: 0.85 }}>
           {speech.status === "unsupported" || speech.status === "unavailable"
             ? "On-device transcription isn't available in this browser or language. Use Meet captions instead."
-            : "Uses Chrome's built-in speech recognition. Audio never leaves your computer. Speakers are labelled You (your mic) and Others (the call)."}
+            : "Uses Chrome's built-in speech recognition. Audio never leaves your computer. It's used when captions are off, and to fill gaps where captions missed part of the call. Speakers are labelled You (your mic) and Others (the call)."}
         </p>
       </div>
 
@@ -465,6 +465,11 @@ function MeetingDetail({
                 <div key={e.id} style={{ fontSize: 14, lineHeight: 1.5 }}>
                   <span style={{ fontFamily: "Space Mono, monospace", fontSize: 11, opacity: 0.6, marginRight: 8 }}>{formatTimestamp(e.startMs)}</span>
                   <strong>{e.speaker}:</strong> {e.text}
+                  {e.source === "device" && (
+                    <span title="Meet's captions missed this; it comes from on-device transcription" style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, border: "1px solid currentColor", padding: "0 4px", opacity: 0.85 }}>
+                      on device
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
