@@ -42,7 +42,6 @@ Both were checked line by line against the code on 9 November 2026. This page li
 
 **Never stored on ProdLi's servers:**
 - meeting audio;
-- the user's Claude API key;
 - settings (theme, fonts, tracker settings);
 - the content sent to Anthropic, beyond the resulting summary saved with the meeting.
 

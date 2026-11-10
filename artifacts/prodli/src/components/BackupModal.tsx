@@ -213,7 +213,7 @@ export function BackupModal({ onClose }: BackupModalProps) {
                   💾 Export Data
                 </div>
                 <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", lineHeight: 1.6, marginBottom: 14 }}>
-                  Download your notes, to-dos, habits, Pomodoro data, time-tracking history and meeting notes as a JSON file. Meeting audio and your Claude API key are not included. Store it somewhere safe as a backup.
+                  Download your notes, to-dos, habits, Pomodoro data, time-tracking history and meeting notes as a JSON file. Meeting audio is not included. Store it somewhere safe as a backup.
                 </div>
                 <button
                   onClick={handleExport}

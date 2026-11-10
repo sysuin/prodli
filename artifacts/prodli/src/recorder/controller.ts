@@ -5,13 +5,14 @@
 // user actions, which is why recording can't start from a button inside Meet.
 
 import { getMeeting, putMeeting, updateMeeting } from "./db";
-import { summarizeAny, SummarizeError } from "./summarize";
+import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
   SPEECH_ENABLED_STORAGE_KEY,
   SPEECH_LANG_STORAGE_KEY,
+  SHOW_INDICATOR_STORAGE_KEY,
   RECORDER_PERMISSIONS,
   RECORDING_STATE_KEY,
   type BackgroundMessage,
@@ -186,7 +187,8 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
     if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
 
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
-    const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime() };
+    const showIndicator = await getLocal<boolean>(SHOW_INDICATOR_STORAGE_KEY, false);
+    const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime(), showIndicator };
     await chrome.tabs.sendMessage(tab.id, captionsCmd);
 
     await setRecordingBadge(tab.id);
@@ -264,11 +266,11 @@ async function finishMeeting(meetingId: string): Promise<void> {
   const meeting = await getMeeting(meetingId);
   if (!meeting) return;
   const autoSummarize = await getLocal<boolean>(AUTO_SUMMARIZE_STORAGE_KEY, true);
-  const apiKey = await getLocal<string>(CLAUDE_KEY_STORAGE_KEY, "");
+  const canSummarize = await canUseProdliAi();
 
-  if (meeting.transcript.length === 0 || !autoSummarize || !apiKey) {
+  if (meeting.transcript.length === 0 || !autoSummarize || !canSummarize) {
     await updateMeeting(meetingId, () => ({ status: "ready" }));
-    notify("Meeting saved", apiKey || meeting.transcript.length === 0 ? "Open ProdLi → Meetings to see it." : "Add your Claude API key in ProdLi → Meetings to get AI notes.");
+    notify("Meeting saved", canSummarize || meeting.transcript.length === 0 || !autoSummarize ? "Open ProdLi → Meetings to see it." : SIGN_IN_FOR_SUMMARIES);
     return;
   }
   await runSummary(meetingId);
@@ -277,9 +279,8 @@ async function finishMeeting(meetingId: string): Promise<void> {
 export async function runSummary(meetingId: string): Promise<{ ok: boolean; error?: string }> {
   const meeting = await updateMeeting(meetingId, () => ({ status: "processing", error: null }));
   if (!meeting) return { ok: false, error: "Meeting not found." };
-  const apiKey = await getLocal<string>(CLAUDE_KEY_STORAGE_KEY, "");
   try {
-    const summary = await summarizeAny(meeting, apiKey);
+    const summary = await summarizeMeeting(meeting);
     await updateMeeting(meetingId, (m) => ({
       status: "ready",
       summary,
@@ -340,6 +341,8 @@ async function recoverIfStale(): Promise<void> {
 }
 
 export function registerRecorder(): void {
+  // Summaries now always go through the user's ProdLi account; forget any API key saved by older versions.
+  void chrome.storage.local.remove(CLAUDE_KEY_STORAGE_KEY);
   // End-to-end tests (test builds only) drive the same code path as the toolbar click.
   if (import.meta.env.VITE_E2E === "1") (globalThis as Record<string, unknown>).__prodliToggleRecording = toggleRecording;
 

@@ -86,7 +86,7 @@ const suites = {
     const p = await b.openPage();
     await p.goto("meetings");
     const t = await p.lowerText();
-    check("Meetings: setup panel on first run", t.includes("claude api key") && t.includes("turn on recorder"));
+    check("Meetings: setup panel on first run (no API key asked)", t.includes("ai summaries") && t.includes("turn on recorder") && !t.includes("claude api key") && !t.includes("sk-ant"));
     check("Meetings: empty state", t.includes("no meetings yet"));
     await p.eval(`new Promise((resolve, reject) => {
       const req = indexedDB.open("prodli-meetings", 1);
@@ -120,7 +120,7 @@ const suites = {
     await sleep(500);
     const { notes = [] } = await p.storage(["notes"]);
     check("Meetings: summary saved as note", notes[0]?.title === "Beta launch planning" && notes[0].content.includes("Action items"));
-    check("Meetings: Summarize disabled without API key", await p.eval(`[...document.querySelectorAll("button")].find(b => /summarize/i.test(b.textContent)).disabled`));
+    check("Meetings: Summarize disabled until signed in", await p.eval(`[...document.querySelectorAll("button")].find(b => /summarize/i.test(b.textContent)).disabled`));
     await p.close();
   },
 
@@ -190,9 +190,9 @@ const suites = {
       window.__block = (s, t) => { const d = document.createElement('div'); d.innerHTML = '<img alt=""><div>' + s + '</div><div class="t">' + t + '</div>'; document.getElementById('cap').appendChild(d); return d; };
       true`);
     await p.eval(script + ";true");
-    await p.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "m1", startedAtMs: Date.now() }, {}, r))`);
+    await p.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "m1", startedAtMs: Date.now(), showIndicator: true }, {}, r))`);
     await sleep(300);
-    check("Captions: turned on automatically + badge shown", await p.eval(`!!document.getElementById('cap') && !!document.querySelector('[data-prodli-badge]')`));
+    check("Captions: turned on automatically + optional label shown", await p.eval(`!!document.getElementById('cap') && !!document.querySelector('[data-prodli-badge]')`));
     await p.eval(`window.__b1 = __block('You', 'Okay so'); true`);
     await sleep(1200);
     await p.eval(`__b1.querySelector('.t').textContent = 'Okay so the plan is to ship on Friday.'; true`);
@@ -221,6 +221,45 @@ const suites = {
     await sleep(7000);
     check("Captions: leaving the call ends recording", await p.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
     await p.close();
+
+    // Today's Meet layout: captions region > scroll container > one block per speaker turn,
+    // with a "jump to latest" button inside the container once captions overflow, and a
+    // long monologue whose start scrolls away while Meet keeps correcting recent words.
+    // (This is what cut transcripts short before: blocks next to a button were skipped.)
+    const modern = await b.openPage("about:blank");
+    await modern.eval(`
+      document.title = "Meet - Long call";
+      document.body.innerHTML = '<button aria-label="Leave call">x</button><div role="region" aria-label="Captions" id="cap"><div id="scroll"></div></div>';
+      window.__sent = []; window.__listeners = [];
+      window.chrome = { runtime: { sendMessage: (m) => { window.__sent.push(JSON.parse(JSON.stringify(m))); return Promise.resolve({ ok: true }); }, onMessage: { addListener: (f) => window.__listeners.push(f), removeListener: () => {} } } };
+      window.__turn = (who, text) => { const d = document.createElement('div'); d.innerHTML = '<div><img alt=""><span>' + who + '</span></div><div class="t">' + text + '</div>'; document.getElementById('scroll').appendChild(d); return d; };
+      true`);
+    await modern.eval(script + ";true");
+    await modern.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "long", startedAtMs: Date.now() }, {}, r))`);
+    await sleep(300);
+    check("Captions: no in-call label unless turned on", !(await modern.eval(`!!document.querySelector('[data-prodli-badge]')`)));
+    const sentences = Array.from({ length: 14 }, (_, i) => `this is sentence number ${i + 1} about the launch plan`);
+    await modern.eval(`window.__me = __turn('You', ${JSON.stringify(sentences[0])}); true`);
+    for (let i = 1; i < sentences.length; i++) {
+      // Meet shows only the last ~3 sentences of the turn; older words scroll away.
+      const visible = sentences.slice(Math.max(0, i - 2), i + 1).join(". ");
+      // Sometimes it corrects capitalisation/punctuation of what's still visible.
+      const shown = i % 4 === 0 ? visible.replace(/^t/, "T").replace(/plan/g, "plan,") : visible;
+      await modern.eval(`__me.querySelector('.t').textContent = ${JSON.stringify(shown)}; true`);
+      if (i === 5) await modern.eval(`(() => { const j = document.createElement('button'); j.textContent = 'Jump to bottom'; document.getElementById('scroll').appendChild(j); return true; })()`);
+      await sleep(1100);
+    }
+    await modern.eval(`window.__p = __turn('Priya Shah', 'Sounds good, I will update the roadmap'); true`);
+    await sleep(1200);
+    await modern.eval(`__p.querySelector('.t').textContent = 'Sounds good. I will update the roadmap tomorrow morning.'; true`);
+    await sleep(1500);
+    const longRes = await modern.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "stop" }, {}, r))`);
+    const mine = longRes.entries.filter((e) => e.speaker === "You").map((e) => e.text).join(" ").toLowerCase();
+    const missing = sentences.filter((x) => !mine.includes(x.toLowerCase()));
+    check("Captions: a long monologue is captured to the end (nothing lost when it scrolls)", missing.length === 0, `missing: ${missing.join(" | ")} | got: ${mine.slice(0, 400)}`);
+    check("Captions: each speaker is labelled by name", longRes.entries.some((e) => e.speaker === "Priya Shah" && /roadmap tomorrow morning/.test(e.text)), JSON.stringify(longRes.entries.map((e) => e.speaker)));
+    check("Captions: controls inside the captions area aren't transcribed", !JSON.stringify(longRes.entries).includes("Jump to bottom"));
+    await modern.close();
 
     // Same flow with Meet in Spanish: labels are translated, icon names are not.
     const es = await b.openPage("about:blank");

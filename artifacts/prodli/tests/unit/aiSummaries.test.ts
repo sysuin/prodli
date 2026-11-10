@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { summarizeAny, SummarizeError } from "../../src/recorder/summarize";
+import { summarizeMeeting, SummarizeError } from "../../src/recorder/summarize";
 import { meetingMatches } from "../../src/sections/MeetingsSection";
 import { storageSet } from "../../src/lib/storage";
 import type { Meeting } from "../../src/recorder/types";
@@ -10,7 +10,7 @@ const meeting: Meeting = {
   hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: "2026-11-01T09:01:00.000Z",
 };
 
-describe("AI summaries without an API key", () => {
+describe("AI summaries through the ProdLi account", () => {
   let requests: { url: string; body: Record<string, unknown> }[];
   beforeEach(() => {
     vi.stubEnv("VITE_PRODLI_API", "https://api.test");
@@ -28,19 +28,19 @@ describe("AI summaries without an API key", () => {
 
   it("uses the ProdLi account when signed in, sending the transcript as text", async () => {
     await storageSet("prodliAccount", { id: "u", email: "a@example.com", name: "A", picture: null, plan: "free", createdAt: 0 });
-    const s = await summarizeAny(meeting, "");
+    const s = await summarizeMeeting(meeting);
     expect(s.title).toBe("Standup notes");
     expect(requests[0]).toMatchObject({ url: "https://api.test/api/ai/summarize", body: { title: "Standup", date: "2026-11-01", transcript: "[00:00] Ann: Ship it on Friday" } });
   });
 
   it("explains the monthly limit in plain words", async () => {
     await storageSet("prodliAccount", { id: "u", email: "a@example.com", name: "A", picture: null, plan: "free", createdAt: 0 });
-    await expect(summarizeAny({ ...meeting, title: "QUOTA" }, "")).rejects.toThrow(/used this month's free AI summaries/);
+    await expect(summarizeMeeting({ ...meeting, title: "QUOTA" })).rejects.toThrow(/used this month's free AI summaries/);
   });
 
-  it("asks to sign in (or add a key) when signed out", async () => {
-    await expect(summarizeAny(meeting, "")).rejects.toBeInstanceOf(SummarizeError);
-    await expect(summarizeAny(meeting, "")).rejects.toThrow(/Sign in to your ProdLi account/);
+  it("asks to sign in when signed out", async () => {
+    await expect(summarizeMeeting(meeting)).rejects.toBeInstanceOf(SummarizeError);
+    await expect(summarizeMeeting(meeting)).rejects.toThrow(/Sign in to your ProdLi account/);
     expect(requests).toEqual([]);
   });
 });

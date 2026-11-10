@@ -229,9 +229,6 @@ importers:
 
   artifacts/prodli:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^1.6.0
-        version: 1.6.0(zod@3.25.76)
       '@fontsource/inter':
         specifier: ^5.2.8
         version: 5.2.8

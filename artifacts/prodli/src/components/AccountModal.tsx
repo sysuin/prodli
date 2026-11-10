@@ -277,7 +277,7 @@ function ProdliAccountPanel() {
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, listStyle: "disc" }}>
             <li>What’s already on this device is added to your account; nothing is overwritten.</li>
             <li>Free. ProdLi keeps working without an account, and offline.</li>
-            <li>Your Claude API key and meeting audio are never uploaded.</li>
+            <li>Meeting audio is never uploaded.</li>
             <li>You can download or delete your account any time.</li>
           </ul>
           <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
@@ -483,7 +483,7 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
                 Sign in to sync your notes, to-dos, habits, Pomodoro history and meeting notes across your computers through <strong>your own Google Drive</strong> — edits from every computer are merged, nothing gets overwritten.
                 <ul style={{ margin: "8px 0 0", paddingLeft: 18, listStyle: "disc" }}>
                   <li>Your data goes to a private ProdLi folder in your Drive that only ProdLi can see — not your other files.</li>
-                  <li>No ProdLi servers, no cost. Your Claude API key is never backed up.</li>
+                  <li>No ProdLi servers, no cost.</li>
                   <li>ProdLi keeps working without an account.</li>
                 </ul>
               </div>

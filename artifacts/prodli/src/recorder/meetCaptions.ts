@@ -1,7 +1,9 @@
 // Content script injected into meet.google.com while a recording is running.
 //
 // It reads Google Meet's live captions (speaker name + text) to build the
-// transcript, and shows a small badge that only the person recording can see.
+// transcript. Optionally (Meetings → Setup) it shows a small "recording" label
+// that only the person recording can see; Chrome's own tab-capture dot and the
+// REC badge on the ProdLi icon show it's recording either way.
 // Captions are a per-viewer setting in Meet: turning them on is not shown to
 // other participants.
 //
@@ -90,28 +92,97 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     return t && t.toLowerCase() !== "meet" && t.toLowerCase() !== "google meet" ? t : null;
   }
 
-  /** Merge an updated caption text into what we already have for that block. */
+  const words = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter(Boolean);
+
+  /**
+   * Merge an updated caption text into what we already have for that block.
+   * While someone keeps talking, Meet shows only the last few lines of their
+   * caption (older words scroll away) and keeps correcting recent words, so
+   * this matches on words (ignoring case and punctuation) and never drops
+   * text we already have.
+   */
   function mergeText(oldText: string, newText: string): string {
     if (!oldText) return newText;
     if (newText.includes(oldText)) return newText;
     if (oldText.includes(newText)) return oldText;
-    // Meet sometimes drops the start of a long caption — stitch the overlap.
-    const max = Math.min(oldText.length, newText.length, 300);
-    for (let n = max; n >= 12; n--) {
-      if (newText.startsWith(oldText.slice(-n))) return oldText + newText.slice(n);
+    const a = words(oldText);
+    const b = words(newText);
+    // Same words, different punctuation/capitalisation: take the newer version.
+    if (a.join(" ") === b.join(" ")) return newText;
+    // The new text starts where the old one ends (earlier words scrolled away): append the rest.
+    for (let n = Math.min(a.length, b.length); n >= 3; n--) {
+      if (a.slice(-n).join(" ") === b.slice(0, n).join(" ")) {
+        const tail = newText.split(/\s+/).slice(n).join(" ");
+        return tail ? `${oldText} ${tail}` : oldText;
+      }
     }
-    // Otherwise it's most likely Meet correcting itself: prefer the newer text.
-    return newText.length >= oldText.length * 0.6 ? newText : `${oldText} ${newText}`;
+    // The new text corrects the end of the old one: keep the start, take the corrected end.
+    for (let n = Math.min(a.length, b.length); n >= 3; n--) {
+      const start = a.length - b.length;
+      if (start >= 0 && a.slice(start, start + n).join(" ") === b.slice(0, n).join(" ")) {
+        return `${oldText.split(/\s+/).slice(0, start).join(" ")} ${newText}`.trim();
+      }
+    }
+    // Mostly the same words (Meet rewording a short caption): prefer the newer text.
+    const overlap = b.filter((x) => a.includes(x)).length;
+    if (b.length >= a.length * 0.6 && overlap >= a.length * 0.6) return newText;
+    // Unrelated: keep both rather than lose anything.
+    return `${oldText} ${newText}`;
+  }
+
+  /** Visible text of an element without buttons and icon glyphs (Meet puts controls inside the captions area). */
+  function textWithoutControls(el: HTMLElement): string[] {
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll("button, [role=button], i, svg, style, script").forEach((n) => n.remove());
+    // innerText needs layout; the clone isn't attached, so use textContent per line-ish element.
+    const lines: string[] = [];
+    const walk = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const t = (node.textContent ?? "").trim();
+        if (t) lines.push(t);
+        return;
+      }
+      for (const c of Array.from(node.childNodes)) walk(c);
+    };
+    walk(clone);
+    return lines;
   }
 
   function parseBlock(block: HTMLElement): { speaker: string; text: string } | null {
-    const lines = (block.innerText || "")
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
+    // Meet's block: [avatar] [name] [text…]. The name is its own element, the text another.
+    const lines = textWithoutControls(block);
     if (lines.length === 0) return null;
     if (lines.length === 1) return { speaker: lastSpeaker, text: lines[0] };
     return { speaker: lines[0], text: lines.slice(1).join(" ") };
+  }
+
+  /**
+   * The caption blocks (one per speaker turn) inside the captions area. Meet
+   * wraps them in one or more containers and adds controls (buttons) next to
+   * them, so unwrap single containers and ignore anything that's only controls.
+   */
+  function captionBlocks(region: HTMLElement): HTMLElement[] {
+    const content = (el: HTMLElement) => Array.from(el.children).filter((c) => isContent(c as HTMLElement)) as HTMLElement[];
+    // A wrapper holds whole blocks (each with a name line and text); a block's own parts have one line each.
+    const isWrapper = (el: HTMLElement) => {
+      const inner = content(el);
+      return inner.length === 1 || (inner.length > 1 && inner.every((c) => textWithoutControls(c).length >= 2));
+    };
+    let container: HTMLElement = region;
+    for (let depth = 0; depth < 6; depth++) {
+      const kids = content(container);
+      if (kids.length === 1 && isWrapper(kids[0])) {
+        container = kids[0];
+        continue;
+      }
+      return kids;
+    }
+    return content(container);
+  }
+
+  function isContent(el: HTMLElement): boolean {
+    if (el.tagName === "BUTTON" || el.getAttribute("role") === "button" || el.tagName === "STYLE" || el.tagName === "SCRIPT") return false;
+    return textWithoutControls(el).length > 0;
   }
 
   function scan(): void {
@@ -140,9 +211,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       return;
     }
 
-    for (const child of Array.from(region.children)) {
-      const block = child as HTMLElement;
-      if (block.tagName === "BUTTON" || block.querySelector("button")) continue;
+    for (const block of captionBlocks(region)) {
       const parsed = parseBlock(block);
       if (!parsed || !parsed.text) continue;
       lastSpeaker = parsed.speaker;
@@ -182,9 +251,8 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     if (!badge) return;
     const status = badge.querySelector<HTMLSpanElement>("[data-status]");
     if (status) {
-      status.textContent = captionsOn
-        ? `ProdLi is taking notes · ${entries.length} lines`
-        : "ProdLi is recording · turn on captions (CC) for the transcript";
+      status.textContent = captionsOn ? "ProdLi" : "ProdLi · turn on CC";
+      badge.title = captionsOn ? `ProdLi is taking notes (${entries.length} lines). Only you can see this.` : "ProdLi is recording. Turn on captions (CC) for the transcript.";
     }
   }
 
@@ -199,13 +267,12 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       zIndex: "2147483647",
       display: "flex",
       alignItems: "center",
-      gap: "8px",
-      padding: "6px 8px 6px 10px",
-      background: "#FFD700",
-      color: "#000",
-      border: "2px solid #000",
-      boxShadow: "3px 3px 0 #000",
-      font: "700 12px/1.2 system-ui, sans-serif",
+      gap: "6px",
+      padding: "3px 4px 3px 8px",
+      background: "rgba(0,0,0,0.75)",
+      color: "#fff",
+      borderRadius: "999px",
+      font: "600 11px/1.2 system-ui, sans-serif",
     } satisfies Partial<CSSStyleDeclaration>);
     const dot = document.createElement("span");
     Object.assign(dot.style, { width: "8px", height: "8px", borderRadius: "50%", background: "#E53935" });
@@ -214,11 +281,12 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     const stop = document.createElement("button");
     stop.textContent = "Stop";
     Object.assign(stop.style, {
-      border: "2px solid #000",
-      background: "#000",
-      color: "#FFD700",
-      font: "800 11px system-ui, sans-serif",
-      padding: "2px 8px",
+      border: "none",
+      borderRadius: "999px",
+      background: "rgba(255,255,255,0.18)",
+      color: "#fff",
+      font: "700 10px system-ui, sans-serif",
+      padding: "2px 7px",
       cursor: "pointer",
     });
     stop.addEventListener("click", () => send({ target: "background", type: "stop-recording" }));
@@ -227,7 +295,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     updateBadge();
   }
 
-  function begin(id: string, startMs: number): void {
+  function begin(id: string, startMs: number, showIndicator: boolean): void {
     if (meetingId === id) return;
     meetingId = id;
     startedAtMs = startMs;
@@ -235,7 +303,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     sawLeaveButton = false;
     leaveMissingSince = null;
     captionClickAttempts = 0;
-    showBadge();
+    if (showIndicator) showBadge();
     tryTurnOnCaptions();
     scanTimer = window.setInterval(scan, SCAN_EVERY_MS);
     sendTimer = window.setInterval(() => flush(), SEND_EVERY_MS);
@@ -256,7 +324,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   function onMessage(msg: ContentCommand, _sender: chrome.runtime.MessageSender, sendResponse: (r: unknown) => void) {
     if (msg?.target !== "captions") return undefined;
     if (msg.type === "start") {
-      begin(msg.meetingId, msg.startedAtMs);
+      begin(msg.meetingId, msg.startedAtMs, !!msg.showIndicator);
       sendResponse({ ok: true });
     } else if (msg.type === "stop") {
       scan();

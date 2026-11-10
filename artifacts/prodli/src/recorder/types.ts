@@ -68,6 +68,8 @@ export const MIC_ENABLED_STORAGE_KEY = "recorderMicEnabled";
 export const SPEECH_ENABLED_STORAGE_KEY = "recorderSpeechEnabled";
 export const SPEECH_LANG_STORAGE_KEY = "recorderSpeechLang";
 export const AUTO_SUMMARIZE_STORAGE_KEY = "recorderAutoSummarize";
+/** Show a small "recording" label inside the Meet call (only the recorder sees it). Off by default. */
+export const SHOW_INDICATOR_STORAGE_KEY = "recorderShowIndicator";
 
 /** Optional permissions requested when the user turns the recorder on. */
 export const RECORDER_PERMISSIONS: chrome.permissions.Permissions = {
@@ -92,5 +94,5 @@ export type BackgroundMessage =
   | { target: "background"; type: "summarize"; meetingId: string };
 
 export type ContentCommand =
-  | { target: "captions"; type: "start"; meetingId: string; startedAtMs: number }
+  | { target: "captions"; type: "start"; meetingId: string; startedAtMs: number; showIndicator?: boolean }
   | { target: "captions"; type: "stop" };
