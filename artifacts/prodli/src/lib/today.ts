@@ -15,7 +15,7 @@ import type { Meeting } from "../recorder/types";
 
 export const DAYS_KEY = "days";
 export const TODAY_SETTINGS_KEY = "todaySettings";
-export const DEFAULT_TODAY_SETTINGS: TodaySettings = { workStart: "09:00", workEnd: "18:00", reminder: "08:30", startOnToday: true, autoBrief: true };
+export const DEFAULT_TODAY_SETTINGS: TodaySettings = { workStart: "09:00", workEnd: "18:00", reminder: "08:30", startOnToday: true, autoBrief: true, blockReminders: true };
 
 export function getTodaySettings(): Promise<TodaySettings> {
   return storageGet<TodaySettings>(TODAY_SETTINGS_KEY, DEFAULT_TODAY_SETTINGS).then((s) => ({ ...DEFAULT_TODAY_SETTINGS, ...s }));

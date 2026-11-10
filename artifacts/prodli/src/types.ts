@@ -26,6 +26,8 @@ export interface Todo {
   plannedFor?: string;
   /** Rough time estimate in minutes (Plan your day). */
   estimateMin?: number;
+  /** A time block for it on a day (Today → Time blocks): start "HH:MM", length = estimateMin (or 30). */
+  block?: { day: string; start: string };
   /** When it was completed (ISO) — lets the evening review and tomorrow's brief see what got done. */
   completedAt?: string;
   createdAt: string;
@@ -78,6 +80,8 @@ export interface TodaySettings {
   startOnToday: boolean;
   /** Write the AI brief automatically the first time Today opens each day. */
   autoBrief: boolean;
+  /** Notify when a time block starts (extension). */
+  blockReminders?: boolean;
 }
 
 export type Section = "today" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
