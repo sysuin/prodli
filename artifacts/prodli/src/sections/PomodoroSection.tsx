@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { storageSet } from "../lib/storage";
-import { formatTime } from "../lib/utils";
+import { useEffect, useState } from "react";
+import { onStorageChange, storageGet, storageSet } from "../lib/storage";
+import { formatTime, getDayKey } from "../lib/utils";
+import type { Todo } from "../types";
 import type { Phase, PomodoroSettings, PomodoroSession } from "../lib/usePomodoroTimer";
 
 const PHASE_COLORS: Record<Phase, string> = {
@@ -89,6 +90,16 @@ export function PomodoroSection({
   changePhase,
 }: PomodoroSectionProps) {
   const [editingTask, setEditingTask] = useState(false);
+  // Open to-dos, so the focus label can be one of them (today's first).
+  const [todos, setTodos] = useState<Todo[]>([]);
+  useEffect(() => {
+    void storageGet<Todo[]>("todos", []).then(setTodos);
+    return onStorageChange<Todo[]>("todos", (v) => setTodos(v ?? []));
+  }, []);
+  const today = getDayKey();
+  const isToday = (t: Todo) => (!!t.plannedFor && t.plannedFor <= today) || (!!t.dueDate && t.dueDate <= today);
+  const openTasks = todos.filter((t) => !t.completed).sort((a, b) => Number(isToday(b)) - Number(isToday(a)));
+  const todaysTasks = openTasks.filter(isToday);
   const [showSettings, setShowSettings] = useState(false);
   const [tempSettings, setTempSettings] = useState<PomodoroSettings>(settings);
 
@@ -192,8 +203,11 @@ export function PomodoroSection({
             </div>
           </div>
 
-          {/* Task label */}
+          {/* Task label: type, or pick one of today's to-dos */}
           <div style={{ width: "100%", maxWidth: 360, display: "flex", alignItems: "center", gap: 8 }}>
+            <datalist id="pomodoro-tasks">
+              {openTasks.slice(0, 50).map((t) => <option key={t.id} value={t.title} />)}
+            </datalist>
             {editingTask ? (
               <input
                 autoFocus
@@ -202,6 +216,8 @@ export function PomodoroSection({
                 onBlur={() => setEditingTask(false)}
                 onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingTask(false); }}
                 placeholder="What are you working on?"
+                list="pomodoro-tasks"
+                aria-label="What are you working on?"
                 style={{ flex: 1, border: "var(--nb-border)", padding: "8px 12px", fontFamily: "inherit", fontSize: 13, fontWeight: 600, background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
               />
             ) : (
@@ -217,6 +233,16 @@ export function PomodoroSection({
               </div>
             )}
           </div>
+          {!taskLabel && todaysTasks.length > 0 && (
+            <div role="group" aria-label="Today's tasks" style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", maxWidth: 420 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "hsl(var(--muted-foreground))", alignSelf: "center" }}>Focus on:</span>
+              {todaysTasks.slice(0, 3).map((t) => (
+                <button key={t.id} onClick={() => setTaskLabel(t.title)} style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ☀️ {t.title}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Controls */}
           <div style={{ display: "flex", gap: 12 }}>

@@ -14,6 +14,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { AskPanel } from "./components/AskPanel";
 import { QuickAddModal } from "./components/QuickAdd";
 import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
+import { ASK_EVENT } from "./lib/ask";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -128,6 +129,13 @@ export default function App() {
       }
       return !c;
     });
+
+  // Any section can open Ask ProdLi with a question (lib/ask.ts openAsk).
+  useEffect(() => {
+    const onAsk = (e: Event) => setAsk({ open: true, question: (e as CustomEvent<{ question?: string }>).detail?.question });
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
+  }, []);
 
   // Shared from another app (phone share sheet → web app share target).
   useEffect(() => {
@@ -267,7 +275,7 @@ export default function App() {
   const paletteActions = {
     go: (s: Section) => void handleSectionChange(s),
     ask: (question?: string) => setAsk({ open: true, question }),
-    addTask: (title: string) => void addTask({ title }).then((t) => flash(`Added to-do: ${t.title}`)),
+    addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}` : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
     toggleTheme: () => void toggleTheme(),
     account: () => setShowAccount(true),

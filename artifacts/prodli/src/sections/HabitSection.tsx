@@ -98,15 +98,51 @@ function WeekStrip({ completedDays }: { completedDays: string[] }) {
   );
 }
 
+/** Text for screen readers only. */
+const SR_ONLY: React.CSSProperties = { position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 };
+
+/** The last 7 days as buttons, so a forgotten check-in can be added (or removed) later. */
+function LastWeek({ habit, onToggle }: { habit: Habit; onToggle: (id: string, day: string) => void }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+  const today = getDayKey();
+  return (
+    <div role="group" aria-label={`Last 7 days of ${habit.name}`} style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+      {days.map((d) => {
+        const key = getDayKey(d);
+        const done = habit.completedDays.includes(key);
+        const name = d.toLocaleDateString("en-US", { weekday: "short" });
+        return (
+          <button
+            key={key}
+            onClick={() => onToggle(habit.id, key)}
+            aria-pressed={done}
+            title={key === today ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+            style={{ flex: 1, minWidth: 0, border: key === today ? "var(--nb-border)" : "1px solid var(--nb-section-border)", background: done ? habit.color : "transparent", color: done ? "#000" : "hsl(var(--foreground))", cursor: "pointer", padding: "3px 0", fontFamily: "inherit", lineHeight: 1.2 }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", opacity: 0.8 }}>{name.slice(0, 2)}</div>
+            <div style={{ fontSize: 12, fontWeight: 900 }}>{done ? "✓" : d.getDate()}</div>
+            <span style={SR_ONLY}> {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {habit.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function HabitCard({ habit, onToggle, onDelete, onEdit }: {
   habit: Habit;
-  onToggle: (id: string) => void;
+  onToggle: (id: string, day?: string) => void;
   onDelete: (id: string) => void;
   onEdit: (habit: Habit) => void;
 }) {
   const today = getDayKey();
   const completedToday = habit.completedDays.includes(today);
   const streak = calculateStreak(habit.completedDays);
+  const best = calculateBestStreak(habit.completedDays);
   const [heatmapView, setHeatmapView] = useState<HeatmapView>("week");
 
   const weekProgress = (() => {
@@ -149,6 +185,12 @@ function HabitCard({ habit, onToggle, onDelete, onEdit }: {
             <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>
               {habit.completedDays.length} total check-ins
             </span>
+            {best > 1 && (
+              <>
+                <span style={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }}>·</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>best streak {best}</span>
+              </>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -189,6 +231,7 @@ function HabitCard({ habit, onToggle, onDelete, onEdit }: {
 
       {/* Heatmap area */}
       <div style={{ padding: "10px 14px" }}>
+        <LastWeek habit={habit} onToggle={onToggle} />
         {/* View toggle */}
         <div style={{ display: "flex", gap: 0, marginBottom: 10, border: "var(--nb-border)", width: "fit-content" }}>
           {(["week", "month"] as HeatmapView[]).map(v => (
@@ -216,7 +259,22 @@ function HabitCard({ habit, onToggle, onDelete, onEdit }: {
   );
 }
 
-function calculateStreak(completedDays: string[]): number {
+/** Longest run of consecutive days ever. */
+export function calculateBestStreak(completedDays: string[]): number {
+  const days = [...new Set(completedDays)].sort();
+  let best = 0;
+  let run = 0;
+  let prev: number | null = null;
+  for (const d of days) {
+    const t = new Date(`${d}T12:00:00`).getTime();
+    run = prev !== null && Math.round((t - prev) / 86_400_000) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = t;
+  }
+  return best;
+}
+
+export function calculateStreak(completedDays: string[]): number {
   if (!completedDays.length) return 0;
   const sorted = [...completedDays].sort().reverse();
   let streak = 0;
@@ -333,12 +391,11 @@ export function HabitSection() {
     setEditingHabit(null);
   };
 
-  const toggle = (id: string) => {
-    const today = getDayKey();
+  const toggle = (id: string, day = getDayKey()) => {
     save(habits.map(h => {
       if (h.id !== id) return h;
-      const done = h.completedDays.includes(today);
-      return { ...h, completedDays: done ? h.completedDays.filter(d => d !== today) : [...h.completedDays, today] };
+      const done = h.completedDays.includes(day);
+      return { ...h, completedDays: done ? h.completedDays.filter(d => d !== day) : [...h.completedDays, day] };
     }));
   };
 

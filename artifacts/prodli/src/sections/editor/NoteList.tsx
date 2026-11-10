@@ -18,6 +18,14 @@ export function plainTextOf(html: string): string {
     .trim();
 }
 
+/** First words of a note after its title line, for the note list. */
+export function notePreview(note: Note, max = 90): string {
+  const lines = plainTextOf(note.content).split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (lines.length && note.title && lines[0].toLowerCase() === note.title.trim().toLowerCase()) lines.shift();
+  const text = lines.join(" · ");
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.round(diff / 60_000);
@@ -73,10 +81,13 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const q = search.trim().toLowerCase();
-  const { list, snippets } = useMemo(() => {
+  const { list, snippets, searching } = useMemo(() => {
     const snippets: Record<string, string> = {};
     const sorted = sortNotes(notes, sort);
-    if (!q) return { list: sorted, snippets };
+    if (!q) {
+      for (const n of sorted) snippets[n.id] = notePreview(n);
+      return { list: sorted, snippets, searching: false };
+    }
     const list = sorted.filter((n) => {
       if ((n.title || "").toLowerCase().includes(q)) return true;
       const text = plainTextOf(n.content).replace(/\s+/g, " ");
@@ -87,7 +98,7 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
       snippets[n.id] = `${s > 0 ? "…" : ""}${text.slice(s, e).trim()}${e < text.length ? "…" : ""}`;
       return true;
     });
-    return { list, snippets };
+    return { list, snippets, searching: true };
   }, [notes, sort, q]);
 
   const commitRename = (id: string) => {
@@ -183,7 +194,7 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
                     </div>
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{relativeTime(note.updatedAt)}</div>
                     {snippets[note.id] && (
-                      <div style={{ fontSize: 10, fontStyle: "italic", opacity: 0.75, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{snippets[note.id]}</div>
+                      <div style={{ fontSize: 11, fontStyle: searching ? "italic" : "normal", opacity: 0.8, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.35 }}>{snippets[note.id]}</div>
                     )}
                   </div>
                 )}

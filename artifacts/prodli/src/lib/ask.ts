@@ -124,3 +124,9 @@ export async function askProdli(question: string, history: ChatTurn[]): Promise<
 }
 
 export const SUGGESTIONS = ["What should I focus on now?", "What's overdue?", "Summarize my last meeting", "Plan my afternoon", "What did I get done yesterday?"];
+
+/** Opens the Ask ProdLi panel from anywhere in the app (App.tsx listens), optionally asking right away. */
+export const ASK_EVENT = "prodli-ask";
+export function openAsk(question?: string): void {
+  window.dispatchEvent(new CustomEvent(ASK_EVENT, { detail: { question } }));
+}

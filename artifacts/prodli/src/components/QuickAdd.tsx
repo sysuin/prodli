@@ -19,7 +19,7 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
     setSaving(true);
     try {
       if (kind === "todo") {
-        const t = await addTask({ title, text, url: initial?.url, planToday });
+        const t = await addTask({ title, text, url: initial?.url, planToday, smart: true });
         onDone(`Added to-do: ${t.title}`);
       } else {
         const n = await addNote({ title, text, url: initial?.url });

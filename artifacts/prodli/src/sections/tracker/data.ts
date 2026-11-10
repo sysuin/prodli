@@ -236,3 +236,11 @@ export function buildTrendPoints(
   }
   return days;
 }
+
+/** Today vs the average of earlier days that have data (6 days on the Today tab). Null without history. */
+export function compareToUsual(todayTotal: number, earlierTotals: number[]): { average: number; percent: number } | null {
+  const days = earlierTotals.filter((t) => t > 0);
+  if (!days.length) return null;
+  const average = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+  return { average, percent: average ? Math.round(((todayTotal - average) / average) * 100) : 0 };
+}

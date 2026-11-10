@@ -9,10 +9,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useSyncedList } from "../lib/syncedList";
-import { onStorageChange, storageSet } from "../lib/storage";
+import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, type AiUsage, type ProdliUser } from "../lib/prodliAccount";
 import { calendarAvailable, connectCalendar, disconnectCalendar, isCalendarConnected, todaysEvents, type CalendarEvent } from "../lib/calendar";
-import { buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
+import { briefBasis, buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 
 const ACCENT = "#F59E0B";
@@ -126,7 +126,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
       try {
         const ctx = await buildContext(evts);
         const r = await writeBrief(ctx);
-        saveDay({ brief: r.brief });
+        saveDay({ brief: r.brief, briefBasis: briefBasis(await storageGet<Todo[]>("todos", []), evts) });
         if (r.usage) setUsage((u) => (u ? { ...u, briefs: r.usage } : u));
         if (r.fallbackReason && r.fallbackReason !== "signed_out") setBriefNote(r.fallbackReason);
       } finally {
@@ -274,6 +274,14 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               }
             >
               {briefNote && <Note tone="warn">{briefNote}</Note>}
+              {brief && !briefing && record?.briefBasis !== undefined && record.briefBasis !== briefBasis(todos, events, today) && (
+                <Note>
+                  Your tasks or calendar changed since this brief.{" "}
+                  <button onClick={() => void makeBrief()} style={{ border: "none", background: "none", padding: 0, textDecoration: "underline", fontWeight: 800, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: "inherit" }}>
+                    Refresh it
+                  </button>
+                </Note>
+              )}
               {!brief ? (
                 <p style={{ fontSize: 14, margin: 0, opacity: 0.8 }}>{briefing ? "Looking at your tasks, calendar and habits…" : "Get a short plan for today from your tasks, calendar, habits and meetings."}</p>
               ) : (
