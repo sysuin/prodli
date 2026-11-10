@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "build:extension:test": "PRODLI_OUT_DIR=dist-extension-test PRODLI_GOOGLE_CLIENT_ID= PRODLI_EXTENSION_KEY= VITE_E2E=1 node scripts/build-extension.mjs",
-    "test:e2e": "pnpm run build:extension:test && node tests/e2e/run.mjs && node tests/e2e/recording.mjs",
+    "test:e2e": "pnpm run build:extension:test && node tests/e2e/run.mjs && node tests/e2e/recording.mjs && node tests/e2e/localfiles.mjs",
     "test:e2e:server": "node tests/e2e/server.mjs"
   },
   "devDependencies": {

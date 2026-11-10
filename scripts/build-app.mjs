@@ -54,6 +54,20 @@ writeFileSync(
       theme_color: "#000000",
       // Phones: "Share → ProdLi" from any app opens Quick add (src/lib/capture.ts).
       share_target: { action: "/", method: "GET", params: { title: "title", text: "text", url: "url" } },
+      // Installed web app: "Open with ProdLi" for these files (read in the browser, never uploaded).
+      file_handlers: [
+        {
+          action: "/?section=files",
+          accept: {
+            "text/markdown": [".md", ".markdown"],
+            "text/csv": [".csv"],
+            "text/tab-separated-values": [".tsv"],
+            "application/json": [".json"],
+            "application/x-ndjson": [".jsonl", ".ndjson"],
+            "text/plain": [".txt", ".log"],
+          },
+        },
+      ],
       shortcuts: [
         { name: "Today", url: "/?section=today" },
         { name: "Quick add", url: "/?quickadd=1" },

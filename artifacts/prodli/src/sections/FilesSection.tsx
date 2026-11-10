@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
+import { FILE_ORIGINS, FILE_PERMISSIONS, localFileAccess, OPEN_LOCAL_FILES_KEY, type LocalFileAccess } from "../lib/localFiles";
 import type { Note } from "../types";
 import { addRecent, clearRecent, listRecent, MAX_RECENT, removeRecent, type RecentFile } from "../lib/recentFiles";
 import {
@@ -331,14 +332,74 @@ const KIND_LABEL: Record<OpenedFile["kind"], string> = {
   text: "Text",
 };
 
-export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile: File | null; onIncomingHandled: () => void }) {
+/**
+ * Extension only: set up "open local files in ProdLi" (needs a permission and
+ * Chrome's "Allow access to file URLs" switch for ProdLi).
+ */
+function OpenAnywhereCard() {
+  const [access, setAccess] = useState<LocalFileAccess | null>(null);
+  const [enabled, setEnabled] = useState(true);
+  const refresh = () => void localFileAccess().then(setAccess);
+  useEffect(() => {
+    refresh();
+    void storageGet<boolean>(OPEN_LOCAL_FILES_KEY, true).then(setEnabled);
+    window.addEventListener("focus", refresh); // back from chrome://extensions
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+  if (!access) return null;
+  const on = access.permission && access.fileUrls && enabled;
+  const turnOn = async () => {
+    await storageSet(OPEN_LOCAL_FILES_KEY, true);
+    setEnabled(true);
+    if (!access.permission) await chrome.permissions.request({ origins: FILE_ORIGINS, permissions: FILE_PERMISSIONS });
+    refresh();
+  };
+  return (
+    <div data-testid="open-anywhere" style={{ ...card, marginTop: 20, display: "grid", gap: 8, fontSize: 13, lineHeight: 1.5 }}>
+      <strong style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Open files from anywhere in Chrome</strong>
+      {on ? (
+        <>
+          <span>✓ On. Drop a Markdown, CSV, JSON, text or code file on Chrome’s tab bar (or open it from the address bar) and it opens here.</span>
+          <div>
+            <button style={{ ...btn(), padding: "4px 10px", fontSize: 11 }} onClick={() => void storageSet(OPEN_LOCAL_FILES_KEY, false).then(() => setEnabled(false))}>Turn off</button>
+          </div>
+        </>
+      ) : !access.permission || !enabled ? (
+        <>
+          <span>Drop a Markdown, CSV or JSON file on Chrome’s tab bar and ProdLi opens it here, instead of Chrome’s plain-text page. Files stay on your computer.</span>
+          <div>
+            <button style={{ ...btn(true), padding: "6px 12px", fontSize: 12 }} onClick={() => void turnOn()}>Turn on</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span>
+            <strong>One more step:</strong> Chrome needs your OK for ProdLi to read local files. On ProdLi’s settings page, switch on <strong>“Allow access to file URLs”</strong>, then come back here.
+          </span>
+          <div>
+            <button style={{ ...btn(true), padding: "6px 12px", fontSize: 12 }} onClick={() => void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` })}>
+              Open ProdLi’s settings
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const isExtensionPage = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.permissions;
+
+export function FilesSection({ incomingFile, onIncomingHandled, incomingError }: { incomingFile: File | null; onIncomingHandled: () => void; incomingError?: string | null }) {
   const [recent, setRecent] = useState<RecentFile[]>([]);
   const refreshRecent = () => listRecent().then(setRecent).catch(() => setRecent([]));
   useEffect(() => {
     void refreshRecent();
   }, []);
   const [file, setFile] = useState<OpenedFile | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(incomingError ?? null);
+  useEffect(() => {
+    if (incomingError) setError(incomingError);
+  }, [incomingError]);
   const [mdMode, setMdMode] = useState<"preview" | "source">("preview");
   const [csvMode, setCsvMode] = useState<"table" | "source">("table");
   const [wrap, setWrap] = useState(true);
@@ -456,6 +517,7 @@ export function FilesSection({ incomingFile, onIncomingHandled }: { incomingFile
             <div style={{ fontSize: 14, marginTop: 6, opacity: 0.8 }}>or click to choose one — Markdown, JSON, JSON Lines, CSV/TSV, text, logs and code files up to 10 MB</div>
             <div style={{ fontSize: 12, marginTop: 14, fontWeight: 700, opacity: 0.7 }}>🔒 Files are read on your device and never uploaded.</div>
           </button>
+          {isExtensionPage() && <OpenAnywhereCard />}
           {recent.length > 0 && (
             <div style={{ marginTop: 20 }} aria-label="Recent files">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>

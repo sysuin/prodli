@@ -15,6 +15,7 @@ import { AskPanel } from "./components/AskPanel";
 import { QuickAddModal } from "./components/QuickAdd";
 import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
 import { ASK_EVENT } from "./lib/ask";
+import { fileNameOf, readLocalFile } from "./lib/localFiles";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -129,6 +130,23 @@ export default function App() {
       }
       return !c;
     });
+
+  // A local file opened in Chrome (background redirects file:// tabs here: ?section=files&file=…),
+  // or, in the installed web app, a file opened with "Open with ProdLi".
+  const [fileProblem, setFileProblem] = useState<string | null>(null);
+  useEffect(() => {
+    const fileUrl = new URLSearchParams(location.search).get("file");
+    if (fileUrl?.startsWith("file:///")) {
+      readLocalFile(fileUrl).then(setDroppedFile, () => setFileProblem(`Couldn't open ${fileNameOf(fileUrl)}. ProdLi needs access to local files — see “Open files from anywhere in Chrome” below.`));
+    }
+    const lq = (window as unknown as { launchQueue?: { setConsumer(f: (p: { files?: { getFile(): Promise<File> }[] }) => void): void } }).launchQueue;
+    lq?.setConsumer(async (params) => {
+      const handle = params.files?.[0];
+      if (!handle) return;
+      setDroppedFile(await handle.getFile());
+      setSection("files");
+    });
+  }, []);
 
   // Any section can open Ask ProdLi with a question (lib/ask.ts openAsk).
   useEffect(() => {
@@ -370,7 +388,7 @@ export default function App() {
           {section === "habits" && <Habits />}
           {section === "tracker" && <Tracker />}
           {section === "meetings" && <Meetings />}
-          {section === "files" && <Files incomingFile={droppedFile} onIncomingHandled={clearDroppedFile} />}
+          {section === "files" && <Files incomingFile={droppedFile} onIncomingHandled={clearDroppedFile} incomingError={fileProblem} />}
         </Suspense>
       </main>
 

@@ -18,15 +18,18 @@
     "idle",
     "alarms",
     "identity",
-    "contextMenus"
+    "contextMenus",
+    "webNavigation"
   ],
   "optional_permissions": [
     "scripting",
     "tabCapture",
-    "offscreen"
+    "offscreen",
+    "downloads"
   ],
   "optional_host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "file:///*"
   ],
   "commands": {
     "toggle-recording": {

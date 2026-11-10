@@ -63,6 +63,11 @@ Both were checked line by line against the code on 9 November 2026. This page li
 - It reads the page title, URL and selection only when the user clicks the menu, and saves them locally as a to-do or note.
 - The Quick add shortcut reads the active tab's title and URL.
 
+**Open files from anywhere in Chrome (extension):**
+- `webNavigation` notices when a local `.md`, `.csv`, `.json`, `.txt` or code file is opened in a tab. It shows the same install warning as the existing `tabs` permission.
+- The optional `file:///*` permission and Chrome's "Allow access to file URLs" switch let ProdLi read that file in the Files viewer.
+- Files are read on the device only; nothing is uploaded or stored on the server.
+
 **Cookies:**
 - One strictly necessary cookie, `__Host-prodli_session` (HttpOnly, Secure, SameSite=Lax, up to 30 days), set only by app.prodli.com.
 - No analytics or advertising.
