@@ -6,7 +6,8 @@
 1. **You:** lawyer review of the privacy policy and terms, then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys only once none are left.
 2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Calendar (`calendar.readonly`) is a sensitive scope, so Google verifies the app first (can take a few weeks; start once the legal pages are live). Until then only the listed test users can sign in.
 3. **You:** build the store extension and submit it (see "Chrome Web Store" below).
-4. **You:** a short breach-response note: who to contact (Cloudflare, Google, Anthropic), and notifying affected users and the Data Protection Board of India / EU authorities within the legal deadlines (72 hours under GDPR).
+4. **You (when you want to sell Pro):** set up Paddle — sandbox first, then live (business verification needs prodli.com with the final legal pages). Step by step: `docs/PRO-PLAN.md`.
+5. **You:** a short breach-response note: who to contact (Cloudflare, Google, Anthropic), and notifying affected users and the Data Protection Board of India / EU authorities within the legal deadlines (72 hours under GDPR).
 
 ## Product
 - ✅ Extension and web app (app.prodli.com) share one account and sync live
@@ -14,6 +15,10 @@
 - ✅ Today: daily brief with Google Calendar; Ask ProdLi chat; Add to ProdLi from any page
 - ✅ Meetings: Google Meet recording with full transcripts and AI summaries (Meet captions must be on)
 - ✅ Local Markdown, CSV, JSON and text files dropped on Chrome open in ProdLi (Files → "Open files from anywhere")
+- ✅ Weekly review (Review section) with AI write-up and next week's priorities
+- ✅ Time blocks on Today: planned tasks placed in free time, reminders, "Add to Google Calendar"
+- ✅ Meeting transcripts: caption gaps filled from on-device transcription (when it's on)
+- ✅ ProdLi Pro: plans, Paddle checkout, subscription management (on sale once Paddle is configured)
 - **You:** a real Google Meet call with captions on, to check the whole transcript comes through
 - **You:** try the web app on your phone (Share → Add to Home Screen)
 
@@ -29,7 +34,7 @@
 
 ## Limits (free plan / Pro)
 - ✅ 100 MB synced data per user, 1.5 MB per item
-- ✅ Per month: 20 / 300 meeting summaries, 62 / 200 daily briefs, 100 / 1000 Ask ProdLi questions. Failed calls aren't counted.
+- ✅ Per month: 20 / 300 meeting summaries, 62 / 200 daily briefs and weekly reviews, 100 / 1000 Ask ProdLi questions; 100 MB / 2 GB synced storage. Failed calls aren't counted.
 - ✅ Rate limits: sign-in 20/min per IP, sync 300/min per user, AI 10/min per user
 - ✅ Request size caps: 64 KB normally, 8 MB for sync, 1 MB for summaries
 - To change a number: `QUOTA_BYTES` in `artifacts/prodli-api/src/syncStore.ts`; `AI_MONTHLY_LIMIT` (`src/ai.ts`), `BRIEF_MONTHLY_LIMIT` (`src/brief.ts`), `ASK_MONTHLY_LIMIT` (`src/ask.ts`); rate limits in `wrangler.jsonc`.

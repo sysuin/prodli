@@ -180,7 +180,7 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "ProdLi Pro (paid plan)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI briefs and 1,000 Ask ProdLi questions per month). Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders. Paddle provides all customer service inquiries and handles returns.
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews and 1,000 Ask ProdLi questions per month). Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders. Paddle provides all customer service inquiries and handles returns.
 
 Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Paddle's buyer terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },
@@ -190,7 +190,7 @@ Pro is a subscription, billed monthly or yearly in advance at the price shown at
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. We may offer a paid plan later. Its price and terms will be shown before you buy, and nothing will be charged without your agreement.`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. More is available with ProdLi Pro (see “ProdLi Pro (paid plan)” above).`,
   },
   {
     title: "AI summaries, briefs, reviews and answers",
