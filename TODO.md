@@ -10,7 +10,6 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [ ] **Google consent screen:** once the legal pages are live, add app.prodli.com, prodli.com/privacy and /terms → **Publish app**. Calendar access needs Google's verification (can take weeks).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip`, privacy disclosures, submit ([STORE_SUBMISSION.md](STORE_SUBMISSION.md)).
 - [ ] **ProdLi Pro (when ready to sell):** Paddle sandbox, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
-- [ ] **Breach-response plan:** review the draft (see below) with the lawyer and keep it somewhere you can find it fast.
 - [ ] **Real-use checks:**
   - [ ] A real Google Meet call with captions on (full transcript, summary)
   - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
@@ -21,8 +20,14 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next — Claude can do
 
-- [ ] Draft the breach-response plan (`docs/BREACH-RESPONSE.md`): who to contact, what to tell users, deadlines under India's DPDP rules and GDPR
 - [ ] Prepare the Web Store listing: description, privacy disclosures field by field, fresh screenshots from the store build
+
+## Optional
+
+- [ ] **If user data ever leaks** (not legally required to plan ahead; India's breach rule applies from 13 May 2027):
+  1. Contain it: rotate the Cloudflare, Anthropic and Google keys; Account → "Sign out everywhere"; switch off the affected feature.
+  2. Notify quickly: affected users and India's Data Protection Board without delay, with a detailed report within 72 hours; the EU authority within 72 hours if EU users are at risk.
+  3. Ask the lawyer who must be told (also whether CERT-In's 6-hour reporting applies), and keep a written log of what happened and what you did.
 
 ## Next ideas
 
