@@ -1,60 +1,21 @@
 import { useEffect } from "react";
 import { storageSet } from "../lib/storage";
 import { accountsEnabled } from "../lib/prodliAccount";
+import { SECTIONS } from "../sections/registry";
 
 const EXT = typeof chrome !== "undefined" && !!chrome.runtime?.id;
 const INTRO = accountsEnabled()
-  ? `Seven tools${EXT ? ", one new tab" : " in one place"}. Works without an account and offline — sign in with Google (👤 at the top) to keep everything in sync between the extension and app.prodli.com.`
-  : "Seven tools, one new tab. Everything stays on your device — no account needed (sign in with Google only if you want Drive backup).";
+  ? `Your personal assistant and productivity tools${EXT ? ", in every new tab" : " in one place"}. Works without an account and offline — sign in with Google (👤 at the top) for AI briefs and reviews, Ask ProdLi, and sync between the extension and app.prodli.com.`
+  : `Your productivity tools${EXT ? " in every new tab" : " in one place"}. Everything stays on your device — no account needed.`;
 
 interface OnboardingModalProps {
   onClose: () => void;
 }
 
+// New sections appear here automatically (sections/registry.ts).
 const FEATURES = [
-  {
-    emoji: "✍️",
-    title: "Editor",
-    accent: "#FFD700",
-    desc: "Rich notes with checklists, tables and a “/” command menu. Paste Markdown, pin notes, export or print.",
-  },
-  {
-    emoji: "✅",
-    title: "To-Dos",
-    accent: "#4ade80",
-    desc: "Tasks with priority levels, due dates, and subtasks. Drag to reorder. Filter by status or priority.",
-  },
-  {
-    emoji: "🍅",
-    title: "Pomodoro",
-    accent: "#f87171",
-    desc: "Focus timer that keeps running across tabs — even with ProdLi closed — and notifies you when time is up.",
-  },
-  {
-    emoji: "🎯",
-    title: "Habits",
-    accent: "#60a5fa",
-    desc: "Daily habit check-ins with automatic streak tracking and a visual heatmap calendar.",
-  },
-  {
-    emoji: "🎙️",
-    title: "Meetings",
-    accent: "#FF4FA3",
-    desc: "AI notes for Google Meet without a bot joining: transcript, summary and action items that go straight to your To-Dos.",
-  },
-  {
-    emoji: "📄",
-    title: "Files",
-    accent: "#FF9800",
-    desc: "Drop a .md, .json, .csv or text file anywhere to preview it nicely — then save it as a note.",
-  },
-  {
-    emoji: "⏱",
-    title: "Time Tracker",
-    accent: "#a78bfa",
-    desc: "Automatically tracks time on every site you visit. Review today's usage, explore all-time history with charts, and set daily time limits per site — limits fire a notification and can optionally redirect you away when you've hit your cap.",
-    wide: true,
-  },
+  ...(accountsEnabled() ? [{ emoji: "✨", title: "Ask ProdLi", accent: "#A78BFA", desc: "Ask anything about your tasks, notes and meetings — “What should I focus on now?” Press Ctrl/⌘+K anywhere." }] : []),
+  ...SECTIONS.map((s) => ({ emoji: s.emoji, title: s.label, accent: s.accent, desc: s.pitch })),
 ];
 
 export function OnboardingModal({ onClose }: OnboardingModalProps) {
@@ -90,8 +51,9 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         border: "var(--nb-border)",
         boxShadow: "8px 8px 0 #FFD700",
         width: "100%",
-        maxWidth: 720,
-        overflow: "hidden",
+        maxWidth: 760,
+        maxHeight: "calc(100vh - 48px)",
+        overflowY: "auto",
       }}>
 
         {/* Header */}
@@ -116,17 +78,16 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         </div>
 
         {/* Feature cards */}
-        <div style={{ padding: "22px 28px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ padding: "22px 28px 0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
           {FEATURES.map(f => (
             <div
               key={f.title}
               style={{
                 border: "var(--nb-border)",
-                padding: "14px 16px",
+                padding: "12px 14px",
                 background: "hsl(var(--card))",
                 position: "relative",
                 overflow: "hidden",
-                ...("wide" in f && f.wide ? { gridColumn: "1 / -1" } : {}),
               }}
             >
               <div style={{

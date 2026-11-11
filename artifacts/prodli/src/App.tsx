@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, useCallback } from "react";
+import { useState, useEffect, Suspense, lazy, useCallback, useRef } from "react";
 import { storageGet, storageSet } from "./lib/storage";
 import type { Section } from "./types";
 import { usePomodoroTimer } from "./lib/usePomodoroTimer";
@@ -9,7 +9,7 @@ import { AccountButton, AccountModal } from "./components/AccountModal";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
 import { dayKey, getTodaySettings } from "./lib/today";
-import { GROUPS, MOBILE_TABS, SECTIONS, sectionByKey, sectionByShortcut } from "./sections/registry";
+import { GO_EVENT, GROUPS, MOBILE_TABS, SECTIONS, sectionByKey, sectionByShortcut } from "./sections/registry";
 import { CommandPalette } from "./components/CommandPalette";
 import { AskPanel } from "./components/AskPanel";
 import { QuickAddModal } from "./components/QuickAdd";
@@ -26,6 +26,7 @@ import { fileNameOf, readLocalFile } from "./lib/localFiles";
 // every new tab wait that long even though the code loads in a few ms.
 const loadedModules: {
   today?: typeof import("./sections/TodaySection");
+  review?: typeof import("./sections/ReviewSection");
   editor?: typeof import("./sections/EditorSection");
   todos?: typeof import("./sections/TodoSection");
   pomodoro?: typeof import("./sections/PomodoroSection");
@@ -44,6 +45,7 @@ function once<K extends keyof typeof loadedModules>(key: K, load: () => Promise<
 }
 const importers = {
   today: once("today", () => import("./sections/TodaySection")),
+  review: once("review", () => import("./sections/ReviewSection")),
   editor: once("editor", () => import("./sections/EditorSection")),
   todos: once("todos", () => import("./sections/TodoSection")),
   pomodoro: once("pomodoro", () => import("./sections/PomodoroSection")),
@@ -72,6 +74,7 @@ function rememberSectionHint(s: Section) {
 })();
 
 const TodaySection = lazy(() => importers.today().then(m => ({ default: m.TodaySection })));
+const ReviewSection = lazy(() => importers.review().then(m => ({ default: m.ReviewSection })));
 const EditorSection = lazy(() => importers.editor().then(m => ({ default: m.EditorSection })));
 const TodoSection = lazy(() => importers.todos().then(m => ({ default: m.TodoSection })));
 const PomodoroSection = lazy(() => importers.pomodoro().then(m => ({ default: m.PomodoroSection })));
@@ -155,6 +158,17 @@ export default function App() {
     return () => window.removeEventListener(ASK_EVENT, onAsk);
   }, []);
 
+  // Any section can open another (sections/registry.ts openSection).
+  const goRef = useRef<(s: Section) => void>(() => {});
+  useEffect(() => {
+    const onGo = (e: Event) => {
+      const s = (e as CustomEvent<{ section?: Section }>).detail?.section;
+      if (s && SECTIONS.some((x) => x.key === s)) goRef.current(s);
+    };
+    window.addEventListener(GO_EVENT, onGo);
+    return () => window.removeEventListener(GO_EVENT, onGo);
+  }, []);
+
   // Shared from another app (phone share sheet → web app share target).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -212,6 +226,7 @@ export default function App() {
     rememberSectionHint(s);
     await storageSet("lastSection", s);
   }, []);
+  goRef.current = (s) => void handleSectionChange(s);
 
   // Drop a file anywhere in ProdLi to preview it in Files. Without this,
   // Chrome would navigate the new tab away to the raw file.
@@ -282,6 +297,7 @@ export default function App() {
 
   // Already-loaded sections render directly; others go through lazy/Suspense.
   const Today = loadedModules.today?.TodaySection ?? TodaySection;
+  const Review = loadedModules.review?.ReviewSection ?? ReviewSection;
   const Editor = loadedModules.editor?.EditorSection ?? EditorSection;
   const Todos = loadedModules.todos?.TodoSection ?? TodoSection;
   const Pomodoro = loadedModules.pomodoro?.PomodoroSection ?? PomodoroSection;
@@ -382,6 +398,7 @@ export default function App() {
       <main id="main" className="app-main">
         <Suspense fallback={<LoadingFallback />}>
           {section === "today" && <Today onAsk={(question) => setAsk({ open: true, question })} />}
+          {section === "review" && <Review onAsk={(question) => setAsk({ open: true, question })} />}
           {section === "editor" && <Editor />}
           {section === "todos" && <Todos />}
           {section === "pomodoro" && <Pomodoro {...pomodoroTimer} />}

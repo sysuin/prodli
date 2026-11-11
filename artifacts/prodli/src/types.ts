@@ -49,6 +49,10 @@ export interface DayRecord {
   focus?: string;
   reflection?: string;
   brief?: DailyBrief;
+  /** On a week's Monday record: that week's review (Review section). */
+  review?: WeeklyReview;
+  /** On a week's Monday record: the user's own notes on that week. */
+  reviewNote?: string;
   /** Fingerprint of the tasks and events the brief was written from (to notice when it's out of date). */
   briefBasis?: string;
   createdAt: string;
@@ -69,6 +73,20 @@ export interface DailyBrief {
   source?: "ai" | "basic";
 }
 
+export interface WeeklyReview {
+  headline: string;
+  summary: string;
+  wins: string[];
+  slipped: { title: string; suggestion: string }[];
+  patterns: string[];
+  nextWeek: { title: string; reason: string }[];
+  habitTip: string;
+  question: string;
+  model: string;
+  generatedAt: string;
+  source?: "ai" | "basic";
+}
+
 export interface TodaySettings {
   workStart: string; // HH:MM
   workEnd: string;
@@ -80,7 +98,7 @@ export interface TodaySettings {
   autoBrief: boolean;
 }
 
-export type Section = "today" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
+export type Section = "today" | "review" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";
 
 export interface FocusRule {
   id: string;
