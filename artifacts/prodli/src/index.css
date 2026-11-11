@@ -44,6 +44,8 @@
   --accent: 330 100% 60%;
   --accent-foreground: 0 0% 0%;
   --destructive: 0 100% 55%;
+  /* Red text that stays readable (WCAG AA) on this theme's backgrounds. */
+  --danger-text: #A3170F;
   --card: 36 60% 87%;
   --card-foreground: 28 15% 12%;
   --radius: 0px;
@@ -80,6 +82,7 @@
   --accent: 330 100% 60%;
   --accent-foreground: 0 0% 0%;
   --destructive: 0 100% 55%;
+  --danger-text: #FF8A80;
   --card: 222 15% 16%;
   --card-foreground: 215 15% 87%;
 

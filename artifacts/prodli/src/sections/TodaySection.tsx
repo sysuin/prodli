@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useSyncedList } from "../lib/syncedList";
 import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, type AiUsage, type ProdliUser } from "../lib/prodliAccount";
+import { agenda, autoSchedule, blockMinutes, blockOf, googleCalendarLink, toHM } from "../lib/timeBlocks";
 import { calendarAvailable, connectCalendar, disconnectCalendar, isCalendarConnected, todaysEvents, type CalendarEvent } from "../lib/calendar";
 import { briefBasis, buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
 import { reviewDue, weekLabel } from "../lib/review";
@@ -67,6 +68,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   const [focusDraft, setFocusDraft] = useState("");
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [askDraft, setAskDraft] = useState("");
+  const [blockNote, setBlockNote] = useState<{ warn: boolean; text: string } | null>(null);
   const autoTried = useRef(false);
 
   const record = days.find((d) => d.id === today);
@@ -158,6 +160,27 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   const activeHabits = habits.filter((h) => !h.archived);
 
   const updateTodo = (id: string, patch: Partial<Todo>) => setTodos((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const timeline = agenda(events, todos, today);
+  const allDay = events.filter((e) => e.allDay);
+  const unblocked = planned.filter((t) => !blockOf(t, today));
+  const blockedCount = todos.filter((t) => blockOf(t, today)).length;
+  const blockTime = () => {
+    const plan = autoSchedule({ tasks: planned, todos, events, day: today, workStart: settings.workStart, workEnd: settings.workEnd, nowMin: nowMin() });
+    const n = Object.keys(plan.placed).length;
+    if (n) setTodos((list) => list.map((t) => (plan.placed[t.id] ? { ...t, block: { day: today, start: plan.placed[t.id] } } : t)));
+    const missing = plan.unplaced.length;
+    setBlockNote(
+      !n && !missing
+        ? null
+        : missing
+          ? { warn: true, text: `${n ? `Blocked ${n} task${n > 1 ? "s" : ""}. ` : ""}${missing} didn't fit in today's free time — shorten an estimate or move ${missing > 1 ? "them" : "it"} to tomorrow.` }
+          : { warn: false, text: `Blocked ${n} task${n > 1 ? "s" : ""} in your free time. Change a time, or 📅 add a block to Google Calendar.` },
+    );
+  };
+  const clearBlocks = () => {
+    setTodos((list) => list.map((t) => (t.block?.day === today ? { ...t, block: undefined } : t)));
+    setBlockNote(null);
+  };
   const toggleTodo = (t: Todo) => updateTodo(t.id, { completed: !t.completed, completedAt: t.completed ? undefined : new Date().toISOString() });
   const toggleHabit = (h: Habit) =>
     setHabits((list) => list.map((x) => (x.id === h.id ? { ...x, completedDays: x.completedDays.includes(today) ? x.completedDays.filter((d) => d !== today) : [...x.completedDays, today] } : x)));
@@ -168,7 +191,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   };
   const moveRestToTomorrow = () => {
     const tomorrow = tomorrowKey();
-    setTodos((list) => list.map((t) => (!t.completed && t.plannedFor && t.plannedFor <= today ? { ...t, plannedFor: tomorrow } : t)));
+    setTodos((list) => list.map((t) => (!t.completed && t.plannedFor && t.plannedFor <= today ? { ...t, plannedFor: tomorrow, block: undefined } : t)));
   };
   const saveSettings = async (patch: Partial<TodaySettings>) => {
     const next = { ...settings, ...patch };
@@ -221,6 +244,11 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               <label>
                 <input type="checkbox" checked={settings.autoBrief} onChange={(e) => void saveSettings({ autoBrief: e.target.checked })} /> Write my brief automatically
               </label>
+              {typeof chrome !== "undefined" && !!chrome.alarms && (
+                <label>
+                  <input type="checkbox" checked={settings.blockReminders !== false} onChange={(e) => void saveSettings({ blockReminders: e.target.checked })} /> Notify me when a time block starts
+                </label>
+              )}
             </div>
           </Card>
         )}
@@ -307,7 +335,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               title="📝 Plan your day"
               testId="plan-day"
               right={
-                <span style={{ fontSize: 12, fontWeight: 700, color: plannedMinutes > freeMinutes ? "#E53935" : undefined }} data-testid="workload">
+                <span style={{ fontWeight: 700, ...(plannedMinutes > freeMinutes ? BADGE_RED : {}), fontSize: 12 }} data-testid="workload">
                   {fmtMin(plannedMinutes)} planned · {fmtMin(freeMinutes)} free
                 </span>
               }
@@ -331,41 +359,89 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               title="📅 Agenda"
               testId="agenda"
               right={
-                calendarAvailable() &&
-                (calendar.connected ? (
-                  <button style={btn()} onClick={() => void disconnectCalendar().then(() => (setEvents([]), setCalendar({ connected: false, error: null, loading: false })))}>
-                    Disconnect
-                  </button>
-                ) : null)
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {unblocked.length > 0 && (
+                    <button style={btn("primary")} onClick={blockTime} title="Put today's planned tasks into your free time" data-testid="block-time">
+                      ⏱ Block time
+                    </button>
+                  )}
+                  {blockedCount > 0 && (
+                    <button style={btn()} onClick={clearBlocks}>
+                      Clear blocks
+                    </button>
+                  )}
+                  {calendarAvailable() && calendar.connected && (
+                    <button style={btn()} onClick={() => void disconnectCalendar().then(() => (setEvents([]), setCalendar({ connected: false, error: null, loading: false })))}>
+                      Disconnect
+                    </button>
+                  )}
+                </div>
               }
             >
               {calendar.error && <Note tone="warn">{calendar.error}</Note>}
-              {!calendar.connected && calendarAvailable() ? (
-                <div style={{ display: "grid", gap: 8 }}>
-                  <p style={{ fontSize: 13, margin: 0, opacity: 0.8 }}>Connect Google Calendar so your brief can plan around your meetings. Read-only; events are read on this device.</p>
+              {blockNote && <Note tone={blockNote.warn ? "warn" : "info"}>{blockNote.text}</Note>}
+              {!calendar.connected && calendarAvailable() && (
+                <div style={{ display: "grid", gap: 8, marginBottom: timeline.length ? 12 : 0 }}>
+                  <p style={{ fontSize: 13, margin: 0, opacity: 0.8 }}>Connect Google Calendar so your brief and time blocks plan around your meetings. Read-only; events are read on this device.</p>
                   <div>
                     <button style={btn("primary", calendar.loading)} disabled={calendar.loading} onClick={() => void loadEvents(true)}>
                       {calendar.loading ? "Connecting…" : "Connect Google Calendar"}
                     </button>
                   </div>
                 </div>
-              ) : events.length === 0 ? (
-                <p style={{ fontSize: 13, margin: 0, opacity: 0.75 }}>{calendar.loading ? "Loading…" : "Nothing on your calendar today."}</p>
+              )}
+              {allDay.length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, opacity: 0.85 }}>All day: {allDay.map((e) => e.title).join(" · ")}</div>
+              )}
+              {timeline.length === 0 ? (
+                (calendar.connected || !calendarAvailable()) && (
+                  <p style={{ fontSize: 13, margin: 0, opacity: 0.75 }}>
+                    {calendar.loading ? "Loading…" : calendar.connected ? "Nothing on your calendar today." : "Nothing scheduled."} {planned.length > 0 && "Plan tasks below, give them a time estimate, then ⏱ Block time."}
+                  </p>
+                )
               ) : (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
-                  {events.map((e) => (
-                    <li key={e.id} style={{ display: "flex", gap: 10, fontSize: 13, alignItems: "baseline" }}>
-                      <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, minWidth: 92, opacity: 0.8 }}>{e.allDay ? "All day" : `${e.start}–${e.end}`}</span>
-                      <span style={{ fontWeight: 700 }}>
-                        {e.title}
-                        {e.meetLink && (
-                          <a href={e.meetLink} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, fontSize: 11, textDecoration: "underline" }}>
-                            Join
-                          </a>
-                        )}
-                      </span>
-                    </li>
-                  ))}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }} data-testid="timeline">
+                  {timeline.map((item) =>
+                    item.kind === "event" ? (
+                      <li key={`e-${item.event.id}`} style={{ display: "flex", gap: 10, fontSize: 13, alignItems: "baseline", borderLeft: "4px solid #FF4FA3", paddingLeft: 8 }}>
+                        <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, minWidth: 92, opacity: 0.8 }}>
+                          {item.event.start}–{item.event.end}
+                        </span>
+                        <span style={{ fontWeight: 700 }}>
+                          {item.event.title}
+                          {item.event.meetLink && (
+                            <a href={item.event.meetLink} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, fontSize: 11, textDecoration: "underline" }}>
+                              Join
+                            </a>
+                          )}
+                        </span>
+                      </li>
+                    ) : (
+                      <li key={`b-${item.todo.id}`} data-testid="time-block" style={{ display: "flex", gap: 8, fontSize: 13, alignItems: "center", borderLeft: `4px solid ${item.conflict ? "#E53935" : ACCENT}`, paddingLeft: 8, flexWrap: "wrap" }}>
+                        <input
+                          type="time"
+                          value={item.todo.block!.start}
+                          step={300}
+                          onChange={(e) => e.target.value && updateTodo(item.todo.id, { block: { day: today, start: e.target.value } })}
+                          aria-label={`Start time for ${item.todo.title}`}
+                          style={{ ...timeInput, fontFamily: "Space Mono, monospace", fontWeight: 700, fontSize: 12 }}
+                        />
+                        <span style={{ flex: 1, minWidth: 120, fontWeight: 600 }}>
+                          {item.todo.title} <span style={{ fontSize: 11, opacity: 0.7 }}>· {fmtMin(blockMinutes(item.todo))} · until {toHM(item.end)}</span>
+                          {item.conflict && <span style={{ marginLeft: 6, ...BADGE_RED }}>OVERLAPS</span>}
+                        </span>
+                        <a href={googleCalendarLink(item.todo.title, today, item.todo.block!.start, blockMinutes(item.todo))} target="_blank" rel="noopener noreferrer" title="Add to Google Calendar" aria-label={`Add ${item.todo.title} to Google Calendar`} style={{ ...btn(), padding: "2px 6px", textDecoration: "none" }}>
+                          📅
+                        </a>
+                        <button onClick={() => toggleTodo(item.todo)} title="Done" aria-label={`Done: ${item.todo.title}`} style={{ ...btn(), padding: "2px 6px" }}>
+                          ✓
+                        </button>
+                        <button onClick={() => updateTodo(item.todo.id, { block: undefined })} title="Remove block" aria-label={`Remove time block for ${item.todo.title}`} style={{ ...btn(), padding: "2px 6px" }}>
+                          ×
+                        </button>
+                      </li>
+                    ),
+                  )}
                 </ul>
               )}
             </Card>
@@ -440,6 +516,8 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   );
 }
 
+// White on a dark red: readable in light and dark mode (WCAG AA at this size).
+const BADGE_RED: CSSProperties = { fontSize: 10, fontWeight: 900, color: "#fff", background: "#C62828", padding: "0 4px" };
 const timeInput: CSSProperties = { border: "var(--nb-border)", padding: "2px 4px", fontFamily: "inherit", background: "hsl(var(--background))", color: "inherit" };
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const nowMin = () => new Date().getHours() * 60 + new Date().getMinutes();
@@ -537,9 +615,10 @@ function TaskList({ tasks, today, onToggle, onUpdate }: { tasks: Todo[]; today: 
             <input type="checkbox" checked={t.completed} onChange={() => onToggle(t)} aria-label={`Done: ${t.title}`} />
             <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
               {t.title}
-              {t.priority === "high" && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, color: "#E53935" }}>HIGH</span>}
-              {overdue && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, color: "#E53935" }}>OVERDUE</span>}
+              {t.priority === "high" && <span style={{ marginLeft: 6, ...BADGE_RED }}>HIGH</span>}
+              {overdue && <span style={{ marginLeft: 6, ...BADGE_RED }}>OVERDUE</span>}
               {!overdue && t.dueDate === today && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900 }}>DUE TODAY</span>}
+              {t.block?.day === today && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, fontFamily: "Space Mono, monospace" }}>⏱ {t.block.start}</span>}
             </span>
             <select
               value={t.estimateMin ?? ""}
