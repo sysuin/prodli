@@ -21,6 +21,12 @@ Suggested price: **$5/month or $48/year** (two months free). The app shows the p
 
 ## 1. Test mode first (test cards, no real money)
 
+**Done:** the ProdLi brand also exists in test mode (Dodo keeps brands per mode), with two products, already in `env.staging.vars`:
+- ProdLi Pro (Monthly): `pdt_0Nrhskgoru9SBqjRagidr`, $5 every month
+- ProdLi Pro (Yearly): `pdt_0NrhszgAdnghjeQRShn7u`, $48 every year
+
+Prices are tax-exclusive (Dodo adds tax at checkout). Turn on *Tax Inclusive Pricing* on a product if you want $5 to be the final price. **Left for you:** steps 2, 3 and 5 below (API key, webhook, the two secrets).
+
 In the Dodo dashboard, switch to **Test Mode** (bottom left), then:
 
 1. **Products → Create product**, brand **ProdLi**, *Subscription*:

@@ -56,8 +56,8 @@
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo test mode (test cards, no real money): ProdLi brand → products (pdt_…).
         "DODO_ENV": "test",
-        "DODO_PRODUCT_MONTHLY": "",
-        "DODO_PRODUCT_YEARLY": ""
+        "DODO_PRODUCT_MONTHLY": "pdt_0Nrhskgoru9SBqjRagidr",
+        "DODO_PRODUCT_YEARLY": "pdt_0NrhszgAdnghjeQRShn7u"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core-staging", "database_id": "b599423c-7434-45eb-b9e1-79aa69458b01", "migrations_dir": "migrations" }
