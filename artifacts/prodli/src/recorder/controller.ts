@@ -5,6 +5,7 @@
 // user actions, which is why recording can't start from a button inside Meet.
 
 import { getMeeting, putMeeting, updateMeeting } from "./db";
+import { fillCaptionGaps } from "./format";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
@@ -249,9 +250,10 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
     const meeting = await updateMeeting(state.meetingId, (m) => {
       const captions = entries && entries.length >= m.transcript.length ? entries : m.transcript;
       const speech = speechEntries && speechEntries.length >= (m.speechTranscript?.length ?? 0) ? speechEntries : (m.speechTranscript ?? []);
-      // Meet captions have real speaker names, so they win; on-device speech fills in when captions were off.
+      // Meet captions have real speaker names, so they win; on-device speech fills in when
+      // captions were off for the whole call, or for stretches of it.
       const usedSpeech = captions.length === 0 && speech.length > 0;
-      const transcript = usedSpeech ? speech : captions;
+      const { transcript, filled } = fillCaptionGaps(captions, speech);
       return {
         transcript,
         endedAt: endedAt.toISOString(),
@@ -263,7 +265,9 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
             ? "No captions were captured. Next time, make sure captions (CC) are on in Google Meet — only you can see them — or turn on on-device transcription in Meetings → Setup."
             : usedSpeech
               ? "Captions were off, so this transcript was made on your computer (speakers: You / Others)."
-              : null,
+              : filled
+                ? `Captions missed part of the call; ${filled} line${filled > 1 ? "s" : ""} from on-device transcription fill${filled > 1 ? "" : "s"} the gaps (marked “on device”, speakers: You / Others).`
+                : null,
       };
     });
     if (meeting) await finishMeeting(meeting.id);
