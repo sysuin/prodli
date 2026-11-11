@@ -6,7 +6,7 @@
 1. **You:** lawyer review of the privacy policy and terms, then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys only once none are left.
 2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Calendar (`calendar.readonly`) is a sensitive scope, so Google verifies the app first (can take a few weeks; start once the legal pages are live). Until then only the listed test users can sign in.
 3. **You:** build the store extension and submit it (see "Chrome Web Store" below).
-4. **You (when you want to sell Pro):** set up Paddle — sandbox first, then live (business verification needs prodli.com with the final legal pages). Step by step: `docs/PRO-PLAN.md`.
+4. **You (when you want to sell Pro):** in Dodo Payments (ProdLi brand already created), add the Pro products and API keys — test mode first, then live. Step by step: `docs/PRO-PLAN.md`.
 5. **You:** a short breach-response note: who to contact (Cloudflare, Google, Anthropic), and notifying affected users and the Data Protection Board of India / EU authorities within the legal deadlines (72 hours under GDPR).
 
 ## Product
@@ -18,7 +18,7 @@
 - ✅ Weekly review (Review section) with AI write-up and next week's priorities
 - ✅ Time blocks on Today: planned tasks placed in free time, reminders, "Add to Google Calendar"
 - ✅ Meeting transcripts: caption gaps filled from on-device transcription (when it's on)
-- ✅ ProdLi Pro: plans, Paddle checkout, subscription management (on sale once Paddle is configured)
+- ✅ ProdLi Pro: plans, Dodo Payments checkout, subscription management (on sale once Dodo is configured)
 - **You:** a real Google Meet call with captions on, to check the whole transcript comes through
 - **You:** try the web app on your phone (Share → Add to Home Screen)
 

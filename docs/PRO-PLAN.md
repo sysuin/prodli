@@ -1,6 +1,8 @@
-# ProdLi Pro: setting up payments (Paddle)
+# ProdLi Pro: setting up payments (Dodo Payments)
 
-ProdLi Pro is sold through **Paddle**, a *merchant of record*. Paddle is the seller in each sale: it takes the payment, charges and pays sales tax / VAT / GST in every country, sends invoices and handles refunds and chargebacks. ProdLi never sees card details. Paddle's fee is about 5% + $0.50 per transaction.
+ProdLi Pro is sold through **Dodo Payments**, a *merchant of record*: Dodo is the seller in each sale. It takes the payment, charges and pays sales tax / VAT / GST, sends invoices and handles refunds and chargebacks. ProdLi never sees card details.
+
+ProdLi is a **brand** under your existing, verified Dodo business (JobScanner), so there's no new account or KYC; payouts go to the same bank account. The brand is already created: name *ProdLi*, support email contact@prodli.com, logo, statement descriptor `DODOPAY_PRODLI` (Settings → Business → Brands).
 
 Until the settings below are filled in, the app shows "ProdLi Pro is coming soon" and nothing can be bought.
 
@@ -13,51 +15,51 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | Ask ProdLi questions | 100 | 1,000 |
 | Synced storage | 100 MB | 2 GB |
 
-The numbers live in `artifacts/prodli-api/src/ai.ts`, `brief.ts`, `ask.ts` and `syncStore.ts`. The account window and the Terms read them from the server, so change them in one place (and update the Terms text).
+The numbers live in `artifacts/prodli-api/src/ai.ts`, `brief.ts`, `ask.ts` and `syncStore.ts` (the account window reads them from the server; update the Terms text if you change them).
 
-Suggested price: **$5/month or $48/year** (two months free). Set prices in Paddle; the app shows Paddle's localized price.
+Suggested price: **$5/month or $48/year** (two months free). The app shows the price from Dodo.
 
-## 1. Sandbox first (test cards, no real money)
+## 1. Test mode first (test cards, no real money)
 
-1. Create a sandbox account at https://sandbox-vendors.paddle.com.
-2. **Catalog → Products → New product** "ProdLi Pro" (tax category: *Standard digital goods* / SaaS). Add two prices: monthly ($5, billing every 1 month) and yearly ($48, every 1 year). Copy both price IDs (`pri_…`).
-3. **Developer tools → Authentication → Client-side tokens → New** → copy the token (`test_…`).
-4. **Developer tools → Authentication → API keys → New** with permissions: *Customers: read/write* (customer portal) and *Subscriptions: read/write* (cancel). Copy it (`pdl_sdbx_apikey_…`). Shown once.
-5. **Developer tools → Notifications → New destination**:
+In the Dodo dashboard, switch to **Test Mode** (bottom left), then:
+
+1. **Products → Create product**, brand **ProdLi**, *Subscription*:
+   - "ProdLi Pro (monthly)": $5, every 1 month
+   - "ProdLi Pro (yearly)": $48, every 1 year
+
+   Copy both product IDs (`pdt_…`).
+2. **Developer → API keys → Create** → copy the key (shown once).
+3. **Developer → Webhooks → Add endpoint**:
    - URL: `https://prodli-api-staging.sunnysinghnitb.workers.dev/api/billing/webhook`
-   - Events: `subscription.created`, `subscription.updated`, `subscription.activated`, `subscription.canceled`, `subscription.past_due`, `subscription.paused`, `subscription.resumed`, `subscription.trialing`
-   - Copy the destination's **secret key** (`pdl_ntfset_…`).
-6. **Checkout → Checkout settings**: default payment link `https://prodli-api-staging.sunnysinghnitb.workers.dev/` (Paddle requires one); approve the domain if asked.
-7. Put the public values in `artifacts/prodli-api/wrangler.jsonc` → `env.staging.vars`:
+   - Events: all `subscription.*` events (active, updated, renewed, on_hold, past_due, plan_changed, cancelled, expired, failed)
+   - Copy the endpoint's signing secret (`whsec_…`).
+4. Put the product IDs in `artifacts/prodli-api/wrangler.jsonc` → `env.staging.vars` (they're public):
    ```jsonc
-   "PADDLE_ENV": "sandbox",
-   "PADDLE_CLIENT_TOKEN": "test_…",
-   "PADDLE_PRICE_MONTHLY": "pri_…",
-   "PADDLE_PRICE_YEARLY": "pri_…"
+   "DODO_ENV": "test",
+   "DODO_PRODUCT_MONTHLY": "pdt_…",
+   "DODO_PRODUCT_YEARLY": "pdt_…"
    ```
-   (Client tokens and price IDs are public: they ship in every checkout page.)
-8. Secrets (you run these; paste when asked):
+5. Secrets (you run these and paste when asked):
    ```bash
-   pnpm --filter @workspace/prodli-api exec wrangler secret put PADDLE_WEBHOOK_SECRET --env staging
-   pnpm --filter @workspace/prodli-api exec wrangler secret put PADDLE_API_KEY --env staging
+   pnpm --filter @workspace/prodli-api exec wrangler secret put DODO_API_KEY --env staging
+   pnpm --filter @workspace/prodli-api exec wrangler secret put DODO_WEBHOOK_SECRET --env staging
    ```
-9. Merge → CI deploys staging. Open the staging web app, sign in, Account → **Upgrade to Pro**, pay with Paddle's test card `4242 4242 4242 4242` (any future date, CVC `100`). Within a few seconds the account shows **ProdLi Pro**. Then try **Manage subscription → Cancel**.
+6. Merge → CI deploys staging. In the staging web app or a staging extension build: sign in, Account → **Upgrade to Pro** → Dodo's checkout opens in a new tab → pay with a Dodo test card (Dodo docs → Testing). Within a few seconds the account window shows **You're on ProdLi Pro**. Then try **Manage subscription → Cancel**.
 
 ## 2. Live
 
-1. Sign up at https://vendors.paddle.com and complete **business verification** (Paddle reviews your website, so prodli.com with the final Privacy Policy, Terms, pricing and refund policy must be live first). Check that your country is supported for payouts.
-2. Repeat steps 2–6 in the live dashboard with `https://app.prodli.com/api/billing/webhook` and `https://app.prodli.com/`.
-3. Fill `env.production.vars` in `wrangler.jsonc` (`PADDLE_ENV: "production"`, `live_…` token, live price IDs), then:
+1. Switch the dashboard to **Live Mode** and repeat steps 1–3 with the webhook URL `https://app.prodli.com/api/billing/webhook`. (Dodo may review the new products and the brand's website, so have prodli.com with the final Privacy Policy and Terms live first.)
+2. Fill `env.production.vars` in `wrangler.jsonc` (`DODO_ENV: "live"`, live product IDs), then:
    ```bash
-   pnpm --filter @workspace/prodli-api exec wrangler secret put PADDLE_WEBHOOK_SECRET --env production
-   pnpm --filter @workspace/prodli-api exec wrangler secret put PADDLE_API_KEY --env production
+   pnpm --filter @workspace/prodli-api exec wrangler secret put DODO_API_KEY --env production
+   pnpm --filter @workspace/prodli-api exec wrangler secret put DODO_WEBHOOK_SECRET --env production
    pnpm --filter @workspace/prodli-api run deploy:production
    ```
-   (The deploy applies migration `0006_subscriptions.sql`.)
+   (The deploy applies migration `0007_billing_customers.sql`.)
 
 ## How it works
 
-- **Checkout** runs on the web app only (Paddle's overlay). In the extension, "Upgrade to Pro" opens `app.prodli.com/?upgrade=yearly` (or monthly), which signs in with the same Google account and opens the checkout. The account ID goes to Paddle as `custom_data.userId`.
-- **Webhooks** (`POST /api/billing/webhook`) are verified with the `Paddle-Signature` HMAC and a 5-minute window. Each user has one row in D1 `subscriptions`; `users.plan` is `pro` while the status is `active`, `trialing` or `past_due` (Paddle retries failed payments for a while), and `free` once it's `canceled` or `paused`. Old or repeated events are ignored.
-- **Manage subscription** opens Paddle's customer portal (change plan or card, invoices, cancel).
-- **Deleting an account** cancels its subscription at Paddle first.
+- **Checkout:** "Upgrade to Pro" asks the server (`POST /api/billing/checkout`) to create a Dodo customer for the account (once, saved in D1 `billing_customers`) and a checkout session, then opens Dodo's hosted checkout in a new tab, from the extension and the web app alike. After paying, Dodo returns to `app.prodli.com/?pro=thanks`.
+- **Webhooks** (`POST /api/billing/webhook`) are verified with the Standard Webhooks signature (`webhook-id`, `webhook-timestamp`, `webhook-signature`, HMAC-SHA256) and a 5-minute window. Each user has one row in D1 `subscriptions`; `users.plan` is `pro` while the status is `active` or `past_due` (grace period after a failed renewal) and `free` otherwise (`on_hold`, `cancelled`, `expired`, `failed`). Old or repeated events are ignored.
+- **Manage subscription** opens Dodo's customer portal (change plan or card, invoices, cancel). A cancellation at the end of the period keeps Pro until then.
+- **Deleting an account** cancels its subscription at Dodo first.

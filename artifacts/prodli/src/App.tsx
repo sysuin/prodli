@@ -5,7 +5,7 @@ import { usePomodoroTimer } from "./lib/usePomodoroTimer";
 import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
-import { AccountButton, AccountModal, PENDING_UPGRADE_KEY } from "./components/AccountModal";
+import { AccountButton, AccountModal } from "./components/AccountModal";
 import { UPGRADE_EVENT } from "./lib/billing";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
@@ -152,20 +152,14 @@ export default function App() {
     });
   }, []);
 
-  // Upgrade to Pro: from anywhere in the app (lib/billing.ts openUpgrade), or the
-  // web app opened at /?upgrade=monthly|yearly by the extension.
+  // Upgrade to Pro: from anywhere in the app (lib/billing.ts openUpgrade), and
+  // back from Dodo's checkout (/?pro=thanks) the account window shows the plan.
   useEffect(() => {
     const open = () => setShowAccount(true);
     window.addEventListener(UPGRADE_EVENT, open);
-    const wanted = new URLSearchParams(window.location.search).get("upgrade");
-    if (wanted === "monthly" || wanted === "yearly") {
-      try {
-        sessionStorage.setItem(PENDING_UPGRADE_KEY, wanted);
-      } catch {
-        // storage unavailable: the account window still opens
-      }
+    if (new URLSearchParams(window.location.search).has("pro")) {
       const url = new URL(window.location.href);
-      url.searchParams.delete("upgrade");
+      url.searchParams.delete("pro");
       window.history.replaceState(null, "", url.toString());
       open();
     }

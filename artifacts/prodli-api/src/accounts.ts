@@ -143,6 +143,7 @@ export async function deleteUser(db: D1Database, userId: string): Promise<void> 
     db.prepare(`DELETE FROM brief_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM ask_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM subscriptions WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM billing_customers WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM users WHERE id = ?1`).bind(userId),
   ]);
 }
