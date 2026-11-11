@@ -1,34 +1,32 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
+Last updated: 2026-11-11 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 
-- [ ] **Test on a real Google Meet call** (load `artifacts/prodli/dist-extension` unpacked; disable the store copy):
-  - [ ] With captions on: transcript with speaker names
-  - [ ] With captions off + Meetings → Setup → "Transcribe on this computer" (click "Download speech model" once): transcript labelled You / Others
-  - [ ] Audio playback (with and without microphone)
-  - [ ] Summary + action items with your Claude API key
-  - [ ] Stop works from: badge, toolbar icon, Alt+Shift+R, leaving the call (try Meet in another language too), closing the tab
-- [ ] **Google sign-in** — [docs/GOOGLE-SIGN-IN.md](docs/GOOGLE-SIGN-IN.md):
-  - [x] Google Cloud project, consent screen (Testing), OAuth client, test user
-  - [x] Local builds use the store ID + client ID (`source .env.local && pnpm run build:extension`)
-  - [ ] Add the `PRODLI_GOOGLE_CLIENT_ID` GitHub secret: `gh secret set PRODLI_GOOGLE_CLIENT_ID --repo sysuin/prodli`
-  - [ ] Sign in on two computers and check notes sync both ways (including a deletion)
-  - [ ] Before the store release: **Publish app** in Google Auth Platform → Audience
-- [ ] **Leave Replit** — [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md):
-  - [x] Code on GitHub with CI
-  - [x] prodli.com DNS on Cloudflare (Hostinger email records kept, DNS only)
-  - [x] Website served by Cloudflare (`prodli-site` Worker)
-  - [ ] Add `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` GitHub secrets so CI deploys
-  - [ ] After a few days: unpublish the Replit deployment, cancel any Replit plan, delete the `replit-verify` TXT records
-- [ ] **Web app + accounts** — [docs/PLAN-WEB-APP.md](docs/PLAN-WEB-APP.md): phases 0–5 built and on staging; your launch steps are in [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md)
-- [ ] **Publish v1.3.0 to the Chrome Web Store** using [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots in `artifacts/prodli/store-assets/`, listing text, permission justifications, data-usage answers). Expect a slower review because of the tab-audio permission.
+Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
+
+- [ ] **Legal (blocks launch):** lawyer review of the privacy policy and terms (incl. the new ProdLi Pro section), then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys once none are left.
+- [ ] **Google consent screen:** once the legal pages are live, add app.prodli.com, prodli.com/privacy and /terms → **Publish app**. Calendar access needs Google's verification (can take weeks).
+- [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip`, privacy disclosures, submit ([STORE_SUBMISSION.md](STORE_SUBMISSION.md)).
+- [ ] **ProdLi Pro (when ready to sell):** Paddle sandbox, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [ ] **Breach-response plan:** review the draft (see below) with the lawyer and keep it somewhere you can find it fast.
+- [ ] **Real-use checks:**
+  - [ ] A real Google Meet call with captions on (full transcript, summary)
+  - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
+  - [ ] A time-block reminder going off; "Add to Google Calendar"
+  - [ ] A weekly review with your real data
+  - [ ] Phone: the web app (Share → Add to Home Screen)
+- [ ] **Cloudflare billing alerts** (if not set): Notifications → usage-based billing at $10 and $25
+
+## Next — Claude can do
+
+- [ ] Draft the breach-response plan (`docs/BREACH-RESPONSE.md`): who to contact, what to tell users, deadlines under India's DPDP rules and GDPR
+- [ ] Prepare the Web Store listing: description, privacy disclosures field by field, fresh screenshots from the store build
 
 ## Next ideas
 
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
-- [ ] Move AI summaries to a ProdLi server for a smoother experience (instead of each user's own key) — only alongside a paid plan
 - [ ] Zoom / Microsoft Teams web support
 - [ ] Mobile: mic-based recording for in-person meetings
 - [ ] Move inline styles into shared UI components (needed before a web/desktop app)
@@ -37,7 +35,7 @@ Last updated: 2026-11-09 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
 
 ## Roadmap
 
-- [ ] Web app (app.prodli.com), reusing the extension's screens
+- [x] Web app (app.prodli.com), reusing the extension's screens
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
 - [ ] Mobile app
 
@@ -51,6 +49,12 @@ From the repo root (see README.md for all commands):
 - `node artifacts/prodli/scripts/store-screenshots.mjs` — regenerate store screenshots after UI changes.
 
 ## Done
+
+- [x] 2026-11-11 — ProdLi Pro: plans, Paddle checkout and subscription management (on sale once Paddle is set up)
+- [x] 2026-11-11 — Weekly review; time blocks on Today; caption gaps filled from on-device transcription
+- [x] 2026-11-10 — Local Markdown/CSV/JSON files dropped on Chrome open in ProdLi
+- [x] 2026-11-10 — Today (daily brief, calendar), Ask ProdLi, Add to ProdLi from any page, AI summaries via ProdLi's own key, Meet recording fixes
+- [x] 2026-11-10 — Accounts, sync, web app, nightly backups and production at app.prodli.com
 
 - [x] 2026-11-09 — On-device transcription when Meet captions are off (Chrome's built-in speech recognition; You / Others; free, audio stays local)
 - [x] 2026-11-09 — Accessibility: WCAG 2.1 AA axe audit passes on every tab (light + dark, with data) and every pop-up; visible keyboard focus
