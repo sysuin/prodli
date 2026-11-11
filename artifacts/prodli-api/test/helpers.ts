@@ -64,17 +64,37 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Summarizing failed. Try again.");
       return { title: `Notes: ${input.title}`, overview: "o", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
-    paddle: (apiKey, environment) => ({
-      async portalUrl(customerId, subscriptionId) {
-        calls.push({ kind: "paddle-portal", clientId: `${environment}:${customerId}:${subscriptionId}` });
-        if (apiKey === "FAIL") throw new BillingError("Paddle answered 500");
-        return `https://customer-portal.paddle.com/${customerId}`;
-      },
-      async cancelNow(subscriptionId) {
-        calls.push({ kind: "paddle-cancel", clientId: subscriptionId });
-        if (apiKey === "FAIL") throw new BillingError("Paddle answered 500");
-      },
-    }),
+    dodo: (apiKey, environment) => {
+      const fail = () => {
+        if (apiKey === "FAIL") throw new BillingError("Dodo answered 500");
+      };
+      return {
+        async createCustomer({ email, userId }) {
+          calls.push({ kind: "dodo-customer", clientId: `${environment}:${email}:${userId}` });
+          fail();
+          return `cus_${userId.slice(0, 8)}`;
+        },
+        async checkoutUrl({ productId, customerId, returnUrl }) {
+          calls.push({ kind: "dodo-checkout", clientId: `${productId}:${customerId}:${returnUrl}` });
+          fail();
+          return `https://checkout.dodopayments.com/session/${productId}`;
+        },
+        async portalUrl(customerId) {
+          calls.push({ kind: "dodo-portal", clientId: `${environment}:${customerId}` });
+          fail();
+          return `https://customer.dodopayments.com/${customerId}`;
+        },
+        async cancelNow(subscriptionId) {
+          calls.push({ kind: "dodo-cancel", clientId: subscriptionId });
+          fail();
+        },
+        async price(productId) {
+          calls.push({ kind: "dodo-price", clientId: productId });
+          fail();
+          return productId === "pdt_year" ? { amount: 4800, currency: "USD" } : { amount: 500, currency: "USD" };
+        },
+      };
+    },
     now: () => clock.now,
   };
   return { app: createApp(deps), clock, calls };

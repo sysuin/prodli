@@ -34,7 +34,7 @@ import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Rev
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
-import { applySubscriptionEvent, BillingError, checkoutConfig, getSubscription, paddleClient, planFor, verifyPaddleSignature, type BillingVars, type PaddleClient, type PaddleEnv, type PaddleEvent } from "./billing";
+import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
 
 export type Environment = "development" | "staging" | "production";
@@ -66,8 +66,8 @@ export interface Deps {
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
-  /** Paddle API client (tests pass a fake). */
-  paddle?: (apiKey: string, environment: PaddleEnv) => PaddleClient;
+  /** Dodo Payments API client (tests pass a fake). */
+  dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
@@ -123,6 +123,8 @@ async function sameSecret(a: string, b: string): Promise<boolean> {
 
 export function createApp(deps: Deps = realDeps) {
   const app = new Hono<AppEnv>();
+  const dodo = (c: Ctx) =>
+    deps.dodo ? deps.dodo(c.env.DODO_API_KEY ?? "", dodoEnv(c.env)) : dodoClient(c.env.DODO_API_KEY ?? "", dodoEnv(c.env), fetch, c.env.ENV === "development" ? c.env.DODO_API_BASE : undefined);
 
   app.use("*", secureHeaders());
 
@@ -280,12 +282,12 @@ export function createApp(deps: Deps = realDeps) {
     if (typeof body?.confirmEmail !== "string" || body.confirmEmail.trim().toLowerCase() !== auth.user.email.toLowerCase()) {
       return c.json({ error: "confirmation_mismatch" }, 400);
     }
-    // A paid subscription ends with the account (otherwise Paddle would keep charging).
+    // A paid subscription ends with the account (otherwise it would keep renewing).
     const sub = await getSubscription(c.env.DB, auth.user.id);
     if (sub && planFor(sub.status) === "pro") {
-      if (!c.env.PADDLE_API_KEY) return c.json({ error: "subscription_active", message: "Cancel your Pro subscription first (Account → Manage subscription), then delete your account." }, 409);
+      if (!c.env.DODO_API_KEY) return c.json({ error: "subscription_active", message: "Cancel your Pro subscription first (Account → Manage subscription), then delete your account." }, 409);
       try {
-        await (deps.paddle ?? paddleClient)(c.env.PADDLE_API_KEY, c.env.PADDLE_ENV === "production" ? "production" : "sandbox").cancelNow(sub.subscription_id);
+        await dodo(c).cancelNow(sub.subscription_id);
       } catch {
         return c.json({ error: "subscription_active", message: "Couldn't cancel your Pro subscription. Try again, or cancel it in Account → Manage subscription first." }, 502);
       }
@@ -347,51 +349,88 @@ export function createApp(deps: Deps = realDeps) {
   });
 
   // ── ProdLi Pro (src/billing.ts) ─────────────────────────────────────────────
-  const paddleEnv = (c: Ctx): PaddleEnv => (c.env.PADDLE_ENV === "production" ? "production" : "sandbox");
+  // Prices come from Dodo (cached per Worker instance for 10 minutes).
+  const priceCache = new Map<string, { at: number; price: Price | null }>();
+  const priceOf = async (c: Ctx, productId: string): Promise<Price | null> => {
+    const hit = priceCache.get(productId);
+    if (hit && deps.now() - hit.at < 600_000) return hit.price;
+    const price = await dodo(c).price(productId).catch(() => null);
+    priceCache.set(productId, { at: deps.now(), price });
+    return price;
+  };
+  const appOrigin = (c: Ctx) => new URL(c.req.url).origin;
 
-  /** The user's plan, what each plan includes, and (when Pro is on sale) checkout settings. */
+  /** The user's plan, what each plan includes, and (when Pro is on sale) the prices. */
   app.get("/api/billing", requireAuth, async (c) => {
     const auth = c.get("auth");
     const sub = await getSubscription(c.env.DB, auth.user.id);
+    const products = productsOnSale(c.env);
+    const prices: Partial<Record<Interval, Price | null>> = {};
+    if (products) for (const i of ["monthly", "yearly"] as const) if (products[i]) prices[i] = await priceOf(c, products[i]!);
     const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan] });
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
-      checkout: checkoutConfig(c.env),
-      canManage: !!sub && !!c.env.PADDLE_API_KEY,
+      onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
+      prices,
+      canManage: !!sub && !!c.env.DODO_API_KEY,
       subscription: sub ? { status: sub.status, interval: sub.billing_interval, renewsAt: sub.cancel_at ? null : sub.period_end, endsAt: sub.cancel_at } : null,
       limits: { free: limits("free"), pro: limits("pro") },
     });
   });
 
-  /** A link to Paddle's customer portal (change plan or card, invoices, cancel). */
+  /** POST { interval } → { url } of Dodo's hosted checkout page for this user. */
+  app.post("/api/billing/checkout", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const body = (await c.req.json().catch(() => null)) as { interval?: unknown } | null;
+    const interval = body?.interval === "monthly" || body?.interval === "yearly" ? body.interval : null;
+    const products = productsOnSale(c.env);
+    if (!products) return c.json({ error: "billing_unavailable" }, 503);
+    if (!interval || !products[interval]) return c.json({ error: "bad_request" }, 400);
+    if (auth.user.plan === "pro") return c.json({ error: "already_pro" }, 409);
+    try {
+      const client = dodo(c);
+      let customerId = await getCustomerId(c.env.DB, auth.user.id);
+      if (!customerId) {
+        customerId = await client.createCustomer({ email: auth.user.email, name: auth.user.name, userId: auth.user.id });
+        await saveCustomerId(c.env.DB, auth.user.id, customerId, deps.now());
+      }
+      return c.json({ url: await client.checkoutUrl({ productId: products[interval]!, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/?pro=thanks` }) });
+    } catch (err) {
+      if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the checkout. Try again." }, 502);
+      throw err;
+    }
+  });
+
+  /** A link to Dodo's customer portal (change plan or card, invoices, cancel). */
   app.post("/api/billing/portal", requireAuth, async (c) => {
     const auth = c.get("auth");
     const sub = await getSubscription(c.env.DB, auth.user.id);
     if (!sub) return c.json({ error: "no_subscription" }, 404);
-    if (!c.env.PADDLE_API_KEY) return c.json({ error: "billing_unavailable" }, 503);
+    if (!c.env.DODO_API_KEY) return c.json({ error: "billing_unavailable" }, 503);
     try {
-      return c.json({ url: await (deps.paddle ?? paddleClient)(c.env.PADDLE_API_KEY, paddleEnv(c)).portalUrl(sub.customer_id, sub.subscription_id) });
+      return c.json({ url: await dodo(c).portalUrl(sub.customer_id, `${appOrigin(c)}/`) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the subscription page. Try again." }, 502);
       throw err;
     }
   });
 
-  /** Paddle → us. Signed with the destination's secret key; nothing else is trusted. */
+  /** Dodo → us (Standard Webhooks signature with the endpoint's secret); nothing else is trusted. */
   app.post("/api/billing/webhook", async (c) => {
-    const secret = c.env.PADDLE_WEBHOOK_SECRET;
+    const secret = c.env.DODO_WEBHOOK_SECRET;
     if (!secret) return c.json({ error: "not_found" }, 404);
     const raw = await c.req.text();
-    if (!(await verifyPaddleSignature(raw, c.req.header("Paddle-Signature"), secret, deps.now()))) return c.json({ error: "bad_signature" }, 401);
-    let event: PaddleEvent;
+    const headers = { id: c.req.header("webhook-id"), timestamp: c.req.header("webhook-timestamp"), signature: c.req.header("webhook-signature") };
+    if (!(await verifyWebhook(raw, headers, secret, deps.now()))) return c.json({ error: "bad_signature" }, 401);
+    let event: DodoEvent;
     try {
-      event = JSON.parse(raw) as PaddleEvent;
+      event = JSON.parse(raw) as DodoEvent;
     } catch {
       return c.json({ error: "bad_request" }, 400);
     }
     const result = await applySubscriptionEvent(c.env.DB, event, deps.now());
-    console.log(JSON.stringify({ msg: "paddle_webhook", type: event.event_type, applied: result.applied, ...(result.applied ? { plan: result.plan } : { reason: result.reason }) }));
-    // 200 even when ignored, so Paddle doesn't retry events we can't use.
+    console.log(JSON.stringify({ msg: "dodo_webhook", type: event.type, applied: result.applied, ...(result.applied ? { plan: result.plan } : { reason: result.reason }) }));
+    // 200 even when ignored, so Dodo doesn't retry events we can't use.
     return c.json({ ok: true, applied: result.applied });
   });
 

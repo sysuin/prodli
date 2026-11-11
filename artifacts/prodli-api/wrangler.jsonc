@@ -12,10 +12,10 @@
 // Secrets: `wrangler secret put NAME --env <env>` — never in this file.
 //   ANTHROPIC_API_KEY  enables AI summaries through ProdLi (phase 4)
 //   ADMIN_TOKEN        (32+ chars) enables /api/admin/* backup + restore (phase 5)
-//   PADDLE_WEBHOOK_SECRET  Paddle notification destination's secret key (ProdLi Pro)
-//   PADDLE_API_KEY         Paddle API key: subscription portal links, cancel on account deletion
-// ProdLi Pro (src/billing.ts) is on sale only when PADDLE_CLIENT_TOKEN, a price
-// and PADDLE_WEBHOOK_SECRET are set. Client tokens and price ids are public.
+//   DODO_API_KEY         Dodo Payments API key (ProdLi Pro: checkout, portal, cancel)
+//   DODO_WEBHOOK_SECRET  Dodo webhook endpoint secret (whsec_…)
+// ProdLi Pro (src/billing.ts) is on sale only when both secrets and a product id
+// are set. Product ids are public.
 // Google OAuth client IDs are public (they ship in every page/extension), so
 // they live here as plain vars.
 {
@@ -54,11 +54,10 @@
         "ENV": "staging",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
-        // Paddle sandbox (test cards, no real money). Fill in from sandbox-vendors.paddle.com.
-        "PADDLE_ENV": "sandbox",
-        "PADDLE_CLIENT_TOKEN": "",
-        "PADDLE_PRICE_MONTHLY": "",
-        "PADDLE_PRICE_YEARLY": ""
+        // Dodo test mode (test cards, no real money): ProdLi brand → products (pdt_…).
+        "DODO_ENV": "test",
+        "DODO_PRODUCT_MONTHLY": "",
+        "DODO_PRODUCT_YEARLY": ""
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core-staging", "database_id": "b599423c-7434-45eb-b9e1-79aa69458b01", "migrations_dir": "migrations" }
@@ -83,11 +82,10 @@
         "ENV": "production",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
-        // Paddle live account (vendors.paddle.com). Empty = Pro not on sale yet.
-        "PADDLE_ENV": "production",
-        "PADDLE_CLIENT_TOKEN": "",
-        "PADDLE_PRICE_MONTHLY": "",
-        "PADDLE_PRICE_YEARLY": ""
+        // Dodo live mode. Empty = Pro not on sale yet.
+        "DODO_ENV": "live",
+        "DODO_PRODUCT_MONTHLY": "",
+        "DODO_PRODUCT_YEARLY": ""
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core", "database_id": "58116cae-079a-4a3f-aeeb-20f905a37cd1", "migrations_dir": "migrations" }

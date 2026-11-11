@@ -34,71 +34,53 @@ import {
   type ProdliUser,
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
-import { checkout, formatBytes, getBilling, localPrices, openPortal, upgradeInWebApp, type Billing, type Interval } from "../lib/billing";
+import { checkout, formatBytes, formatPrice, getBilling, openPortal, type Billing, type Interval } from "../lib/billing";
 
-/** Set by the web app when it was opened at /?upgrade=… (from the extension). */
-export const PENDING_UPGRADE_KEY = "prodli_pendingUpgrade";
-
-function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
+function PlanBox({ user }: { user: ProdliUser }) {
   const [billing, setBilling] = useState<Billing | null | undefined>(undefined);
   const [period, setPeriod] = useState<Interval>("yearly");
-  const [prices, setPrices] = useState<Partial<Record<Interval, string>>>({});
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-  const started = useRef(false);
+  const waiting = useRef<AbortController | null>(null);
 
   useEffect(() => {
     getBilling().then(
       (b) => {
         setBilling(b);
-        if (b.checkout && !b.checkout.prices.yearly) setPeriod("monthly");
-        if (b.checkout && !ext) localPrices(b.checkout).then(setPrices, () => {});
+        if (b.onSale && !b.onSale.yearly) setPeriod("monthly");
       },
       () => setBilling(null),
     );
-  }, [user.plan, ext]);
+  }, [user.plan]);
+  useEffect(() => () => waiting.current?.abort(), []);
 
-  const buy = async (b: Billing, which: Interval) => {
+  const buy = async (which: Interval) => {
     setBusy(true);
     setNote(null);
+    waiting.current?.abort();
+    const ctrl = new AbortController();
+    waiting.current = ctrl;
     try {
-      if (ext) {
-        upgradeInWebApp(which);
-        setNote({ tone: "ok", text: "Finish in the ProdLi tab that just opened (sign in there with the same Google account). Pro turns on here automatically." });
-        return;
-      }
-      const r = await checkout(b, which, user, document.documentElement.classList.contains("dark"));
+      const pending = checkout(which, ctrl.signal);
+      setNote({ tone: "ok", text: "Checkout opened in a new tab. Pro turns on here as soon as the payment goes through." });
+      const r = await pending;
+      if (ctrl.signal.aborted) return;
       setBilling(await getBilling());
-      setNote(r === "pro" ? { tone: "ok", text: "🎉 You're on ProdLi Pro. Thank you!" } : { tone: "ok", text: "Payment received — Pro turns on in a moment (Paddle is confirming it)." });
+      setNote(r === "pro" ? { tone: "ok", text: "🎉 You're on ProdLi Pro. Thank you!" } : { tone: "ok", text: "Finished paying? Pro turns on within a minute — reopen this window to check." });
     } catch (err) {
       setNote({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong." });
     } finally {
-      setBusy(false);
+      if (!ctrl.signal.aborted) setBusy(false);
     }
   };
 
-  // Opened from the extension's "Upgrade": continue straight to checkout.
-  useEffect(() => {
-    if (ext || started.current || !billing?.checkout || billing.plan === "pro") return;
-    let pending: string | null = null;
-    try {
-      pending = sessionStorage.getItem(PENDING_UPGRADE_KEY);
-      sessionStorage.removeItem(PENDING_UPGRADE_KEY);
-    } catch {
-      // storage unavailable
-    }
-    if (pending === "monthly" || pending === "yearly") {
-      started.current = true;
-      setPeriod(pending);
-      void buy(billing, pending);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [billing, ext]);
-
-  if (billing === undefined) return null;
-  if (billing === null) return null; // older server without billing
+  if (!billing) return null; // loading, or an older server without billing
   const pro = billing.plan === "pro";
   const fmtDate = (t: number | null) => (t ? new Date(t).toLocaleDateString([], { dateStyle: "medium" }) : "");
+  const priceText = (i: Interval) => {
+    const p = billing.prices[i];
+    return p ? formatPrice(p) : "";
+  };
   const row = (labelText: string, free: string, proValue: string) => (
     <tr>
       <td style={{ padding: "3px 0", opacity: 0.85 }}>{labelText}</td>
@@ -107,6 +89,7 @@ function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
     </tr>
   );
   const L = billing.limits;
+  const both = !!billing.onSale?.monthly && !!billing.onSale?.yearly;
 
   return (
     <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }} data-testid="plan-box">
@@ -117,7 +100,7 @@ function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
             {billing.subscription?.endsAt
               ? `Pro until ${fmtDate(billing.subscription.endsAt)} (cancelled — you won't be charged again).`
               : billing.subscription?.status === "past_due"
-                ? "Your last payment didn't go through. Paddle will retry — update your card to keep Pro."
+                ? "Your last payment didn't go through. Update your card to keep Pro."
                 : billing.subscription?.renewsAt
                   ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
                   : "Thanks for supporting ProdLi!"}
@@ -129,7 +112,7 @@ function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
               <button style={btn(false, busy)} disabled={busy} onClick={() => void openPortal().catch((e: Error) => setNote({ tone: "error", text: e.message }))}>
                 Manage subscription
               </button>
-              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Change plan or card, download invoices, or cancel — on Paddle's secure page.</div>
+              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Change plan or card, download invoices, or cancel — on Dodo Payments' secure page.</div>
             </div>
           )}
         </>
@@ -150,24 +133,24 @@ function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
               {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
             </tbody>
           </table>
-          {billing.checkout ? (
+          {billing.onSale ? (
             <>
-              {billing.checkout.prices.monthly && billing.checkout.prices.yearly && (
+              {both && (
                 <div role="radiogroup" aria-label="Billing period" style={{ display: "flex", gap: 6 }}>
                   {(["monthly", "yearly"] as const).map((i) => (
                     <button key={i} role="radio" aria-checked={period === i} onClick={() => setPeriod(i)} style={{ ...btn(period === i), flex: 1, textTransform: "none", fontSize: 13 }}>
                       {i === "monthly" ? "Monthly" : "Yearly"}
-                      {prices[i] ? ` · ${prices[i]}` : ""}
+                      {priceText(i) ? ` · ${priceText(i)}` : ""}
                       {i === "yearly" && <span style={{ display: "block", fontSize: 10, fontWeight: 700 }}>best value</span>}
                     </button>
                   ))}
                 </div>
               )}
-              <button style={{ ...btn(true, busy), fontSize: 14, padding: "10px 16px" }} disabled={busy} onClick={() => void buy(billing, period)} data-testid="upgrade">
-                {busy ? "Opening checkout…" : `⭐ Upgrade to Pro${prices[period] ? ` — ${prices[period]}/${period === "monthly" ? "month" : "year"}` : ""}`}
+              <button style={{ ...btn(true, busy), fontSize: 14, padding: "10px 16px" }} disabled={busy} onClick={() => void buy(period)} data-testid="upgrade">
+                {busy ? "Waiting for payment…" : `⭐ Upgrade to Pro${priceText(period) ? ` — ${priceText(period)}/${period === "monthly" ? "month" : "year"}` : ""}`}
               </button>
               <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.5 }}>
-                Payments by Paddle, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.{ext ? " Checkout opens in a ProdLi tab." : ""}
+                Payments by Dodo Payments, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.
               </div>
             </>
           ) : (
@@ -468,7 +451,7 @@ function ProdliAccountPanel() {
         <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
       </div>
 
-      <PlanBox user={user} ext={ext} />
+      <PlanBox user={user} />
 
       <SyncBox ext={ext} />
 
