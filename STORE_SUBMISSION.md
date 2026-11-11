@@ -4,7 +4,7 @@ Everything to paste into the [Developer Dashboard](https://chrome.google.com/web
 
 ## 1. Package
 
-- Build: `pnpm run build:extension` from the repo root → `prodli-extension.zip` (or download it from the latest CI run on GitHub → Actions → Artifacts).
+- Build: `pnpm run build:extension:store` from the repo root → `prodli-extension-store.zip` (always against https://app.prodli.com, with Google sign-in from `.env.local`). The CI zip and the plain `build:extension` are for testing only.
 - For Google sign-in to work in the store build, build with `PRODLI_GOOGLE_CLIENT_ID` set (see `docs/GOOGLE-SIGN-IN.md`). Without it, sign-in shows "not set up" and everything else works.
 - Version in `artifacts/prodli/extension/manifest.json`: **1.3.0** (bump for every upload).
 

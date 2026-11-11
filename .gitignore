@@ -50,6 +50,8 @@ artifacts/prodli/dist-extension-test/
 artifacts/prodli/dist-extension-server-test/
 artifacts/prodli/*.staging/
 prodli-extension.zip
+prodli-extension-store.zip
+artifacts/prodli/dist-extension-store/
 site-dist/
 
 # Local secrets (Google client ID, extension key)

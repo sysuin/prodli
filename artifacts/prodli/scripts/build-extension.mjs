@@ -3,9 +3,10 @@
  * Builds the ProdLi Chrome extension and packages it into prodli-extension.zip.
  *
  * Usage (from artifacts/prodli/):
- *   node scripts/build-extension.mjs
- * Or via npm script:
- *   pnpm build:extension
+ *   pnpm build:extension         → dist-extension/ (the copy you load in Chrome) + prodli-extension.zip
+ *   pnpm build:extension:store   → dist-extension-store/ + prodli-extension-store.zip, always
+ *                                  against production (https://app.prodli.com): upload this one
+ *                                  to the Chrome Web Store. It never touches dist-extension/.
  */
 
 import { execSync } from "child_process";
@@ -20,17 +21,31 @@ const workspaceRoot = resolve(root, "..", "..");
 
 // PRODLI_OUT_DIR: build somewhere other than dist-extension (tests use
 // dist-extension-test so they never touch the copy loaded in your Chrome).
-const outName = process.env.PRODLI_OUT_DIR?.trim() || "dist-extension";
+// Settings from the git-ignored .env.local at the repo root (`export NAME=value` lines), for
+// any not already set in the shell. Tests set them to "" on purpose, which is kept.
+const envFile = resolve(workspaceRoot, ".env.local");
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].trim().replace(/^(["'])(.*)\1$/, "$2");
+  }
+}
+
+const isStoreBuild = process.env.PRODLI_STORE === "1";
+const PRODUCTION_API = "https://app.prodli.com";
+if (isStoreBuild) process.env.VITE_PRODLI_API = PRODUCTION_API;
+const outName = isStoreBuild ? "dist-extension-store" : process.env.PRODLI_OUT_DIR?.trim() || "dist-extension";
 const isMainBuild = outName === "dist-extension";
+const api = process.env.VITE_PRODLI_API?.trim() || "(none: accounts off)";
 const finalDir = resolve(root, outName);
 // Build into a staging folder and swap it in at the end. Chrome may have the
 // final folder loaded unpacked; if it reloads while the folder is half-written
 // it can drop the extension *and its data*, so the folder is never half-written.
 const distDir = `${finalDir}.staging`;
-const zipPath = resolve(workspaceRoot, "prodli-extension.zip");
+const zipPath = resolve(workspaceRoot, isStoreBuild ? "prodli-extension-store.zip" : "prodli-extension.zip");
 rmSync(distDir, { recursive: true, force: true });
 
-console.log(`==> Building extension with Vite (${outName})...`);
+console.log(`==> Building extension with Vite (${outName}, account server: ${api})...`);
 execSync(`pnpm vite build --config vite.extension.config.ts --outDir "${distDir}" --emptyOutDir`, {
   cwd: root,
   stdio: "inherit",
@@ -83,12 +98,12 @@ console.log(`==> Swapping the new build into ${outName}/...`);
 rmSync(finalDir, { recursive: true, force: true });
 renameSync(distDir, finalDir);
 
-if (!isMainBuild) {
+if (!isMainBuild && !isStoreBuild) {
   console.log(`\n✓ Done! Test build: ${finalDir} (no zip)`);
   process.exit(0);
 }
 
-console.log("\n==> Packaging into prodli-extension.zip...");
+console.log(`\n==> Packaging into ${zipPath.split("/").pop()}...`);
 if (existsSync(zipPath)) rmSync(zipPath);
 
 await new Promise((resolvePromise, reject) => {
@@ -110,4 +125,9 @@ await new Promise((resolvePromise, reject) => {
 });
 
 console.log(`\n✓ Done! Extension zip: ${zipPath}`);
-console.log("  Upload this file at: https://chrome.google.com/webstore/devconsole");
+if (isStoreBuild) {
+  if (!manifest.oauth2) console.log("  ⚠ Google sign-in isn't configured (PRODLI_GOOGLE_CLIENT_ID): don't upload this one.");
+  console.log("  Upload this file at: https://chrome.google.com/webstore/devconsole");
+} else if (api !== PRODUCTION_API) {
+  console.log(`  This build uses ${api}. For the Chrome Web Store, run: pnpm build:extension:store`);
+}
