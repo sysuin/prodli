@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformProxy } from "wrangler";
 import { AiError } from "../src/ai";
+import { BillingError } from "../src/billing";
 import { GoogleAuthError, type GoogleIdentity } from "../src/google";
 import { createApp, type Deps, type Env } from "../src/app";
 import { fakeUserStoreNamespace } from "./userStoreFake";
@@ -63,6 +64,17 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Summarizing failed. Try again.");
       return { title: `Notes: ${input.title}`, overview: "o", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
+    paddle: (apiKey, environment) => ({
+      async portalUrl(customerId, subscriptionId) {
+        calls.push({ kind: "paddle-portal", clientId: `${environment}:${customerId}:${subscriptionId}` });
+        if (apiKey === "FAIL") throw new BillingError("Paddle answered 500");
+        return `https://customer-portal.paddle.com/${customerId}`;
+      },
+      async cancelNow(subscriptionId) {
+        calls.push({ kind: "paddle-cancel", clientId: subscriptionId });
+        if (apiKey === "FAIL") throw new BillingError("Paddle answered 500");
+      },
+    }),
     now: () => clock.now,
   };
   return { app: createApp(deps), clock, calls };

@@ -34,6 +34,155 @@ import {
   type ProdliUser,
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
+import { checkout, formatBytes, getBilling, localPrices, openPortal, upgradeInWebApp, type Billing, type Interval } from "../lib/billing";
+
+/** Set by the web app when it was opened at /?upgrade=… (from the extension). */
+export const PENDING_UPGRADE_KEY = "prodli_pendingUpgrade";
+
+function PlanBox({ user, ext }: { user: ProdliUser; ext: boolean }) {
+  const [billing, setBilling] = useState<Billing | null | undefined>(undefined);
+  const [period, setPeriod] = useState<Interval>("yearly");
+  const [prices, setPrices] = useState<Partial<Record<Interval, string>>>({});
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    getBilling().then(
+      (b) => {
+        setBilling(b);
+        if (b.checkout && !b.checkout.prices.yearly) setPeriod("monthly");
+        if (b.checkout && !ext) localPrices(b.checkout).then(setPrices, () => {});
+      },
+      () => setBilling(null),
+    );
+  }, [user.plan, ext]);
+
+  const buy = async (b: Billing, which: Interval) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      if (ext) {
+        upgradeInWebApp(which);
+        setNote({ tone: "ok", text: "Finish in the ProdLi tab that just opened (sign in there with the same Google account). Pro turns on here automatically." });
+        return;
+      }
+      const r = await checkout(b, which, user, document.documentElement.classList.contains("dark"));
+      setBilling(await getBilling());
+      setNote(r === "pro" ? { tone: "ok", text: "🎉 You're on ProdLi Pro. Thank you!" } : { tone: "ok", text: "Payment received — Pro turns on in a moment (Paddle is confirming it)." });
+    } catch (err) {
+      setNote({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Opened from the extension's "Upgrade": continue straight to checkout.
+  useEffect(() => {
+    if (ext || started.current || !billing?.checkout || billing.plan === "pro") return;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PENDING_UPGRADE_KEY);
+      sessionStorage.removeItem(PENDING_UPGRADE_KEY);
+    } catch {
+      // storage unavailable
+    }
+    if (pending === "monthly" || pending === "yearly") {
+      started.current = true;
+      setPeriod(pending);
+      void buy(billing, pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billing, ext]);
+
+  if (billing === undefined) return null;
+  if (billing === null) return null; // older server without billing
+  const pro = billing.plan === "pro";
+  const fmtDate = (t: number | null) => (t ? new Date(t).toLocaleDateString([], { dateStyle: "medium" }) : "");
+  const row = (labelText: string, free: string, proValue: string) => (
+    <tr>
+      <td style={{ padding: "3px 0", opacity: 0.85 }}>{labelText}</td>
+      <td style={{ padding: "3px 8px", textAlign: "right", fontWeight: 700 }}>{free}</td>
+      <td style={{ padding: "3px 0", textAlign: "right", fontWeight: 900 }}>{proValue}</td>
+    </tr>
+  );
+  const L = billing.limits;
+
+  return (
+    <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }} data-testid="plan-box">
+      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{pro ? "⭐ ProdLi Pro" : "Your plan: Free"}</div>
+      {pro ? (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+            {billing.subscription?.endsAt
+              ? `Pro until ${fmtDate(billing.subscription.endsAt)} (cancelled — you won't be charged again).`
+              : billing.subscription?.status === "past_due"
+                ? "Your last payment didn't go through. Paddle will retry — update your card to keep Pro."
+                : billing.subscription?.renewsAt
+                  ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
+                  : "Thanks for supporting ProdLi!"}
+            <br />
+            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions a month, {formatBytes(L.pro.storageBytes)} of sync.
+          </div>
+          {billing.canManage && (
+            <div>
+              <button style={btn(false, busy)} disabled={busy} onClick={() => void openPortal().catch((e: Error) => setNote({ tone: "error", text: e.message }))}>
+                Manage subscription
+              </button>
+              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Change plan or card, download invoices, or cancel — on Paddle's secure page.</div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <th style={{ textAlign: "left", fontWeight: 800 }}>Per month</th>
+                <th style={{ textAlign: "right", fontWeight: 800, padding: "0 8px" }}>Free</th>
+                <th style={{ textAlign: "right", fontWeight: 900 }}>Pro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {row("AI meeting summaries", String(L.free.summaries), String(L.pro.summaries))}
+              {row("AI daily briefs & reviews", String(L.free.briefs), String(L.pro.briefs))}
+              {row("Ask ProdLi questions", String(L.free.asks), String(L.pro.asks))}
+              {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
+            </tbody>
+          </table>
+          {billing.checkout ? (
+            <>
+              {billing.checkout.prices.monthly && billing.checkout.prices.yearly && (
+                <div role="radiogroup" aria-label="Billing period" style={{ display: "flex", gap: 6 }}>
+                  {(["monthly", "yearly"] as const).map((i) => (
+                    <button key={i} role="radio" aria-checked={period === i} onClick={() => setPeriod(i)} style={{ ...btn(period === i), flex: 1, textTransform: "none", fontSize: 13 }}>
+                      {i === "monthly" ? "Monthly" : "Yearly"}
+                      {prices[i] ? ` · ${prices[i]}` : ""}
+                      {i === "yearly" && <span style={{ display: "block", fontSize: 10, fontWeight: 700 }}>best value</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button style={{ ...btn(true, busy), fontSize: 14, padding: "10px 16px" }} disabled={busy} onClick={() => void buy(billing, period)} data-testid="upgrade">
+                {busy ? "Opening checkout…" : `⭐ Upgrade to Pro${prices[period] ? ` — ${prices[period]}/${period === "monthly" ? "month" : "year"}` : ""}`}
+              </button>
+              <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.5 }}>
+                Payments by Paddle, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.{ext ? " Checkout opens in a ProdLi tab." : ""}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, opacity: 0.8 }}>ProdLi Pro is coming soon. Everything above stays free.</div>
+          )}
+        </>
+      )}
+      {note && (
+        <div role="status" style={{ border: "var(--nb-border)", padding: "8px 12px", fontSize: 13, fontWeight: 700, background: note.tone === "ok" ? "#D7F5D7" : "#FFCDD2", color: "#000" }}>
+          {note.text}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Profile = Pick<GoogleAccount, "name" | "email" | "picture">;
 
@@ -318,6 +467,8 @@ function ProdliAccountPanel() {
         </div>
         <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
       </div>
+
+      <PlanBox user={user} ext={ext} />
 
       <SyncBox ext={ext} />
 

@@ -93,6 +93,7 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
   {
     title: "Who processes data for us",
     body: `• Cloudflare, Inc.: hosting, databases, sync, backups and request logs
+• Paddle (Paddle.com Market Limited and its affiliates): if you buy ProdLi Pro. Paddle is our reseller and the merchant of record: it sells you the subscription, takes payment and handles tax and invoices under its own buyer terms and privacy policy. You give your payment details to Paddle, not to us. Paddle tells us your subscription's status, plan, renewal date and Paddle customer and subscription IDs, linked to your ProdLi account; we never receive your card details.
 • Google LLC: sign-in
 • Anthropic, PBC: AI daily briefs, weekly reviews, Ask ProdLi answers and meeting summaries, only when you use them with your account
 These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
@@ -107,6 +108,7 @@ These providers process data only to provide their services to us, under data pr
 • Request logs: up to 7 days.
 • Backups: we back up synced data nightly. Each copy is deleted automatically after 30 days. Our hosting provider's automatic recovery points also expire within 30 days.
 • "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
+• Subscription records (ProdLi Pro): while you have the account. Paddle keeps payment and tax records as the law requires; deleting your ProdLi account cancels your subscription.
 • Signing out keeps your data on that device. Data stored only in your browser stays until you delete it.`,
   },
   {
@@ -175,6 +177,12 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
     body: `Your notes, tasks, meetings and other content belong to you. You give us permission to store, copy, sync, back up and process your content only as needed to provide ProdLi to you. This includes sending meeting transcripts to our AI provider when you ask for a summary. This permission ends when you delete the content or your account, except for backup copies that expire as described in the Privacy Policy.
 
 You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it.`,
+  },
+  {
+    title: "ProdLi Pro (paid plan)",
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI briefs and 1,000 Ask ProdLi questions per month). Our order process is conducted by our online reseller Paddle.com. Paddle.com is the Merchant of Record for all our orders. Paddle provides all customer service inquiries and handles returns.
+
+Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Paddle's buyer terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },
   {
     title: "Acceptable use",

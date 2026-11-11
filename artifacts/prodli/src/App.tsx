@@ -5,7 +5,8 @@ import { usePomodoroTimer } from "./lib/usePomodoroTimer";
 import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
-import { AccountButton, AccountModal } from "./components/AccountModal";
+import { AccountButton, AccountModal, PENDING_UPGRADE_KEY } from "./components/AccountModal";
+import { UPGRADE_EVENT } from "./lib/billing";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
 import { dayKey, getTodaySettings } from "./lib/today";
@@ -149,6 +150,26 @@ export default function App() {
       setDroppedFile(await handle.getFile());
       setSection("files");
     });
+  }, []);
+
+  // Upgrade to Pro: from anywhere in the app (lib/billing.ts openUpgrade), or the
+  // web app opened at /?upgrade=monthly|yearly by the extension.
+  useEffect(() => {
+    const open = () => setShowAccount(true);
+    window.addEventListener(UPGRADE_EVENT, open);
+    const wanted = new URLSearchParams(window.location.search).get("upgrade");
+    if (wanted === "monthly" || wanted === "yearly") {
+      try {
+        sessionStorage.setItem(PENDING_UPGRADE_KEY, wanted);
+      } catch {
+        // storage unavailable: the account window still opens
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("upgrade");
+      window.history.replaceState(null, "", url.toString());
+      open();
+    }
+    return () => window.removeEventListener(UPGRADE_EVENT, open);
   }, []);
 
   // Any section can open Ask ProdLi with a question (lib/ask.ts openAsk).

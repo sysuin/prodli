@@ -35,7 +35,7 @@ describe("AI summaries through the ProdLi account", () => {
 
   it("explains the monthly limit in plain words", async () => {
     await storageSet("prodliAccount", { id: "u", email: "a@example.com", name: "A", picture: null, plan: "free", createdAt: 0 });
-    await expect(summarizeMeeting({ ...meeting, title: "QUOTA" })).rejects.toThrow(/used this month's free AI summaries/);
+    await expect(summarizeMeeting({ ...meeting, title: "QUOTA" })).rejects.toThrow(/used this month's AI summaries.*ProdLi Pro/);
   });
 
   it("asks to sign in when signed out", async () => {
