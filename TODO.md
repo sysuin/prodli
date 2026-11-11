@@ -9,7 +9,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [ ] **Legal (blocks launch):** lawyer review of the privacy policy and terms (incl. the new ProdLi Pro section), then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys once none are left.
 - [ ] **Google consent screen:** once the legal pages are live, add app.prodli.com, prodli.com/privacy and /terms → **Publish app**. Calendar access needs Google's verification (can take weeks).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip`, privacy disclosures, submit ([STORE_SUBMISSION.md](STORE_SUBMISSION.md)).
-- [ ] **ProdLi Pro (when ready to sell):** Paddle sandbox, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), add the monthly/yearly products, API key and webhook — test mode, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [ ] **Real-use checks:**
   - [ ] A real Google Meet call with captions on (full transcript, summary)
   - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
@@ -55,7 +55,7 @@ From the repo root (see README.md for all commands):
 
 ## Done
 
-- [x] 2026-11-11 — ProdLi Pro: plans, Paddle checkout and subscription management (on sale once Paddle is set up)
+- [x] 2026-11-11 — ProdLi Pro: plans, Dodo Payments checkout and subscription management (on sale once Dodo is set up)
 - [x] 2026-11-11 — Weekly review; time blocks on Today; caption gaps filled from on-device transcription
 - [x] 2026-11-10 — Local Markdown/CSV/JSON files dropped on Chrome open in ProdLi
 - [x] 2026-11-10 — Today (daily brief, calendar), Ask ProdLi, Add to ProdLi from any page, AI summaries via ProdLi's own key, Meet recording fixes
