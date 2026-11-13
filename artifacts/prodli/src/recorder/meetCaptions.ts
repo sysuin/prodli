@@ -295,8 +295,32 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
       font: "600 12px/1.35 system-ui, sans-serif",
     } satisfies Partial<CSSStyleDeclaration>);
-    warning.textContent = "ProdLi: turn on captions (CC) so it can transcribe. Only the audio is being recorded until then. Only you can see captions and this note.";
+    Object.assign(warning.style, { display: "flex", gap: "8px", alignItems: "flex-start" } satisfies Partial<CSSStyleDeclaration>);
+    const note = document.createElement("span");
+    note.textContent = "ProdLi: turn on captions (CC) so it can transcribe. Only the audio is being recorded until then. Only you can see captions and this note.";
+    warning.append(logoMark(16), note);
     document.body.appendChild(warning);
+  }
+
+  /** ProdLi's four-square mark (same as the extension icon and components/Logo.tsx). */
+  function logoMark(size: number): SVGSVGElement {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 128 128");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.flexShrink = "0";
+    for (const [x, y, w, fill] of [[0, 0, 128, "#000000"], [4, 4, 58, "#FFD700"], [66, 4, 58, "#00BCD4"], [4, 66, 58, "#FF6B6B"], [66, 66, 58, "#66BB6A"]] as const) {
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", String(x));
+      r.setAttribute("y", String(y));
+      r.setAttribute("width", String(w));
+      r.setAttribute("height", String(w));
+      r.setAttribute("fill", fill);
+      svg.appendChild(r);
+    }
+    return svg;
   }
 
   function showBadge(): void {
@@ -333,7 +357,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       cursor: "pointer",
     });
     stop.addEventListener("click", () => send({ target: "background", type: "stop-recording" }));
-    badge.append(dot, status, stop);
+    badge.append(logoMark(14), dot, status, stop);
     document.body.appendChild(badge);
     updateBadge();
   }

@@ -3,7 +3,7 @@
 
 export const LOGO_COLORS = { yellow: "#FFD700", cyan: "#00BCD4", red: "#FF6B6B", green: "#66BB6A", frame: "#000000" } as const;
 
-/** The four-square mark (identical to extension/icons/icon-*.png and public/favicon.svg). */
+/** The four-square mark (identical to extension/icons/icon-*.png, public/icon-*.png, public/favicon.svg and the Meet in-call label). */
 export function LogoMark({ size = 24, title }: { size?: number; title?: string }) {
   const c = LOGO_COLORS;
   return (

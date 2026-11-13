@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Logo } from "./Logo";
 import { accountsEnabled } from "../lib/prodliAccount";
 import { SECTIONS } from "../sections/registry";
 
@@ -296,7 +297,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ background: "#FFD700", color: "#000", fontWeight: 900, fontSize: 15, padding: "3px 10px", border: "2px solid #FFD700" }}>ProdLi</span>
+            <Logo size={24} />
             <span style={{ color: "#aaa", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>Help & Documentation</span>
           </div>
           <button
