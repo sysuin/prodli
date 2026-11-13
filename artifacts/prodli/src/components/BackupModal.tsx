@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { exportData, importData } from "../lib/backupRestore";
+import { Logo } from "./Logo";
 
 interface BackupModalProps {
   onClose?: () => void;
@@ -290,10 +291,7 @@ export function BackupModal({ onClose = () => {}, embedded = false }: BackupModa
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{
-              background: "#FFD700", color: "#000", fontWeight: 900,
-              fontSize: 13, padding: "2px 10px",
-            }}>ProdLi</span>
+            <Logo size={22} />
             <span style={{
               color: "#aaa", fontWeight: 700, fontSize: 12,
               textTransform: "uppercase", letterSpacing: "0.08em",
