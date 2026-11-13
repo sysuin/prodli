@@ -6,6 +6,7 @@ import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { BackupModal } from "./components/BackupModal";
 import { AccountButton, AccountModal } from "./components/AccountModal";
+import { Logo } from "./components/Logo";
 import { UPGRADE_EVENT } from "./lib/billing";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
@@ -339,7 +340,7 @@ export default function App() {
   if (!loaded) {
     return (
       <div style={{ minHeight: "100vh", background: "hsl(var(--background))", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontWeight: 900, fontSize: 20, textTransform: "uppercase", letterSpacing: "0.1em", color: "hsl(var(--foreground))" }}>ProdLi</div>
+        <Logo size={32} />
       </div>
     );
   }
@@ -367,7 +368,7 @@ export default function App() {
     <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`} style={{ ["--accent" as string]: activeSection.accent }}>
       <nav aria-label="Sections" className="app-sidebar">
         <div className="side-brand">
-          <span className="brand-badge">{collapsed ? "P" : "ProdLi"}</span>
+          <Logo compact={collapsed} />
           <button className="side-collapse" onClick={toggleCollapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? "»" : "«"}
           </button>
@@ -408,7 +409,7 @@ export default function App() {
 
       {/* Phones: slim top bar + bottom tabs (the sidebar is hidden). */}
       <header className="mobile-topbar">
-        <span className="brand-badge">ProdLi</span>
+        <Logo size={24} />
         <span className="mobile-title">{activeSection.emoji} {activeSection.label}</span>
         <button className="mobile-icon" onClick={() => setQuickAdd({ open: true })} aria-label="Quick add">➕</button>
         <AccountButton onClick={() => setShowAccount(true)} className="mobile-icon mobile-account" />

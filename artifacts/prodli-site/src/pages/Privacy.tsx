@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { Logo } from "../components/Logo";
 
 /*
  * DRAFT for legal review (see docs/legal/REVIEW-NOTES.md). Every factual
@@ -251,10 +252,7 @@ function LegalPage({ title, sections }: { title: string; sections: { title: stri
         height: 56,
       }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{
-            background: "var(--yellow)", color: "#000", fontWeight: 900,
-            fontSize: 13, padding: "3px 12px", letterSpacing: "0.02em",
-          }}>ProdLi</span>
+          <Logo size={24} />
         </Link>
         <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 11, padding: "8px 18px" }}>
           Add to Chrome →
