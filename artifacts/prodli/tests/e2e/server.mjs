@@ -89,7 +89,8 @@ const check = (name, ok, detail = "") => {
 const ALICE = "good:alice:alice@example.com:Alice Example";
 const setInput = (selector, value) =>
   `(() => { const el = document.querySelector(${JSON.stringify(selector)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`;
-const openAccount = (p) => p.eval(`[...document.querySelectorAll("nav button")].find(b => (b.getAttribute("aria-label") || "").startsWith("Sign in") || (b.getAttribute("aria-label") || "").startsWith("Account")).click()`);
+// Settings at a section (account, plan, devices, data…), as the profile menu opens it.
+const openAccount = (p, tab = "account") => p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: ${JSON.stringify(tab)} } }))`);
 
 const b = new Browser();
 try {
@@ -116,11 +117,17 @@ try {
   await sleep(1500);
   let t = await p.text();
   check("Extension: signs in to the ProdLi account", t.includes("Alice Example") && t.includes("alice@example.com") && t.includes("Signed in as alice@example.com"), t.slice(0, 300));
-  check("Extension: lists this device", t.toLowerCase().includes("signed-in devices") && /Extension · .* ?\(this one\)/.test(t), t.slice(0, 400).replace(/\n/g, " | "));
+  check("Profile menu: the avatar opens a short menu with Settings", await p.eval(`(async () => { document.querySelector('nav button[aria-haspopup="menu"]').click(); await new Promise(r => setTimeout(r, 300)); const m = document.querySelector('[role="menu"]'); const ok = !!m && m.innerText.includes("Settings") && m.innerText.includes("Upgrade to Pro") && m.innerText.includes("alice@example.com"); document.querySelector('nav button[aria-haspopup="menu"]').click(); return ok; })()`));
+  await openAccount(p, "devices");
+  await sleep(900);
+  const devicesText = await p.text();
+  check("Extension: lists this device", devicesText.toLowerCase().includes("signed-in devices") && /Extension · .* ?\(this one\)/.test(devicesText), devicesText.slice(0, 400).replace(/\n/g, " | "));
   const { prodliSession } = await p.storage(["prodliSession"]);
   check("Extension: keeps a session token (not the Google token)", typeof prodliSession?.token === "string" && prodliSession.token.startsWith("pls_"));
   check("Extension: avatar button shows the account", await p.eval(`!!document.querySelector('nav button[aria-label="Account: alice@example.com"]')`));
 
+  await openAccount(p, "data");
+  await sleep(500);
   await p.click("Download my data");
   const exported = JSON.parse((await waitForDownload(b, "prodli-account-")) ?? "{}");
   check("Extension: downloads the account data", exported.format === "prodli-account-export" && exported.account?.email === "alice@example.com" && exported.devices?.length === 1);
@@ -139,6 +146,9 @@ try {
   await sleep(1500);
   t = await w.text();
   check("Web: same account as the extension", t.includes("Alice Example") && t.includes("alice@example.com"), t.slice(0, 300));
+  await openAccount(w, "devices");
+  await sleep(1200);
+  t = await w.text();
   check("Web: sees both devices (extension + web)", /Extension · /.test(t) && /Web · .* ?\(this one\)/.test(t), t.slice(0, 500).replace(/\n/g, " | "));
 
   console.log("sync");
@@ -248,7 +258,7 @@ try {
   await w.send("Page.reload", {});
   await sleep(2500);
   check("Web app: opens and shows your notes with no connection", await w.eval(`!!document.querySelector(".ProseMirror") && document.body.innerText.includes("Welcome to ProdLi")`));
-  await openAccount(w);
+  await openAccount(w, "devices");
   await sleep(1500);
   check("Web app: offline is shown as offline, not as an error", /Offline — your changes are saved here|Synced/.test(await w.text()), (await w.text()).slice(0, 400));
   await w.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
@@ -308,7 +318,7 @@ try {
 
   check("Today: shows how much is planned against the time left", /planned · .* free/.test(await w.eval(`document.querySelector('[data-testid="workload"]')?.innerText ?? ""`)));
 
-  await openAccount(w);
+  await openAccount(w, "devices");
   await sleep(800);
   t = await w.text();
   check("Sync: account window shows the sync status and usage", /Synced (just now|\d+ (s|min) ago)/.test(t) && /Using \d+ KB of 100\.0 MB/.test(t), t.slice(0, 600).replace(/\n/g, " | "));
@@ -332,6 +342,8 @@ try {
   await p.click("Sign in with Google", { exact: false });
   await sleep(1500);
   console.log("pro");
+  await openAccount(p, "plan");
+  await sleep(1200);
   t = await p.text();
   check("Pro: a free account sees the plans, Dodo's prices and an upgrade button", /your plan: free/i.test(t) && /AI meeting summaries\s*20\s*300/i.test(t) && /\$48/.test(t) && /upgrade to pro/i.test(t), t.slice(0, 700).replace(/\n/g, " | "));
   const before = new Set((await b.send("Target.getTargets")).targetInfos.map((x) => x.targetId));
@@ -358,7 +370,7 @@ try {
   const reopen = async () => {
     await p.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
     await sleep(300);
-    await openAccount(p);
+    await openAccount(p, "plan");
     await sleep(1200);
     return p.text();
   };
@@ -374,6 +386,8 @@ try {
   t = await reopen();
   check("Pro: cancelling returns the account to Free", /your plan: free/i.test(t), t.slice(0, 300).replace(/\n/g, " | "));
 
+  await openAccount(p, "account");
+  await sleep(800);
   await p.click("Delete account…");
   await sleep(200);
   check("Delete needs the email typed first", await p.eval(`[...document.querySelectorAll("button")].find(b => b.textContent.includes("Delete permanently")).disabled`));

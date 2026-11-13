@@ -14,6 +14,7 @@ export interface PaletteActions {
   account: () => void;
   backup: () => void;
   help: () => void;
+  settings: () => void;
 }
 
 interface Command {
@@ -39,8 +40,9 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
       { id: "quick-add", label: "Quick add a to-do or note", icon: "➕", keywords: "new create capture", run: actions.quickAdd },
       ...SECTIONS.map((s) => ({ id: `go-${s.key}`, label: `Go to ${s.label}`, icon: s.emoji, hint: `${mod}${s.shortcut}`, keywords: `${s.key} ${s.description}`, run: () => actions.go(s.key) })),
       { id: "theme", label: isDark ? "Switch to light mode" : "Switch to dark mode", icon: isDark ? "☀️" : "🌙", keywords: "theme dark light", run: actions.toggleTheme },
+      { id: "settings", label: "Settings", icon: "⚙️", keywords: "preferences options account plan sync appearance", run: actions.settings },
       { id: "account", label: "Account & sync", icon: "👤", keywords: "sign in login profile devices", run: actions.account },
-      { id: "backup", label: "Backup & restore", icon: "💾", keywords: "export import", run: actions.backup },
+      { id: "backup", label: "Backup & data", icon: "💾", keywords: "export import restore download", run: actions.backup },
       { id: "help", label: "Help & keyboard shortcuts", icon: "?", keywords: "shortcuts guide", run: actions.help },
     ];
     const q = query.trim().toLowerCase();

@@ -2,10 +2,9 @@ import { useState, useEffect, Suspense, lazy, useCallback, useRef } from "react"
 import { storageGet, storageSet } from "./lib/storage";
 import type { Section } from "./types";
 import { usePomodoroTimer } from "./lib/usePomodoroTimer";
-import { HelpModal } from "./components/HelpModal";
 import { OnboardingModal } from "./components/OnboardingModal";
-import { BackupModal } from "./components/BackupModal";
-import { AccountButton, AccountModal } from "./components/AccountModal";
+import { ProfileMenu } from "./components/ProfileMenu";
+import { SETTINGS_EVENT, SettingsModal, type SettingsTab } from "./components/Settings";
 import { Logo } from "./components/Logo";
 import { UPGRADE_EVENT } from "./lib/billing";
 import { accountsEnabled } from "./lib/prodliAccount";
@@ -100,14 +99,12 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
-  const [showHelp, setShowHelp] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showBackup, setShowBackup] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [draggingFile, setDraggingFile] = useState(false);
   const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
-  const closeAccount = useCallback(() => setShowAccount(false), []);
+  const closeSettings = useCallback(() => setSettingsTab(null), []);
   const [showPalette, setShowPalette] = useState(false);
   const [ask, setAsk] = useState<{ open: boolean; question?: string }>({ open: false });
   const [quickAdd, setQuickAdd] = useState<{ open: boolean; initial?: CaptureInput }>({ open: false });
@@ -156,8 +153,10 @@ export default function App() {
   // Upgrade to Pro: from anywhere in the app (lib/billing.ts openUpgrade), and
   // back from Dodo's checkout (/?pro=thanks) the account window shows the plan.
   useEffect(() => {
-    const open = () => setShowAccount(true);
+    const open = () => setSettingsTab("plan");
+    const onSettings = (e: Event) => setSettingsTab((e as CustomEvent<{ tab?: SettingsTab }>).detail?.tab ?? "account");
     window.addEventListener(UPGRADE_EVENT, open);
+    window.addEventListener(SETTINGS_EVENT, onSettings);
     // Dodo replaces our return URL's query with its own (subscription_id, payment_id,
     // status, email): show the plan, and take those (incl. the email) out of the address bar.
     const params = new URLSearchParams(window.location.search);
@@ -168,7 +167,10 @@ export default function App() {
       window.history.replaceState(null, "", url.toString());
       open();
     }
-    return () => window.removeEventListener(UPGRADE_EVENT, open);
+    return () => {
+      window.removeEventListener(UPGRADE_EVENT, open);
+      window.removeEventListener(SETTINGS_EVENT, onSettings);
+    };
   }, []);
 
   // Any section can open Ask ProdLi with a question (lib/ask.ts openAsk).
@@ -284,7 +286,8 @@ export default function App() {
       const target = e.target as HTMLElement;
       const isTyping = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-      if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
+      // "?" anywhere outside a text field: Help & shortcuts.
+      if (e.key === "?" && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setSettingsTab("help"); return; }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         // Ctrl/⌘+K: command palette (inside a note it stays the editor's link shortcut).
@@ -293,17 +296,16 @@ export default function App() {
         if (s) { e.preventDefault(); handleSectionChange(s.key); return; }
       }
 
-      if (e.key === " " && !e.ctrlKey && !e.metaKey && !isTyping && section === "pomodoro" && !showHelp) {
+      if (e.key === " " && !e.ctrlKey && !e.metaKey && !isTyping && section === "pomodoro" && !settingsTab) {
         e.preventDefault();
         pomodoroTimer.setRunning(!pomodoroTimer.running);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [section, showHelp, pomodoroTimer.running, pomodoroTimer.setRunning, handleSectionChange]);
+  }, [section, settingsTab, pomodoroTimer.running, pomodoroTimer.setRunning, handleSectionChange]);
 
-  const toggleTheme = async () => {
-    const next = !isDark;
+  const setTheme = async (next: boolean) => {
     setIsDark(next);
     if (next) {
       document.documentElement.classList.add("dark");
@@ -312,6 +314,7 @@ export default function App() {
     }
     await storageSet("theme", next ? "dark" : "light");
   };
+  const toggleTheme = () => setTheme(!isDark);
 
   const activeSection = sectionByKey(section);
 
@@ -332,9 +335,10 @@ export default function App() {
     addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}` : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
     toggleTheme: () => void toggleTheme(),
-    account: () => setShowAccount(true),
-    backup: () => setShowBackup(true),
-    help: () => setShowHelp(true),
+    account: () => setSettingsTab("account"),
+    backup: () => setSettingsTab("data"),
+    help: () => setSettingsTab("help"),
+    settings: () => setSettingsTab("account"),
   };
 
   if (!loaded) {
@@ -397,12 +401,7 @@ export default function App() {
             <span className="side-icon" aria-hidden>➕</span>
             <span className="side-label">Quick add</span>
           </button>
-          <AccountButton onClick={() => setShowAccount(true)} />
-          <div className="side-row">
-            <button className="side-mini" onClick={() => setShowBackup(true)} title="Backup & Restore" aria-label="Backup and restore">💾</button>
-            <button className="side-mini" onClick={() => setShowHelp(true)} title="Help & shortcuts" aria-label="Help and keyboard shortcuts">?</button>
-            <button className="side-mini" onClick={toggleTheme} title={isDark ? "Switch to light mode" : "Switch to dark mode"} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>{isDark ? "☀️" : "🌙"}</button>
-          </div>
+          <ProfileMenu variant="sidebar" isDark={isDark} onToggleTheme={() => void toggleTheme()} onSignedOut={flash} />
           <LiveClock accent={activeSection.accent} />
         </div>
       </nav>
@@ -412,7 +411,7 @@ export default function App() {
         <Logo size={24} />
         <span className="mobile-title">{activeSection.emoji} {activeSection.label}</span>
         <button className="mobile-icon" onClick={() => setQuickAdd({ open: true })} aria-label="Quick add">➕</button>
-        <AccountButton onClick={() => setShowAccount(true)} className="mobile-icon mobile-account" />
+        <ProfileMenu variant="topbar" isDark={isDark} onToggleTheme={() => void toggleTheme()} onSignedOut={flash} />
       </header>
 
       <main id="main" className="app-main">
@@ -452,8 +451,8 @@ export default function App() {
             ))}
             <div className="more-grid" style={{ marginTop: 10 }}>
               <button className="more-item" onClick={() => { setShowMore(false); setShowPalette(true); }}><span className="side-icon">🔎</span><span className="side-label">Search</span></button>
-              <button className="more-item" onClick={() => { setShowMore(false); setShowBackup(true); }}><span className="side-icon">💾</span><span className="side-label">Backup</span></button>
-              <button className="more-item" onClick={() => { setShowMore(false); setShowHelp(true); }}><span className="side-icon">?</span><span className="side-label">Help</span></button>
+              <button className="more-item" onClick={() => { setShowMore(false); setSettingsTab("account"); }}><span className="side-icon">⚙️</span><span className="side-label">Settings</span></button>
+              <button className="more-item" onClick={() => { setShowMore(false); setSettingsTab("help"); }}><span className="side-icon">?</span><span className="side-label">Help</span></button>
               <button className="more-item" onClick={() => { setShowMore(false); void toggleTheme(); }}><span className="side-icon">{isDark ? "☀️" : "🌙"}</span><span className="side-label">{isDark ? "Light" : "Dark"}</span></button>
             </div>
           </div>
@@ -472,10 +471,8 @@ export default function App() {
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
-      {showBackup && <BackupModal onClose={() => setShowBackup(false)} />}
-      {showAccount && <AccountModal onClose={closeAccount} />}
+      {settingsTab && <SettingsModal tab={settingsTab} onTab={setSettingsTab} onClose={closeSettings} isDark={isDark} setDark={(d) => void setTheme(d)} />}
     </div>
   );
 }

@@ -245,10 +245,6 @@ const mb = (n: number) =>
 /** Sync status, "Sync now" and what this device uploads. */
 function SyncBox({ ext }: { ext: boolean }) {
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [ai, setAi] = useState<AiUsage | null>(null);
-  useEffect(() => {
-    getAiUsage().then(setAi, () => setAi(null));
-  }, []);
   const [meetings, setMeetings] = useState(true);
   const [running, setRunning] = useState(false);
   const [, tick] = useState(0);
@@ -284,14 +280,6 @@ function SyncBox({ ext }: { ext: boolean }) {
           <>
             <br />
             <span style={{ opacity: 0.75 }}>Using {mb(s.usage.bytes)} of {mb(s.usage.quota)}.</span>
-          </>
-        )}
-        {ai?.available && (
-          <>
-            <br />
-            <span style={{ opacity: 0.75 }} data-testid="ai-usage">
-              AI meeting summaries: {Math.max(0, ai.limit - ai.used)} of {ai.limit} left this month.
-            </span>
           </>
         )}
         {!!s?.tooLarge && (
@@ -336,18 +324,11 @@ function SyncBox({ ext }: { ext: boolean }) {
   );
 }
 
-/** The ProdLi account (server): sign in, devices, download, delete. */
-function ProdliAccountPanel() {
-  const ext = isExtensionBuild();
-  const [user, setUser] = useState<ProdliUser | null | undefined>(undefined);
-  const [devices, setDevices] = useState<Device[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [typedEmail, setTypedEmail] = useState("");
-  const googleBtn = useRef<HTMLDivElement>(null);
-  const [buttonError, setButtonError] = useState<string | null>(null);
+export type AccountView = "account" | "devices";
 
+/** Shared state for the ProdLi account sections. */
+function useProdliUser() {
+  const [user, setUser] = useState<ProdliUser | null | undefined>(undefined);
   useEffect(() => {
     void getProdliAccount().then((cached) => {
       setUser(cached);
@@ -355,11 +336,57 @@ function ProdliAccountPanel() {
     });
     return onProdliAccountChange(setUser);
   }, []);
+  return [user, setUser] as const;
+}
 
-  useEffect(() => {
-    if (!user) return setDevices(null);
-    listDevices().then(setDevices, () => setDevices(null));
-  }, [user]);
+function useAction() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const act = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    setMessage(null);
+    try {
+      await fn();
+    } catch (err) {
+      setMessage({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong." });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const status = message && (
+    <div role="status" style={{ border: "var(--nb-border)", padding: "8px 12px", fontSize: 13, fontWeight: 700, background: message.tone === "ok" ? "#D7F5D7" : "#FFCDD2", color: "#000" }}>
+      {message.text}
+    </div>
+  );
+  return { busy, act, setMessage, status };
+}
+
+export const sectionTitle: React.CSSProperties = { fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" };
+export const box: React.CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 };
+
+/** Shown in sections that need an account, when signed out. */
+function SignInFirst({ what, onSignIn }: { what: string; onSignIn: () => void }) {
+  return (
+    <div style={box}>
+      <div style={{ fontSize: 14, lineHeight: 1.6 }}>{what}</div>
+      <div>
+        <button style={btn(true)} onClick={onSignIn}>
+          Sign in
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Settings › Account: profile, sign in / out, delete account. */
+function ProdliAccountSection() {
+  const ext = isExtensionBuild();
+  const [user, setUser] = useProdliUser();
+  const { busy, act, setMessage, status } = useAction();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [typedEmail, setTypedEmail] = useState("");
+  const googleBtn = useRef<HTMLDivElement>(null);
+  const [buttonError, setButtonError] = useState<string | null>(null);
 
   useEffect(() => {
     if (ext || user !== null || !googleBtn.current) return;
@@ -380,25 +407,7 @@ function ProdliAccountPanel() {
       cancelled = true;
       host.remove();
     };
-  }, [ext, user]);
-
-  const act = async (label: string, fn: () => Promise<void>) => {
-    setBusy(label);
-    setMessage(null);
-    try {
-      await fn();
-    } catch (err) {
-      setMessage({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong." });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const status = message && (
-    <div role="status" style={{ border: "var(--nb-border)", padding: "8px 12px", fontSize: 13, fontWeight: 700, background: message.tone === "ok" ? "#D7F5D7" : "#FFCDD2", color: "#000" }}>
-      {message.text}
-    </div>
-  );
+  }, [ext, user, setUser, setMessage]);
 
   if (user === undefined) return <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
 
@@ -442,22 +451,98 @@ function ProdliAccountPanel() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ ...box, gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12 }}>
         <Avatar account={user} size={48} />
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 900, fontSize: 16 }}>{user.name || user.email}</div>
           <div style={{ fontSize: 13, opacity: 0.75, overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
         </div>
-        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
+        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", background: user.plan === "pro" ? "#FFD700" : "transparent", color: user.plan === "pro" ? "#000" : undefined }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
       </div>
 
-      <PlanBox user={user} />
+      <div style={{ ...box, gridTemplateColumns: "1fr auto", alignItems: "center" }}>
+        <div>
+          <div style={sectionTitle}>Sign out</div>
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>Signs out of this {ext ? "extension" : "browser"}. Everything stays on this device.</div>
+        </div>
+        <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("signout", async () => {
+          await signOutHere();
+          if (ext && (await getAccount())) await signOut();
+          setUser(null);
+          setMessage({ tone: "ok", text: "Signed out." });
+        })}>
+          Sign out
+        </button>
+      </div>
 
+      <div style={{ ...box, borderColor: "#E53935" }}>
+        <div style={{ ...sectionTitle, color: "#C62828" }}>Danger zone</div>
+        {!confirmDelete ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, opacity: 0.8, flex: 1, minWidth: 200 }}>Delete your ProdLi account and everything synced to ProdLi’s servers{user.plan === "pro" ? " (your Pro subscription is cancelled too)" : ""}. Data saved on this device stays here.</span>
+            <button style={{ ...btn(false, !!busy), color: "#C62828" }} disabled={!!busy} onClick={() => setConfirmDelete(true)}>
+              Delete account…
+            </button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, display: "grid", gap: 8 }}>
+            <strong>Delete your ProdLi account permanently?</strong>
+            <span>This removes your account and everything synced to ProdLi’s servers, and signs out every device. Data saved on this device stays here. This can’t be undone.</span>
+            <label style={{ display: "grid", gap: 4 }}>
+              Type <strong>{user.email}</strong> to confirm:
+              <input value={typedEmail} onChange={(e) => setTypedEmail(e.target.value)} aria-label="Type your email to confirm" style={{ border: "var(--nb-border)", padding: "6px 8px", fontFamily: "inherit", background: "hsl(var(--background))", color: "inherit" }} />
+            </label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ ...btn(false, !!busy || typedEmail.trim().toLowerCase() !== user.email.toLowerCase()), background: "#C62828", color: "#fff" }}
+                disabled={!!busy || typedEmail.trim().toLowerCase() !== user.email.toLowerCase()}
+                onClick={() => void act("delete", async () => {
+                  await deleteAccount(typedEmail);
+                  if (ext && (await getAccount())) await signOut();
+                  setConfirmDelete(false);
+                  setUser(null);
+                  setMessage({ tone: "ok", text: "Your ProdLi account was deleted." });
+                })}
+              >
+                {busy === "delete" ? "Deleting…" : "Delete permanently"}
+              </button>
+              <button style={btn()} onClick={() => setConfirmDelete(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+      {status}
+    </div>
+  );
+}
+
+/** Settings › Sync & devices. */
+function ProdliDevicesSection({ onSignIn }: { onSignIn: () => void }) {
+  const ext = isExtensionBuild();
+  const [user, setUser] = useProdliUser();
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const { busy, act, setMessage, status } = useAction();
+
+  useEffect(() => {
+    if (!user) return setDevices(null);
+    listDevices().then(setDevices, () => setDevices(null));
+  }, [user]);
+
+  if (user === undefined) return <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
+  if (!user)
+    return (
+      <div style={{ display: "grid", gap: 16 }}>
+        <SignInFirst what="Sign in to keep your notes, to-dos, habits, meetings and history the same on every computer — in the extension and at app.prodli.com." onSignIn={onSignIn} />
+        {status}
+      </div>
+    );
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
       <SyncBox ext={ext} />
-
-      <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 8 }}>
-        <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Signed-in devices</div>
+      <div style={box}>
+        <div style={sectionTitle}>Signed-in devices</div>
         {devices === null ? (
           <span style={{ fontSize: 13, opacity: 0.7 }}>Loading…</span>
         ) : (
@@ -482,64 +567,85 @@ function ProdliAccountPanel() {
             </div>
           ))
         )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px dashed hsl(var(--border))", paddingTop: 10 }}>
+          <span style={{ fontSize: 12, opacity: 0.75 }}>Lost a device? Sign out of all of them at once.</span>
+          <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("everywhere", async () => {
+            await signOutEverywhere();
+            if (ext && (await getAccount())) await signOut();
+            setUser(null);
+            setMessage({ tone: "ok", text: "Signed out on every device." });
+          })}>
+            Sign out everywhere
+          </button>
+        </div>
       </div>
+      {status}
+    </div>
+  );
+}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+/** One "used / limit" bar. */
+function UsageBar({ label, used, limit, format = String }: { label: string; used: number; limit: number; format?: (n: number) => string }) {
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  return (
+    <div style={{ fontSize: 13 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 800 }}>
+          {format(used)} / {format(limit)}
+        </span>
+      </div>
+      <div style={{ height: 6, background: "hsl(var(--muted))", marginTop: 4 }} role="presentation">
+        <div style={{ height: "100%", width: `${pct}%`, background: pct >= 90 ? "#C62828" : "#00BCD4" }} />
+      </div>
+    </div>
+  );
+}
+
+/** Settings › Plan & usage. */
+function PlanSection({ onSignIn }: { onSignIn: () => void }) {
+  const [user] = useProdliUser();
+  const [ai, setAi] = useState<AiUsage | null>(null);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    getAiUsage().then(setAi, () => setAi(null));
+    void getSyncStatus().then(setSync);
+  }, [user]);
+  if (user === undefined) return <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
+  if (!user) return <SignInFirst what="Sign in to see your plan, this month's AI allowance and ProdLi Pro." onSignIn={onSignIn} />;
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <PlanBox user={user} />
+      {(ai || sync?.usage) && (
+        <div style={box} data-testid="usage">
+          <div style={sectionTitle}>This month</div>
+          {ai?.available && <UsageBar label="AI meeting summaries" used={ai.used} limit={ai.limit} />}
+          {ai?.briefs && <UsageBar label="AI daily briefs & weekly reviews" used={ai.briefs.used} limit={ai.briefs.limit} />}
+          {ai?.asks && <UsageBar label="Ask ProdLi questions" used={ai.asks.used} limit={ai.asks.limit} />}
+          {sync?.usage && <UsageBar label="Synced storage" used={sync.usage.bytes} limit={sync.usage.quota} format={mb} />}
+          <div style={{ fontSize: 11, opacity: 0.7 }}>AI allowances reset on the 1st of each month.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Settings › Backup & data: the account's server copy (ProdLi accounts only). */
+export function AccountDataSection() {
+  const [user] = useProdliUser();
+  const { busy, act, setMessage, status } = useAction();
+  if (!accountsEnabled() || !user) return null;
+  return (
+    <div style={box}>
+      <div style={sectionTitle}>Your account's data</div>
+      <div style={{ fontSize: 13, lineHeight: 1.5 }}>Everything synced to your ProdLi account, as one file (JSON): notes, to-dos, habits, meetings (text), history and settings of your account.</div>
+      <div>
         <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("export", async () => {
           await downloadAccountExport();
           setMessage({ tone: "ok", text: "Downloaded your account data." });
         })}>
           Download my data
-        </button>
-        <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("everywhere", async () => {
-          await signOutEverywhere();
-          if (ext && (await getAccount())) await signOut();
-          setUser(null);
-          setMessage({ tone: "ok", text: "Signed out on every device." });
-        })}>
-          Sign out everywhere
-        </button>
-        <button style={{ ...btn(false, !!busy), color: "#E53935" }} disabled={!!busy} onClick={() => setConfirmDelete(true)}>
-          Delete account…
-        </button>
-      </div>
-
-      {confirmDelete && (
-        <div style={{ border: "2px solid #E53935", padding: 10, fontSize: 13, display: "grid", gap: 8 }}>
-          <strong>Delete your ProdLi account permanently?</strong>
-          <span>This removes your account and everything synced to ProdLi’s servers, and signs out every device. Data saved on this device stays here. This can’t be undone.</span>
-          <label style={{ display: "grid", gap: 4 }}>
-            Type <strong>{user.email}</strong> to confirm:
-            <input value={typedEmail} onChange={(e) => setTypedEmail(e.target.value)} aria-label="Type your email to confirm" style={{ border: "var(--nb-border)", padding: "6px 8px", fontFamily: "inherit", background: "hsl(var(--background))", color: "inherit" }} />
-          </label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              style={{ ...btn(false, !!busy || typedEmail.trim().toLowerCase() !== user.email.toLowerCase()), background: "#E53935", color: "#fff" }}
-              disabled={!!busy || typedEmail.trim().toLowerCase() !== user.email.toLowerCase()}
-              onClick={() => void act("delete", async () => {
-                await deleteAccount(typedEmail);
-                if (ext && (await getAccount())) await signOut();
-                setConfirmDelete(false);
-                setUser(null);
-                setMessage({ tone: "ok", text: "Your ProdLi account was deleted." });
-              })}
-            >
-              {busy === "delete" ? "Deleting…" : "Delete permanently"}
-            </button>
-            <button style={btn()} onClick={() => setConfirmDelete(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>Signing out keeps all data on this device.</span>
-        <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("signout", async () => {
-          await signOutHere();
-          if (ext && (await getAccount())) await signOut();
-          setUser(null);
-          setMessage({ tone: "ok", text: "Signed out." });
-        })}>
-          Sign out
         </button>
       </div>
       {status}
@@ -547,8 +653,19 @@ function ProdliAccountPanel() {
   );
 }
 
-export function AccountModal({ onClose }: { onClose: () => void }) {
-  const withServer = accountsEnabled();
+/** Settings › Account (or Sync & devices): the right panel for this build. */
+export function AccountPanel({ view, onSignIn }: { view: AccountView; onSignIn: () => void }) {
+  if (accountsEnabled()) return view === "account" ? <ProdliAccountSection /> : <ProdliDevicesSection onSignIn={onSignIn} />;
+  return <DriveAccountPanel />;
+}
+
+export function PlanPanel({ onSignIn }: { onSignIn: () => void }) {
+  return <PlanSection onSignIn={onSignIn} />;
+}
+
+/** Builds without a ProdLi server: Google Drive sync. */
+function DriveAccountPanel() {
+  const withServer = false;
   const configured = googleConfigured();
   const [account, setAccount] = useState<GoogleAccount | null>(null);
   const [auto, setAuto] = useState(true);
@@ -568,13 +685,8 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
       onStorageChange<GoogleAccount>(ACCOUNT_KEY, (v) => setAccount(v ?? null)),
       onStorageChange<BackupInfo>(LAST_BACKUP_KEY, (v) => setLast(v ?? null)),
     ];
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => {
-      offs.forEach((off) => off());
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+    return () => offs.forEach((off) => off());
+  }, []);
 
   useEffect(() => {
     if (!account) return;
@@ -598,16 +710,8 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
   const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Account" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px, 100%)", background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: "3px solid #000", boxShadow: "6px 6px 0 #FFD700", maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ background: "#000", color: "#FFD700", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>{withServer ? "Your ProdLi account" : "Account & Google Drive sync"}</span>
-          <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "transparent", color: "#FFD700", fontSize: 20, cursor: "pointer", fontWeight: 900 }}>×</button>
-        </div>
-
-        <div style={{ padding: 20, display: "grid", gap: 16 }}>
-          {/* With a ProdLi server, ProdLi sync replaces Google Drive sync (the Drive copy is imported on first sync). */}
-          {withServer ? <ProdliAccountPanel /> : !configured ? (
+        <div style={{ display: "grid", gap: 16 }}>
+          {!configured ? (
             <div style={{ fontSize: 14, lineHeight: 1.6 }}>
               <strong>Google sign-in isn’t set up in this copy of ProdLi yet.</strong>
               <p style={{ margin: "8px 0 0" }}>Everything still works without an account — your data stays on this device. (Developers: add a Google OAuth client ID as described in <code>docs/GOOGLE-SIGN-IN.md</code>.)</p>
@@ -733,7 +837,5 @@ export function AccountModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
   );
 }

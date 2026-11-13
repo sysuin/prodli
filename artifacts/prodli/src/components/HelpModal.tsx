@@ -1,7 +1,14 @@
 import { useEffect } from "react";
+import { accountsEnabled } from "../lib/prodliAccount";
+import { SECTIONS } from "../sections/registry";
+
+/** The extension's version (or the web app's, which ships with the same code). */
+export const version = () => (typeof chrome !== "undefined" && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : "1.3.0");
 
 interface HelpModalProps {
-  onClose: () => void;
+  /** Inside Settings: just the content, no window around it. */
+  embedded?: boolean;
+  onClose?: () => void;
 }
 
 
@@ -50,63 +57,15 @@ function ShortcutRow({ keys, action }: { keys: string[]; action: string }) {
   );
 }
 
-export function HelpModal({ onClose }: HelpModalProps) {
+export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalProps) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && !embedded) onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Help and keyboard shortcuts"
-      tabIndex={-1}
-      autoFocus
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 10000,
-        background: "rgba(0,0,0,0.88)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div style={{
-        background: "hsl(var(--background))",
-        border: "var(--nb-border)",
-        boxShadow: "6px 6px 0 #FFD700",
-        width: "100%",
-        maxWidth: 860,
-        maxHeight: "88vh",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}>
-        {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 24px",
-          borderBottom: "var(--nb-border)",
-          background: "#000",
-          flexShrink: 0,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ background: "#FFD700", color: "#000", fontWeight: 900, fontSize: 15, padding: "3px 10px", border: "2px solid #FFD700" }}>ProdLi</span>
-            <span style={{ color: "#aaa", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>Help & Documentation</span>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "2px solid #444", background: "transparent", color: "#888",
-              width: 32, height: 32, cursor: "pointer", fontSize: 18, fontWeight: 900,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "inherit",
-            }}
-            title="Close (Esc)"
-          >×</button>
-        </div>
-
+  const content = (
+    <>
         {/* Scrollable body */}
         <div style={{ overflowY: "auto", flex: 1, padding: "28px 32px" }}>
 
@@ -118,7 +77,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
           }}>
             <div style={{ fontWeight: 900, fontSize: 16, textTransform: "uppercase", letterSpacing: "-0.01em" }}>Welcome to ProdLi</div>
             <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4, lineHeight: 1.5 }}>
-              Your new tab is now an all-in-one productivity hub: Editor, To-Dos, Pomodoro, Habits, Time Tracker, Meetings and Files. Data is stored locally in your browser. Optional: sign in with Google (👤) to back up to your own Google Drive.
+              Your personal assistant and productivity tools in one place: {SECTIONS.map((x) => x.label).join(", ")}. Press <strong>Ctrl/⌘ + K</strong> to go anywhere or do anything, and <strong>✨ Ask ProdLi</strong> about your day.
+              {accountsEnabled() ? " Works offline and without an account; sign in to sync between devices and app.prodli.com." : " Your data stays in this browser."}
             </div>
           </div>
 
@@ -196,10 +156,20 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </Section>
 
           {/* Account */}
-          <Section emoji="👤" title="Account & Google Drive sync">
-            <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to sync through a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
-            <Row label={<Tag>Sync now</Tag>} desc="Merges this computer with the copy in Drive, item by item: the newest edit of each note, task, habit or meeting wins, and deletions sync too. Runs automatically about every hour while signed in. Settings are never synced." />
-            <Row label={<Tag>Replace</Tag>} desc="Overwrites this computer with the Drive copy — only for starting fresh." />
+          <Section emoji="👤" title={accountsEnabled() ? "Account & sync" : "Account & Google Drive sync"}>
+            {accountsEnabled() ? (
+              <>
+                <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google (your profile, bottom left) to keep notes, to-dos, habits, meetings (text only) and history the same in the extension and at app.prodli.com. Everything already on this device is added; nothing is overwritten." />
+                <Row label={<Tag>Settings</Tag>} desc="Your profile menu → Settings: account, plan & usage, sync & devices, backups, appearance, Today and help — all in one place." />
+                <Row label={<Tag>Your data</Tag>} desc="Download your account's data or a local backup any time (Settings → Backup & data). Deleting your account removes everything synced to ProdLi's servers." />
+              </>
+            ) : (
+              <>
+                <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google to sync through a private ProdLi folder in your own Google Drive (only ProdLi can see it). No ProdLi servers, no cost." />
+                <Row label={<Tag>Sync now</Tag>} desc="Merges this computer with the copy in Drive, item by item: the newest edit of each note, task, habit or meeting wins, and deletions sync too. Runs automatically about every hour while signed in. Settings are never synced." />
+                <Row label={<Tag>Replace</Tag>} desc="Overwrites this computer with the Drive copy — only for starting fresh." />
+              </>
+            )}
           </Section>
 
           {/* Keyboard Shortcuts */}
@@ -240,17 +210,13 @@ export function HelpModal({ onClose }: HelpModalProps) {
               <div style={{ padding: "4px 14px" }}>
                 <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Search & commands (go anywhere, add a to-do, ask ProdLi)" />
                 <ShortcutRow keys={["Alt + Shift + A"]} action="Quick add a to-do or note from any page (extension)" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 0"]} action="Switch to Today (daily brief)" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 1"]} action="Switch to Notes" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 2"]} action="Switch to To-Dos" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 3"]} action="Switch to Pomodoro" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 4"]} action="Switch to Habits" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 5"]} action="Switch to Tracker" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 6"]} action="Switch to Meetings" />
-                <ShortcutRow keys={["Ctrl / ⌘ + 7"]} action="Switch to Files" />
+                {[...SECTIONS].sort((x, y) => x.shortcut.localeCompare(y.shortcut)).map((x) => (
+                  <ShortcutRow key={x.key} keys={[`Ctrl / ⌘ + ${x.shortcut}`]} action={`Go to ${x.label}`} />
+                ))}
+                <ShortcutRow keys={["?"]} action="Help & shortcuts" />
                 <ShortcutRow keys={["Alt + Shift + R"]} action="Start / stop recording (on a Google Meet tab)" />
                 <ShortcutRow keys={["Space"]} action="Start / Pause Pomodoro timer (when on Pomodoro tab, no input focused)" />
-                <ShortcutRow keys={["Escape"]} action="Close this help panel" />
+                <ShortcutRow keys={["Escape"]} action="Close a window (Settings, Ask, Quick add…)" />
               </div>
 
             </div>
@@ -258,9 +224,9 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
           {/* Tips */}
           <Section emoji="💡" title="Tips">
-            <Row label={<Tag>Dark mode</Tag>} desc="Click the 🌙 / ☀️ button in the top-right to toggle between light and dark themes. Your preference is saved." />
-            <Row label={<Tag>Data privacy</Tag>} desc="All notes, tasks, habits, and Pomodoro sessions are stored using chrome.storage.local — entirely on your device. Nothing is sent to any server." />
-            <Row label={<Tag>Offline</Tag>} desc="ProdLi works fully offline. No internet connection is required." />
+            <Row label={<Tag>Theme</Tag>} desc="Light or dark: your profile menu (bottom left), or Settings → Appearance. Saved on this device." />
+            <Row label={<Tag>Privacy</Tag>} desc={accountsEnabled() ? "Everything is saved on this device first. With an account, it's also synced to ProdLi's servers (meeting audio never is). AI features send only what they need to our AI provider — see prodli.com/privacy." : "Notes, tasks, habits and history are stored in this browser. Nothing is sent to a server unless you turn on Google Drive sync."} />
+            <Row label={<Tag>Offline</Tag>} desc="ProdLi works offline. Changes sync when you're back online." />
           </Section>
 
           {/* Support */}
@@ -285,11 +251,67 @@ export function HelpModal({ onClose }: HelpModalProps) {
               contact@prodli.com
             </a>
             <div style={{ marginTop: 10, fontSize: 11, color: "hsl(var(--muted-foreground))", fontWeight: 600 }}>
-              Version 1.0.0 · Made with ☕ and Neobrutalism
+              Version {version()} · Made with ☕ and Neobrutalism
             </div>
           </div>
 
         </div>
+    </>
+  );
+
+  if (embedded) return <div>{content}</div>;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Help and keyboard shortcuts"
+      tabIndex={-1}
+      autoFocus
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        background: "rgba(0,0,0,0.88)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div style={{
+        background: "hsl(var(--background))",
+        border: "var(--nb-border)",
+        boxShadow: "6px 6px 0 #FFD700",
+        width: "100%",
+        maxWidth: 860,
+        maxHeight: "88vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 24px",
+          borderBottom: "var(--nb-border)",
+          background: "#000",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ background: "#FFD700", color: "#000", fontWeight: 900, fontSize: 15, padding: "3px 10px", border: "2px solid #FFD700" }}>ProdLi</span>
+            <span style={{ color: "#aaa", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>Help & Documentation</span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "2px solid #444", background: "transparent", color: "#888",
+              width: 32, height: 32, cursor: "pointer", fontSize: 18, fontWeight: 900,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "inherit",
+            }}
+            title="Close (Esc)"
+          >×</button>
+        </div>
+
+        {content}
       </div>
     </div>
   );
