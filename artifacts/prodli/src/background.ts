@@ -10,6 +10,9 @@ import { registerBackgroundSync } from "./lib/prodliSync";
 import { registerTodayReminder } from "./lib/todayBackground";
 import { registerCapture } from "./lib/captureBackground";
 import { registerLocalFiles } from "./lib/localFilesBackground";
+import { keepNotificationsInside } from "./lib/quietNotifications";
+
+if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();

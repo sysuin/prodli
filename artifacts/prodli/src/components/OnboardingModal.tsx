@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { storageSet } from "../lib/storage";
 import { accountsEnabled } from "../lib/prodliAccount";
 import { SECTIONS } from "../sections/registry";
+import { Logo } from "./Logo";
 
 const EXT = typeof chrome !== "undefined" && !!chrome.runtime?.id;
 const INTRO = accountsEnabled()
@@ -63,10 +64,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
           borderBottom: "var(--nb-border)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <span style={{
-              background: "#FFD700", color: "#000", fontWeight: 900,
-              fontSize: 13, padding: "2px 10px", letterSpacing: "0.02em",
-            }}>ProdLi</span>
+            <Logo size={24} />
             <span style={{ color: "#aaa", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>{EXT ? "New Tab Extension" : "Web app"}</span>
           </div>
           <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, lineHeight: 1.15, letterSpacing: "-0.01em" }}>

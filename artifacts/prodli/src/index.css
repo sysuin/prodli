@@ -434,8 +434,7 @@
   .app-shell .side-row { flex-direction: column; padding: 6px 10px; }
   .app-shell .side-clock { display: none; }
   .app-shell .side-collapse { display: none; }
-  .app-shell .brand-badge { font-size: 0; padding: 4px 8px; }
-  .app-shell .brand-badge::after { content: "P"; font-size: 16px; }
+  .app-shell .app-sidebar .prodli-logo .brand-badge { display: none; }
 }
 .mobile-topbar, .mobile-tabbar { display: none; }
 .app-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 2300; background: #000; color: #FFD700; border: 2px solid #FFD700; padding: 10px 16px; font-weight: 800; font-size: 13px; max-width: calc(100vw - 32px); }

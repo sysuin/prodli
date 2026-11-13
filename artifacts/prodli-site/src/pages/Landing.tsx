@@ -1,3 +1,4 @@
+import { Logo } from "../components/Logo";
 const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknflakhglanjaeenkmciohimnbkdp";
 
 const FEATURES = [
@@ -65,10 +66,7 @@ export function Landing() {
         height: 56,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{
-            background: "var(--yellow)", color: "#000", fontWeight: 900,
-            fontSize: 14, padding: "3px 12px", letterSpacing: "0.02em",
-          }}>ProdLi</span>
+          <Logo size={26} />
           <span className="nav-subtitle">New Tab Extension</span>
         </div>
         <div className="nav-links">
@@ -278,7 +276,7 @@ export function Landing() {
         flexWrap: "wrap", gap: 16,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ background: "var(--yellow)", color: "#000", fontWeight: 900, fontSize: 12, padding: "2px 10px" }}>ProdLi</span>
+          <Logo size={20} />
           <span style={{ color: "#555", fontSize: 11, fontWeight: 700 }}>© 2026</span>
         </div>
         <div className="site-footer-links" style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
