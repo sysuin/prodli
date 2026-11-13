@@ -6,7 +6,7 @@ import { SyncStore, type Sql } from "../../../prodli-api/src/syncStore";
 import { getSyncStatus, syncOnce, SYNC_STATE_KEY } from "../../src/lib/prodliSync";
 import { storageGet, storageSet } from "../../src/lib/storage";
 import { recordDeletions } from "../../src/lib/tombstones";
-import { listMeetings, putMeeting } from "../../src/recorder/db";
+import { deleteMeeting, listMeetings, putMeeting } from "../../src/recorder/db";
 import type { Meeting } from "../../src/recorder/types";
 
 // happy-dom runs this file as "browser" code, so load Node's SQLite at runtime.
@@ -220,6 +220,51 @@ describe("ProdLi sync between two devices", () => {
       const [m] = await listMeetings();
       expect(m).toMatchObject({ title: "Daily standup", hasAudio: true, audioMimeType: "audio/webm" });
     });
+  });
+
+  it("meetings: one missing here without being deleted is downloaded again, never deleted everywhere", async () => {
+    const meeting = { id: "m2", platform: "google-meet", title: "Planning", meetingCode: null, url: "https://meet.google.com/y", startedAt: T(1), endedAt: T(2), durationSec: 31, status: "ready", transcript: [{ id: "e1", speaker: "You", text: "check", startMs: 0, endMs: 1 }], summary: null, error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: T(2) } as Meeting;
+    await device("A", async () => {
+      await putMeeting(meeting);
+      await syncOnce();
+    });
+    const onServer = (id: string) => ((server.exportAll().meetings ?? []) as Meeting[]).filter((m) => m.id === id);
+    expect(onServer("m2")).toHaveLength(1);
+    // This browser's meeting storage loses it (cleared, failed read…) while sync remembers it.
+    await deleteMeeting("m2", { tombstone: false });
+    await device("A", async () => {
+      await syncOnce();
+      expect(onServer("m2")).toHaveLength(1); // still on the server
+      expect((await listMeetings()).some((m) => m.id === "m2")).toBe(true); // and back here
+    });
+  });
+
+  it("meetings: one being summarized (or recorded) isn't deleted elsewhere while it's busy", async () => {
+    const meeting = { id: "m3", platform: "google-meet", title: "Retro", meetingCode: null, url: "https://meet.google.com/z", startedAt: T(1), endedAt: T(2), durationSec: 60, status: "ready", transcript: [], summary: null, error: null, notice: null, hasAudio: true, micIncluded: false, audioMimeType: "audio/webm", updatedAt: T(2) } as Meeting;
+    await device("A", async () => {
+      await putMeeting(meeting);
+      await syncOnce();
+      await putMeeting({ ...meeting, status: "processing", updatedAt: T(3) });
+      await syncOnce();
+    });
+    const retro = () => ((server.exportAll().meetings ?? []) as Meeting[]).filter((m) => m.id === "m3");
+    expect(retro()).toHaveLength(1);
+    await device("A", async () => {
+      await putMeeting({ ...meeting, status: "ready", title: "Retro notes", updatedAt: T(4) });
+      await syncOnce();
+    });
+    expect(retro()).toMatchObject([{ title: "Retro notes" }]);
+  });
+
+  it("meetings: deleting one in the app still deletes it on every device", async () => {
+    const meeting = { id: "m4", platform: "google-meet", title: "Old call", meetingCode: null, url: "https://meet.google.com/w", startedAt: T(1), endedAt: T(2), durationSec: 60, status: "ready", transcript: [], summary: null, error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: T(2) } as Meeting;
+    await device("A", async () => {
+      await putMeeting(meeting);
+      await syncOnce();
+      await deleteMeeting("m4");
+      await syncOnce();
+    });
+    expect(((server.exportAll().meetings ?? []) as Meeting[]).some((m) => m.id === "m4")).toBe(false);
   });
 
   it("remembers its position, and starts fresh for a different account", async () => {
