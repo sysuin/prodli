@@ -3,6 +3,7 @@ import { onStorageChange, storageGet, storageSet } from "../lib/storage";
 import { formatTime, getDayKey } from "../lib/utils";
 import type { Todo } from "../types";
 import type { Phase, PomodoroSettings, PomodoroSession } from "../lib/usePomodoroTimer";
+import { openSettings } from "../components/Settings";
 
 const PHASE_COLORS: Record<Phase, string> = {
   work: "#FFD700",
@@ -100,8 +101,6 @@ export function PomodoroSection({
   const isToday = (t: Todo) => (!!t.plannedFor && t.plannedFor <= today) || (!!t.dueDate && t.dueDate <= today);
   const openTasks = todos.filter((t) => !t.completed).sort((a, b) => Number(isToday(b)) - Number(isToday(a)));
   const todaysTasks = openTasks.filter(isToday);
-  const [showSettings, setShowSettings] = useState(false);
-  const [tempSettings, setTempSettings] = useState<PomodoroSettings>(settings);
 
   const requestNotifications = () => {
     if (Notification.permission === "default") {
@@ -109,10 +108,6 @@ export function PomodoroSection({
     }
   };
 
-  const handleSaveSettings = async () => {
-    await saveSettings(tempSettings);
-    setShowSettings(false);
-  };
 
   const phaseColor = PHASE_COLORS[phase];
   const total = totalRef.current;
@@ -134,42 +129,12 @@ export function PomodoroSection({
             >🔔 Notify</button>
           )}
           <button
-            onClick={() => { setShowSettings(!showSettings); setTempSettings(settings); }}
-            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "4px 12px", background: showSettings ? "hsl(var(--foreground))" : "hsl(var(--card))", color: showSettings ? "#FFD700" : "hsl(var(--foreground))", fontWeight: 700, cursor: "pointer", fontSize: 11, textTransform: "uppercase", fontFamily: "inherit" }}
+            onClick={() => openSettings("pomodoro")}
+            title="Focus and break lengths"
+            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "4px 12px", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontWeight: 700, cursor: "pointer", fontSize: 11, textTransform: "uppercase", fontFamily: "inherit" }}
           >⚙ Settings</button>
         </div>
       </div>
-
-      {/* Settings panel */}
-      {showSettings && (
-        <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))" }}>
-          <div style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase", marginBottom: 12, letterSpacing: "0.06em" }}>Timer Settings (minutes)</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
-            {[
-              { key: "workDuration", label: "Focus" },
-              { key: "shortBreak", label: "Short Break" },
-              { key: "longBreak", label: "Long Break" },
-              { key: "longBreakAfter", label: "Break After" },
-            ].map(({ key, label }) => (
-              <div key={key}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
-                <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={tempSettings[key as keyof PomodoroSettings]}
-                  onChange={e => setTempSettings(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                  style={{ border: "var(--nb-border)", padding: "6px 8px", width: "100%", fontFamily: "inherit", fontSize: 14, fontWeight: 700, background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
-                />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={handleSaveSettings} style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "6px 18px", background: "#FFD700", fontWeight: 800, cursor: "pointer", fontSize: 12, textTransform: "uppercase", fontFamily: "inherit", color: "#000" }}>Save</button>
-            <button onClick={() => setShowSettings(false)} style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "6px 18px", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 12, textTransform: "uppercase", fontFamily: "inherit" }}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       {/* Main timer */}
       <div style={{ display: "flex", flex: 1, gap: 0 }}>

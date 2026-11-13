@@ -482,7 +482,8 @@ function MeetingDetail({
 
 // ── Main section ──────────────────────────────────────────────────────────────
 
-export function MeetingsSection() {
+/** `setupOnly`: just the recorder setup (Settings › Meetings). */
+export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } = {}) {
   const ext = isExtension();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -709,6 +710,22 @@ export function MeetingsSection() {
     </div>
   );
 
+  const setupPanel = (
+    <SetupPanel
+      indicator={indicator}
+      onToggleIndicator={() => void toggleIndicator()}
+      recorderOn={recorderOn}
+      onToggleRecorder={() => void toggleRecorder()}
+      micOn={micOn}
+      onToggleMic={() => void toggleMic()}
+      autoSummarize={autoSummarize}
+      onToggleAuto={() => void toggleAuto()}
+      speech={{ on: speechOn, lang: speechLang, status: speechStatus, toggle: () => void toggleSpeech(), setLang: (l) => void changeSpeechLang(l), install: installSpeechModel }}
+      ai={{ signedIn, usage: aiUsage }}
+    />
+  );
+  if (setupOnly) return ext ? setupPanel : <div style={card}><strong>Meeting notes are recorded by the ProdLi Chrome extension.</strong><p style={{ fontSize: 13, marginBottom: 0 }}>Its recorder settings live there (Settings › Meetings in the extension).</p></div>;
+
   if (!ext && !signedIn && meetings.length === 0) {
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -751,20 +768,7 @@ export function MeetingsSection() {
       )}
 
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
-        {showSetup && (
-          <SetupPanel
-            indicator={indicator}
-            onToggleIndicator={() => void toggleIndicator()}
-            recorderOn={recorderOn}
-            onToggleRecorder={() => void toggleRecorder()}
-            micOn={micOn}
-            onToggleMic={() => void toggleMic()}
-            autoSummarize={autoSummarize}
-            onToggleAuto={() => void toggleAuto()}
-            speech={{ on: speechOn, lang: speechLang, status: speechStatus, toggle: () => void toggleSpeech(), setLang: (l) => void changeSpeechLang(l), install: installSpeechModel }}
-            ai={{ signedIn, usage: aiUsage }}
-          />
-        )}
+        {showSetup && setupPanel}
 
         {meetings.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 40 }}>

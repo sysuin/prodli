@@ -635,6 +635,33 @@ const suites = {
     await p.close();
   },
 
+  async settings(b, check) {
+    // Settings › Sections: each section's own settings, in one place.
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
+    await p.goto("pomodoro");
+    const open = (tab) => p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "${tab}" } }))`);
+    await p.click("⚙ Settings", { exact: false });
+    await sleep(500);
+    check("Settings: Pomodoro's ⚙ opens Settings › Pomodoro", await p.eval(`!!document.querySelector('[data-testid="pomodoro-settings"]')`));
+    await p.eval(`(() => { const i = document.querySelector('[data-testid="pomodoro-settings"] input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "40"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="pomodoro-settings"] button')].find(b => b.textContent === "Save").click()`);
+    await sleep(500);
+    const { pomodoroSettings } = await p.storage(["pomodoroSettings"]);
+    check("Settings: Pomodoro lengths are saved", pomodoroSettings?.workDuration === 40, JSON.stringify(pomodoroSettings));
+    await open("tracker");
+    await sleep(1200);
+    check("Settings: Time Tracker settings are there", /idle threshold/i.test(await p.eval(`document.querySelector('[data-testid="settings-tracker"]').innerText`)));
+    await open("meetings");
+    await sleep(1200);
+    check("Settings: Meetings setup is there", /AI summaries/i.test(await p.eval(`document.querySelector('[data-testid="settings-meetings"]').innerText`)));
+    await open("files");
+    await sleep(800);
+    check("Settings: Files 'open from anywhere' is there", await p.eval(`!!document.querySelector('[data-testid="settings-files"] [data-testid="open-anywhere"]')`));
+    await p.close();
+  },
+
   async habits(b, check) {
     const p = await b.openPage();
     await p.goto("habits");
@@ -696,6 +723,9 @@ const suites = {
       ["backup", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`],
       ["account", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "account" } }))`],
       ["today settings", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "today" } }))`],
+      ["pomodoro settings", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "pomodoro" } }))`],
+      ["time tracker settings", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "tracker" } }))`],
+      ["meetings settings", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "meetings" } }))`],
       ["welcome", `chrome.storage.local.set({ hasSeenOnboarding: false }).then(() => location.reload())`],
     ]) {
       await p.send("Page.reload", {});

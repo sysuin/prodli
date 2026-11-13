@@ -336,7 +336,7 @@ const KIND_LABEL: Record<OpenedFile["kind"], string> = {
  * Extension only: set up "open local files in ProdLi" (needs a permission and
  * Chrome's "Allow access to file URLs" switch for ProdLi).
  */
-function OpenAnywhereCard() {
+export function OpenAnywhereCard() {
   const [access, setAccess] = useState<LocalFileAccess | null>(null);
   const [enabled, setEnabled] = useState(true);
   const refresh = () => void localFileAccess().then(setAccess);

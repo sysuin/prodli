@@ -7,7 +7,8 @@ import { accountsEnabled } from "../lib/prodliAccount";
 import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, compareToUsual, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
-export function TimeTrackerSection() {
+/** `settingsOnly`: just the settings (Settings › Time Tracker). */
+export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: boolean } = {}) {
   const [activeTab, setActiveTab] = useState<Tab>("today");
   const [todayData, setTodayData] = useState<TimeTrackingDay>({});
   const [weekData, setWeekData] = useState<DaySummary[]>([]);
@@ -261,198 +262,7 @@ export function TimeTrackerSection() {
     settings: "⚙ Settings",
   };
 
-  return (
-    <div style={sectionStyle}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontWeight: 900, fontSize: 20, textTransform: "uppercase", letterSpacing: "0.05em", color: "hsl(var(--foreground))" }}>
-            ⏱ Time Tracker
-          </div>
-          {!isExtension() && (
-            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginTop: 2 }}>
-              {accountsEnabled() ? "Time tracked by the ProdLi extension on your computers (synced)" : "Web preview — install the extension to start tracking"}
-            </div>
-          )}
-        </div>
-        {activeTab !== "alltime" && (
-          <button
-            onClick={exportAllCSV}
-            style={{
-              background: ACCENT, color: ON_ACCENT, border: `2px solid ${ACCENT}`,
-              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
-              padding: "6px 14px", cursor: "pointer", fontFamily: "inherit", boxShadow: "3px 3px 0 #000",
-            }}
-          >
-            Export CSV
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "2px solid hsl(var(--border))", marginBottom: 20 }}>
-        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
-          <button key={t} style={tabStyle(activeTab === t)} onClick={() => setActiveTab(t)}>
-            {TAB_LABELS[t]}
-          </button>
-        ))}
-      </div>
-
-      {/* ── TODAY ──────────────────────────────────────────────────────────── */}
-      {activeTab === "today" && (
-        <>
-          <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={label}>Total today</div>
-              <div style={{ fontFamily: "Space Mono, monospace", fontSize: 28, fontWeight: 700, color: ACCENT }}>
-                {fmtSecs(todayTotal)}
-              </div>
-            </div>
-            <div>
-              <div style={label}>Sites visited</div>
-              <div style={{ fontFamily: "Space Mono, monospace", fontSize: 28, fontWeight: 700, color: "hsl(var(--foreground))" }}>
-                {todayEntries.length}
-              </div>
-            </div>
-            {(() => {
-              const usual = compareToUsual(todayTotal, weekData.slice(0, -1).map((d) => d.total));
-              if (!usual) return null;
-              const up = usual.percent > 0;
-              return (
-                <div data-testid="tracker-vs-usual">
-                  <div style={label}>{todayTotal < 1800 ? "Your usual day" : "Vs. your usual day"}</div>
-                  <div style={{ fontFamily: "Space Mono, monospace", fontSize: 20, fontWeight: 700, color: "hsl(var(--foreground))" }}>
-                    {todayTotal < 1800 ? fmtSecs(usual.average) : usual.percent === 0 ? "≈ same" : `${up ? "▲" : "▼"} ${Math.abs(usual.percent)}%`}
-                  </div>
-                  <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{todayTotal < 1800 ? "average of the last 6 days" : `average ${fmtSecs(usual.average)} (last 6 days)`}</div>
-                </div>
-              );
-            })()}
-            {todayEntries[0] && (
-              <div>
-                <div style={label}>Top site</div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "hsl(var(--foreground))" }}>
-                  {todayEntries[0][0]}
-                </div>
-                <div style={{ fontFamily: "Space Mono, monospace", fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
-                  {fmtSecs(todayEntries[0][1])}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {todayEntries.length === 0 ? (
-            <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "hsl(var(--muted-foreground))" }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>No tracking data for today</div>
-              <div style={{ fontSize: 12 }}>
-                {isExtension()
-                  ? "Browse some websites and come back — data updates every 5 seconds."
-                  : "Install the ProdLi extension and it will track time automatically."}
-              </div>
-            </div>
-          ) : (
-            <>
-              <div style={cardStyle}>
-                <div style={{ ...label, marginBottom: 12 }}>Time per site</div>
-                {todayEntries.map(([domain, secs]) => {
-                  const pct = todayTotal > 0 ? (secs / todayTotal) * 100 : 0;
-                  return (
-                    <div key={domain} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      <div style={{ width: 180, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {domain}
-                      </div>
-                      <div style={{ flex: 1, height: 8, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
-                        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${pct}%`, background: ACCENT, transition: "width 0.4s ease" }} />
-                      </div>
-                      <div style={{ width: 70, fontSize: 12, fontFamily: "Space Mono, monospace", color: "hsl(var(--muted-foreground))", textAlign: "right", flexShrink: 0 }}>
-                        {fmtSecs(secs)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {top8.length > 0 && (
-                <div style={cardStyle}>
-                  <div style={{ ...label, marginBottom: 12 }}>Top sites chart</div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={top8} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                      <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                      <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
-                      <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
-                        contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                        cursor={{ fill: "hsl(var(--muted))" }} />
-                      <Bar dataKey="secs" radius={0}>
-                        {top8.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-
-      {/* ── 7-DAY HISTORY ──────────────────────────────────────────────────── */}
-      {activeTab === "history" && (
-        <>
-          <div style={cardStyle}>
-            <div style={{ ...label, marginBottom: 12 }}>Daily totals — last 7 days</div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={filteredWeekData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
-                <Tooltip formatter={(v: number) => [fmtSecs(v), "Total"]}
-                  contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                  cursor={{ fill: "hsl(var(--muted))" }} />
-                <Bar dataKey="total" fill={ACCENT} radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div style={cardStyle}>
-            <div style={{ ...label, marginBottom: 4 }}>7-day averages per site</div>
-            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
-              Average daily time per domain over the last 7 days
-            </div>
-            {weekAvgData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "24px", color: "hsl(var(--muted-foreground))", fontSize: 13 }}>
-                No data yet for the past 7 days
-              </div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={weekAvgData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                    <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={60} />
-                    <Tooltip formatter={(v: number) => [fmtSecs(v), "Avg/day"]}
-                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
-                      cursor={{ fill: "hsl(var(--muted))" }} />
-                    <Bar dataKey="avgSecs" radius={0}>
-                      {weekAvgData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-                  {weekAvgData.map((entry, i) => (
-                    <span key={entry.domain} style={{ background: "hsl(var(--muted))", fontSize: 10, fontWeight: 700, padding: "2px 8px", color: "hsl(var(--muted-foreground))", borderLeft: `3px solid ${COLORS[i % COLORS.length]}` }}>
-                      {entry.domain} · {fmtSecs(entry.avgSecs)}/day
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── ALL TIME ───────────────────────────────────────────────────────── */}
-      {activeTab === "alltime" && <AllTimeTab excludedDomains={settings.excludedDomains ?? []} />}
-
-      {/* ── SETTINGS ───────────────────────────────────────────────────────── */}
-      {activeTab === "settings" && (
+  const settingsPanel = (
         <div style={cardStyle}>
           <div style={{ marginBottom: 24 }}>
             <div style={label}>Idle threshold</div>
@@ -460,7 +270,7 @@ export function TimeTrackerSection() {
               Pause tracking after this many seconds of inactivity.
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <input type="range" min={15} max={300} step={15} value={settings.idleThreshold}
+              <input type="range" min={15} max={300} step={15} value={settings.idleThreshold} aria-label="Idle threshold in seconds"
                 onChange={(e) => { setSettings((s) => ({ ...s, idleThreshold: +e.target.value })); setSettingsDirty(true); }}
                 style={{ flex: 1, accentColor: ACCENT }} />
               <span style={{ fontFamily: "Space Mono, monospace", fontWeight: 700, fontSize: 13, width: 50, textAlign: "right", color: "hsl(var(--foreground))" }}>
@@ -493,7 +303,7 @@ export function TimeTrackerSection() {
             {settings.notifyEnabled && (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Notify at</span>
-                <input type="time" value={settings.notifyTime}
+                <input type="time" value={settings.notifyTime} aria-label="Daily summary time"
                   onChange={(e) => { setSettings((s) => ({ ...s, notifyTime: e.target.value })); setSettingsDirty(true); }}
                   style={{ fontFamily: "Space Mono, monospace", fontSize: 13, fontWeight: 700, border: "2px solid hsl(var(--border))", background: "hsl(var(--background))", color: "hsl(var(--foreground))", padding: "4px 8px", outline: "none" }} />
               </div>
@@ -523,6 +333,7 @@ export function TimeTrackerSection() {
               <input
                 ref={excludedInputRef}
                 type="text"
+                aria-label="Site not to track"
                 placeholder="example.com"
                 value={newExcludedDomain}
                 onChange={(e) => { setNewExcludedDomain(e.target.value); setExcludeError(""); }}
@@ -759,6 +570,7 @@ export function TimeTrackerSection() {
                 <input
                   ref={domainInputRef}
                   type="text"
+                  aria-label="Site to limit"
                   placeholder="reddit.com"
                   value={newDomain}
                   onChange={(e) => { setNewDomain(e.target.value); setFocusError(""); }}
@@ -780,6 +592,7 @@ export function TimeTrackerSection() {
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                 <input
                   type="number"
+                  aria-label="Daily limit in minutes"
                   min={1}
                   max={1440}
                   value={newLimit}
@@ -887,6 +700,7 @@ export function TimeTrackerSection() {
                           <span style={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }}>/</span>
                           <input
                             type="number"
+                            aria-label={`Daily limit for ${rule.domain} in minutes`}
                             min={1}
                             max={1440}
                             value={rule.limitMinutes}
@@ -956,7 +770,202 @@ export function TimeTrackerSection() {
             </button>
           </div>
         </div>
+
+  );
+  if (settingsOnly) return settingsPanel;
+
+  return (
+    <div style={sectionStyle}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontWeight: 900, fontSize: 20, textTransform: "uppercase", letterSpacing: "0.05em", color: "hsl(var(--foreground))" }}>
+            ⏱ Time Tracker
+          </div>
+          {!isExtension() && (
+            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginTop: 2 }}>
+              {accountsEnabled() ? "Time tracked by the ProdLi extension on your computers (synced)" : "Web preview — install the extension to start tracking"}
+            </div>
+          )}
+        </div>
+        {activeTab !== "alltime" && (
+          <button
+            onClick={exportAllCSV}
+            style={{
+              background: ACCENT, color: ON_ACCENT, border: `2px solid ${ACCENT}`,
+              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
+              padding: "6px 14px", cursor: "pointer", fontFamily: "inherit", boxShadow: "3px 3px 0 #000",
+            }}
+          >
+            Export CSV
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: "2px solid hsl(var(--border))", marginBottom: 20 }}>
+        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
+          <button key={t} style={tabStyle(activeTab === t)} onClick={() => setActiveTab(t)}>
+            {TAB_LABELS[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TODAY ──────────────────────────────────────────────────────────── */}
+      {activeTab === "today" && (
+        <>
+          <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={label}>Total today</div>
+              <div style={{ fontFamily: "Space Mono, monospace", fontSize: 28, fontWeight: 700, color: ACCENT }}>
+                {fmtSecs(todayTotal)}
+              </div>
+            </div>
+            <div>
+              <div style={label}>Sites visited</div>
+              <div style={{ fontFamily: "Space Mono, monospace", fontSize: 28, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+                {todayEntries.length}
+              </div>
+            </div>
+            {(() => {
+              const usual = compareToUsual(todayTotal, weekData.slice(0, -1).map((d) => d.total));
+              if (!usual) return null;
+              const up = usual.percent > 0;
+              return (
+                <div data-testid="tracker-vs-usual">
+                  <div style={label}>{todayTotal < 1800 ? "Your usual day" : "Vs. your usual day"}</div>
+                  <div style={{ fontFamily: "Space Mono, monospace", fontSize: 20, fontWeight: 700, color: "hsl(var(--foreground))" }}>
+                    {todayTotal < 1800 ? fmtSecs(usual.average) : usual.percent === 0 ? "≈ same" : `${up ? "▲" : "▼"} ${Math.abs(usual.percent)}%`}
+                  </div>
+                  <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{todayTotal < 1800 ? "average of the last 6 days" : `average ${fmtSecs(usual.average)} (last 6 days)`}</div>
+                </div>
+              );
+            })()}
+            {todayEntries[0] && (
+              <div>
+                <div style={label}>Top site</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "hsl(var(--foreground))" }}>
+                  {todayEntries[0][0]}
+                </div>
+                <div style={{ fontFamily: "Space Mono, monospace", fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
+                  {fmtSecs(todayEntries[0][1])}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {todayEntries.length === 0 ? (
+            <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "hsl(var(--muted-foreground))" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>No tracking data for today</div>
+              <div style={{ fontSize: 12 }}>
+                {isExtension()
+                  ? "Browse some websites and come back — data updates every 5 seconds."
+                  : "Install the ProdLi extension and it will track time automatically."}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={cardStyle}>
+                <div style={{ ...label, marginBottom: 12 }}>Time per site</div>
+                {todayEntries.map(([domain, secs]) => {
+                  const pct = todayTotal > 0 ? (secs / todayTotal) * 100 : 0;
+                  return (
+                    <div key={domain} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <div style={{ width: 180, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {domain}
+                      </div>
+                      <div style={{ flex: 1, height: 8, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${pct}%`, background: ACCENT, transition: "width 0.4s ease" }} />
+                      </div>
+                      <div style={{ width: 70, fontSize: 12, fontFamily: "Space Mono, monospace", color: "hsl(var(--muted-foreground))", textAlign: "right", flexShrink: 0 }}>
+                        {fmtSecs(secs)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {top8.length > 0 && (
+                <div style={cardStyle}>
+                  <div style={{ ...label, marginBottom: 12 }}>Top sites chart</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={top8} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
+                      <Tooltip formatter={(v: number) => [fmtSecs(v), "Time"]}
+                        contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
+                        cursor={{ fill: "hsl(var(--muted))" }} />
+                      <Bar dataKey="secs" radius={0}>
+                        {top8.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
+
+      {/* ── 7-DAY HISTORY ──────────────────────────────────────────────────── */}
+      {activeTab === "history" && (
+        <>
+          <div style={cardStyle}>
+            <div style={{ ...label, marginBottom: 12 }}>Daily totals — last 7 days</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={filteredWeekData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={55} />
+                <Tooltip formatter={(v: number) => [fmtSecs(v), "Total"]}
+                  contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
+                  cursor={{ fill: "hsl(var(--muted))" }} />
+                <Bar dataKey="total" fill={ACCENT} radius={0} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ ...label, marginBottom: 4 }}>7-day averages per site</div>
+            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
+              Average daily time per domain over the last 7 days
+            </div>
+            {weekAvgData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "24px", color: "hsl(var(--muted-foreground))", fontSize: 13 }}>
+                No data yet for the past 7 days
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={weekAvgData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="domain" tick={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(v: number) => fmtSecs(v)} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={60} />
+                    <Tooltip formatter={(v: number) => [fmtSecs(v), "Avg/day"]}
+                      contentStyle={{ background: "hsl(var(--card))", border: "2px solid hsl(var(--border))", borderRadius: 0, fontFamily: "Space Grotesk, sans-serif", fontSize: 12 }}
+                      cursor={{ fill: "hsl(var(--muted))" }} />
+                    <Bar dataKey="avgSecs" radius={0}>
+                      {weekAvgData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+                  {weekAvgData.map((entry, i) => (
+                    <span key={entry.domain} style={{ background: "hsl(var(--muted))", fontSize: 10, fontWeight: 700, padding: "2px 8px", color: "hsl(var(--muted-foreground))", borderLeft: `3px solid ${COLORS[i % COLORS.length]}` }}>
+                      {entry.domain} · {fmtSecs(entry.avgSecs)}/day
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── ALL TIME ───────────────────────────────────────────────────────── */}
+      {activeTab === "alltime" && <AllTimeTab excludedDomains={settings.excludedDomains ?? []} />}
+
+      {/* ── SETTINGS ───────────────────────────────────────────────────────── */}
+      {activeTab === "settings" && settingsPanel}
     </div>
   );
 }
