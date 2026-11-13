@@ -6,7 +6,7 @@ Last updated: 2026-11-11 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
 
 Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
-- [ ] **Legal (blocks launch):** lawyer review of the privacy policy and terms (incl. the new ProdLi Pro section), then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys once none are left.
+- [ ] **Legal:** lawyer review of the privacy policy and terms (live at prodli.com/privacy and /terms). The operator details were drafted with assumptions — the list to check is in [docs/legal/REVIEW-NOTES.md](docs/legal/REVIEW-NOTES.md) §1.
 - [ ] **Google consent screen:** once the legal pages are live, add app.prodli.com, prodli.com/privacy and /terms → **Publish app**. Calendar access needs Google's verification (can take weeks).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip`, privacy disclosures, submit ([STORE_SUBMISSION.md](STORE_SUBMISSION.md)).
 - [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), add the monthly/yearly products, API key and webhook — test mode, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).

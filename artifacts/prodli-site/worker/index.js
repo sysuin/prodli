@@ -1,7 +1,8 @@
 // prodli.com on Cloudflare Workers (static assets from ../../site-dist, built by
 // `pnpm run build:web`). This small script only:
 //   - redirects www.prodli.com and http:// → https://prodli.com
-//   - serves the right index.html for app routes (/privacy, /extension/…)
+//   - sends the old web preview (/extension…) to the app at app.prodli.com
+//   - serves index.html for the site's routes (/privacy, /terms)
 //   - adds security and caching headers
 // Everything else is a plain static file.
 
@@ -17,7 +18,7 @@ const SECURITY_HEADERS = {
 function withHeaders(res, url) {
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) out.headers.set(k, v);
-  if (/^\/(extension\/)?assets\//.test(url.pathname) && res.ok) {
+  if (/^\/assets\//.test(url.pathname) && res.ok) {
     out.headers.set("Cache-Control", "public, max-age=31536000, immutable");
   }
   return out;
@@ -33,17 +34,16 @@ export default {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 301);
     }
-    if (url.pathname === "/extension") {
-      url.pathname = "/extension/";
-      return Response.redirect(url.toString(), 301);
+    // The old web preview lived here; the app is at app.prodli.com now.
+    if (url.pathname === "/extension" || url.pathname.startsWith("/extension/")) {
+      return Response.redirect("https://app.prodli.com/", 301);
     }
 
     let res = await env.ASSETS.fetch(request);
     if (res.status === 404 && (request.method === "GET" || request.method === "HEAD")) {
-      // Client-side routes: the marketing site (/privacy, unknown pages show its
-      // "not found" screen) and the web preview under /extension/.
-      const index = url.pathname.startsWith("/extension/") ? "/extension/" : "/";
-      const fallback = await env.ASSETS.fetch(new Request(new URL(index, url), request));
+      // Client-side routes of the marketing site (/privacy, /terms; unknown pages
+      // show its "not found" screen).
+      const fallback = await env.ASSETS.fetch(new Request(new URL("/", url), request));
       res = new Response(fallback.body, { status: 200, headers: fallback.headers });
     }
     return withHeaders(res, url);

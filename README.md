@@ -9,7 +9,7 @@ All-in-one productivity workspace that lives in your Chrome new tab: a rich note
 
 | Folder | What it is | Hosted at |
 |---|---|---|
-| `artifacts/prodli` | The Chrome extension (React + Vite). The same code also builds a web preview. | Chrome Web Store; preview at `prodli.com/extension/` |
+| `artifacts/prodli` | The Chrome extension (React + Vite). The same code also builds the web app. | Chrome Web Store; web app at app.prodli.com |
 | `artifacts/prodli-site` | Marketing website and privacy policy | `prodli.com` |
 | `scripts/build-web.mjs` | Builds the website + preview into `site-dist/` | — |
 | `.github/workflows` | CI (tests on every push) and website deploy | GitHub Actions |

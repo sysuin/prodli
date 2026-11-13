@@ -6,13 +6,17 @@ Drafts:
 
 Both were checked line by line against the code on 9 November 2026. This page lists the facts behind them, what still has to be filled in, and the decisions to confirm.
 
-## 1. Fill in before publishing
+## 1. Drafted details — the lawyer must check these
 
-| Placeholder | Where |
-|---|---|
-| Legal name and postal address of the operator (person or company) | Privacy: "Who we are"; Terms: "Agreement" |
-| Grievance officer name (India) | Privacy: "Who we are" |
-| City for court jurisdiction | Terms: "Law and disputes" |
+To publish the updated site, the placeholders were filled with **assumptions** (13 November 2026), to be corrected after legal review. Nothing was invented that would be false; where a fact wasn't known, the wording stays general.
+
+| Detail | Drafted as | Where | To confirm |
+|---|---|---|---|
+| Operator (controller) | Sunny Singh, an individual based in India | Privacy: "Who we are"; Terms: "Agreement" | Individual or a company? Exact legal name |
+| Postal address | "available on request at contact@prodli.com" | Privacy: "Who we are" | Add the real postal address if required (GDPR Art. 13 asks for the controller's contact details) |
+| Grievance officer (India) | Sunny Singh, contact@prodli.com | Privacy: "Who we are" | Name / contact as required by the DPDP Rules |
+| Courts | "the courts where ProdLi's operator is based in India" | Terms: "Law and disputes" | Name the city |
+| Payments | Dodo Payments as reseller / merchant of record | Privacy: processors; Terms: "ProdLi Pro" | Dodo's exact legal entity name and its required wording |
 
 ## 2. Decisions to confirm with the lawyer
 

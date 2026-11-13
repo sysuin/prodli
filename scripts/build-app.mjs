@@ -144,10 +144,14 @@ writeFileSync(
   Cross-Origin-Opener-Policy: same-origin-allow-popups
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Robots-Tag: noindex, nofollow
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 `,
 );
+
+// The app isn't for search engines (prodli.com is): like app.todoist.com or app.slack.com.
+writeFileSync(path.join(outDir, "robots.txt"), "User-agent: *\nDisallow: /\n");
 
 console.log(`\n✓ Web app ready in ${path.relative(root, outDir)}/ (offline cache ${version}, ${precache.length} files)`);

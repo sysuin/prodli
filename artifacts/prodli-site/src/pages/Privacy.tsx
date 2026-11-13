@@ -19,9 +19,9 @@ export const PRIVACY_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Who we are",
-    body: `ProdLi is operated by [legal name of the person or company], [postal address] ("ProdLi", "we", "us"). We are responsible for (the "controller" of) the personal data described in this policy. Contact: contact@prodli.com.
+    body: `ProdLi is operated by Sunny Singh, an individual based in India ("ProdLi", "we", "us"). Our postal address is available on request at contact@prodli.com. We are responsible for (the "controller" of) the personal data described in this policy. Contact: contact@prodli.com.
 
-Grievance officer (India): [name], contact@prodli.com.`,
+Grievance officer (India): Sunny Singh, contact@prodli.com.`,
   },
   {
     title: "What this policy covers",
@@ -163,7 +163,7 @@ const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknf
 export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
     title: "Agreement",
-    body: `These terms are an agreement between you and [legal name] ("ProdLi", "we", "us") for your use of the ProdLi Chrome extension, the web app at app.prodli.com and the ProdLi account and sync service ("ProdLi"). By using ProdLi you accept these terms. Our Privacy Policy explains how we handle personal data.`,
+    body: `These terms are an agreement between you and Sunny Singh, the operator of ProdLi ("ProdLi", "we", "us"), for your use of the ProdLi Chrome extension, the web app at app.prodli.com and the ProdLi account and sync service ("ProdLi"). By using ProdLi you accept these terms. Our Privacy Policy explains how we handle personal data.`,
   },
   {
     title: "Using ProdLi",
@@ -221,7 +221,7 @@ We may change or remove features. If we decide to shut down the sync service, we
   },
   {
     title: "Law and disputes",
-    body: `These terms are governed by the laws of India, and the courts of [city], India, have jurisdiction. This doesn't take away any mandatory consumer protection you have under the law of the country where you live, including the right to bring claims in your local courts.`,
+    body: `These terms are governed by the laws of India, and the courts where ProdLi's operator is based in India have jurisdiction. This doesn't take away any mandatory consumer protection you have under the law of the country where you live, including the right to bring claims in your local courts.`,
   },
   {
     title: "Contact",
@@ -254,9 +254,14 @@ function LegalPage({ title, sections }: { title: string; sections: { title: stri
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Logo size={24} />
         </Link>
-        <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 11, padding: "8px 18px" }}>
-          Add to Chrome →
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <a href="https://app.prodli.com" style={{ color: "#fff", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Log in
+          </a>
+          <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 11, padding: "8px 18px" }}>
+            Add to Chrome →
+          </a>
+        </div>
       </nav>
 
       {/* Content */}
