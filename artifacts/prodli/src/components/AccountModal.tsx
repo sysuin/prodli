@@ -150,7 +150,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
                 {busy ? "Waiting for payment…" : `⭐ Upgrade to Pro${priceText(period) ? ` — ${priceText(period)}/${period === "monthly" ? "month" : "year"}` : ""}`}
               </button>
               <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.5 }}>
-                Payments by Dodo Payments, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.
+                Prices in US dollars; checkout shows your local price and any tax. Payments by Dodo Payments, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.
               </div>
             </>
           ) : (
@@ -239,7 +239,8 @@ const ago = (ms: number) => {
   return new Date(ms).toLocaleDateString([], { dateStyle: "medium" });
 };
 
-const mb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+const mb = (n: number) =>
+  n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : n < 1024 ** 3 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round((n / 1024 ** 3) * 10) / 10} GB`;
 
 /** Sync status, "Sync now" and what this device uploads. */
 function SyncBox({ ext }: { ext: boolean }) {
@@ -289,7 +290,7 @@ function SyncBox({ ext }: { ext: boolean }) {
           <>
             <br />
             <span style={{ opacity: 0.75 }} data-testid="ai-usage">
-              AI meeting summaries: {Math.max(0, ai.limit - ai.used)} of {ai.limit} free left this month.
+              AI meeting summaries: {Math.max(0, ai.limit - ai.used)} of {ai.limit} left this month.
             </span>
           </>
         )}

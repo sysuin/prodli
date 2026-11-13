@@ -157,9 +157,13 @@ export default function App() {
   useEffect(() => {
     const open = () => setShowAccount(true);
     window.addEventListener(UPGRADE_EVENT, open);
-    if (new URLSearchParams(window.location.search).has("pro")) {
+    // Dodo replaces our return URL's query with its own (subscription_id, payment_id,
+    // status, email): show the plan, and take those (incl. the email) out of the address bar.
+    const params = new URLSearchParams(window.location.search);
+    const BILLING_PARAMS = ["pro", "subscription_id", "payment_id", "status", "email"];
+    if (params.has("pro") || params.has("subscription_id")) {
       const url = new URL(window.location.href);
-      url.searchParams.delete("pro");
+      for (const k of BILLING_PARAMS) url.searchParams.delete(k);
       window.history.replaceState(null, "", url.toString());
       open();
     }
