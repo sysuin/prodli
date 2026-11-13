@@ -136,9 +136,11 @@ const ms = (iso: string | undefined | null) => {
 export type ApplyResult = { applied: true; userId: string; plan: string } | { applied: false; reason: string };
 
 /** Applies one subscription.* webhook event. Safe to receive twice or out of order. */
-export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, nowMs: number): Promise<ApplyResult> {
+export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, nowMs: number, ourProducts?: Set<string>): Promise<ApplyResult> {
   if (!event.type?.startsWith("subscription.")) return { applied: false, reason: "not_a_subscription_event" };
   const sub = event.data;
+  // Webhooks are business-wide: other brands' subscriptions (e.g. JobScanner) arrive here too.
+  if (ourProducts?.size && sub?.product_id && !ourProducts.has(sub.product_id)) return { applied: false, reason: "other_product" };
   const customerId = sub?.customer?.customer_id;
   if (!sub?.subscription_id || !sub.status || !customerId) return { applied: false, reason: "incomplete" };
   const at = ms(event.timestamp) ?? nowMs;

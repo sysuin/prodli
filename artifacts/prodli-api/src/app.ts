@@ -428,7 +428,8 @@ export function createApp(deps: Deps = realDeps) {
     } catch {
       return c.json({ error: "bad_request" }, 400);
     }
-    const result = await applySubscriptionEvent(c.env.DB, event, deps.now());
+    const ours = new Set([c.env.DODO_PRODUCT_MONTHLY, c.env.DODO_PRODUCT_YEARLY].map((x) => x?.trim()).filter((x): x is string => !!x));
+    const result = await applySubscriptionEvent(c.env.DB, event, deps.now(), ours);
     console.log(JSON.stringify({ msg: "dodo_webhook", type: event.type, applied: result.applied, ...(result.applied ? { plan: result.plan } : { reason: result.reason }) }));
     // 200 even when ignored, so Dodo doesn't retry events we can't use.
     return c.json({ ok: true, applied: result.applied });

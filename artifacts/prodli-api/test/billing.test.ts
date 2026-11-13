@@ -139,6 +139,8 @@ describe("ProdLi Pro", () => {
     expect((await app.request("/api/billing/webhook", { method: "POST", body: JSON.stringify(subEvent("subscription.cancelled", "cus_other", { status: "cancelled" })) }, env)).status).toBe(401);
     expect(await (await deliver(app, env, subEvent("subscription.active", "cus_nobody", { subscription_id: "sub_02" }), clock.now)).json()).toEqual({ ok: true, applied: false });
     expect(await (await deliver(app, env, { type: "payment.succeeded", data: {} }, clock.now)).json()).toEqual({ ok: true, applied: false });
+    // Another brand's product in the same Dodo business (e.g. JobScanner) never touches ProdLi.
+    expect(await (await deliver(app, env, subEvent("subscription.cancelled", "cus_other", { status: "cancelled", product_id: "pdt_jobscanner" }, "2027-01-15T10:06:00.000Z"), clock.now)).json()).toEqual({ ok: true, applied: false });
     expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ plan: "pro" });
   });
 
