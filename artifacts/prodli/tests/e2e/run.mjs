@@ -635,6 +635,28 @@ const suites = {
     await p.close();
   },
 
+  async welcome(b, check) {
+    // First run: three steps, each with a way in; shown once.
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: false }).then(() => location.reload())`);
+    await sleep(1600);
+    const step = () => p.eval(`document.querySelector('[data-testid="welcome-step"]')?.innerText ?? ""`);
+    check("Welcome: starts with Plan your day", /step 1 of 3/i.test(await step()) && /plan your day/i.test(await step()));
+    await p.click("Next →");
+    await sleep(200);
+    check("Welcome: step 2 is Ask ProdLi", /ask prodli anything/i.test(await step()));
+    await p.click("Next →");
+    await sleep(200);
+    check("Welcome: step 3 is about your data / syncing", /step 3 of 3/i.test(await step()));
+    await p.eval(`[...document.querySelectorAll('[role="tab"]')][0].click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent.includes("Open Today")).click()`);
+    await sleep(800);
+    const { hasSeenOnboarding, lastSection } = await p.storage(["hasSeenOnboarding", "lastSection"]);
+    check("Welcome: 'Open Today' closes it, opens Today, and it isn't shown again", hasSeenOnboarding === true && lastSection === "today" && !(await p.eval(`!!document.querySelector('[aria-labelledby="welcome-title"]')`)), JSON.stringify({ hasSeenOnboarding, lastSection }));
+    await p.close();
+  },
+
   async habits(b, check) {
     const p = await b.openPage();
     await p.goto("habits");
