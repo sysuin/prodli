@@ -99,6 +99,15 @@ export interface CollectionState {
   /** Deleting here deletes everywhere (false for append-only/history data). */
   deletable: boolean;
   local: Map<string, LocalItem>;
+  /**
+   * Only a recorded deletion (tombstone) counts as "deleted here"; an item that is
+   * merely missing locally is fetched again instead. For collections where every
+   * user deletion records a tombstone (meetings), so a failed read, a half-applied
+   * pull or cleared storage can never delete anything on other devices.
+   */
+  requireTombstone?: boolean;
+  /** Present here but not sent right now (e.g. a meeting being recorded or summarized): never a deletion. */
+  held?: Set<string>;
 }
 
 /**
@@ -111,9 +120,11 @@ export function localChanges(
   shadow: Record<string, string>,
   deletedAt: Partial<Record<Coll, Record<string, string>>>,
   now: string,
-): { changes: Change[]; tooLarge: string[] } {
+): { changes: Change[]; tooLarge: string[]; missing: string[] } {
   const changes: Change[] = [];
   const tooLarge: string[] = [];
+  /** Synced before but gone here without a recorded deletion: to fetch again. */
+  const missing: string[] = [];
   for (const col of cols) {
     for (const [id, item] of col.local) {
       const key = shadowKey(col.c, id);
@@ -130,13 +141,15 @@ export function localChanges(
     for (const key of Object.keys(shadow)) {
       if (!key.startsWith(prefix) || shadow[key].startsWith("x")) continue;
       const id = key.slice(prefix.length);
-      if (!col.local.has(id)) gone.add(id);
+      if (col.local.has(id) || col.held?.has(id)) continue;
+      if (col.requireTombstone && !deletedAt[col.c]?.[id]) missing.push(key);
+      else gone.add(id);
     }
     // Deleted here before this device ever synced: tell the server too.
     for (const id of Object.keys(deletedAt[col.c] ?? {})) if (!col.local.has(id) && shadow[shadowKey(col.c, id)] === undefined) gone.add(id);
     for (const id of gone) changes.push({ c: col.c, id, u: normStamp(deletedAt[col.c]?.[id] ?? now), d: true });
   }
-  return { changes, tooLarge };
+  return { changes, tooLarge, missing };
 }
 
 /** The fingerprint to remember after the server accepted `ch`. */

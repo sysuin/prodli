@@ -28,6 +28,14 @@ describe("syncCore", () => {
     ]);
   });
 
+  it("with requireTombstone, only recorded deletions count; missing or busy items are never deleted", () => {
+    const shadow = { "meetings/deleted": versionHash("lww", T(1), false, {}), "meetings/lost": versionHash("lww", T(1), false, {}), "meetings/busy": versionHash("lww", T(1), false, {}) };
+    const meetings: CollectionState = { c: "meetings", kind: "lww", deletable: true, local: new Map(), requireTombstone: true, held: new Set(["busy"]) };
+    const r = localChanges([meetings], shadow, { meetings: { deleted: T(5) } }, T(9));
+    expect(r.changes).toEqual([{ c: "meetings", id: "deleted", u: T(5), d: true }]);
+    expect(r.missing).toEqual(["meetings/lost"]);
+  });
+
   it("pushes deletions made before the device ever synced, once", () => {
     const { changes } = localChanges([notes([])], {}, { notes: { old: T(3) } }, T(9));
     expect(changes).toEqual([{ c: "notes", id: "old", u: T(3), d: true }]);

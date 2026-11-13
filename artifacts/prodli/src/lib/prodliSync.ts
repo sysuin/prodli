@@ -61,6 +61,10 @@ interface Adapter {
   c: Coll;
   kind: Kind;
   deletable: boolean;
+  /** See CollectionState.requireTombstone. */
+  requireTombstone?: boolean;
+  /** Ids present here that aren't sent right now (see CollectionState.held). */
+  held?: () => Promise<Set<string>>;
   read(): Promise<Map<string, LocalItem>>;
   apply(puts: Map<string, unknown>, deletes: Set<string>): Promise<void>;
 }
@@ -95,6 +99,12 @@ const meetingsAdapter: Adapter = {
   c: "meetings",
   kind: "lww",
   deletable: true,
+  // Every deletion of a meeting goes through deleteMeeting(), which records it.
+  requireTombstone: true,
+  // Being recorded or summarized: not uploaded yet, but certainly not deleted.
+  async held() {
+    return new Set((await listMeetings()).filter(live).map((m) => m.id));
+  },
   async read() {
     const out = new Map<string, LocalItem>();
     // Upload only finished meetings, and never audio.
@@ -262,12 +272,22 @@ async function cycle(opts: CycleOptions): Promise<void> {
   try {
     for (let round = 0; round < 3; round++) {
       const local = new Map<Coll, Map<string, LocalItem>>();
-      for (const a of ADAPTERS) local.set(a.c, await a.read());
-      const cols: CollectionState[] = ADAPTERS.filter(pushes).map((a) => ({ c: a.c, kind: a.kind, deletable: a.deletable, local: local.get(a.c)! }));
+      const held = new Map<Coll, Set<string>>();
+      for (const a of ADAPTERS) {
+        local.set(a.c, await a.read());
+        if (a.held) held.set(a.c, await a.held());
+      }
+      const cols: CollectionState[] = ADAPTERS.filter(pushes).map((a) => ({ c: a.c, kind: a.kind, deletable: a.deletable, local: local.get(a.c)!, requireTombstone: a.requireTombstone, held: held.get(a.c) }));
       const tomb = await getTombstones();
-      const { changes, tooLarge: big } = localChanges(cols, state.shadow, tomb, new Date().toISOString());
+      const { changes, tooLarge: big, missing } = localChanges(cols, state.shadow, tomb, new Date().toISOString());
+      // Synced before, gone here without being deleted (e.g. this browser's storage was
+      // cleared): forget we had them and download everything again; nothing is deleted.
+      if (missing.length) {
+        for (const key of missing) delete state.shadow[key];
+        state.seq = 0;
+      }
       tooLarge = big.length;
-      if (round === 0 && opts.onlyIfLocalChanges && changes.length === 0) return;
+      if (round === 0 && opts.onlyIfLocalChanges && changes.length === 0 && !missing.length) return;
       if (round > 0 && changes.length === 0) break;
 
       if (!contacted) await setStatus({ state: "syncing" });
@@ -309,9 +329,12 @@ async function applyIncoming(changes: Incoming[], local: Map<Coll, Map<string, L
     const items = local.get(a.c)!;
     const puts = new Map<string, unknown>();
     const deletes = new Set<string>();
+    // Remembered only once applied here: a pull that fails half-way must not leave
+    // fingerprints of items this device doesn't have (they'd look deleted here).
+    const shadows: [string, string][] = [];
     for (const inc of mine) {
       const { decision, shadow, again: newerHere } = decide(a.kind, inc, items.get(inc.id));
-      state.shadow[shadowKey(a.c, inc.id)] = shadow;
+      shadows.push([shadowKey(a.c, inc.id), shadow]);
       if (newerHere && pushes(a)) again = true;
       if (decision.action === "put") {
         puts.set(inc.id, decision.value);
@@ -322,6 +345,7 @@ async function applyIncoming(changes: Incoming[], local: Map<Coll, Map<string, L
       }
     }
     if (puts.size || deletes.size) await a.apply(puts, deletes);
+    for (const [key, shadow] of shadows) state.shadow[key] = shadow;
   }
   return again;
 }
