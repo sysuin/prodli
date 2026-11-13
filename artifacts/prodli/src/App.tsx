@@ -472,7 +472,7 @@ export default function App() {
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
-      {settingsTab && <SettingsModal tab={settingsTab} onTab={setSettingsTab} onClose={closeSettings} isDark={isDark} setDark={(d) => void setTheme(d)} />}
+      {settingsTab && <SettingsModal tab={settingsTab} onTab={setSettingsTab} onClose={closeSettings} isDark={isDark} setDark={(d) => void setTheme(d)} pomodoro={{ settings: pomodoroTimer.settings, save: pomodoroTimer.saveSettings }} />}
     </div>
   );
 }

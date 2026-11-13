@@ -3,7 +3,8 @@
 // Today. Opened from the profile menu, the command palette, "?" (Help), or
 // anywhere in the app with openSettings(tab).
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import type { PomodoroSettings } from "../lib/usePomodoroTimer";
 import { accountsEnabled } from "../lib/prodliAccount";
 import { onStorageChange, storageSet } from "../lib/storage";
 import { DEFAULT_TODAY_SETTINGS, getTodaySettings, TODAY_SETTINGS_KEY } from "../lib/today";
@@ -13,7 +14,13 @@ import { BackupModal } from "./BackupModal";
 import { HelpModal, version } from "./HelpModal";
 import { Logo } from "./Logo";
 
-export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "today" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+
+// Each section's own settings, shown here as well (loaded only when opened).
+const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
+const MeetingsSetup = lazy(() => import("../sections/MeetingsSection").then((m) => ({ default: () => <m.MeetingsSection setupOnly /> })));
+const FilesOpenAnywhere = lazy(() => import("../sections/FilesSection").then((m) => ({ default: m.OpenAnywhereCard })));
+const isExtensionPage = () => typeof chrome !== "undefined" && !!chrome.runtime?.id;
 
 export const SETTINGS_EVENT = "prodli-settings";
 /** Opens Settings at a tab from anywhere in the app (App.tsx listens). */
@@ -36,6 +43,10 @@ const TABS: TabDef[] = [
   { id: "data", label: "Backup & data", icon: "💾", group: "Account" },
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
+  { id: "pomodoro", label: "Pomodoro", icon: "🍅", group: "Sections" },
+  { id: "tracker", label: "Time Tracker", icon: "⏱", group: "Sections" },
+  { id: "meetings", label: "Meetings", icon: "🎙️", group: "Sections" },
+  { id: "files", label: "Files", icon: "📄", group: "Sections" },
   { id: "help", label: "Help & shortcuts", icon: "❓", group: "Support" },
   { id: "about", label: "About", icon: "ℹ️", group: "Support" },
 ];
@@ -146,6 +157,45 @@ function TodaySettingsSection() {
   );
 }
 
+const numInput: CSSProperties = { border: "var(--nb-border)", padding: "6px 8px", width: 80, fontFamily: "inherit", fontSize: 14, fontWeight: 700, background: "hsl(var(--background))", color: "inherit" };
+
+function PomodoroSettingsSection({ settings, save }: { settings: PomodoroSettings; save: (s: PomodoroSettings) => Promise<void> }) {
+  const [draft, setDraft] = useState(settings);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setDraft(settings), [settings]);
+  const fields: { key: keyof PomodoroSettings; label: string; unit: string; max: number }[] = [
+    { key: "workDuration", label: "Focus", unit: "minutes", max: 120 },
+    { key: "shortBreak", label: "Short break", unit: "minutes", max: 60 },
+    { key: "longBreak", label: "Long break", unit: "minutes", max: 60 },
+    { key: "longBreakAfter", label: "Long break after", unit: "focus sessions", max: 10 },
+  ];
+  const changed = fields.some((f) => draft[f.key] !== settings[f.key]);
+  return (
+    <div style={box} data-testid="pomodoro-settings">
+      <div style={sectionTitle}>Timer</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+        {fields.map((f) => (
+          <label key={f.key} style={{ display: "grid", gap: 4, fontSize: 13, fontWeight: 700 }}>
+            {f.label}
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
+              <input type="number" min={1} max={f.max} value={draft[f.key]} onChange={(e) => (setDraft((d) => ({ ...d, [f.key]: Number(e.target.value) })), setSaved(false))} style={numInput} />
+              <span style={{ fontSize: 12, opacity: 0.75 }}>{f.unit}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button style={pill(changed)} disabled={!changed} onClick={() => void save(draft).then(() => setSaved(true))}>
+          Save
+        </button>
+        {saved && !changed && <span role="status" style={{ fontSize: 12, fontWeight: 700 }}>✓ Saved</span>}
+      </div>
+    </div>
+  );
+}
+
+const loadingNote = <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
+
 function AboutSection() {
   const link: CSSProperties = { textDecoration: "underline", fontWeight: 700 };
   return (
@@ -169,7 +219,21 @@ function AboutSection() {
   );
 }
 
-export function SettingsModal({ tab, onTab, onClose, isDark, setDark }: { tab: SettingsTab; onTab: (t: SettingsTab) => void; onClose: () => void; isDark: boolean; setDark: (dark: boolean) => void }) {
+export function SettingsModal({
+  tab,
+  onTab,
+  onClose,
+  isDark,
+  setDark,
+  pomodoro,
+}: {
+  tab: SettingsTab;
+  onTab: (t: SettingsTab) => void;
+  onClose: () => void;
+  isDark: boolean;
+  setDark: (dark: boolean) => void;
+  pomodoro: { settings: PomodoroSettings; save: (s: PomodoroSettings) => Promise<void> };
+}) {
   const tabs = TABS.filter((t) => !t.serverOnly || accountsEnabled());
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
@@ -232,6 +296,56 @@ export function SettingsModal({ tab, onTab, onClose, isDark, setDark }: { tab: S
         <>
           <Heading sub="Your daily brief, time blocks and reminders.">Today & planning</Heading>
           <TodaySettingsSection />
+        </>
+      );
+      break;
+    case "pomodoro":
+      body = (
+        <>
+          <Heading sub="Focus and break lengths.">Pomodoro</Heading>
+          <PomodoroSettingsSection settings={pomodoro.settings} save={pomodoro.save} />
+        </>
+      );
+      break;
+    case "tracker":
+      body = (
+        <>
+          <Heading sub="Idle time, daily summary, site limits and sites not to track.">Time Tracker</Heading>
+          {isExtensionPage() ? (
+            <Suspense fallback={loadingNote}>
+              <TrackerSettings />
+            </Suspense>
+          ) : (
+            <div style={box}>
+              <div style={{ fontSize: 13 }}>Time is tracked by the ProdLi Chrome extension; its settings are in the extension (Settings › Time Tracker).</div>
+            </div>
+          )}
+        </>
+      );
+      break;
+    case "meetings":
+      body = (
+        <>
+          <Heading sub="AI summaries, the recorder, your microphone and on-device transcription.">Meetings</Heading>
+          <Suspense fallback={loadingNote}>
+            <MeetingsSetup />
+          </Suspense>
+        </>
+      );
+      break;
+    case "files":
+      body = (
+        <>
+          <Heading sub="Open Markdown, CSV, JSON and text files in ProdLi.">Files</Heading>
+          {isExtensionPage() ? (
+            <Suspense fallback={loadingNote}>
+              <FilesOpenAnywhere />
+            </Suspense>
+          ) : (
+            <div style={box}>
+              <div style={{ fontSize: 13 }}>Drop a file anywhere in ProdLi to preview it. In the installed web app, you can also open files with ProdLi from your computer's "Open with" menu.</div>
+            </div>
+          )}
         </>
       );
       break;
