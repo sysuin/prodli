@@ -3,7 +3,7 @@
 ✅ = done. **You:** = needs you (accounts, money, legal, or production access).
 
 ## What's left before launch
-1. **You:** lawyer review of the privacy policy and terms, then fill in the `[placeholders]` in `artifacts/prodli-site/src/pages/Privacy.tsx` (operator name, address, grievance officer, court city). prodli.com deploys only once none are left.
+1. **You:** lawyer review of the privacy policy and terms. The operator details were drafted with assumptions so prodli.com could go live; what to check is in `docs/legal/REVIEW-NOTES.md` §1.
 2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Calendar (`calendar.readonly`) is a sensitive scope, so Google verifies the app first (can take a few weeks; start once the legal pages are live). Until then only the listed test users can sign in.
 3. **You:** build the store extension and submit it (see "Chrome Web Store" below).
 4. **You (when you want to sell Pro):** in Dodo Payments (ProdLi brand already created), add the Pro products and API keys — test mode first, then live. Step by step: `docs/PRO-PLAN.md`.

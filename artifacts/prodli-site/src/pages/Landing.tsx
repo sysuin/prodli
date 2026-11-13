@@ -64,6 +64,9 @@ export function Landing() {
           <a href="/privacy" className="nav-text-link" style={{ color: "#888", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Privacy
           </a>
+          <a href="https://app.prodli.com" className="nav-text-link" style={{ color: "#fff", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Log in
+          </a>
           <a
             href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer"
             className="nb-btn" style={{ fontSize: 11, padding: "8px 20px" }}
