@@ -65,10 +65,10 @@ const suites = {
     await p.goto("habits");
     check("Smoke: Habits renders", (await p.lowerText()).includes("new habit"));
     // Help panel lists the new sections.
-    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title === "Help & shortcuts").click()`);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }))`);
     await sleep(400);
     const help = await p.lowerText();
-    check("Smoke: Help covers Meetings, Files and Ctrl+7", help.includes("meetings") && help.includes("save to notes") && help.includes("switch to files"));
+    check("Smoke: Help covers Meetings, Files and Ctrl+7", help.includes("meetings") && help.includes("save to notes") && help.includes("go to files"));
     await p.close();
   },
 
@@ -470,7 +470,10 @@ const suites = {
   async account(b, check) {
     const p = await b.openPage();
     await p.goto("editor");
-    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.getAttribute("aria-label") === "Sign in").click()`);
+    await p.eval(`document.querySelector('nav button[aria-haspopup="menu"]').click()`);
+    await sleep(300);
+    check("Account: the profile menu offers Sign in, Settings, Backup, theme and Help", await p.eval(`(() => { const t = document.querySelector('[role="menu"]')?.innerText ?? ""; return ["Sign in", "Settings", "Backup & data", "Dark mode", "Help & shortcuts"].every((x) => t.includes(x)); })()`));
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find(b => b.textContent.includes("Sign in")).click()`);
     await sleep(400);
     check("Account: explains when Google sign-in isn't configured", (await p.text()).includes("isn’t set up in this copy"));
     await p.eval(`document.querySelector('[aria-label="Close"]').click()`);
@@ -495,7 +498,7 @@ const suites = {
       };
       return true;
     })()`);
-    await p.eval(`[...document.querySelectorAll("nav button")].find(b => b.getAttribute("aria-label") === "Sign in").click()`);
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "account" } }))`);
     await sleep(300);
     await p.click("Sign in with Google", { exact: false });
     await sleep(700);
@@ -689,9 +692,10 @@ const suites = {
     // Pop-ups: Help, Backup, Account, Welcome.
     await p.eval(`chrome.storage.local.set({ lastSection: "editor", theme: "light" })`);
     for (const [name, open] of [
-      ["help", `document.querySelector('button[aria-label="Help and keyboard shortcuts"]').click()`],
-      ["backup", `document.querySelector('button[aria-label="Backup and restore"]').click()`],
-      ["account", `document.querySelector('nav button[aria-label="Sign in"]').click()`],
+      ["help", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "help" } }))`],
+      ["backup", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`],
+      ["account", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "account" } }))`],
+      ["today settings", `window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "today" } }))`],
       ["welcome", `chrome.storage.local.set({ hasSeenOnboarding: false }).then(() => location.reload())`],
     ]) {
       await p.send("Page.reload", {});
@@ -705,6 +709,15 @@ const suites = {
       check(`A11y: ${name} pop-up is an accessible dialog with no serious problems`, violations.length === 0 && isDialog, `${isDialog ? "" : "not a dialog; "}${violations.map((v) => `${v.id}×${v.count}`).join(", ")}`);
       await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true })`);
     }
+    // The profile menu (a menu, not a dialog).
+    await p.send("Page.reload", {});
+    await sleep(1300);
+    await p.eval(`document.querySelector('nav button[aria-haspopup="menu"]').click()`);
+    await sleep(400);
+    await p.eval(axeSource + ";true");
+    const menuViolations = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+    const isMenu = await p.eval(`!!document.querySelector('[role="menu"]') && document.querySelector('nav button[aria-haspopup="menu"]').getAttribute("aria-expanded") === "true"`);
+    check("A11y: profile menu is an accessible menu with no serious problems", menuViolations.length === 0 && isMenu, menuViolations.join(", "));
     if (process.env.A11Y_REPORT) console.log(report.join("\n"));
     await p.close();
   },
@@ -790,7 +803,7 @@ const suites = {
     const p = await b.openPage();
     await p.goto("editor");
     await p.eval(`chrome.storage.local.set({ "tt_2026-11-07": { "github.com": 120 }, claudeApiKey: "sk-ant-e2e-secret" })`);
-    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title === "Backup & Restore").click()`);
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`);
     await sleep(400);
     await p.click("Export Data →");
     const json = JSON.parse(await waitForDownload(b, "prodli-backup-"));

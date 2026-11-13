@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { exportData, importData } from "../lib/backupRestore";
 
 interface BackupModalProps {
-  onClose: () => void;
+  onClose?: () => void;
+  /** Inside Settings: just the content, no window around it. */
+  embedded?: boolean;
 }
 
 type ImportState =
@@ -11,7 +13,7 @@ type ImportState =
   | { stage: "restoring" }
   | { stage: "error"; message: string };
 
-export function BackupModal({ onClose }: BackupModalProps) {
+export function BackupModal({ onClose = () => {}, embedded = false }: BackupModalProps) {
   const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "done">("idle");
   const [importState, setImportState] = useState<ImportState>({ stage: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,11 +22,11 @@ export function BackupModal({ onClose }: BackupModalProps) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isMidConfirm) onClose();
+      if (e.key === "Escape" && !isMidConfirm && !embedded) onClose();
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [onClose, isMidConfirm]);
+  }, [onClose, isMidConfirm, embedded]);
 
   const handleExport = async () => {
     setExportStatus("exporting");
@@ -75,61 +77,8 @@ export function BackupModal({ onClose }: BackupModalProps) {
     transition: "box-shadow 0.1s",
   };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Backup and restore"
-      tabIndex={-1}
-      autoFocus
-      onClick={(e) => { if (e.target === e.currentTarget && !isMidConfirm) onClose(); }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 10001,
-        background: "rgba(0,0,0,0.90)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div style={{
-        background: "hsl(var(--background))",
-        border: "var(--nb-border)",
-        boxShadow: "8px 8px 0 #FFD700",
-        width: "100%",
-        maxWidth: 560,
-        overflow: "hidden",
-      }}>
-
-        {/* Header */}
-        <div style={{
-          background: "#000",
-          padding: "16px 24px",
-          borderBottom: "var(--nb-border)",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{
-              background: "#FFD700", color: "#000", fontWeight: 900,
-              fontSize: 13, padding: "2px 10px",
-            }}>ProdLi</span>
-            <span style={{
-              color: "#aaa", fontWeight: 700, fontSize: 12,
-              textTransform: "uppercase", letterSpacing: "0.08em",
-            }}>Backup & Restore</span>
-          </div>
-          {!isMidConfirm && (
-            <button
-              onClick={onClose}
-              title="Close (Esc)"
-              style={{
-                border: "2px solid #444", background: "transparent", color: "#888",
-                width: 32, height: 32, cursor: "pointer", fontSize: 18, fontWeight: 900,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "inherit",
-              }}
-            >×</button>
-          )}
-        </div>
-
+  const content = (
+    <>
         {/* Body */}
         <div style={{ padding: "24px" }}>
 
@@ -304,6 +253,67 @@ export function BackupModal({ onClose }: BackupModalProps) {
             All data is stored locally on your device. Exports contain no passwords or personal identifiers.
           </div>
         )}
+    </>
+  );
+
+  if (embedded) return <div style={{ margin: "-24px -24px 0" }}>{content}</div>;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Backup and restore"
+      tabIndex={-1}
+      autoFocus
+      onClick={(e) => { if (e.target === e.currentTarget && !isMidConfirm) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10001,
+        background: "rgba(0,0,0,0.90)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div style={{
+        background: "hsl(var(--background))",
+        border: "var(--nb-border)",
+        boxShadow: "8px 8px 0 #FFD700",
+        width: "100%",
+        maxWidth: 560,
+        overflow: "hidden",
+      }}>
+
+        {/* Header */}
+        <div style={{
+          background: "#000",
+          padding: "16px 24px",
+          borderBottom: "var(--nb-border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              background: "#FFD700", color: "#000", fontWeight: 900,
+              fontSize: 13, padding: "2px 10px",
+            }}>ProdLi</span>
+            <span style={{
+              color: "#aaa", fontWeight: 700, fontSize: 12,
+              textTransform: "uppercase", letterSpacing: "0.08em",
+            }}>Backup & Restore</span>
+          </div>
+          {!isMidConfirm && (
+            <button
+              onClick={onClose}
+              title="Close (Esc)"
+              style={{
+                border: "2px solid #444", background: "transparent", color: "#888",
+                width: 32, height: 32, cursor: "pointer", fontSize: 18, fontWeight: 900,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "inherit",
+              }}
+            >×</button>
+          )}
+        </div>
+
+        {content}
       </div>
     </div>
   );

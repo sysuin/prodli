@@ -16,6 +16,7 @@ import { calendarAvailable, connectCalendar, disconnectCalendar, isCalendarConne
 import { briefBasis, buildContext, dayKey, DAYS_KEY, DEFAULT_TODAY_SETTINGS, getTodaySettings, greeting, isForToday, minutesLeft, TODAY_SETTINGS_KEY, tomorrowKey, writeBrief } from "../lib/today";
 import { reviewDue, weekLabel } from "../lib/review";
 import { openSection } from "./registry";
+import { openSettings } from "../components/Settings";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 
 const ACCENT = "#F59E0B";
@@ -63,7 +64,6 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   const [calendar, setCalendar] = useState<{ connected: boolean; error: string | null; loading: boolean }>({ connected: false, error: null, loading: false });
   const [briefing, setBriefing] = useState(false);
   const [briefNote, setBriefNote] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const [showWrap, setShowWrap] = useState(() => new Date().getHours() >= 17);
   const [focusDraft, setFocusDraft] = useState("");
   const [reflectionDraft, setReflectionDraft] = useState("");
@@ -193,12 +193,6 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
     const tomorrow = tomorrowKey();
     setTodos((list) => list.map((t) => (!t.completed && t.plannedFor && t.plannedFor <= today ? { ...t, plannedFor: tomorrow, block: undefined } : t)));
   };
-  const saveSettings = async (patch: Partial<TodaySettings>) => {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    await storageSet(TODAY_SETTINGS_KEY, next);
-  };
-
   const briefsLeft = usage?.briefs ? Math.max(0, usage.briefs.limit - usage.briefs.used) : null;
   const dateLine = new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
   const firstName = user?.name?.split(" ")[0];
@@ -218,40 +212,12 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
             <button style={btn()} onClick={() => setShowWrap((v) => !v)}>
               🌙 {showWrap ? "Hide wrap-up" : "Wrap up the day"}
             </button>
-            <button style={btn()} onClick={() => setShowSettings((v) => !v)} aria-expanded={showSettings}>
+            <button style={btn()} onClick={() => openSettings("today")} title="Working day, daily brief and reminders">
               ⚙ Settings
             </button>
           </div>
         </header>
 
-        {showSettings && (
-          <Card title="Today settings" testId="today-settings">
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", fontSize: 13, fontWeight: 600 }}>
-              <label>
-                Work day{" "}
-                <input type="time" value={settings.workStart} onChange={(e) => void saveSettings({ workStart: e.target.value })} aria-label="Work day starts" style={timeInput} /> –{" "}
-                <input type="time" value={settings.workEnd} onChange={(e) => void saveSettings({ workEnd: e.target.value })} aria-label="Work day ends" style={timeInput} />
-              </label>
-              {typeof chrome !== "undefined" && !!chrome.alarms && (
-                <label>
-                  <input type="checkbox" checked={settings.reminder !== null} onChange={(e) => void saveSettings({ reminder: e.target.checked ? "08:30" : null })} /> Morning reminder{" "}
-                  {settings.reminder !== null && <input type="time" value={settings.reminder} onChange={(e) => void saveSettings({ reminder: e.target.value })} aria-label="Reminder time" style={timeInput} />}
-                </label>
-              )}
-              <label>
-                <input type="checkbox" checked={settings.startOnToday} onChange={(e) => void saveSettings({ startOnToday: e.target.checked })} /> Open Today first each day
-              </label>
-              <label>
-                <input type="checkbox" checked={settings.autoBrief} onChange={(e) => void saveSettings({ autoBrief: e.target.checked })} /> Write my brief automatically
-              </label>
-              {typeof chrome !== "undefined" && !!chrome.alarms && (
-                <label>
-                  <input type="checkbox" checked={settings.blockReminders !== false} onChange={(e) => void saveSettings({ blockReminders: e.target.checked })} /> Notify me when a time block starts
-                </label>
-              )}
-            </div>
-          </Card>
-        )}
 
         {daysLoaded && reviewDue(days) && (
           <section style={{ ...card, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderLeft: "6px solid #14B8A6" }} data-testid="review-nudge">
