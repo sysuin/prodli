@@ -1,15 +1,14 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-11 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
+Last updated: 2026-11-17 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 
 Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
-- [ ] **Legal:** lawyer review of the privacy policy and terms (live at prodli.com/privacy and /terms). The operator details were drafted with assumptions — the list to check is in [docs/legal/REVIEW-NOTES.md](docs/legal/REVIEW-NOTES.md) §1.
-- [ ] **Google consent screen:** once the legal pages are live, add app.prodli.com, prodli.com/privacy and /terms → **Publish app**. Calendar access needs Google's verification (can take weeks).
-- [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip`, privacy disclosures, submit ([STORE_SUBMISSION.md](STORE_SUBMISSION.md)).
-- [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), add the monthly/yearly products, API key and webhook — test mode, then live — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [ ] **Google consent screen:** add app.prodli.com, prodli.com/privacy and /terms → **Publish app** (sign-in works for everyone right away); start Calendar verification at the same time (can take weeks).
+- [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit.
+- [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), live mode: products, API key and webhook (test mode is done) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [ ] **Real-use checks:**
   - [ ] A real Google Meet call with captions on (full transcript, summary)
   - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
@@ -20,7 +19,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next — Claude can do
 
-- [ ] Prepare the Web Store listing: description, privacy disclosures field by field, fresh screenshots from the store build
+- Nothing pending before launch.
 
 ## Optional
 
@@ -51,10 +50,12 @@ From the repo root (see README.md for all commands):
 - `pnpm run typecheck` — TypeScript
 - `pnpm test` — unit tests (extension + API)
 - `pnpm test:e2e` — builds the extension and runs ~100 checks in a throwaway headless Chrome (all tabs, Editor incl. two tabs, Meetings, captions reader in English + Spanish, Files, Pomodoro, real Time Tracker tracking incl. worker restarts, Habits, Drive sign-in/sync with a simulated Google, backup, accessibility audit). `E2E_SPEECH=1` adds the real on-device speech test (downloads Chrome's model). Run selected suites with `node artifacts/prodli/tests/e2e/run.mjs editor,files`.
-- `node artifacts/prodli/scripts/store-screenshots.mjs` — regenerate store screenshots after UI changes.
+- `node artifacts/prodli/scripts/store-screenshots.mjs` — regenerate store screenshots after UI changes (builds its own copy with demo data; no real account).
 - `node artifacts/prodli/scripts/brand-images.mjs` — regenerate the Web Store promo tile and prodli.com's link-preview image (logo + tagline, from `scripts/brand/*.html`).
 
 ## Done
+
+- [x] 2026-11-17 — Web Store listing refreshed (description, privacy answers, screenshots of Today, Ask ProdLi and the weekly review); lawyer review of the legal pages
 
 - [x] 2026-11-11 — ProdLi Pro: plans, Dodo Payments checkout and subscription management (on sale once Dodo is set up)
 - [x] 2026-11-11 — Weekly review; time blocks on Today; caption gaps filled from on-device transcription

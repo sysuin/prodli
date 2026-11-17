@@ -48,6 +48,7 @@ Thumbs.db
 artifacts/prodli/dist-extension/
 artifacts/prodli/dist-extension-test/
 artifacts/prodli/dist-extension-server-test/
+artifacts/prodli/dist-extension-shots/
 artifacts/prodli/*.staging/
 prodli-extension.zip
 prodli-extension-store.zip
