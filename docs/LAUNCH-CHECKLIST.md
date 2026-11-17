@@ -4,7 +4,7 @@
 
 ## What's left before launch
 1. ✅ Lawyer review of the privacy policy and terms (17 November 2026).
-2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Sign-in only asks for basic profile access, so it works for everyone as soon as it's published. Calendar (`calendar.readonly`, asked for only when someone clicks Connect) is a sensitive scope: start Google's verification at the same time (can take a few weeks; until then those users see an "unverified app" warning, and at most 100 can connect).
+2. ✅ Google consent screen published (17 November 2026); sign-in works for everyone. prodli.com is verified in Search Console through a Cloudflare TXT record (`google-site-verification=…`); keep that record. **Still open:** branding re-verification (retry scheduled 18 November, after Google's 24-hour wait), then Google's Calendar (`calendar.readonly`) verification with a demo video. Until it passes, people who click Connect see an "unverified app" warning, and at most 100 can connect.
 3. **You:** a real Google Meet call with captions on, to check the whole transcript comes through.
 4. **You:** build the store extension and submit it with the kit in `STORE_SUBMISSION.md` (listing text, screenshots, privacy answers, see "Chrome Web Store" below).
 5. **You (when you want to sell Pro):** Dodo Payments live mode: products, API key and webhook (test mode is done). Step by step: `docs/PRO-PLAN.md`. Until then Pro shows "coming soon".
@@ -57,7 +57,7 @@
 - ✅ Worker logs and metrics: Cloudflare dashboard → Workers → prodli-api → Observability
 - ✅ Uptime check every 15 minutes (`.github/workflows/uptime.yml`): production, staging and prodli.com. A failure emails you.
 - ✅ Anthropic monthly spend limits
-- **You (if not done):** Cloudflare dashboard → Notifications → "Usage-based billing" alerts (for example at $10 and $25 a month)
+- ✅ Cloudflare billing budget alerts at $10 and $25 a month (Notifications; they warn but don't stop spending)
 
 ## Chrome Web Store
 - Build the store version (always against https://app.prodli.com; it never touches the `dist-extension` folder your Chrome loads):

@@ -52,12 +52,28 @@ Also: **Ctrl/⌘+J** opens the list on a selection, and the command palette gets
 - New `src/sections/editor/ImproveMenu.tsx` for the menu and the suggestion card, so `EditorSection.tsx` (795 lines) doesn't grow much.
 - The suggestion card follows the existing look (`--nb-border`, `--nb-shadow-sm`) and must pass the axe check like every other pop-up.
 
-## Phase 2: follow-up email from a meeting
+## Phase 2: follow-up email from a meeting ✅ built (branch `follow-up-email`, not released)
+
+What's built:
+- **✉️ Draft follow-up** sits under a meeting's Summary (shown whenever there is a summary, also when there are no action items). The panel is `src/sections/meetings/FollowUpDraft.tsx`; helpers are in `lib/write.ts` (`followUpMeeting`, `draftFollowUp`, `mailtoHref`).
+- It drafts a Friendly email right away. Switching to Formal writes a second draft; switching back reuses the first, so it doesn't cost another use. **Write again** makes a fresh draft for the current tone.
+- Subject and body are editable in the panel. **Copy email**, **Copy subject**, and **Open in email app** (a `mailto:` link, shown only when the link stays under 1,800 characters; otherwise it says to copy). **Discard** closes it. Drafts aren't saved anywhere.
+- Only the summary is sent (title, date, overview, key points, decisions, action items with owners and due dates, open questions), trimmed to the server's limits. Never the transcript, audio or priorities.
+- Server: `POST /api/ai/follow-up` in `write.ts` (`FollowUpInputSchema`, `draftFollowUpWithClaude`): plain-text email, same language as the notes, no invented facts, sign-off without a name. Whole request capped at 16,000 characters (413). Counts toward `write_usage` with refunds on failure. No new migration.
+- Tests: `prodli-api/test/ai.test.ts` ("follow-up email"), `tests/unit/write.test.ts` ("follow-up email"), and the e2e `meetings` suite (stub `globalThis.__prodliFollowUpStub`, test builds only; axe check light and dark).
+
+Original outline:
 
 - In a meeting's summary (`src/sections/MeetingsSection.tsx`), next to **Add all to To-Dos**: a **✉️ Draft follow-up** button.
 - It writes a subject and an email body from the **summary only** (overview, decisions, action items with owners and dates, open questions), never the full transcript. That keeps it small and cheap.
 - Tone choice: Formal / Friendly. Buttons: **Copy**, **Open in email app** (`mailto:` with subject and body, only when short enough for a link; otherwise just Copy).
 - Server: `POST /api/ai/follow-up` in the same `write.ts`. Counts toward the same writing allowance.
+
+### Before phase 2 ships
+
+- **Privacy policy** (`Privacy.tsx`, after the writing-help paragraph): wording approved 2026-11-17 and added on the branch:
+  > Follow-up emails (✉️ Draft follow-up in Meetings): with an account, you can ask ProdLi to draft an email to a meeting's participants. Our server sends Anthropic's Claude API only that meeting's summary (title, date, overview, key points, decisions, action items with owners and due dates, and open questions) and the tone you picked, never the transcript or audio. Neither the summary nor the draft is stored on our servers. ProdLi doesn't send the email; you copy it or open it in your own email app. Each draft counts toward your monthly writing-help uses.
+- **Store listing** (`STORE_SUBMISSION.md`): optionally add "Draft a follow-up email from any meeting summary" to the Meetings line.
 
 ## Phase 3 (later, optional)
 

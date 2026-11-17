@@ -8,6 +8,7 @@ import { openAsk } from "../lib/ask";
 import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
+import { FollowUpDraft } from "./meetings/FollowUpDraft";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -290,6 +291,7 @@ function MeetingDetail({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [addedTasks, setAddedTasks] = useState<Set<string>>(new Set());
   const [showTranscript, setShowTranscript] = useState(!meeting.summary);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const s = meeting.summary;
 
   useEffect(() => {
@@ -313,6 +315,8 @@ function MeetingDetail({
     void storageGet<Todo[]>("todos", []).then((todos) => setAddedTasks(new Set(todos.map((t) => t.title))));
     setShowTranscript(!meeting.summary);
   }, [meeting.id, meeting.summary]);
+
+  useEffect(() => setFollowUpOpen(false), [meeting.id]);
 
   const addTodos = async (items: ActionItem[]) => {
     const todos = await storageGet<Todo[]>("todos", []);
@@ -406,6 +410,12 @@ function MeetingDetail({
         <>
           <Section title="Summary">
             <p style={{ fontSize: 15, lineHeight: 1.55, margin: 0 }}>{s.overview}</p>
+            {!followUpOpen && (
+              <button style={{ ...btn("plain", busy), marginTop: 10 }} disabled={busy} onClick={() => setFollowUpOpen(true)} title="Write an email to the participants from this summary">
+                ✉️ Draft follow-up
+              </button>
+            )}
+            {followUpOpen && <FollowUpDraft key={meeting.id} summary={s} meetingTitle={meeting.title} startedAt={meeting.startedAt} onClose={() => setFollowUpOpen(false)} flash={flash} />}
           </Section>
 
           {s.actionItems.length > 0 && (

@@ -6,7 +6,8 @@ Last updated: 2026-11-17 · Version 1.3.0 · Repo: https://github.com/sysuin/pro
 
 Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
-- [ ] **Google consent screen:** add app.prodli.com, prodli.com/privacy and /terms → **Publish app** (sign-in works for everyone right away); start Calendar verification at the same time (can take weeks).
+- [x] **Google consent screen:** published (In production) on 2026-11-17; sign-in works for everyone. prodli.com verified in Search Console (TXT record in Cloudflare; keep it).
+- [ ] **Calendar verification:** branding re-verification is scheduled for 2026-11-18 (Google asks for a 24-hour wait after domain verification). After branding passes, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit.
 - [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), live mode: products, API key and webhook (test mode is done) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [ ] **Real-use checks:**
@@ -15,7 +16,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] A time-block reminder going off; "Add to Google Calendar"
   - [ ] A weekly review with your real data
   - [ ] Phone: the web app (Share → Add to Home Screen)
-- [ ] **Cloudflare billing alerts** (if not set): Notifications → usage-based billing at $10 and $25
+- [x] **Cloudflare billing alerts:** budget alerts at $10 (auto-created) and $25 (added 2026-11-17), emailed to the account owner
 
 ## Next — Claude can do
 
@@ -30,7 +31,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next ideas
 
-- [ ] Writing help: phase 1 (✨ Improve on selected text in Notes) is built on branch `writing-assist`, not released. Before release: approve the privacy/terms wording and deploy the API (new D1 migration `0008_write_usage`). Phase 2 is follow-up emails from meetings. Details: [docs/PLAN-WRITING-ASSIST.md](docs/PLAN-WRITING-ASSIST.md)
+- [ ] Writing help: phase 1 (✨ Improve in Notes) is merged (sysuin/prodli#48) but not released. Phase 2 (✉️ Draft follow-up from a meeting summary) is built on branch `follow-up-email` (privacy wording approved and added). Release: deploy the production API first (migration `0008_write_usage`), then the extension, then add the writing-help uses to the website pricing. Details: [docs/PLAN-WRITING-ASSIST.md](docs/PLAN-WRITING-ASSIST.md)
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
 - [ ] Zoom / Microsoft Teams web support
 - [ ] Mobile: mic-based recording for in-person meetings

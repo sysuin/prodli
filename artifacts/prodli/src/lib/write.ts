@@ -141,3 +141,78 @@ export const IMPROVE_EVENT = "prodli-improve";
 export function openImprove(action?: RewriteAction): void {
   window.dispatchEvent(new CustomEvent(IMPROVE_EVENT, { detail: { action } }));
 }
+
+// ── Follow-up email from a meeting (phase 2) ──────────────────────────────────
+// Only the meeting's summary is sent (/api/ai/follow-up), never the transcript.
+// Counts toward the same monthly writing allowance as ✨ Improve.
+
+export type FollowUpTone = "formal" | "friendly";
+
+export interface FollowUpMeeting {
+  title: string;
+  /** e.g. "2026-11-17" */
+  date: string;
+  overview: string;
+  keyPoints: string[];
+  decisions: string[];
+  actionItems: { task: string; owner: string | null; dueDate: string | null }[];
+  openQuestions: string[];
+}
+
+export interface FollowUpResult {
+  subject: string;
+  body: string;
+  usage?: { used: number; limit: number };
+}
+
+const FOLLOW_UP_MESSAGES: Record<string, string> = {
+  ...MESSAGES,
+  ai_refused: "ProdLi can't write a follow-up for this meeting.",
+  ai_truncated: "The email was cut off. Try again.",
+  too_large: "These meeting notes are too long for a follow-up email.",
+  bad_request: "This meeting has no summary to write from yet.",
+};
+
+type FollowUpStub = (tone: FollowUpTone, meeting: FollowUpMeeting) => Promise<FollowUpResult>;
+
+/** The parts of a meeting summary the email is written from, trimmed to the server's limits. */
+export function followUpMeeting(summary: { title: string; overview: string; keyPoints: string[]; decisions: string[]; actionItems: { task: string; owner: string | null; dueDate: string | null }[]; openQuestions: string[] }, fallbackTitle: string, startedAt: string): FollowUpMeeting {
+  const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  const list = (items: string[] | undefined, n: number) => (items ?? []).slice(0, n).map((i) => cut(i, 600));
+  return {
+    title: cut(summary.title || fallbackTitle, 300),
+    date: startedAt.slice(0, 10),
+    overview: cut(summary.overview, 4000),
+    keyPoints: list(summary.keyPoints, 30),
+    decisions: list(summary.decisions, 30),
+    actionItems: (summary.actionItems ?? []).slice(0, 40).map((a) => ({ task: cut(a.task, 600), owner: a.owner ? cut(a.owner, 120) : null, dueDate: a.dueDate ? cut(a.dueDate, 40) : null })),
+    openQuestions: list(summary.openQuestions, 30),
+  };
+}
+
+/** Drafts a follow-up email through the user's ProdLi account. Throws RewriteError with a message to show. */
+export async function draftFollowUp(tone: FollowUpTone, meeting: FollowUpMeeting): Promise<FollowUpResult> {
+  if (!meeting.overview.trim()) throw new RewriteError(FOLLOW_UP_MESSAGES.bad_request);
+  if (import.meta.env.VITE_E2E === "1") {
+    const stub = (globalThis as { __prodliFollowUpStub?: FollowUpStub }).__prodliFollowUpStub;
+    if (stub) return stub(tone, meeting);
+  }
+  if (!accountsEnabled()) throw new RewriteError("Writing help isn't available in this copy of ProdLi.");
+  if (!(await getProdliAccount())) throw new RewriteError(SIGN_IN_FOR_WRITING);
+  try {
+    return await accountRequest<FollowUpResult>("/api/ai/follow-up", { method: "POST", body: JSON.stringify({ tone, meeting }) }, FOLLOW_UP_MESSAGES);
+  } catch (err) {
+    throw new RewriteError(err instanceof AccountError ? err.message : MESSAGES.ai_failed);
+  }
+}
+
+/**
+ * A mailto: link with the subject and body filled in, or null when it would be
+ * too long for email apps to accept reliably (then the user copies instead).
+ */
+export const MAX_MAILTO_LENGTH = 1800;
+export function mailtoHref(subject: string, body: string): string | null {
+  // Email apps expect CRLF line breaks in mailto bodies.
+  const href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\r?\n/g, "\r\n"))}`;
+  return href.length <= MAX_MAILTO_LENGTH ? href : null;
+}

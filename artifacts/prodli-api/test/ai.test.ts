@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AI_MONTHLY_LIMIT, monthKey } from "../src/ai";
 import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
 import { ASK_MONTHLY_LIMIT } from "../src/ask";
-import { MAX_REWRITE_CHARS, WRITE_MONTHLY_LIMIT } from "../src/write";
+import { MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, WRITE_MONTHLY_LIMIT } from "../src/write";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
 
@@ -248,5 +248,61 @@ describe("Writing help (rewrite)", () => {
     const { app } = makeApp();
     const auth = await signIn(app, base);
     expect((await app.request("/api/ai/rewrite", json(rewrite("hi"), auth), base)).status).toBe(503);
+  });
+});
+
+describe("Writing help (follow-up email)", () => {
+  const meeting = (over: Record<string, unknown> = {}) => ({
+    title: "Launch sync",
+    date: "2026-11-17",
+    overview: "We agreed the launch plan.",
+    keyPoints: ["Store listing is ready"],
+    decisions: ["Launch on Monday"],
+    actionItems: [{ task: "Submit the extension", owner: "Sunny", dueDate: "2026-11-18" }, { task: "Post the announcement", owner: null, dueDate: null }],
+    openQuestions: [],
+    ...over,
+  });
+  const followUp = (tone: string, m = meeting()) => ({ tone, meeting: m });
+
+  it("drafts an email from the summary and shares the writing allowance", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/follow-up", json(followUp("formal"), auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ subject: "Follow-up: Launch sync", body: "formal | Submit the extension, Post the announcement", usage: { used: 1, limit: WRITE_MONTHLY_LIMIT.free } });
+    expect(calls.filter((c) => c.kind === "follow-up").map((c) => c.clientId)).toEqual(["formal"]);
+    // Rewrites and follow-ups count toward the same monthly number.
+    await app.request("/api/ai/rewrite", json({ action: "fix", text: "hi" }, auth), env);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ writes: { used: 2 } });
+    // Older summaries without optional lists still work.
+    const minimal = await app.request("/api/ai/follow-up", json({ tone: "friendly", meeting: { title: "t", date: "d", overview: "o" } }, auth), env);
+    expect(minimal.status).toBe(200);
+  });
+
+  it("refunds failures, enforces the limit and validates input", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal", meeting({ overview: "FAIL" })), auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ writes: { used: 0 } });
+    expect((await app.request("/api/ai/follow-up", json(followUp("rude"), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal", meeting({ overview: "  " })), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/follow-up", json({ tone: "formal" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/follow-up", { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: "{not json" }, env)).status).toBe(400);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal", meeting({ actionItems: Array.from({ length: 41 }, () => ({ task: "t" })) })), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal", meeting({ overview: "x".repeat(MAX_FOLLOW_UP_CHARS) })), auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal"), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    await env.DB.prepare("INSERT INTO write_usage (user_id, month, count) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, month) DO UPDATE SET count = excluded.count").bind(user.id, monthKey(NOW), WRITE_MONTHLY_LIMIT.free).run();
+    const over = await app.request("/api/ai/follow-up", json(followUp("friendly"), auth), env);
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: "write_quota_exceeded" });
+  });
+
+  it("is off without ProdLi's key", async () => {
+    const { app } = makeApp();
+    const auth = await signIn(app, base);
+    expect((await app.request("/api/ai/follow-up", json(followUp("formal"), auth), base)).status).toBe(503);
   });
 });
