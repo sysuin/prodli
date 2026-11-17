@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { AI_MONTHLY_LIMIT } from "../src/ai";
+import { AI_MONTHLY_LIMIT, monthKey } from "../src/ai";
 import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
 import { ASK_MONTHLY_LIMIT } from "../src/ask";
 import { MAX_REWRITE_CHARS, WRITE_MONTHLY_LIMIT } from "../src/write";
@@ -14,6 +14,8 @@ beforeEach(async () => {
   await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM ask_usage"), base.DB.prepare("DELETE FROM write_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
 });
 
+/** makeApp()'s default clock. */
+const NOW = 1_800_000_000_000;
 const withKey = () => ({ ...base, ANTHROPIC_API_KEY: "sk-test" }) as Env;
 
 async function signIn(app: ReturnType<typeof makeApp>["app"], env: Env, who = "a") {
@@ -231,7 +233,12 @@ describe("Writing help (rewrite)", () => {
     expect((await app.request("/api/ai/rewrite", json(rewrite("x".repeat(MAX_REWRITE_CHARS)), auth), env)).status).toBe(200);
     expect((await app.request("/api/ai/rewrite", json(rewrite("x".repeat(MAX_REWRITE_CHARS + 1)), auth), env)).status).toBe(413);
     expect((await app.request("/api/ai/rewrite", json(rewrite("hi"), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
-    for (let i = 1; i < WRITE_MONTHLY_LIMIT.free; i++) await app.request("/api/ai/rewrite", json(rewrite("hi", "shorter"), auth), env);
+    // Use up the allowance by setting this month's count (hundreds of requests are too slow for CI).
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    await env.DB.prepare("UPDATE write_usage SET count = ?1 WHERE user_id = ?2 AND month = ?3").bind(WRITE_MONTHLY_LIMIT.free - 1, user.id, monthKey(NOW)).run();
+    const last = await app.request("/api/ai/rewrite", json(rewrite("hi", "shorter"), auth), env);
+    expect(last.status).toBe(200);
+    expect(await last.json()).toMatchObject({ usage: { used: WRITE_MONTHLY_LIMIT.free, limit: WRITE_MONTHLY_LIMIT.free } });
     const over = await app.request("/api/ai/rewrite", json(rewrite("hi"), auth), env);
     expect(over.status).toBe(429);
     expect(await over.json()).toMatchObject({ error: "write_quota_exceeded", usage: { used: WRITE_MONTHLY_LIMIT.free, limit: WRITE_MONTHLY_LIMIT.free } });
