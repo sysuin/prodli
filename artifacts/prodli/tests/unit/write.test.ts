@@ -135,6 +135,20 @@ describe("writing help: applying a suggestion in the Editor", () => {
     expect(editor.getHTML()).toBe("<p>Hello <strong>wrold</strong>, how are you?</p><p>Hello world, how are you?</p><p>Second line</p>");
   });
 
+  it("works on select-all (Ctrl/⌘+A): sends the whole note and replaces it", async () => {
+    editor.commands.selectAll();
+    const t = (await captureSelection(editor)) as Target;
+    expect(typeof t).toBe("object");
+    expect(t.markdown).toBe("Hello **wrold**, how are you?\n\nSecond line");
+    replaceWithHtml(editor, t, await rewriteToHtml("Hello **world**, how are you?\n\nSecond line."));
+    expect(editor.getHTML()).toBe("<p>Hello <strong>world</strong>, how are you?</p><p>Second line.</p>");
+    editor.commands.undo();
+    expect(editor.getHTML()).toBe("<p>Hello <strong>wrold</strong>, how are you?</p><p>Second line</p>");
+    editor.commands.selectAll();
+    insertHtmlBelow(editor, (await captureSelection(editor)) as Target, await rewriteToHtml("Copy."));
+    expect(editor.getHTML()).toBe("<p>Hello <strong>wrold</strong>, how are you?</p><p>Second line</p><p>Copy.</p>");
+  });
+
   it("notices when the note changed since the request", async () => {
     select("wrold");
     const t = (await captureSelection(editor)) as Target;

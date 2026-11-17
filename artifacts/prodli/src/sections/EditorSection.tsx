@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { EditorState, TextSelection } from "@tiptap/pm/state";
+import { EditorState } from "@tiptap/pm/state";
 import { ListOrdered } from "lucide-react";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/700.css";
@@ -23,7 +23,7 @@ const loadMarkdownExport = () => import("../lib/markdownExport");
 import { buildExtensions } from "./editor/extensions";
 import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashState } from "./editor/SlashMenu";
 import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
-import { useImprove } from "./editor/ImproveMenu";
+import { isImprovable, useImprove } from "./editor/ImproveMenu";
 import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
@@ -789,7 +789,7 @@ export function EditorSection() {
             )}
             {!editor.state.selection.empty && (
               <>
-                {editor.state.selection instanceof TextSelection && (
+                {isImprovable(editor.state.selection) && (
                   <>
                     <ToolbarButton wide onClick={() => void improve.open()} title="Improve writing (Ctrl/⌘+J)">✨ Improve</ToolbarButton>
                     <Divider />

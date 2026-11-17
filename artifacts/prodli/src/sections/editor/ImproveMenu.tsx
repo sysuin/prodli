@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { Editor } from "@tiptap/react";
 import { DOMParser as PMDOMParser, DOMSerializer } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
+import { AllSelection, TextSelection, type Selection } from "@tiptap/pm/state";
 import { plainText, REWRITE_ACTIONS, rewriteText, rewriteToHtml, RewriteError, TOO_LONG, MAX_REWRITE_CHARS, wordDiff, type RewriteAction, type RewriteResult } from "../../lib/write";
 
 const BUBBLE_KEY = "formatBubble";
@@ -42,11 +42,14 @@ export interface OpenOptions {
 
 const label = (a: RewriteAction) => REWRITE_ACTIONS.find((x) => x.id === a)?.label ?? a;
 
+/** Text selections and select-all (Ctrl/⌘+A) can be improved; table-cell and node selections can't. */
+export const isImprovable = (sel: Selection) => !sel.empty && (sel instanceof TextSelection || sel instanceof AllSelection);
+
 /** The selection, or a message saying why it can't be improved. */
 export async function captureSelection(editor: Editor): Promise<Target | string> {
   const sel = editor.state.selection;
   if (sel.empty) return "Select some text first, then press Ctrl/⌘+J or click ✨ Improve.";
-  if (!(sel instanceof TextSelection)) return "Select text (not whole table cells) to improve it.";
+  if (!isImprovable(sel)) return "Select text (not whole table cells) to improve it.";
   if (editor.isActive("codeBlock")) return "Writing help doesn't work inside code blocks.";
   const { from, to } = sel;
   const docText = editor.state.doc.textBetween(from, to, "\n", " ");
@@ -68,7 +71,10 @@ export const targetIntact = (editor: Editor, t: Target) => t.to <= editor.state.
 /** Replaces the target with `html` like a paste: one paragraph merges into the line, and it's one undo step. */
 export function replaceWithHtml(editor: Editor, t: Target, html: string): void {
   const slice = PMDOMParser.fromSchema(editor.schema).parseSlice(inertBody(html));
-  editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, t.from, t.to)).replaceSelection(slice).scrollIntoView());
+  const doc = editor.state.doc;
+  const whole = t.from === 0 && t.to === doc.content.size; // came from select-all
+  const sel = whole ? new AllSelection(doc) : TextSelection.create(doc, t.from, t.to);
+  editor.view.dispatch(editor.state.tr.setSelection(sel).replaceSelection(slice).scrollIntoView());
 }
 
 /** Inserts `html` as new blocks after the top-level block where the target ends. */

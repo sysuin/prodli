@@ -587,6 +587,19 @@ const suites = {
     html = await p.editorHtml();
     check("Improve: Discard changes nothing", !(await panelOpen()) && html.includes("<p>I saw teh plan yesterday.</p><p>Second paragraph stays.</p>"), html);
 
+    // Select-all (Ctrl/⌘+A) works too.
+    await p.focusEditor();
+    await p.key("a", { mod: true });
+    await sleep(500);
+    check("Improve: ✨ Improve shows after select-all (Ctrl/⌘+A)", await p.eval(`[...document.querySelectorAll("button")].some(b => b.textContent.trim() === "✨ Improve")`));
+    await p.key("j", { mod: true });
+    await sleep(300);
+    await p.key("Enter");
+    await sleep(500);
+    check("Improve: select-all sends the whole note", (await p.eval("window.__rewrites.at(-1)?.text")) === "I saw teh plan yesterday.\n\nSecond paragraph stays.", JSON.stringify(await p.eval("window.__rewrites.at(-1)")));
+    await p.key("Escape");
+    await sleep(200);
+
     // Errors: a message and Try again.
     await stub("fail");
     await select("I saw teh plan yesterday.");
