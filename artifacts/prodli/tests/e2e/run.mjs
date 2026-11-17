@@ -448,6 +448,168 @@ const suites = {
     await p.close();
   },
 
+  async improve(b, check) {
+    // ✨ Improve (writing help) on selected text. The test build has no ProdLi
+    // server, so a stub stands in for /api/ai/rewrite (lib/write.ts, test builds only).
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("editor");
+    await p.click("+");
+    await sleep(300);
+    await p.type("I saw teh plan yesterday.");
+    await p.key("Enter");
+    await p.type("Second paragraph stays.");
+    await sleep(900);
+    const select = (text) =>
+      p.eval(`(() => {
+        const el = document.querySelector(".ProseMirror");
+        el.focus();
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode()) && !node.data.includes(${JSON.stringify(text)}));
+        if (!node) throw new Error("text not found");
+        const r = document.createRange();
+        const i = node.data.indexOf(${JSON.stringify(text)});
+        r.setStart(node, i);
+        r.setEnd(node, i + ${JSON.stringify(text)}.length);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        return true;
+      })()`).then(() => sleep(500)); // the selection menu shows after a short delay
+    const panelText = () => p.eval(`document.querySelector('[data-testid="improve-panel"]')?.innerText ?? ""`);
+    const panelOpen = () => p.eval(`!!document.querySelector('[data-testid="improve-panel"]')`);
+    const stub = (mode = "ok") =>
+      p.eval(`(() => {
+        window.__rewrites = [];
+        globalThis.__prodliRewriteStub = async (action, text) => {
+          window.__rewrites.push({ action, text });
+          await new Promise((r) => setTimeout(r, 150));
+          if (${JSON.stringify(mode)} === "fail") throw new Error("boom");
+          if (action === "fix") return { text: text.replace("teh", "the"), changed: text.includes("teh"), usage: { used: window.__rewrites.length, limit: 200 } };
+          if (action === "shorter") return { text: "Saw the plan.", changed: true, usage: { used: window.__rewrites.length, limit: 200 } };
+          return { text, changed: false, usage: { used: window.__rewrites.length, limit: 200 } };
+        };
+        return true;
+      })()`);
+    const audit = async () => {
+      await p.eval(axeSource + ";true");
+      return p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + "]" : "")).join(" | ")))`);
+    };
+
+    // No server in this copy: a clear message, nothing changes.
+    await select("teh plan");
+    check("Improve: ✨ Improve shows in the selection menu", await p.eval(`[...document.querySelectorAll("button")].some(b => b.textContent.trim() === "✨ Improve")`));
+    await p.click("✨ Improve");
+    await sleep(300);
+    const menu = await panelText();
+    check("Improve: the menu lists the five actions", ["Fix spelling & grammar", "Make shorter", "Make clearer", "More formal", "Friendlier"].every((x) => menu.includes(x)), menu);
+    check("Improve: the selection menu hides while the panel is open", await p.eval(`![...document.querySelectorAll("button")].some(b => b.textContent.trim() === "✨ Improve" && b.offsetParent !== null && getComputedStyle(b).visibility !== "hidden" && getComputedStyle(b).opacity !== "0")`));
+    await p.click("Fix spelling & grammar", { exact: false });
+    await sleep(400);
+    check("Improve: without a ProdLi server it says so", (await panelText()).includes("isn't available in this copy"), await panelText());
+    await p.click("Close");
+    await sleep(200);
+    check("Improve: Close shuts the panel", !(await panelOpen()));
+
+    // Mouse flow: Fix → see what changed → Replace → one undo step.
+    await stub();
+    await select("I saw teh plan yesterday.");
+    await p.click("✨ Improve");
+    await sleep(250);
+    await p.click("Fix spelling & grammar", { exact: false });
+    await sleep(80);
+    check("Improve: shows progress while waiting", (await panelText()).includes("Fix spelling & grammar…"));
+    await sleep(400);
+    const marks = await p.eval(`(() => { const s = document.querySelector('[data-testid="improve-suggestion"]'); return { added: [...(s?.querySelectorAll("mark") ?? [])].map(m => m.textContent), removed: [...(s?.querySelectorAll("del") ?? [])].map(m => m.textContent) }; })()`);
+    check("Improve: sends only the selected text, as Markdown", JSON.stringify(await p.eval("window.__rewrites")) === JSON.stringify([{ action: "fix", text: "I saw teh plan yesterday." }]), JSON.stringify(await p.eval("window.__rewrites")));
+    check("Improve: Fix marks the changed words", marks.added.join() === "the" && marks.removed.join() === "teh", JSON.stringify(marks));
+    check("Improve: shows what's left this month", (await panelText()).includes("199 of 200 left this month"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      const v = await audit();
+      check(`A11y (${theme}): the Improve panel has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("improve-suggestion");
+    const beforeReplace = await p.editorHtml();
+    check("Improve: nothing changes before Replace", beforeReplace.includes("I saw teh plan yesterday."));
+    await p.click("Replace");
+    await sleep(300);
+    let html = await p.editorHtml();
+    check("Improve: Replace swaps in the suggestion", html.includes("<p>I saw the plan yesterday.</p><p>Second paragraph stays.</p>"), html);
+    check("Improve: Replace offers Undo", (await p.text()).includes("Text replaced"));
+    await sleep(900);
+    const saved = ((await p.storage(["notes"])).notes ?? []).find((n) => n.content.includes("Second paragraph stays."));
+    check("Improve: the replaced text is saved", !!saved?.content.includes("I saw the plan yesterday."));
+    await p.focusEditor();
+    await p.key("z", { mod: true });
+    await sleep(200);
+    html = await p.editorHtml();
+    check("Improve: one Ctrl/⌘+Z brings the original back", html.includes("<p>I saw teh plan yesterday.</p><p>Second paragraph stays.</p>"), html);
+
+    // Keyboard flow: Ctrl/⌘+J, arrows, Enter; then Insert below.
+    await select("I saw teh plan yesterday.");
+    await p.key("j", { mod: true });
+    await sleep(350);
+    const focused = await p.eval(`document.activeElement?.textContent.trim() ?? ""`);
+    check("Improve: Ctrl/⌘+J opens the menu with focus on the first action", (await panelOpen()) && focused.includes("Fix spelling & grammar"), focused);
+    await p.key("ArrowDown");
+    check("Improve: arrow keys move through the actions", (await p.eval(`document.activeElement?.textContent.trim() ?? ""`)).includes("Make shorter"));
+    await p.key("Enter");
+    await sleep(500);
+    check("Improve: Enter runs the focused action", (await panelText()).includes("Saw the plan.") && (await p.eval(`document.activeElement?.textContent.trim()`)) === "Replace");
+    await p.click("Insert below");
+    await sleep(300);
+    html = await p.editorHtml();
+    check("Improve: Insert below keeps the original and adds the suggestion after it", html.includes("<p>I saw teh plan yesterday.</p><p>Saw the plan.</p><p>Second paragraph stays.</p>"), html);
+    await p.focusEditor();
+    await p.key("z", { mod: true });
+    await sleep(200);
+
+    // Discard and Escape leave the note alone; "no mistakes" is said plainly.
+    await select("Second paragraph stays.");
+    await p.key("j", { mod: true });
+    await sleep(300);
+    await p.key("Enter"); // Fix
+    await sleep(500);
+    check("Improve: says when there's nothing to fix", (await panelText()).includes("No mistakes found"));
+    await p.key("Escape");
+    await sleep(200);
+    check("Improve: Escape closes the panel", !(await panelOpen()));
+    await select("I saw teh plan yesterday.");
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-improve", { detail: { action: "shorter" } }))`);
+    await sleep(600);
+    check("Improve: the command palette can run an action on the selection", (await panelText()).includes("Saw the plan."));
+    await p.click("Discard");
+    await sleep(200);
+    html = await p.editorHtml();
+    check("Improve: Discard changes nothing", !(await panelOpen()) && html.includes("<p>I saw teh plan yesterday.</p><p>Second paragraph stays.</p>"), html);
+
+    // Errors: a message and Try again.
+    await stub("fail");
+    await select("I saw teh plan yesterday.");
+    await p.key("j", { mod: true });
+    await sleep(300);
+    await p.key("Enter");
+    await sleep(500);
+    check("Improve: a failed request shows a message and Try again", (await panelText()).includes("Something went wrong") && (await panelText()).includes("Try again"));
+    await stub();
+    await p.click("Try again");
+    await sleep(500);
+    check("Improve: Try again works", (await p.eval(`[...document.querySelectorAll('[data-testid="improve-suggestion"] mark')].map(m => m.textContent).join()`)) === "the" && (await panelText()).includes("Replace"));
+    // Editing the note meanwhile: Replace refuses rather than overwriting the wrong text.
+    await p.focusEditor("start");
+    await p.type("Oh! ");
+    await sleep(100);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.textContent.trim() === "Replace")?.click()`);
+    await sleep(300);
+    check("Improve: if the note changed meanwhile, Replace asks to select again", (await panelText()).includes("The note changed"), await panelText());
+    await p.click("Close");
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

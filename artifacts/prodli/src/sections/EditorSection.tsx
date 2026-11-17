@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { EditorState } from "@tiptap/pm/state";
+import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { ListOrdered } from "lucide-react";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/700.css";
@@ -23,6 +23,8 @@ const loadMarkdownExport = () => import("../lib/markdownExport");
 import { buildExtensions } from "./editor/extensions";
 import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashState } from "./editor/SlashMenu";
 import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
+import { useImprove } from "./editor/ImproveMenu";
+import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -130,6 +132,8 @@ export function EditorSection() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<Editor | null>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const improveRef = useRef<ReturnType<typeof useImprove> | null>(null);
 
   const showToast = useCallback((text: string, undo?: () => void) => {
     clearTimeout(toastTimer.current);
@@ -254,6 +258,14 @@ export function EditorSection() {
               return true;
             }
           }
+          if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
+            void improveRef.current?.open({ keyboard: true });
+            return true;
+          }
+          if (event.key === "Escape" && improveRef.current?.openRef.current) {
+            improveRef.current.close();
+            return true;
+          }
           if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
             event.preventDefault();
             setLink();
@@ -295,6 +307,17 @@ export function EditorSection() {
     [],
   );
   editorRef.current = editor;
+
+  // ✨ Improve (writing help) for the selection: bubble button, Ctrl/⌘+J, command palette.
+  const improve = useImprove(editor, pageRef, showToast);
+  improveRef.current = improve;
+  const closeImprove = improve.close;
+  useEffect(() => closeImprove(), [activeId, closeImprove]);
+  useEffect(() => {
+    const onImprove = (e: Event) => void improveRef.current?.open({ keyboard: true, action: (e as CustomEvent<{ action?: RewriteAction }>).detail?.action });
+    window.addEventListener(IMPROVE_EVENT, onImprove);
+    return () => window.removeEventListener(IMPROVE_EVENT, onImprove);
+  }, []);
 
   /** Show a note's content with a fresh undo history (undo never crosses notes). */
   const loadIntoEditor = useCallback((html: string, keepSelection = false) => {
@@ -532,7 +555,7 @@ export function EditorSection() {
   // Escape leaves full screen; Alt+N makes a new note.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreen && !slashRef.current.state) setIsFullscreen(false);
+      if (e.key === "Escape" && isFullscreen && !slashRef.current.state && !improveRef.current?.openRef.current) setIsFullscreen(false);
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "n" || e.key === "N" || e.code === "KeyN")) {
         e.preventDefault();
         createNote();
@@ -707,8 +730,9 @@ export function EditorSection() {
               if (e.target === e.currentTarget) editor?.commands.focus("end");
             }}
           >
-            <div className="editor-page" style={{ maxWidth: 820, margin: "0 auto" }}>
+            <div ref={pageRef} className="editor-page" style={{ maxWidth: 820, margin: "0 auto", position: "relative" }}>
               <EditorContent editor={editor} style={{ minHeight: "100%" }} />
+              {improve.panel}
             </div>
           </div>
 
@@ -734,10 +758,10 @@ export function EditorSection() {
 
         {/* Status bar */}
         <div className="editor-status" style={{ borderTop: "var(--nb-border)", padding: "6px 16px", display: "flex", gap: 16, background: "hsl(var(--muted))", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", flexWrap: "wrap" }}>
-          {t && t.selectedWords > 0 ? <span style={{ color: "#c07000" }}>{t.selectedWords} selected</span> : <span>{t?.words ?? 0} words</span>}
+          {t && t.selectedWords > 0 ? <span style={{ background: "#FFD700", color: "#000", padding: "0 4px" }}>{t.selectedWords} selected</span> : <span>{t?.words ?? 0} words</span>}
           <span>{t?.chars ?? 0} chars</span>
           <span>{getReadingTime(t?.words ?? 0)}</span>
-          <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>Type / for commands · Ctrl/⌘+click opens links</span>
+          <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>Type / for commands · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links</span>
           <span role="status" aria-live="polite" style={{ marginLeft: "auto", color: saveStatus === "error" ? "#E53935" : "hsl(var(--muted-foreground))" }}>
             {saveLabel}
           </span>
@@ -750,7 +774,7 @@ export function EditorSection() {
           editor={editor}
           pluginKey="formatBubble"
           shouldShow={({ editor: ed, state }) => {
-            if (ed.isActive("codeBlock") || slashRef.current.state) return false;
+            if (ed.isActive("codeBlock") || slashRef.current.state || improveRef.current?.openRef.current) return false;
             return !state.selection.empty || ed.isActive("link");
           }}
           options={{ placement: "top" }}
@@ -765,6 +789,12 @@ export function EditorSection() {
             )}
             {!editor.state.selection.empty && (
               <>
+                {editor.state.selection instanceof TextSelection && (
+                  <>
+                    <ToolbarButton wide onClick={() => void improve.open()} title="Improve writing (Ctrl/⌘+J)">✨ Improve</ToolbarButton>
+                    <Divider />
+                  </>
+                )}
                 <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={t?.bold} title="Bold">B</ToolbarButton>
                 <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={t?.italic} title="Italic"><em>I</em></ToolbarButton>
                 <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={t?.underline} title="Underline"><u>U</u></ToolbarButton>

@@ -33,6 +33,7 @@ import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTE
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
@@ -66,12 +67,13 @@ export interface Deps {
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
+  rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -367,7 +369,7 @@ export function createApp(deps: Deps = realDeps) {
     const products = productsOnSale(c.env);
     const prices: Partial<Record<Interval, Price | null>> = {};
     if (products) for (const i of ["monthly", "yearly"] as const) if (products[i]) prices[i] = await priceOf(c, products[i]!);
-    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan] });
+    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan] });
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
       onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
@@ -440,6 +442,7 @@ export function createApp(deps: Deps = realDeps) {
 
   const askLimit = (plan: string) => ASK_MONTHLY_LIMIT[plan as keyof typeof ASK_MONTHLY_LIMIT] ?? ASK_MONTHLY_LIMIT.free;
   const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
+  const writeLimit = (plan: string) => WRITE_MONTHLY_LIMIT[plan as keyof typeof WRITE_MONTHLY_LIMIT] ?? WRITE_MONTHLY_LIMIT.free;
 
   app.get("/api/ai/usage", requireAuth, async (c) => {
     const auth = c.get("auth");
@@ -450,6 +453,7 @@ export function createApp(deps: Deps = realDeps) {
       available: !!c.env.ANTHROPIC_API_KEY,
       briefs: { used: await aiUsage(c.env.DB, auth.user.id, now, "brief_usage"), limit: briefLimit(auth.user.plan) },
       asks: { used: await aiUsage(c.env.DB, auth.user.id, now, "ask_usage"), limit: askLimit(auth.user.plan) },
+      writes: { used: await aiUsage(c.env.DB, auth.user.id, now, "write_usage"), limit: writeLimit(auth.user.plan) },
     });
   });
 
@@ -562,6 +566,29 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ answer: r.answer, actions: r.actions, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "ask_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST { action, text } → { text, changed, usage }. Writing help for a note selection. Sent to Anthropic, not stored.
+  app.post("/api/ai/rewrite", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
+    if (typeof body?.text === "string" && body.text.length > MAX_REWRITE_CHARS) return c.json({ error: "too_large", message: "That's too much text at once. Select a shorter part." }, 413);
+    const input = RewriteInputSchema.safeParse(body);
+    if (!input.success || !input.data.text.trim()) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = writeLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "write_usage");
+    if (used === null) return c.json({ error: "write_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.rewrite(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ text: r.text, changed: r.changed, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "write_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
       throw err;
     }

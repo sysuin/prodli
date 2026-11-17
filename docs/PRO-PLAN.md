@@ -13,9 +13,10 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | AI meeting summaries | 20 | 300 |
 | AI daily briefs & weekly reviews | 62 | 200 |
 | Ask ProdLi questions | 100 | 1,000 |
+| Writing help (✨ Improve in Notes) | 200 | 2,000 |
 | Synced storage | 100 MB | 2 GB |
 
-The numbers live in `artifacts/prodli-api/src/ai.ts`, `brief.ts`, `ask.ts` and `syncStore.ts` (the account window reads them from the server; update the Terms text if you change them).
+The numbers live in `artifacts/prodli-api/src/ai.ts`, `brief.ts`, `ask.ts`, `write.ts` and `syncStore.ts` (the account window reads them from the server; update the Terms text if you change them).
 
 Suggested price: **$5/month or $48/year** (two months free). The app shows the price from Dodo.
 

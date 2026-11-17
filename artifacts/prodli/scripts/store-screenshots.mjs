@@ -168,7 +168,7 @@ const ASK_ANSWER = {
 };
 
 // A stand-in for ProdLi's server: just enough for the screenshots.
-const LIMITS = { storageBytes: 100 * 1024 * 1024, summaries: 20, briefs: 62, asks: 100 };
+const LIMITS = { storageBytes: 100 * 1024 * 1024, summaries: 20, briefs: 62, asks: 100, writes: 200 };
 const api = createServer((req, res) => {
   const send = (status, obj) => {
     res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE" });
@@ -180,9 +180,9 @@ const api = createServer((req, res) => {
     if (req.method === "OPTIONS") return send(204, {});
     if (url === "/api/me") return send(200, { user: USER });
     if (url === "/api/sync") return send(200, { seq: 1, changes: [], more: false, usage: { bytes: 2_400_000, quota: LIMITS.storageBytes } });
-    if (url === "/api/ai/usage") return send(200, { used: 3, limit: 20, available: true, briefs: { used: 9, limit: 62 }, asks: { used: 12, limit: 100 } });
+    if (url === "/api/ai/usage") return send(200, { used: 3, limit: 20, available: true, briefs: { used: 9, limit: 62 }, asks: { used: 12, limit: 100 }, writes: { used: 7, limit: 200 } });
     if (url === "/api/ai/ask") return setTimeout(() => send(200, ASK_ANSWER), 300);
-    if (url === "/api/billing") return send(200, { plan: "free", onSale: null, prices: {}, canManage: false, subscription: null, limits: { free: LIMITS, pro: { storageBytes: 2 * 1024 ** 3, summaries: 300, briefs: 200, asks: 1000 } } });
+    if (url === "/api/billing") return send(200, { plan: "free", onSale: null, prices: {}, canManage: false, subscription: null, limits: { free: LIMITS, pro: { storageBytes: 2 * 1024 ** 3, summaries: 300, briefs: 200, asks: 1000, writes: 2000 } } });
     if (url === "/api/config") return send(200, { googleWebClientId: null });
     send(404, { error: "not found" });
   });
