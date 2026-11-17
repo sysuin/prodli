@@ -122,6 +122,58 @@ const suites = {
     const { notes = [] } = await p.storage(["notes"]);
     check("Meetings: summary saved as note", notes[0]?.title === "Beta launch planning" && notes[0].content.includes("Action items"));
     check("Meetings: Summarize disabled until signed in", await p.eval(`[...document.querySelectorAll("button")].find(b => /summarize/i.test(b.textContent)).disabled`));
+
+    // ✉️ Draft follow-up (writing help, phase 2). No ProdLi server in this copy:
+    // first the "not available" message, then a stub stands in for /api/ai/follow-up.
+    const fu = (label) => p.eval(`(() => { const b = [...document.querySelectorAll('[data-testid="follow-up"] button')].find(b => b.textContent.trim() === ${JSON.stringify(label)}); if (!b) throw new Error("No follow-up button: ${label}"); b.click(); return true; })()`);
+    const followText = () => p.eval(`document.querySelector('[data-testid="follow-up"]')?.innerText ?? ""`);
+    await p.click("✉️ Draft follow-up");
+    await sleep(400);
+    check("Follow-up: without a ProdLi server it says so", (await followText()).includes("isn't available in this copy"), await followText());
+    await fu("Close");
+    await sleep(200);
+    check("Follow-up: Close shuts the panel", !(await p.eval(`!!document.querySelector('[data-testid="follow-up"]')`)));
+    await p.eval(`(() => {
+      window.__followUps = [];
+      globalThis.__prodliFollowUpStub = async (tone, meeting) => {
+        window.__followUps.push({ tone, meeting });
+        await new Promise((r) => setTimeout(r, 150));
+        const items = meeting.actionItems.map((a) => "- " + a.task + (a.owner ? ": " + a.owner : "")).join("\\n");
+        return { subject: (tone === "formal" ? "Summary and next steps: " : "Quick recap: ") + meeting.title, body: (tone === "formal" ? "Dear all," : "Hi all,") + "\\n\\n" + items + "\\n\\nThanks,", usage: { used: window.__followUps.length, limit: 200 } };
+      };
+      return true;
+    })()`);
+    await p.click("✉️ Draft follow-up");
+    await sleep(60);
+    check("Follow-up: shows progress while writing", (await followText()).includes("Writing a friendly follow-up"));
+    await sleep(400);
+    const body = () => p.eval(`document.querySelector('[data-testid="follow-up-body"]')?.value ?? ""`);
+    const sent = await p.eval("window.__followUps");
+    check("Follow-up: sends the summary only (no transcript), friendly first", sent.length === 1 && sent[0].tone === "friendly" && sent[0].meeting.title === "Beta launch planning" && sent[0].meeting.actionItems[0].owner === "Priya Shah" && !JSON.stringify(sent).includes("Ship Friday.\"") && !("transcript" in sent[0].meeting), JSON.stringify(sent));
+    check("Follow-up: shows an editable draft", (await body()).startsWith("Hi all,") && (await body()).includes("- Finish onboarding emails: Priya Shah"), await body());
+    check("Follow-up: offers Open in email app for a short email", await p.eval(`(() => { const a = [...document.querySelectorAll('[data-testid="follow-up"] a')].find(a => a.textContent.includes("Open in email app")); return !!a && a.href.startsWith("mailto:?subject=Quick%20recap%3A%20Beta%20launch%20planning&body=Hi%20all%2C%0D%0A"); })()`));
+    check("Follow-up: shows what's left this month", (await followText()).includes("199 of 200 writing-help uses left"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8") + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="follow-up"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): the follow-up panel has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("follow-up-draft");
+    await fu("Formal");
+    await sleep(500);
+    check("Follow-up: switching tone writes a formal draft", (await body()).startsWith("Dear all,") && (await p.eval("window.__followUps.length")) === 2);
+    await fu("Friendly");
+    await sleep(200);
+    check("Follow-up: switching back reuses the first draft (no extra use)", (await body()).startsWith("Hi all,") && (await p.eval("window.__followUps.length")) === 2);
+    await p.eval(`(() => { const t = document.querySelector('[data-testid="follow-up-body"]'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(t, "Edited by me"); t.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await sleep(100);
+    check("Follow-up: the draft can be edited", (await body()) === "Edited by me");
+    await fu("Discard");
+    await sleep(200);
+    check("Follow-up: Discard closes it and nothing was saved", !(await p.eval(`!!document.querySelector('[data-testid="follow-up"]')`)) && !JSON.stringify(await p.storage(null)).includes("Edited by me"));
     await p.close();
   },
 

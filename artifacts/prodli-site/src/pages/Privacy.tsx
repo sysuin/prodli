@@ -69,6 +69,8 @@ Weekly review: with an account, ProdLi can write a short review of your week. Ou
 Meeting summaries: with an account, our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and meeting audio is never sent. We count how many summaries you use each month.
 
 Writing help (✨ Improve in Notes): with an account, you can select text in a note and ask ProdLi to fix spelling and grammar, make it shorter or clearer, or change its tone. Our server sends Anthropic's Claude API only the selected text (up to about 1,000 words) and the kind of change you picked. Neither the text nor the suggestion is stored on our servers; your note changes only if you click Replace or Insert below. We count how many times you use writing help each month.
+
+Follow-up emails (✉️ Draft follow-up in Meetings): with an account, you can ask ProdLi to draft an email to a meeting's participants. Our server sends Anthropic's Claude API only that meeting's summary (title, date, overview, key points, decisions, action items with owners and due dates, and open questions) and the tone you picked, never the transcript or audio. Neither the summary nor the draft is stored on our servers. ProdLi doesn't send the email; you copy it or open it in your own email app. Each draft counts toward your monthly writing-help uses.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
   },
   {

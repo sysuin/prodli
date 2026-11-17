@@ -4,7 +4,7 @@ import { Editor } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
 import { buildExtensions } from "../../src/sections/editor/extensions";
 import { captureSelection, insertHtmlBelow, replaceWithHtml, targetIntact, type Target } from "../../src/sections/editor/ImproveMenu";
-import { MAX_REWRITE_CHARS, plainText, rewriteText, rewriteToHtml, RewriteError, SIGN_IN_FOR_WRITING, wordDiff } from "../../src/lib/write";
+import { draftFollowUp, followUpMeeting, mailtoHref, MAX_MAILTO_LENGTH, MAX_REWRITE_CHARS, plainText, rewriteText, rewriteToHtml, RewriteError, SIGN_IN_FOR_WRITING, wordDiff } from "../../src/lib/write";
 import { storageSet } from "../../src/lib/storage";
 
 describe("writing help: text helpers", () => {
@@ -78,6 +78,62 @@ describe("writing help: requests", () => {
     await expect(rewriteText("fix", "a")).rejects.toThrow("Something went wrong. Try again.");
     reply(503, "ai_busy");
     await expect(rewriteText("fix", "a")).rejects.toThrow(/Writing help is busy/);
+  });
+});
+
+describe("writing help: follow-up email", () => {
+  beforeEach(() => vi.stubEnv("VITE_PRODLI_API", "https://api.test"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+  const summary = {
+    title: "Beta launch",
+    overview: "Ship on Friday.",
+    keyPoints: ["Scope frozen"],
+    decisions: ["Ship Friday"],
+    actionItems: [{ task: "Finish emails", owner: "Priya", dueDate: "2026-11-12", priority: "high" as const }],
+    openQuestions: [],
+  };
+
+  it("sends only the summary, trimmed to the server's limits (never the transcript or priorities)", () => {
+    const m = followUpMeeting(summary, "Google Meet · abc", "2026-11-10T09:30:00.000Z");
+    expect(m).toEqual({ title: "Beta launch", date: "2026-11-10", overview: "Ship on Friday.", keyPoints: ["Scope frozen"], decisions: ["Ship Friday"], actionItems: [{ task: "Finish emails", owner: "Priya", dueDate: "2026-11-12" }], openQuestions: [] });
+    const big = followUpMeeting({ ...summary, title: "", overview: "o".repeat(5000), keyPoints: Array.from({ length: 50 }, () => "k".repeat(900)) }, "Fallback", "2026-11-10T09:30:00.000Z");
+    expect(big.title).toBe("Fallback");
+    expect(big.overview.length).toBe(4000);
+    expect(big.keyPoints).toHaveLength(30);
+    expect(big.keyPoints[0].length).toBe(600);
+    // The whole request stays under the server's 16,000-character cap for normal summaries.
+    expect(JSON.stringify({ tone: "formal", meeting: m }).length).toBeLessThan(16000);
+  });
+
+  it("builds a mailto link with CRLF line breaks, or none when it's too long", () => {
+    const href = mailtoHref("Follow-up: beta & launch", "Hi all,\n\n- Ship Friday\nThanks,")!;
+    expect(href.startsWith("mailto:?subject=Follow-up%3A%20beta%20%26%20launch&body=")).toBe(true);
+    expect(href).toContain("Hi%20all%2C%0D%0A%0D%0A-%20Ship%20Friday%0D%0AThanks%2C");
+    expect(mailtoHref("s", "x".repeat(MAX_MAILTO_LENGTH))).toBeNull();
+  });
+
+  it("drafts through the account and explains errors", async () => {
+    globalThis.fetch = vi.fn() as typeof fetch;
+    const m = followUpMeeting(summary, "t", "2026-11-10T00:00:00Z");
+    await expect(draftFollowUp("formal", { ...m, overview: " " })).rejects.toThrow(/no summary/);
+    await expect(draftFollowUp("formal", m)).rejects.toThrow(SIGN_IN_FOR_WRITING);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    await storageSet("prodliAccount", { id: "u", email: "a@example.com", name: "A", picture: null, plan: "free", createdAt: 0 });
+    let sent: Record<string, unknown> = {};
+    globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe("https://api.test/api/ai/follow-up");
+      sent = JSON.parse(String(init?.body));
+      return Response.json({ subject: "Beta launch: next steps", body: "Hi all,", usage: { used: 4, limit: 200 } });
+    }) as typeof fetch;
+    expect(await draftFollowUp("friendly", m)).toEqual({ subject: "Beta launch: next steps", body: "Hi all,", usage: { used: 4, limit: 200 } });
+    expect(sent).toEqual({ tone: "friendly", meeting: m });
+    globalThis.fetch = vi.fn(async () => Response.json({ error: "write_quota_exceeded" }, { status: 429 })) as typeof fetch;
+    await expect(draftFollowUp("formal", m)).rejects.toThrow(/used this month's writing help/);
+    globalThis.fetch = vi.fn(async () => Response.json({ error: "too_large" }, { status: 413 })) as typeof fetch;
+    await expect(draftFollowUp("formal", m)).rejects.toThrow(/too long for a follow-up/);
   });
 });
 

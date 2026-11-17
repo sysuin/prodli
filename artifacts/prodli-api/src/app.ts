@@ -33,7 +33,7 @@ import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTE
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
-import { MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type Rewrite, type RewriteInput } from "./write";
+import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
@@ -68,12 +68,13 @@ export interface Deps {
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
+  followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -587,6 +588,35 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const r = await deps.rewrite(input.data, c.env.ANTHROPIC_API_KEY);
       return c.json({ text: r.text, changed: r.changed, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "write_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // Follow-up email from a meeting's summary (never the transcript). Same allowance as rewrites.
+  app.post("/api/ai/follow-up", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text().catch(() => "");
+    if (raw.length > MAX_FOLLOW_UP_CHARS) return c.json({ error: "too_large", message: "These meeting notes are too long for a follow-up email." }, 413);
+    let body: unknown = null;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = FollowUpInputSchema.safeParse(body);
+    if (!input.success || !input.data.meeting.overview.trim()) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = writeLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "write_usage");
+    if (used === null) return c.json({ error: "write_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.followUp(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ subject: r.subject, body: r.body, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "write_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
