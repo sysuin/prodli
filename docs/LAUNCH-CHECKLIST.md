@@ -3,11 +3,11 @@
 ✅ = done. **You:** = needs you (accounts, money, legal, or production access).
 
 ## What's left before launch
-1. **You:** lawyer review of the privacy policy and terms. The operator details were drafted with assumptions so prodli.com could go live; what to check is in `docs/legal/REVIEW-NOTES.md` §1.
-2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Calendar (`calendar.readonly`) is a sensitive scope, so Google verifies the app first (can take a few weeks; start once the legal pages are live). Until then only the listed test users can sign in.
-3. **You:** build the store extension and submit it (see "Chrome Web Store" below).
-4. **You (when you want to sell Pro):** in Dodo Payments (ProdLi brand already created), add the Pro products and API keys — test mode first, then live. Step by step: `docs/PRO-PLAN.md`.
-5. **You:** a short breach-response note: who to contact (Cloudflare, Google, Anthropic), and notifying affected users and the Data Protection Board of India / EU authorities within the legal deadlines (72 hours under GDPR).
+1. ✅ Lawyer review of the privacy policy and terms (17 November 2026).
+2. **You:** Google Cloud console → OAuth consent screen → add app.prodli.com, prodli.com/privacy and prodli.com/terms → **Publish app**. Sign-in only asks for basic profile access, so it works for everyone as soon as it's published. Calendar (`calendar.readonly`, asked for only when someone clicks Connect) is a sensitive scope: start Google's verification at the same time (can take a few weeks; until then those users see an "unverified app" warning, and at most 100 can connect).
+3. **You:** a real Google Meet call with captions on, to check the whole transcript comes through.
+4. **You:** build the store extension and submit it with the kit in `STORE_SUBMISSION.md` (listing text, screenshots, privacy answers, see "Chrome Web Store" below).
+5. **You (when you want to sell Pro):** Dodo Payments live mode: products, API key and webhook (test mode is done). Step by step: `docs/PRO-PLAN.md`. Until then Pro shows "coming soon".
 
 ## Product
 - ✅ Extension and web app (app.prodli.com) share one account and sync live
@@ -19,7 +19,6 @@
 - ✅ Time blocks on Today: planned tasks placed in free time, reminders, "Add to Google Calendar"
 - ✅ Meeting transcripts: caption gaps filled from on-device transcription (when it's on)
 - ✅ ProdLi Pro: plans, Dodo Payments checkout, subscription management (on sale once Dodo is configured)
-- **You:** a real Google Meet call with captions on, to check the whole transcript comes through
 - **You:** try the web app on your phone (Share → Add to Home Screen)
 
 ## Production
@@ -66,5 +65,5 @@
   pnpm --filter @workspace/prodli run build:extension:store
   ```
   It reads `PRODLI_GOOGLE_CLIENT_ID` and `PRODLI_EXTENSION_KEY` from `.env.local` and writes `prodli-extension-store.zip` (without the `key`, which the store rejects).
-- **You:** upload `prodli-extension-store.zip`, fill in the privacy disclosures ("personal communications" for meeting transcripts, "authentication information", "website content" for notes), add the privacy policy link (prodli.com/privacy) → submit for review.
+- **You:** upload `prodli-extension-store.zip` and paste everything from `STORE_SUBMISSION.md` (screenshots 1–5, description, single purpose, permission justifications, data usage, privacy policy link) → submit for review.
 - The plain `build:extension` (staging) is for your own testing only.

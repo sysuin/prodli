@@ -6,7 +6,10 @@ Drafts:
 
 Both were checked line by line against the code on 9 November 2026. This page lists the facts behind them, what still has to be filled in, and the decisions to confirm.
 
-## 1. Drafted details — the lawyer must check these
+## 1. Drafted details — reviewed
+
+**Lawyer review done (17 November 2026).** Since then, one factual line was added to the policy's browser permissions: the optional `downloads` permission used by "Open files from anywhere".
+
 
 To publish the updated site, the placeholders were filled with **assumptions** (13 November 2026), to be corrected after legal review. Nothing was invented that would be false; where a fact wasn't known, the wording stays general.
 

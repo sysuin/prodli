@@ -1,15 +1,32 @@
 #!/usr/bin/env node
 // Generates Chrome Web Store screenshots (1280×800, the store's preferred size)
-// from the real built extension, filled with demo content.
+// from the real extension, filled with demo content. It builds its own copy
+// (dist-extension-shots, signed in to a tiny local stand-in for ProdLi's
+// server) so Today's brief, Ask ProdLi and the weekly review show AI content
+// without a real account. Your dist-extension is never touched.
 //
-//   pnpm run build:extension:test && node scripts/store-screenshots.mjs
+//   node scripts/store-screenshots.mjs        (from artifacts/prodli)
 //
-// Output: artifacts/prodli/store-assets/screenshot-<n>-<name>.png (the store accepts up to 5)
+// Output: artifacts/prodli/store-assets/screenshot-<n>-<name>.png. The store
+// takes up to 5; 1–5 are the ones to upload, the rest are extras.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createServer } from "node:http";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Browser, FIXTURES, sleep } from "../tests/e2e/cdp.mjs";
+
+const PORT = 8797;
+const SERVER = `http://localhost:${PORT}`;
+const OUT_DIR = "dist-extension-shots";
+const here = path.dirname(fileURLToPath(import.meta.url));
+execFileSync(process.execPath, [path.join(here, "build-extension.mjs")], {
+  cwd: path.resolve(here, ".."),
+  stdio: "inherit",
+  env: { ...process.env, PRODLI_OUT_DIR: OUT_DIR, PRODLI_GOOGLE_CLIENT_ID: "", PRODLI_EXTENSION_KEY: "", VITE_PRODLI_API: SERVER, VITE_E2E: "1" },
+});
+process.env.PRODLI_OUT_DIR = OUT_DIR; // cdp.mjs loads this build
+const { Browser, FIXTURES, sleep } = await import("../tests/e2e/cdp.mjs");
 
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../store-assets");
 mkdirSync(OUT, { recursive: true });
@@ -65,10 +82,116 @@ for (let i = 0; i < 7; i++) {
   };
 }
 
+
+// ── Today, the weekly review and an account (served by the stand-in below) ──
+const TODAY = day(0);
+const at = (offsetDays, hour) => {
+  const d = new Date();
+  d.setDate(d.getDate() - offsetDays);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+const mondayOf = (offsetWeeks) => {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - offsetWeeks * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+// The Review section opens on this week from Friday, otherwise on last week.
+const REVIEW_WEEK = new Date().getDay() === 0 || new Date().getDay() >= 5 ? mondayOf(0) : mondayOf(1);
+const daysSinceReviewWeek = Math.round((new Date(TODAY) - new Date(REVIEW_WEEK)) / 86_400_000);
+const inReviewWeek = (i) => Math.max(0, daysSinceReviewWeek - (i % 5)); // Monday–Friday of that week
+
+DEMO.todos.unshift(
+  { id: "p1", title: "Write the launch blog post", completed: false, priority: "high", plannedFor: TODAY, estimateMin: 60, block: { day: TODAY, start: "10:00" }, subtasks: [], createdAt: iso(5_000_000) },
+  { id: "p2", title: "Reply to beta testers", completed: false, priority: "medium", plannedFor: TODAY, estimateMin: 30, block: { day: TODAY, start: "11:30" }, subtasks: [], createdAt: iso(5_100_000) },
+  { id: "p3", title: "Review the Q4 budget", completed: false, plannedFor: TODAY, estimateMin: 45, block: { day: TODAY, start: "15:00" }, subtasks: [], createdAt: iso(5_200_000) },
+);
+const doneLastWeek = ["Ship Editor v2", "Fix the sync conflict bug", "Interview a designer", "Draft the pricing page", "Plan the team offsite agenda", "Send the investor update", "Clean up the backlog", "Record the demo video", "Test on Windows", "Write the release notes", "Update the privacy policy", "Review pull request #41", "Set up uptime alerts", "Pay the contractor invoice"];
+doneLastWeek.forEach((title, i) => DEMO.todos.push({ id: `d${i}`, title, completed: true, completedAt: at(inReviewWeek(i), 10 + (i % 6)), subtasks: [], createdAt: at(inReviewWeek(i) + 2, 9) }));
+DEMO.pomodoroSessions = [...Array.from({ length: 11 }, (_, i) => ({ completedAt: at(inReviewWeek(i), i < 9 ? 9 + (i % 3) : 15), duration: 25 })), { completedAt: at(0, 9), duration: 25 }];
+
+const BRIEF = {
+  headline: "A clear morning for deep work, then the product sync",
+  summary: "Three tasks planned and one meeting. Write the launch post first while your calendar is empty; the onboarding emails are due tomorrow.",
+  priorities: [
+    { title: "Write the launch blog post", reason: "Your top task, and it needs a quiet hour: do it before the 1 pm sync." },
+    { title: "Finish onboarding emails", reason: "Due tomorrow, and Priya is waiting for the copy." },
+    { title: "Reply to beta testers", reason: "Three replies have been waiting since Friday." },
+  ],
+  schedule: [
+    { start: "09:30", end: "10:00", title: "Plan the day and clear the inbox", kind: "task" },
+    { start: "10:00", end: "11:00", title: "Write the launch blog post", kind: "focus" },
+    { start: "11:30", end: "12:00", title: "Reply to beta testers", kind: "task" },
+    { start: "13:00", end: "13:30", title: "Weekly product sync", kind: "meeting" },
+    { start: "15:00", end: "15:45", title: "Review the Q4 budget", kind: "task" },
+    { start: "18:00", end: "18:20", title: "Read 20 pages", kind: "habit" },
+  ],
+  watchouts: ["“Book team offsite” is due in 10 days and hasn't been started."],
+  habits: ["Read 20 pages: a 12-day streak, keep it going"],
+  tip: "Put your phone in another room for the first focus block.",
+  model: "claude-haiku-5-5",
+  generatedAt: iso(20 * 60_000),
+  source: "ai",
+};
+const REVIEW = {
+  headline: "A strong week: 14 tasks done and Editor v2 shipped",
+  summary: "You finished 14 tasks, kept your reading streak every day and did 11 focus sessions. The offsite booking slipped again.",
+  wins: ["Shipped Editor v2 and fixed the sync conflict bug", "Read every day: 12 days in a row", "Sent the investor update on time"],
+  slipped: [{ title: "Book team offsite", suggestion: "Pick two dates and send a poll on Monday morning." }],
+  patterns: ["Your best focus is before noon: 9 of 11 focus sessions were in the morning.", "Wednesday's back-to-back meetings left no time for deep work."],
+  nextWeek: [
+    { title: "Launch on the Chrome Web Store", reason: "Everything else is ready; the listing is the last step." },
+    { title: "Book team offsite", reason: "Slipped twice: do it first thing Monday." },
+    { title: "Write the launch blog post", reason: "Goes out with the launch." },
+  ],
+  habitTip: "Exercise dropped to 4 days: try a 15-minute walk after lunch.",
+  question: "What would make next week feel like a win?",
+  model: "claude-haiku-5-5",
+  generatedAt: iso(3_600_000),
+  source: "ai",
+};
+DEMO.days = [{ id: TODAY, focus: "Ship the launch blog post", brief: BRIEF, createdAt: iso(3_600_000) }];
+const reviewDay = DEMO.days.find((d) => d.id === REVIEW_WEEK);
+if (reviewDay) reviewDay.review = REVIEW;
+else DEMO.days.push({ id: REVIEW_WEEK, review: REVIEW, createdAt: iso(3_600_000) });
+
+const USER = { id: "u_demo", email: "alex@example.com", name: "Alex Morgan", picture: null, plan: "free", createdAt: now - 40 * 86_400_000 };
+DEMO.prodliAccount = USER;
+DEMO.prodliSession = { token: "demo-session" };
+
+const ASK_QUESTION = "What should I focus on now?";
+const ASK_ANSWER = {
+  answer:
+    "Start the launch blog post. It's your top priority and you have a clear hour before the 1 pm product sync.\n\nAfter that:\n• Reply to the three beta testers (about 30 minutes)\n• Finish the onboarding emails: Priya needs them by tomorrow\n\nIn this morning's launch planning call you decided to launch next Tuesday, so the store screenshots should be ready by Friday.",
+  actions: [{ type: "add_task", title: "Refresh store screenshots by Friday", details: "From the launch planning call" }],
+  usage: { used: 13, limit: 100 },
+};
+
+// A stand-in for ProdLi's server: just enough for the screenshots.
+const LIMITS = { storageBytes: 100 * 1024 * 1024, summaries: 20, briefs: 62, asks: 100 };
+const api = createServer((req, res) => {
+  const send = (status, obj) => {
+    res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE" });
+    res.end(JSON.stringify(obj));
+  };
+  req.resume();
+  req.on("end", () => {
+    const url = (req.url || "").split("?")[0];
+    if (req.method === "OPTIONS") return send(204, {});
+    if (url === "/api/me") return send(200, { user: USER });
+    if (url === "/api/sync") return send(200, { seq: 1, changes: [], more: false, usage: { bytes: 2_400_000, quota: LIMITS.storageBytes } });
+    if (url === "/api/ai/usage") return send(200, { used: 3, limit: 20, available: true, briefs: { used: 9, limit: 62 }, asks: { used: 12, limit: 100 } });
+    if (url === "/api/ai/ask") return setTimeout(() => send(200, ASK_ANSWER), 300);
+    if (url === "/api/billing") return send(200, { plan: "free", onSale: null, prices: {}, canManage: false, subscription: null, limits: { free: LIMITS, pro: { storageBytes: 2 * 1024 ** 3, summaries: 300, briefs: 200, asks: 1000 } } });
+    if (url === "/api/config") return send(200, { googleWebClientId: null });
+    send(404, { error: "not found" });
+  });
+}).listen(PORT);
+
 const MEETING = {
   id: "mtg_demo",
   platform: "google-meet",
-  title: "Weekly product sync",
+  title: "Launch planning",
   meetingCode: "abc-defg-hij",
   url: "https://meet.google.com/abc-defg-hij",
   startedAt: iso(2 * 3_600_000),
@@ -87,7 +210,7 @@ const MEETING = {
     { id: "3", speaker: "Alex Kim", text: "Drive backup is in review — should merge tomorrow.", startMs: 21000, endMs: 26000 },
   ],
   summary: {
-    title: "Weekly product sync",
+    title: "Launch planning",
     overview: "The team confirmed the 1.3 launch scope. The editor is complete, Drive backup merges tomorrow, and the store submission goes out next week.",
     keyPoints: ["Editor v2 is complete and tested", "Drive backup is in code review", "Store screenshots need refreshing before submission"],
     decisions: ["Launch 1.3 next Tuesday", "Keep sign-in optional"],
@@ -101,6 +224,20 @@ const MEETING = {
     generatedAt: iso(3_600_000),
   },
 };
+
+// Last week's calls, for the weekly review's numbers and the meetings list.
+const MEETINGS = [
+  MEETING,
+  ...[
+    ["Design review", 2, 11, 45],
+    ["Hiring sync", 2, 14, 30],
+    ["Customer call: Acme", 2, 16, 40],
+    ["Sprint planning", 4, 10, 50],
+  ].map(([title, weekday, hour, mins], i) => {
+    const start = new Date(at(Math.max(0, daysSinceReviewWeek - weekday), hour));
+    return { ...MEETING, id: `mtg_week_${i}`, title, meetingCode: null, url: null, startedAt: start.toISOString(), endedAt: new Date(start.getTime() + mins * 60_000).toISOString(), durationSec: mins * 60, updatedAt: start.toISOString(), summary: { ...MEETING.summary, title } };
+  }),
+];
 
 const browser = new Browser();
 try {
@@ -116,7 +253,7 @@ try {
       db.createObjectStore("audio");
       db.createObjectStore("audioChunks", { keyPath: ["meetingId", "seq"] }).createIndex("byMeeting", "meetingId");
     };
-    req.onsuccess = () => { const tx = req.result.transaction("meetings", "readwrite"); tx.objectStore("meetings").put(${JSON.stringify(MEETING)}); tx.oncomplete = () => resolve(true); tx.onerror = () => reject(tx.error); };
+    req.onsuccess = () => { const tx = req.result.transaction("meetings", "readwrite"); for (const m of ${JSON.stringify(MEETINGS)}) tx.objectStore("meetings").put(m); tx.oncomplete = () => resolve(true); tx.onerror = () => reject(tx.error); };
   })`);
 
   const shot = async (n, name) => {
@@ -131,41 +268,55 @@ try {
     await sleep(2200);
   };
 
-  // 1. Editor
+  // Old numbering would leave stale files behind.
+  for (const f of readdirSync(OUT)) if (/^screenshot-\d+-.*\.png$/.test(f)) rmSync(path.join(OUT, f));
+
+  // 1. Today: the daily brief, time blocks and today's focus
+  await open("today");
+  await sleep(600);
+  await shot(1, "today");
+
+  // 2. Ask ProdLi, over Today
+  await p.eval(`window.dispatchEvent(new CustomEvent("prodli-ask", { detail: { question: ${JSON.stringify(ASK_QUESTION)} } }))`);
+  await sleep(1800);
+  await shot(2, "ask");
+
+  // 3. Meetings
+  await open("meetings");
+  // Show the meeting's notes, not the setup panel (open until the recorder is turned on).
+  await p.eval(`(() => { if (document.body.innerText.includes("AI SUMMARIES") || document.body.innerText.includes("AI summaries")) [...document.querySelectorAll("button")].find((b) => /setup/i.test(b.textContent))?.click(); })()`);
+  await sleep(500);
+  await shot(3, "meetings");
+
+  // 4. Notes
   await open("editor");
   await p.eval(`document.activeElement?.blur?.()`);
-  await shot(1, "editor");
+  await shot(4, "notes");
 
-  // 2. Meetings
-  await open("meetings");
-  await p.eval(`(() => { const b = [...document.querySelectorAll("button")].find(b => b.textContent.includes("Setup")); if (document.body.innerText.includes("CLAUDE API KEY") || document.body.innerText.includes("Claude API key")) b?.click(); })()`);
-  await sleep(400);
-  await shot(2, "meetings");
+  // 5. Weekly review
+  await open("review");
+  await sleep(600);
+  await shot(5, "review");
 
-  // 3. To-Dos
+  // Extras (the store takes 5): To-Dos, Time Tracker, Files, Habits, Pomodoro.
   await open("todos");
-  await shot(3, "todos");
-
-  // 4. Time Tracker (All time view if available)
+  await shot(6, "todos");
   await open("tracker");
   await sleep(800);
-  await shot(4, "time-tracker");
-
-  // 5. Files — Markdown preview
+  await shot(7, "time-tracker");
   await open("files");
   const { root } = await p.send("DOM.getDocument", { depth: -1 });
   const { nodeId } = await p.send("DOM.querySelector", { nodeId: root.nodeId, selector: 'input[type="file"]' });
   await p.send("DOM.setFileInputFiles", { nodeId, files: [path.join(FIXTURES, "demo-roadmap.md")] });
   await sleep(800);
-  await shot(5, "files");
-
-  // Extra (not uploaded by default): Habits and Pomodoro.
+  await shot(8, "files");
   await open("habits");
-  await shot(6, "habits");
+  await shot(9, "habits");
   await open("pomodoro");
   await p.eval(`[...document.querySelectorAll("button")].find(b => /start/i.test(b.textContent))?.click()`);
   await sleep(2500);
-  await shot(7, "pomodoro");
+  await shot(10, "pomodoro");
 } finally {
   browser.close();
+  api.close();
 }

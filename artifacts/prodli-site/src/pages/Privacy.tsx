@@ -137,7 +137,7 @@ Depending on where you live (for example under the EU/UK GDPR or India's DPDP Ac
 • identity: Google sign-in
 • contextMenus: the right-click "Add to ProdLi" menu (it reads the page title, address and any text you selected only when you click it)
 • webNavigation: to notice when a Markdown, CSV, JSON or text file from your computer is opened in Chrome, so ProdLi can show it in its Files viewer (only if you turn this on; the file is read on your device and never uploaded)
-• Requested only if you turn on "Open files from anywhere in Chrome": access to local files (file:///), plus Chrome's "Allow access to file URLs" switch, which you control in Chrome's extension settings
+• Requested only if you turn on "Open files from anywhere in Chrome": access to local files (file:///) and downloads (Chrome downloads some files, such as CSV, instead of opening them; ProdLi cancels that download and shows the file instead), plus Chrome's "Allow access to file URLs" switch, which you control in Chrome's extension settings
 • Requested only when you turn a feature on: tabCapture, offscreen and meet.google.com (meeting recorder); scripting and access to websites (Focus List auto-redirect). You can remove them at any time in Chrome's extension settings.`,
   },
   {

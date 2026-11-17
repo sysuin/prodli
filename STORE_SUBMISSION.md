@@ -1,113 +1,146 @@
-# ProdLi v1.3.0 — Chrome Web Store submission kit
+# ProdLi v1.3.0: Chrome Web Store submission kit
 
-Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this update.
+Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release: the first one with ProdLi accounts, sync, the daily brief, Ask ProdLi, the weekly review and the web app at app.prodli.com.
 
 ## 1. Package
 
-- Build: `pnpm run build:extension:store` from the repo root → `prodli-extension-store.zip` (always against https://app.prodli.com, with Google sign-in from `.env.local`). The CI zip and the plain `build:extension` are for testing only.
-- For Google sign-in to work in the store build, build with `PRODLI_GOOGLE_CLIENT_ID` set (see `docs/GOOGLE-SIGN-IN.md`). Without it, sign-in shows "not set up" and everything else works.
-- Version in `artifacts/prodli/extension/manifest.json`: **1.3.0** (bump for every upload).
+- Build from the latest `main`, at the repo root:
+  ```bash
+  pnpm run build:extension:store
+  ```
+  This writes `prodli-extension-store.zip`. It always talks to https://app.prodli.com, includes Google sign-in from `.env.local`, and leaves out the `key` field (the store rejects it). It never touches the `dist-extension` folder your Chrome loads.
+- Version: **1.3.0** in `artifacts/prodli/extension/manifest.json`. Raise it for every upload after this one.
+- The store's name and summary come from the manifest: **ProdLi** and the summary in section 3.
 
 ## 2. Store listing → Graphics
 
-| Slot | File (in `artifacts/prodli/store-assets/`) |
-|---|---|
-| Screenshot 1 | `screenshot-1-editor.png` — notes with checklists and tables |
-| Screenshot 2 | `screenshot-2-meetings.png` — AI meeting notes |
-| Screenshot 3 | `screenshot-3-todos.png` |
-| Screenshot 4 | `screenshot-4-time-tracker.png` |
-| Screenshot 5 | `screenshot-5-files.png` — file previewer |
-| Small promo tile (440×280) | `promo-440x280.png` |
+All screenshots are 1280×800 and in `artifacts/prodli/store-assets/`. Upload 1–5 in this order and delete the old ones from the listing.
 
-Extra (if you prefer them): `screenshot-6-habits.png`, `screenshot-7-pomodoro.png`. All are 1280×800 and regenerated from the real extension with `node scripts/store-screenshots.mjs` (from `artifacts/prodli/`, after a build).
+| Slot | File | Shows |
+|---|---|---|
+| Screenshot 1 | `screenshot-1-today.png` | Today: AI daily brief, time blocks, main focus, habits |
+| Screenshot 2 | `screenshot-2-ask.png` | Ask ProdLi answering "What should I focus on now?" |
+| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes for Google Meet |
+| Screenshot 4 | `screenshot-4-notes.png` | Notes with checklists and tables |
+| Screenshot 5 | `screenshot-5-review.png` | Weekly review |
+| Small promo tile (440×280) | `promo-440x280.png` | Logo and "Your day, planned." |
+
+Extras, if you'd rather swap one in: `screenshot-6-todos.png`, `screenshot-7-time-tracker.png`, `screenshot-8-files.png`, `screenshot-9-habits.png`, `screenshot-10-pomodoro.png`.
+
+To regenerate them after UI changes (from `artifacts/prodli`): `node scripts/store-screenshots.mjs`. It builds its own copy with demo data and a stand-in server, so no real account is used.
 
 ## 3. Store listing → Text
 
-**Name:** ProdLi — Productivity New Tab
-
-**Short description** (124 characters — the limit is 132):
+**Summary** (from the manifest, 127 of 132 characters):
 
 ```
-Notes, to-dos, Pomodoro, habits, time tracking, AI meeting notes for Google Meet and a file previewer — all in your new tab.
+Plan your day in every new tab: an AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for Google Meet.
 ```
 
-**Detailed description:**
+**Description:**
 
 ```
-ProdLi turns your new tab into an all-in-one productivity workspace. Seven tools, one tab — and your data stays on your device. No account needed.
+ProdLi is a personal assistant in every new tab. It plans your day around your tasks and calendar, answers questions about your work, and keeps your notes, to-dos, habits and meeting notes in one place.
 
-✍️ NOTES THAT FEEL PROFESSIONAL
-Type "/" to insert checklists, tables, headings, quotes, code blocks and dividers. Select text for quick formatting, paste Markdown and it just works, pin important notes, search everything, see an outline of long notes, and export to Markdown or PDF. Notes save automatically — even with ProdLi open in several tabs.
+☀️ TODAY: YOUR DAY, PLANNED
+Each morning ProdLi writes a short daily brief: your top priorities and why, a suggested schedule around your meetings, and what to watch out for. Pick one main focus, plan tasks for today and put them into the free time between meetings with one click. Reminders tell you when a block starts, and any block can go straight to Google Calendar. In the evening, wrap up the day; tomorrow's brief reads it.
 
-🎙️ AI MEETING NOTES FOR GOOGLE MEET — NO BOT
-Click the ProdLi icon in a Google Meet call. ProdLi builds a transcript from Meet's live captions (only you see them) and, with your own Claude API key, turns it into a summary, decisions and action items. Send action items straight to your to-do list. No bot joins the call.
+✨ ASK PRODLI
+Ask anything about your day, notes and meetings: "What should I focus on now?", "What's overdue?", "Summarize my last meeting", "Plan my afternoon". Answers come from your own data, and suggested actions, like adding a to-do, happen only when you click them.
 
-✅ TO-DOS
-Priorities, due dates, subtasks, drag to reorder, and filters.
+📊 WEEKLY REVIEW
+Every Friday, see your week in numbers (tasks done, focus time, habits, meetings, where your time went) and an AI review with wins, patterns, what slipped and next week's priorities.
 
-🍅 POMODORO
-A focus timer that keeps running across tabs — even when ProdLi is closed — with a notification when time is up and a log of your sessions.
+🎙️ AI MEETING NOTES FOR GOOGLE MEET, NO BOT
+Click the ProdLi icon in a Google Meet call. ProdLi builds a transcript from Meet's live captions (only you see them) and turns it into a summary, decisions and action items. Send action items to your to-dos in one click. No bot joins the call, and audio never leaves your computer.
 
-🎯 HABITS
-Daily check-ins with streaks and a heatmap calendar.
+✍️ NOTES
+Type "/" for checklists, tables, headings, quotes and code. Paste Markdown, pin notes, search everything, and export to Markdown or PDF.
 
-⏱ TIME TRACKER
-See where your browsing time goes: today, the last 7 days, and all-time charts. Set daily limits per site with optional auto-redirect. Only domain names are recorded, never full URLs.
+✅ TO-DOS, 🎯 HABITS, 🍅 POMODORO, ⏱ TIME TRACKER
+Priorities, due dates and subtasks. Daily habits with streaks. A focus timer that keeps running when ProdLi is closed. See where your browsing time goes and set daily limits per site (only website names are recorded, never full addresses).
 
-📄 FILE PREVIEWER
-Drop a Markdown, JSON, CSV or text file anywhere on ProdLi to preview it beautifully, then save it as a note.
+📄 OPEN FILES FROM ANYWHERE
+Markdown, CSV, JSON and text files opened in Chrome show in ProdLi's viewer, with syntax highlighting. Turn it on in Files.
 
-☁️ OPTIONAL GOOGLE DRIVE BACKUP
-Sign in with Google to back up everything to a private ProdLi folder in your own Google Drive and restore it on another computer. No ProdLi servers.
+➕ ADD TO PRODLI FROM ANY PAGE
+Right-click any page or selection, or press Alt+Shift+A, to save it as a to-do or note.
+
+🔄 ONE ACCOUNT, EVERY DEVICE
+ProdLi works without an account; everything stays in your browser. Sign in with Google (free) to sync between computers and the web app at app.prodli.com (works on your phone too), with nightly backups. The account also turns on the AI daily brief, weekly review, Ask ProdLi and meeting summaries.
+
+FREE
+The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, and 100 Ask ProdLi questions a month, plus 100 MB of synced data. ProdLi Pro raises these limits.
 
 PRIVACY
-Your data lives in your browser. ProdLi has no servers, no analytics and no tracking. Optional features send data only where you choose: meeting transcripts to Anthropic with your own API key, and backups to your own Google Drive. Full policy: https://prodli.com/privacy
+No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude, which doesn't train on it. Google Calendar access is read-only and optional. Full policy: https://prodli.com/privacy
 ```
 
-**Category:** Productivity · **Language:** English · **Homepage:** https://prodli.com · **Support:** contact@prodli.com
+**Category:** Productivity (Workflow & Planning) · **Language:** English · **Website:** https://prodli.com · **Support:** contact@prodli.com
 
 ## 4. Privacy practices tab
 
 ### Single purpose
-> ProdLi replaces the new tab page with a personal productivity workspace: notes, to-dos, a Pomodoro timer, habit tracking, browsing-time tracking, meeting notes and a file previewer. All features help the user organise their own work, and the data is stored on the user's device.
+
+```
+ProdLi replaces the new tab page with a personal assistant that helps the user plan and organise their own work: a daily plan built from their tasks and calendar, notes, to-dos, habits, focus tools and notes from their Google Meet calls, optionally synced to their ProdLi account.
+```
 
 ### Permission justifications
 
-| Permission | Justification to paste |
+| Permission | Paste this |
 |---|---|
-| `storage` | Stores the user's notes, tasks, habits, Pomodoro data, time-tracking data and settings on the device so they persist between sessions. |
-| `unlimitedStorage` | Notes, meeting transcripts and optional recordings can exceed the default storage quota; without it, saves could fail and the user could lose work. |
-| `tabs` | Reads only the hostname of the active tab to total browsing time per domain for the Time Tracker. Full URLs, titles and page content are never read or stored. |
-| `idle` | Pauses time tracking when the user is away so idle time isn't counted. |
-| `alarms` | Schedules the tracking heartbeat, the daily summary notification, the end of Pomodoro sessions, and the optional daily Google Drive backup. |
-| `notifications` | Notifies the user when a Pomodoro session ends, a daily site limit is reached, or meeting notes are ready. |
-| `identity` | Used only if the user chooses "Sign in with Google", to back up their data to a private app-data folder in their own Google Drive. |
-| `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet tab the user explicitly starts recording (by clicking the toolbar icon or shortcut). |
-| `offscreen` *(optional)* | Runs the audio recorder for the meeting recorder in an offscreen document. |
-| `scripting` *(optional)* | Injects the caption reader into the Google Meet tab being recorded, and the Focus List auto-redirect when the user enables it. |
-| Host access *(optional)*: `meet.google.com`, `<all_urls>` | `meet.google.com` to read live captions for meeting notes; other sites only for the optional Focus List redirect. |
+| `storage` | Saves the user's notes, tasks, habits, daily plans, focus sessions, time-tracking totals and settings on the device. |
+| `unlimitedStorage` | Notes, meeting transcripts and optional meeting recordings can exceed the default quota; without it, saves could fail and the user could lose work. |
+| `tabs` | Reads only the website name (hostname) of the active tab to total browsing time per site for the Time Tracker. Full addresses, titles and page content are never stored. |
+| `idle` | Pauses time tracking while the user is away so idle time isn't counted. |
+| `alarms` | Schedules the time-tracking heartbeat, the end of Pomodoro sessions, the daily planning reminder, time-block reminders and background sync. |
+| `notifications` | Tells the user when a Pomodoro session ends, a time block starts, a daily site limit is reached, or meeting notes are ready. |
+| `identity` | Used only when the user chooses "Sign in with Google" (to sign in to their ProdLi account) or connects Google Calendar (read-only, to plan their day around their meetings). |
+| `contextMenus` | Adds "Add to ProdLi to-dos" and "Save to ProdLi notes" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
+| `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in Chrome, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
+| `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet tab the user starts recording (toolbar icon or Alt+Shift+R). The audio stays on the device. |
+| `offscreen` *(optional)* | Runs the meeting recorder's audio capture in an offscreen document. |
+| `scripting` *(optional)* | Runs the caption reader in the Google Meet tab being recorded, and the Time Tracker's optional auto-redirect when a site's daily limit is reached. |
+| `downloads` *(optional)* | Requested only with "Open files from anywhere": Chrome downloads some local files (such as CSV) instead of opening them; ProdLi cancels that download and shows the file in its viewer instead. |
+| Host access *(optional)*: `<all_urls>`, `file:///*` | `meet.google.com` for the meeting recorder; other websites only for the optional Time Tracker auto-redirect; `file:///*` only for "Open files from anywhere". Each is requested when the user turns that feature on. |
 
 ### Remote code
-**No, I am not using remote code.** All code is bundled in the package. (Network requests go only to Anthropic's API with the user's key and to Google's sign-in/Drive APIs — data, not code.)
 
-### Data usage (declare conservatively)
+**No, I am not using remote code.** All code is in the package. Network requests go to ProdLi's server (app.prodli.com) and Google's sign-in and Calendar APIs, and carry data, not code.
 
-Tick the types that can leave the device because of an optional feature the user turns on:
-- **Personally identifiable information** — name, email and profile picture from Google sign-in (stored locally; used to show the signed-in account).
-- **Personal communications** — meeting transcripts sent to Anthropic's API when the user adds a Claude key and requests a summary.
-- **Web history** — per-domain browsing time, included in the user's own Google Drive backup when they turn it on.
+### Data usage
 
-Then certify all three: data is **not sold** to third parties, **not used or transferred for purposes unrelated** to the single purpose, and **not used for creditworthiness or lending**.
+Tick these (they leave the device only when the user signs in or uses a feature):
 
-**Privacy policy URL:** https://prodli.com/privacy (updated November 2026 — covers Meetings, Google sign-in and the Google API Limited Use statement).
+| Type | Why |
+|---|---|
+| **Personally identifiable information** | Name, email address and profile picture from Google sign-in, to create and show the account. |
+| **Authentication information** | A Google sign-in token is exchanged for a ProdLi session, used to sync the user's data. |
+| **Personal communications** | Google Meet transcripts and summaries, synced to the account and sent to the AI provider when the user asks for a summary. |
+| **Web history** | Time Tracker totals per website name (no full addresses), synced to the account and used in the daily brief and weekly review. |
+| **Website content** | Text, titles and links the user saves from pages with "Add to ProdLi", stored as notes and to-dos. |
+
+Leave the others unticked (health, financial and payment information, location, user activity). Payments for ProdLi Pro happen on Dodo Payments' checkout page, not in the extension.
+
+Then tick all three: data is **not sold** to third parties, **not used or transferred for purposes unrelated** to the single purpose, and **not used for creditworthiness or lending**.
+
+**Privacy policy URL:** https://prodli.com/privacy
+
+### Notes for the reviewer (if the form asks)
+
+```
+No account is needed: every section works offline after install. To try the AI features, click the avatar (bottom left) → Sign in with Google; a free ProdLi account is created. The meeting recorder needs a Google Meet call: Meetings → Setup → Turn on recorder, join a call, then click the ProdLi toolbar icon.
+```
 
 ## 5. Before you submit
 
-- [ ] Zip built from the latest `main` (with `PRODLI_GOOGLE_CLIENT_ID` if sign-in should work)
+- [ ] Google consent screen published (otherwise only test users can sign in), and Calendar verification started
+- [ ] Zip built from the latest `main`
 - [ ] Recorder tested on a real Google Meet call
-- [ ] Five screenshots + promo tile uploaded; old screenshot removed
-- [ ] Short and detailed descriptions pasted
-- [ ] Permission justifications pasted (including the new `unlimitedStorage`, `identity`, `tabCapture`, `offscreen`)
-- [ ] Data usage boxes ticked and the three certifications checked
-- [ ] Privacy policy URL set; prodli.com/privacy shows the November 2026 version
-- [ ] Submit — expect a longer review than usual because of the tab-audio permission
+- [ ] Five screenshots and the promo tile uploaded; old screenshots removed
+- [ ] Description pasted
+- [ ] Single purpose and every permission justification pasted, including the newer `contextMenus`, `webNavigation` and `downloads`
+- [ ] The five data types ticked and the three statements checked
+- [ ] Privacy policy URL set
+- [ ] Submit. The review can take longer than usual because of the tab-audio permission

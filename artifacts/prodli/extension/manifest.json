@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ProdLi",
   "version": "1.3.0",
-  "description": "All-in-one workspace: notes, to-dos, Pomodoro, habits, time tracker, and AI meeting notes for Google Meet.",
+  "description": "Plan your day in every new tab: an AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for Google Meet.",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
