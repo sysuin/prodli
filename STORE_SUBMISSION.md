@@ -1,6 +1,6 @@
 # ProdLi v1.3.0: Chrome Web Store submission kit
 
-Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release: the first one with ProdLi accounts, sync, the daily brief, Ask ProdLi, the weekly review and the web app at app.prodli.com.
+Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release: the first one with ProdLi accounts, sync, the daily brief, Ask ProdLi, the weekly review, writing help and the web app at app.prodli.com.
 
 ## 1. Package
 
@@ -52,10 +52,10 @@ Ask anything about your day, notes and meetings: "What should I focus on now?", 
 Every Friday, see your week in numbers (tasks done, focus time, habits, meetings, where your time went) and an AI review with wins, patterns, what slipped and next week's priorities.
 
 🎙️ AI MEETING NOTES FOR GOOGLE MEET, NO BOT
-Click the ProdLi icon in a Google Meet call. ProdLi builds a transcript from Meet's live captions (only you see them) and turns it into a summary, decisions and action items. Send action items to your to-dos in one click. No bot joins the call, and audio never leaves your computer.
+Click the ProdLi icon in a Google Meet call. ProdLi builds a transcript from Meet's live captions (only you see them) and turns it into a summary, decisions and action items. Send action items to your to-dos in one click, or draft a follow-up email to everyone from the summary. No bot joins the call, and audio never leaves your computer.
 
 ✍️ NOTES
-Type "/" for checklists, tables, headings, quotes and code. Paste Markdown, pin notes, search everything, and export to Markdown or PDF.
+Type "/" for checklists, tables, headings, quotes and code. Select text and ✨ Improve it: fix spelling and grammar, make it shorter or clearer, or change the tone. You see the suggestion before anything changes. Paste Markdown, pin notes, search everything, and export to Markdown or PDF.
 
 ✅ TO-DOS, 🎯 HABITS, 🍅 POMODORO, ⏱ TIME TRACKER
 Priorities, due dates and subtasks. Daily habits with streaks. A focus timer that keeps running when ProdLi is closed. See where your browsing time goes and set daily limits per site (only website names are recorded, never full addresses).
@@ -67,10 +67,10 @@ Markdown, CSV, JSON and text files opened in Chrome show in ProdLi's viewer, wit
 Right-click any page or selection, or press Alt+Shift+A, to save it as a to-do or note.
 
 🔄 ONE ACCOUNT, EVERY DEVICE
-ProdLi works without an account; everything stays in your browser. Sign in with Google (free) to sync between computers and the web app at app.prodli.com (works on your phone too), with nightly backups. The account also turns on the AI daily brief, weekly review, Ask ProdLi and meeting summaries.
+ProdLi works without an account; everything stays in your browser. Sign in with Google (free) to sync between computers and the web app at app.prodli.com (works on your phone too), with nightly backups. The account also turns on the AI daily brief, weekly review, Ask ProdLi, meeting summaries and writing help.
 
 FREE
-The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, and 100 Ask ProdLi questions a month, plus 100 MB of synced data. ProdLi Pro raises these limits.
+The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions and 200 writing-help uses a month, plus 100 MB of synced data. ProdLi Pro raises these limits.
 
 PRIVACY
 No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude, which doesn't train on it. Google Calendar access is read-only and optional. Full policy: https://prodli.com/privacy
@@ -117,7 +117,7 @@ Tick these (they leave the device only when the user signs in or uses a feature)
 |---|---|
 | **Personally identifiable information** | Name, email address and profile picture from Google sign-in, to create and show the account. |
 | **Authentication information** | A Google sign-in token is exchanged for a ProdLi session, used to sync the user's data. |
-| **Personal communications** | Google Meet transcripts and summaries, synced to the account and sent to the AI provider when the user asks for a summary. |
+| **Personal communications** | Google Meet transcripts and summaries, synced to the account and sent to the AI provider when the user asks for a summary. For writing help, the selected note text or a meeting's summary is sent to the AI provider to write a suggestion or follow-up email; neither is stored on ProdLi's servers. |
 | **Web history** | Time Tracker totals per website name (no full addresses), synced to the account and used in the daily brief and weekly review. |
 | **Website content** | Text, titles and links the user saves from pages with "Add to ProdLi", stored as notes and to-dos. |
 
@@ -135,8 +135,8 @@ No account is needed: every section works offline after install. To try the AI f
 
 ## 5. Before you submit
 
-- [ ] Google consent screen published (otherwise only test users can sign in), and Calendar verification started
-- [ ] Zip built from the latest `main`
+- [x] Google consent screen published (17 Nov 2026). Calendar verification: branding re-check scheduled 18 Nov, then the Calendar request
+- [x] Zip built from the latest `main` (17 Nov 2026, includes writing help)
 - [ ] Recorder tested on a real Google Meet call
 - [ ] Five screenshots and the promo tile uploaded; old screenshots removed
 - [ ] Description pasted
