@@ -30,6 +30,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next ideas
 
+- [ ] Writing help: phase 1 (✨ Improve on selected text in Notes) is built on branch `writing-assist`, not released. Before release: approve the privacy/terms wording and deploy the API (new D1 migration `0008_write_usage`). Phase 2 is follow-up emails from meetings. Details: [docs/PLAN-WRITING-ASSIST.md](docs/PLAN-WRITING-ASSIST.md)
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
 - [ ] Zoom / Microsoft Teams web support
 - [ ] Mobile: mic-based recording for in-person meetings

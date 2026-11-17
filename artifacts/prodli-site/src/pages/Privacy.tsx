@@ -7,7 +7,7 @@ import { Logo } from "../components/Logo";
  * changes, update this text and the review notes together. Items in
  * [square brackets] must be filled in before publishing.
  */
-export const LAST_UPDATED = "9 November 2026";
+export const LAST_UPDATED = "17 November 2026";
 
 export const PRIVACY_SECTIONS: { title: string; body: string }[] = [
   {
@@ -59,7 +59,7 @@ You can stop a computer from uploading the meetings it records (account window �
 If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged into your account once, the first time you sign in, and Drive sync then turns off.`,
   },
   {
-    title: "AI features: daily brief, weekly review, Ask ProdLi and meeting summaries (optional)",
+    title: "AI features: daily brief, weekly review, Ask ProdLi, meeting summaries and writing help (optional)",
     body: `Ask ProdLi (chat): with an account, you can ask questions about your day. Our server sends Anthropic's Claude API your question, the last few messages of the conversation, the same day information as the daily brief, and short excerpts from the notes and meetings that match your question (chosen on your device). The conversation isn't stored on our servers or synced; it stays in the open page. Actions it suggests (such as adding a to-do) happen only when you click them.
 
 Daily brief: with an account, ProdLi can write a short plan for your day. To do this, our server sends Anthropic's Claude API the parts of your day the brief needs: your open tasks (titles, priorities, due dates, estimates), habit names and streaks, today's calendar events (titles and times, if you connected Google Calendar), recent meeting action items, yesterday's top websites and focus sessions, and your focus and reflection notes. The brief is saved with that day and synced to your devices; we don't keep a separate copy of what was sent. We count how many briefs you use each month. Without an account, a basic brief is made on your device without AI and nothing is sent.
@@ -67,6 +67,8 @@ Daily brief: with an account, ProdLi can write a short plan for your day. To do 
 Weekly review: with an account, ProdLi can write a short review of your week. Our server sends Anthropic's Claude API a summary of that week made on your device: titles of tasks you finished and tasks that slipped (with priorities and dates), counts per day, habit names and how many days you kept them, focus-session totals, total browsing time and your top five websites, meeting titles and open action items, how many notes you created or edited, your daily focus and reflection notes, and your own notes on the week. The review is saved with that week and synced; we don't keep a separate copy of what was sent. Reviews count toward your monthly briefs. Without an account, a basic review is made on your device without AI and nothing is sent.
 
 Meeting summaries: with an account, our server sends the meeting's transcript, name and date to Anthropic's Claude API and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and meeting audio is never sent. We count how many summaries you use each month.
+
+Writing help (✨ Improve in Notes): with an account, you can select text in a note and ask ProdLi to fix spelling and grammar, make it shorter or clearer, or change its tone. Our server sends Anthropic's Claude API only the selected text (up to about 1,000 words) and the kind of change you picked. Neither the text nor the suggestion is stored on our servers; your note changes only if you click Replace or Insert below. We count how many times you use writing help each month.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
   },
   {
@@ -181,7 +183,7 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "ProdLi Pro (paid plan)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews and 1,000 Ask ProdLi questions per month). Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 1,000 Ask ProdLi questions and 2,000 writing-help uses per month). Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
 
 Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Dodo Payments' terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },
@@ -191,7 +193,7 @@ Pro is a subscription, billed monthly or yearly in advance at the price shown at
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews and 100 Ask ProdLi questions per month. Limits are shown in the app and may change; we'll give notice before reducing them. More is available with ProdLi Pro (see “ProdLi Pro (paid plan)” above).`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews, 100 Ask ProdLi questions and 200 writing-help uses per month. Limits are shown in the app and may change; we'll give notice before reducing them. More is available with ProdLi Pro (see “ProdLi Pro (paid plan)” above).`,
   },
   {
     title: "AI summaries, briefs, reviews and answers",

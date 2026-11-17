@@ -9,7 +9,7 @@ let dispose: () => Promise<void>;
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch(["subscriptions", "billing_customers", "ai_usage", "brief_usage", "ask_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
+  await base.DB.batch(["subscriptions", "billing_customers", "ai_usage", "brief_usage", "ask_usage", "write_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
 });
 
 // A Standard Webhooks secret: "whsec_" + base64 key.

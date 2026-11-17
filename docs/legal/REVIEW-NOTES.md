@@ -45,6 +45,7 @@ To publish the updated site, the placeholders were filled with **assumptions** (
 | Live-update ticket (random, single use) | Durable Object | 60 seconds | `src/userStore.ts` |
 | Daily briefs used per month (a count only) | D1 `brief_usage` | until account deletion | `src/brief.ts` |
 | Ask ProdLi questions used per month (a count only) | D1 `ask_usage` | until account deletion | `src/ask.ts` |
+| Writing help (✨ Improve) uses per month (a count only; the text isn't stored) | D1 `write_usage` | until account deletion | `src/write.ts` |
 | Today: each day's focus, reflection and the brief text | the user's Durable Object (`days` collection) | until deleted | `artifacts/prodli/src/sections/TodaySection.tsx` |
 
 **Never stored on ProdLi's servers:**

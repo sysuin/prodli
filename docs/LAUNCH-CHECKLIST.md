@@ -33,10 +33,10 @@
 
 ## Limits (free plan / Pro)
 - ✅ 100 MB synced data per user, 1.5 MB per item
-- ✅ Per month: 20 / 300 meeting summaries, 62 / 200 daily briefs and weekly reviews, 100 / 1000 Ask ProdLi questions; 100 MB / 2 GB synced storage. Failed calls aren't counted.
+- ✅ Per month: 20 / 300 meeting summaries, 62 / 200 daily briefs and weekly reviews, 100 / 1000 Ask ProdLi questions, 200 / 2000 writing-help uses; 100 MB / 2 GB synced storage. Failed calls aren't counted.
 - ✅ Rate limits: sign-in 20/min per IP, sync 300/min per user, AI 10/min per user
 - ✅ Request size caps: 64 KB normally, 8 MB for sync, 1 MB for summaries
-- To change a number: `QUOTA_BYTES` in `artifacts/prodli-api/src/syncStore.ts`; `AI_MONTHLY_LIMIT` (`src/ai.ts`), `BRIEF_MONTHLY_LIMIT` (`src/brief.ts`), `ASK_MONTHLY_LIMIT` (`src/ask.ts`); rate limits in `wrangler.jsonc`.
+- To change a number: `QUOTA_BYTES` in `artifacts/prodli-api/src/syncStore.ts`; `AI_MONTHLY_LIMIT` (`src/ai.ts`), `BRIEF_MONTHLY_LIMIT` (`src/brief.ts`), `ASK_MONTHLY_LIMIT` (`src/ask.ts`), `WRITE_MONTHLY_LIMIT` (`src/write.ts`); rate limits in `wrangler.jsonc`.
 
 ## Security
 - ✅ Each user's data is in their own Durable Object, chosen only from the verified session (tests try cross-user access)

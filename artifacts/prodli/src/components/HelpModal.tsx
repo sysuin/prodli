@@ -87,6 +87,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           <Section emoji="✍️" title="Editor">
             <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
             <Row label={<Tag>Select text</Tag>} desc="A small menu appears over selected text for bold, italic, underline, strikethrough, highlight, code and links." />
+            <Row label={<Tag>✨ Improve</Tag>} desc="Select text, then click ✨ Improve (or press Ctrl/⌘+J) to fix spelling and grammar, make it shorter or clearer, or change the tone. You see the suggestion first; Replace is one undo step. Needs a ProdLi account (free)." />
             <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
             <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
             <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K adds or edits a link (leave empty to remove). Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
@@ -193,6 +194,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 <ShortcutRow keys={["Ctrl / ⌘ + Z"]} action="Undo" />
                 <ShortcutRow keys={["Ctrl+Y / ⌘+Shift+Z"]} action="Redo" />
                 <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Insert, edit or remove a link" />
+                <ShortcutRow keys={["Ctrl / ⌘ + J"]} action="✨ Improve selected text (grammar, shorter, clearer, tone)" />
                 <ShortcutRow keys={["Ctrl / ⌘ + Shift + H"]} action="Highlight" />
                 <ShortcutRow keys={["Ctrl / ⌘ + E"]} action="Inline code" />
                 <ShortcutRow keys={["/"]} action="Insert a block (checklist, table, heading…)" />

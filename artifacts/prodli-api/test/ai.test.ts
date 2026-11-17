@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { AI_MONTHLY_LIMIT } from "../src/ai";
+import { AI_MONTHLY_LIMIT, monthKey } from "../src/ai";
 import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
 import { ASK_MONTHLY_LIMIT } from "../src/ask";
+import { MAX_REWRITE_CHARS, WRITE_MONTHLY_LIMIT } from "../src/write";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
 
@@ -10,9 +11,11 @@ let dispose: () => Promise<void>;
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM ask_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
+  await base.DB.batch([base.DB.prepare("DELETE FROM ai_usage"), base.DB.prepare("DELETE FROM brief_usage"), base.DB.prepare("DELETE FROM ask_usage"), base.DB.prepare("DELETE FROM write_usage"), base.DB.prepare("DELETE FROM sessions"), base.DB.prepare("DELETE FROM users")]);
 });
 
+/** makeApp()'s default clock. */
+const NOW = 1_800_000_000_000;
 const withKey = () => ({ ...base, ANTHROPIC_API_KEY: "sk-test" }) as Env;
 
 async function signIn(app: ReturnType<typeof makeApp>["app"], env: Env, who = "a") {
@@ -32,7 +35,7 @@ describe("AI summaries", () => {
     expect(await res.json()).toMatchObject({ summary: { title: "Notes: Standup" }, usage: { used: 1, limit: AI_MONTHLY_LIMIT.free } });
     expect(calls.filter((c) => c.kind === "summarize")).toHaveLength(1);
     const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
-    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free } });
+    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free }, writes: { used: 0, limit: WRITE_MONTHLY_LIMIT.free } });
   });
 
   it("stops at the monthly limit, and the allowance resets next month", async () => {
@@ -197,5 +200,53 @@ describe("Ask ProdLi", () => {
     const over = await app.request("/api/ai/ask", json(ask("q"), auth), env);
     expect(over.status).toBe(429);
     expect(await over.json()).toMatchObject({ error: "ask_quota_exceeded" });
+  });
+});
+
+describe("Writing help (rewrite)", () => {
+  const rewrite = (text: string, action = "fix") => ({ action, text });
+
+  it("rewrites the selection, counted separately from the other allowances", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/rewrite", json(rewrite("I saw teh **plan**."), auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: "I saw the **plan**.", changed: true, usage: { used: 1, limit: WRITE_MONTHLY_LIMIT.free } });
+    expect(calls.filter((c) => c.kind === "rewrite").map((c) => c.clientId)).toEqual(["fix"]);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ used: 0, briefs: { used: 0 }, asks: { used: 0 }, writes: { used: 1 } });
+    const billing = (await (await app.request("/api/billing", { headers: auth }, env)).json()) as { limits: { free: { writes: number }; pro: { writes: number } } };
+    expect(billing.limits.free.writes).toBe(WRITE_MONTHLY_LIMIT.free);
+    expect(billing.limits.pro.writes).toBe(WRITE_MONTHLY_LIMIT.pro);
+  });
+
+  it("refunds failures, enforces the limit and validates input", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("FAIL"), auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ writes: { used: 0 } });
+    expect((await app.request("/api/ai/rewrite", json(rewrite(""), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("   \n "), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("hi", "translate"), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/rewrite", json({ text: "hi" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("x".repeat(MAX_REWRITE_CHARS)), auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("x".repeat(MAX_REWRITE_CHARS + 1)), auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("hi"), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    // Use up the allowance by setting this month's count (hundreds of requests are too slow for CI).
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    await env.DB.prepare("UPDATE write_usage SET count = ?1 WHERE user_id = ?2 AND month = ?3").bind(WRITE_MONTHLY_LIMIT.free - 1, user.id, monthKey(NOW)).run();
+    const last = await app.request("/api/ai/rewrite", json(rewrite("hi", "shorter"), auth), env);
+    expect(last.status).toBe(200);
+    expect(await last.json()).toMatchObject({ usage: { used: WRITE_MONTHLY_LIMIT.free, limit: WRITE_MONTHLY_LIMIT.free } });
+    const over = await app.request("/api/ai/rewrite", json(rewrite("hi"), auth), env);
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: "write_quota_exceeded", usage: { used: WRITE_MONTHLY_LIMIT.free, limit: WRITE_MONTHLY_LIMIT.free } });
+  });
+
+  it("is off without ProdLi's key", async () => {
+    const { app } = makeApp();
+    const auth = await signIn(app, base);
+    expect((await app.request("/api/ai/rewrite", json(rewrite("hi"), auth), base)).status).toBe(503);
   });
 });

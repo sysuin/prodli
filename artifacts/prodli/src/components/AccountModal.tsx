@@ -105,7 +105,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
                   ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
                   : "Thanks for supporting ProdLi!"}
             <br />
-            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions a month, {formatBytes(L.pro.storageBytes)} of sync.
+            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync.
           </div>
           {billing.canManage && (
             <div>
@@ -130,6 +130,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
               {row("AI meeting summaries", String(L.free.summaries), String(L.pro.summaries))}
               {row("AI daily briefs & reviews", String(L.free.briefs), String(L.pro.briefs))}
               {row("Ask ProdLi questions", String(L.free.asks), String(L.pro.asks))}
+              {L.free.writes !== undefined && L.pro.writes !== undefined && row("Writing help (✨ Improve)", String(L.free.writes), String(L.pro.writes))}
               {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
             </tbody>
           </table>
@@ -623,6 +624,7 @@ function PlanSection({ onSignIn }: { onSignIn: () => void }) {
           {ai?.available && <UsageBar label="AI meeting summaries" used={ai.used} limit={ai.limit} />}
           {ai?.briefs && <UsageBar label="AI daily briefs & weekly reviews" used={ai.briefs.used} limit={ai.briefs.limit} />}
           {ai?.asks && <UsageBar label="Ask ProdLi questions" used={ai.asks.used} limit={ai.asks.limit} />}
+          {ai?.writes && <UsageBar label="Writing help (✨ Improve)" used={ai.writes.used} limit={ai.writes.limit} />}
           {sync?.usage && <UsageBar label="Synced storage" used={sync.usage.bytes} limit={sync.usage.quota} format={mb} />}
           <div style={{ fontSize: 11, opacity: 0.7 }}>AI allowances reset on the 1st of each month.</div>
         </div>

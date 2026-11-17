@@ -49,6 +49,12 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       const top = input.context?.tasks[0]?.title;
       return { answer: top ? `Start with ${top}.` : "You have nothing planned.", actions: top ? [{ type: "plan_today", title: top, details: "" }] : [], model: "test" };
     },
+    rewrite: async (input) => {
+      calls.push({ kind: "rewrite", clientId: input.action });
+      if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
+      const text = input.action === "fix" ? input.text.replace(/\bteh\b/g, "the") : `${input.action}: ${input.text}`;
+      return { text, changed: text !== input.text, model: "test" };
+    },
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");

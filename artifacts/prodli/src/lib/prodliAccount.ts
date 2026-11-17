@@ -87,8 +87,11 @@ const friendly: Record<string, string> = {
   ai_truncated: "The summary was cut off. Try again.",
 };
 
-/** A request to ProdLi's server with this device's session. */
-export async function accountRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * A request to ProdLi's server with this device's session.
+ * `messages` overrides the friendly text for specific error codes (e.g. writing help's own wording for "ai_busy").
+ */
+export async function accountRequest<T>(path: string, init: RequestInit = {}, messages: Record<string, string> = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (isExtension()) {
@@ -104,7 +107,8 @@ export async function accountRequest<T>(path: string, init: RequestInit = {}): P
   const body = (await res.json().catch(() => ({}))) as { error?: string } & T;
   if (!res.ok) {
     if (res.status === 401 && path !== "/api/auth/google") await forgetLocally();
-    throw new AccountError(friendly[body.error ?? ""] ?? `Something went wrong (${res.status}).`, res.status);
+    const code = body.error ?? "";
+    throw new AccountError(messages[code] ?? friendly[code] ?? `Something went wrong (${res.status}).`, res.status);
   }
   return body;
 }
@@ -160,6 +164,7 @@ export interface AiUsage {
   available: boolean;
   briefs?: { used: number; limit: number };
   asks?: { used: number; limit: number };
+  writes?: { used: number; limit: number };
 }
 
 /** This month's AI summaries through ProdLi. */

@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SECTIONS } from "../sections/registry";
 import type { Section } from "../types";
+import { openImprove, REWRITE_ACTIONS } from "../lib/write";
 
 export interface PaletteActions {
   go: (s: Section) => void;
@@ -38,6 +39,17 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
     const base: Command[] = [
       { id: "ask", label: "Ask ProdLi…", icon: "✨", hint: "AI assistant", keywords: "chat question ai help", run: () => actions.ask() },
       { id: "quick-add", label: "Quick add a to-do or note", icon: "➕", keywords: "new create capture", run: actions.quickAdd },
+      // Writing help works on the text selected in Notes (the selection survives opening the palette).
+      ...REWRITE_ACTIONS.map((a) => ({
+        id: `improve-${a.id}`,
+        label: `Improve selection: ${a.label}`,
+        icon: "✨",
+        keywords: "writing grammar spelling rewrite shorten tone notes ai",
+        run: () => {
+          actions.go("editor");
+          setTimeout(() => openImprove(a.id), 0);
+        },
+      })),
       ...SECTIONS.map((s) => ({ id: `go-${s.key}`, label: `Go to ${s.label}`, icon: s.emoji, hint: `${mod}${s.shortcut}`, keywords: `${s.key} ${s.description}`, run: () => actions.go(s.key) })),
       { id: "theme", label: isDark ? "Switch to light mode" : "Switch to dark mode", icon: isDark ? "☀️" : "🌙", keywords: "theme dark light", run: actions.toggleTheme },
       { id: "settings", label: "Settings", icon: "⚙️", keywords: "preferences options account plan sync appearance", run: actions.settings },
@@ -46,7 +58,8 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
       { id: "help", label: "Help & keyboard shortcuts", icon: "?", keywords: "shortcuts guide", run: actions.help },
     ];
     const q = query.trim().toLowerCase();
-    const matched = q ? base.filter((c) => `${c.label} ${c.keywords ?? ""}`.toLowerCase().includes(q)) : base;
+    // Writing-help entries only show when searched for, so the default list stays short.
+    const matched = q ? base.filter((c) => `${c.label} ${c.keywords ?? ""}`.toLowerCase().includes(q)) : base.filter((c) => !c.id.startsWith("improve-"));
     const text = query.trim();
     // Free text: offer to add it as a to-do or ask ProdLi about it.
     const typed: Command[] = text

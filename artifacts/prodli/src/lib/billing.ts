@@ -15,6 +15,8 @@ export interface PlanLimits {
   summaries: number;
   briefs: number;
   asks: number;
+  /** Writing help (✨ Improve). Optional: older servers don't send it. */
+  writes?: number;
 }
 
 export interface Billing {
