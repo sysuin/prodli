@@ -99,6 +99,7 @@ ProdLi replaces the new tab page with a personal assistant that helps the user p
 | `identity` | Used only when the user chooses "Sign in with Google" (to sign in to their ProdLi account) or connects Google Calendar (read-only, to plan their day around their meetings). |
 | `contextMenus` | Adds "Add to ProdLi to-dos" and "Save to ProdLi notes" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
 | `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in Chrome, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
+| `search` | The search box on ProdLi's new tab page sends what the user types to their default search engine through Chrome's Search API. ProdLi never changes the search engine and doesn't see the results. |
 | `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet tab the user starts recording (toolbar icon or Alt+Shift+R). The audio stays on the device. |
 | `offscreen` *(optional)* | Runs the meeting recorder's audio capture in an offscreen document. |
 | `scripting` *(optional)* | Runs the caption reader in the Google Meet tab being recorded, and the Time Tracker's optional auto-redirect when a site's daily limit is reached. |
@@ -140,7 +141,7 @@ No account is needed: every section works offline after install. To try the AI f
 - [ ] Recorder tested on a real Google Meet call
 - [ ] Five screenshots and the promo tile uploaded; old screenshots removed
 - [ ] Description pasted
-- [ ] Single purpose and every permission justification pasted, including the newer `contextMenus`, `webNavigation` and `downloads`
+- [ ] Single purpose and every permission justification pasted, including the newer `contextMenus`, `webNavigation`, `search` and `downloads`
 - [ ] The five data types ticked and the three statements checked
 - [ ] Privacy policy URL set
 - [ ] Submit. The review can take longer than usual because of the tab-audio permission

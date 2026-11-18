@@ -25,6 +25,15 @@ export interface Repeat {
   monthDay?: number;
 }
 
+/** A quick link tile on Today. Synced as the "quickLinks" collection. */
+export interface QuickLink {
+  id: string;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 /** A saved set of browser tabs ("Saved tabs" on Today). Synced as the "tabSessions" collection. */
 export interface TabSession {
   id: string;

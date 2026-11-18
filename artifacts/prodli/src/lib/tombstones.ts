@@ -4,7 +4,7 @@
 import { storageGet, storageSet } from "./storage";
 
 export const TOMBSTONES_KEY = "syncTombstones";
-export type Collection = "notes" | "todos" | "habits" | "meetings" | "days" | "lists" | "tabSessions";
+export type Collection = "notes" | "todos" | "habits" | "meetings" | "days" | "lists" | "tabSessions" | "quickLinks";
 /** collection → item id → ISO time it was deleted */
 export type Tombstones = Partial<Record<Collection, Record<string, string>>>;
 
@@ -27,7 +27,7 @@ export function pruneTombstones(t: Tombstones, now = Date.now()): Tombstones {
 /** Union of two tombstone sets, keeping the latest deletion time per item. */
 export function mergeTombstones(a: Tombstones, b: Tombstones): Tombstones {
   const out: Tombstones = {};
-  for (const col of ["notes", "todos", "habits", "meetings", "days", "lists", "tabSessions"] as Collection[]) {
+  for (const col of ["notes", "todos", "habits", "meetings", "days", "lists", "tabSessions", "quickLinks"] as Collection[]) {
     const merged: Record<string, string> = { ...(a[col] ?? {}) };
     for (const [id, at] of Object.entries(b[col] ?? {})) if (!merged[id] || merged[id] < at) merged[id] = at;
     if (Object.keys(merged).length) out[col] = merged;
