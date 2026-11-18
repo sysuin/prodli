@@ -19,7 +19,8 @@
     "alarms",
     "identity",
     "contextMenus",
-    "webNavigation"
+    "webNavigation",
+    "search"
   ],
   "optional_permissions": [
     "scripting",

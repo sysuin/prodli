@@ -84,6 +84,11 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </div>
 
           {/* Editor */}
+          <Section emoji="🔎" title="Search & quick links">
+            <Row label={<Tag>Search</Tag>} desc="The box at the top of Today searches with your default search engine (or opens an address you type)." />
+            <Row label={<Tag>+ Link / Edit</Tag>} desc="Add up to 16 links as tiles. In Edit, click a tile to rename it or × to remove it. Links sync with your account." />
+          </Section>
+
           <Section emoji="🗂" title="Saved tabs">
             <Row label={<Tag>Save this window</Tag>} desc="On Today: saves this window's web pages (and closes them if you like). Open all brings them back in a new window; ▸ lists them to open one. Also in ⌘K: “Save open tabs and close them”. Synced and backed up with your account." />
           </Section>

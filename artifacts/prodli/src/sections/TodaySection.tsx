@@ -20,6 +20,7 @@ import { openSettings } from "../components/Settings";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
+import { QuickLinks } from "./today/QuickLinks";
 
 const ACCENT = "#F59E0B";
 const card: CSSProperties = { border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 16 };
@@ -219,6 +220,8 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
             </button>
           </div>
         </header>
+
+        <QuickLinks />
 
 
         {daysLoaded && reviewDue(days) && (

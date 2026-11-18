@@ -1139,6 +1139,62 @@ const suites = {
     server.close();
   },
 
+  async quicklinks(b, check) {
+    // Web search (default engine via chrome.search) and quick links on Today.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const server = http.createServer((_req, res) => (res.writeHead(200, { "Content-Type": "text/html" }), res.end("<title>Target</title>ok")));
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const target = `http://127.0.0.1:${server.address().port}/landing`;
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ quickLinks: [] })`);
+    await p.goto("today");
+    const setValue = (sel, text) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    check("Links: Today has a web search box", await p.eval(`!!document.querySelector('input[aria-label="Search the web"]')`));
+    // Search goes through Chrome's Search API (the user's default engine).
+    await p.eval(`(() => { window.__searches = []; chrome.search.query = async (q) => { window.__searches.push(q); }; return true; })()`);
+    await setValue('input[aria-label="Search the web"]', "best pizza near me");
+    await p.eval(`document.querySelector('form[role="search"] button[type="submit"]').click()`);
+    await sleep(300);
+    check("Links: search uses chrome.search with the default engine, in this tab", JSON.stringify(await p.eval("window.__searches")) === JSON.stringify([{ text: "best pizza near me", disposition: "CURRENT_TAB" }]), JSON.stringify(await p.eval("window.__searches")));
+    // Add a link.
+    await p.click("+ Link");
+    await sleep(200);
+    await setValue('input[aria-label="Link address"]', target.replace("http://", "http://"));
+    await setValue('input[aria-label="Link name"]', "Landing");
+    await p.eval(`document.querySelector('[data-testid="quick-links"] form:not([role]) button[type="submit"]').click()`);
+    await sleep(500);
+    let { quickLinks = [] } = await p.storage(["quickLinks"]);
+    check("Links: + Link saves a tile", quickLinks.length === 1 && quickLinks[0].title === "Landing" && quickLinks[0].url === target, JSON.stringify(quickLinks));
+    check("Links: the tile links to the address", (await p.eval(`document.querySelector('[data-testid="quick-link"]')?.getAttribute("href")`)) === target);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="quick-links"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): search and links have no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("quick-links");
+    // Rename and remove in Edit mode.
+    await p.click("Edit");
+    await sleep(200);
+    await p.eval(`(() => { window.prompt = () => "Home page"; document.querySelector('[data-testid="quick-link"]').click(); return true; })()`);
+    await sleep(500);
+    ({ quickLinks = [] } = await p.storage(["quickLinks"]));
+    check("Links: in Edit mode, clicking a tile renames it (instead of opening it)", quickLinks[0]?.title === "Home page" && (await p.eval("location.href")).includes("index.html"));
+    await p.eval(`document.querySelector('button[aria-label="Remove link Home page"]').click()`);
+    await sleep(500);
+    check("Links: × removes the tile", ((await p.storage(["quickLinks"])).quickLinks ?? []).length === 0);
+    // An address typed into search opens directly.
+    await p.click("Done").catch(() => {});
+    await setValue('input[aria-label="Search the web"]', target);
+    await p.eval(`document.querySelector('form[role="search"] button[type="submit"]').click()`);
+    await sleep(1200);
+    check("Links: typing an address opens it", (await p.eval("location.href")) === target, await p.eval("location.href"));
+    await p.close();
+    server.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");
