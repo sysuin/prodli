@@ -39,11 +39,14 @@ export function PausePage({ url, domain, reason }: { url: string; domain: string
   const [count, setCount] = useState(0);
   const [tasks, setTasks] = useState<string[]>([]);
   const [wait, setWait] = useState<number | null>(null);
+  const [strict, setStrict] = useState(false);
 
   useEffect(() => {
     document.title = `Paused: ${domain}`;
     void (async () => {
       const today = getDayKey();
+      const fb = { ...DEFAULT_FOCUS_BLOCK, ...(await storageGet<Partial<FocusBlockSettings>>(FOCUS_BLOCK_KEY, {})) };
+      setStrict(!!fb.strict && reason !== "limit");
       if (reason === "pomodoro") {
         const t = await storageGet<TimerState | null>(TIMER_KEY, null);
         const left = t?.endsAt ? Math.max(1, Math.round((t.endsAt - Date.now()) / 60_000)) : null;
@@ -108,7 +111,9 @@ export function PausePage({ url, domain, reason }: { url: string; domain: string
           <button style={btn(false)} onClick={() => location.replace(chrome.runtime.getURL("index.html"))}>Go to ProdLi</button>
         </div>
         <div style={{ marginTop: 22, fontSize: 13 }}>
-          {wait === null ? (
+          {strict ? (
+            <span data-testid="strict-note" style={{ color: "hsl(var(--muted-foreground))", fontWeight: 600 }}>Strict mode is on: this site opens again when {reason === "pomodoro" ? "the session" : "focus hours"} end.</span>
+          ) : wait === null ? (
             <button onClick={() => setWait(WAIT_SECONDS)} style={{ border: "none", background: "none", color: "hsl(var(--muted-foreground))", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
               Continue anyway
             </button>

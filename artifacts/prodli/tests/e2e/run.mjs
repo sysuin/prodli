@@ -1084,6 +1084,18 @@ const suites = {
     const after = (await b.send("Target.getTargets")).targetInfos.filter((t) => t.type === "page").length;
     check("Focus: Close tab closes the tab", after === before - 1, `${before} → ${after}`);
 
+    // Strict mode: no Continue anyway, and the panel is locked while blocking.
+    await p.eval(`chrome.storage.local.get("focusBlock").then(r => chrome.storage.local.set({ focusBlock: { ...r.focusBlock, strict: true } }))`);
+    await p.eval(`chrome.storage.session.set({ focusPasses: {} })`);
+    await sleep(500);
+    check("Focus: strict mode locks the panel during a session", /strict mode: you can change these/i.test(await p.eval(`document.querySelector('[data-testid="focus-block"]').innerText`)) && (await p.eval(`document.querySelector('[data-testid="focus-block"] input[type="checkbox"]').disabled`)));
+    const strictTab = await b.openPage(site);
+    await sleep(1500);
+    const strictText = await strictTab.eval("document.body.innerText");
+    check("Focus: strict mode removes Continue anyway", /strict mode is on/i.test(strictText) && !/continue anyway/i.test(strictText), strictText.slice(0, 200));
+    await strictTab.close();
+    await p.eval(`chrome.storage.local.get("focusBlock").then(r => chrome.storage.local.set({ focusBlock: { ...r.focusBlock, strict: false } }))`);
+    await sleep(300);
     // Focus hours: a schedule that covers now blocks without a session.
     await p.eval(`chrome.storage.local.set({ pomodoroTimer: { phase: "work", running: false, endsAt: null, remaining: 1500, label: "Focus", lastCompletedAt: null, lastCompletedPhase: null } })`);
     const d = new Date();
@@ -1301,6 +1313,83 @@ const suites = {
     await p.eval(`[...document.querySelectorAll('[role="option"], button, li')].find(e => e.textContent && e.textContent.includes("Open today's daily note") && e.children.length < 6).click()`);
     await sleep(2500);
     check("Daily note: ⌘K opens it from another page", (await p.lowerText()).includes("review the budget") && (await notes()).filter((n) => n.dailyFor === today).length === 1);
+    await p.close();
+  },
+
+  async habitkinds(b, check) {
+    // Count, timed and quit habits, chosen days, skip, the year view, and Today's buttons.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ habits: [] })`);
+    await p.goto("habits");
+    const habits = async () => (await p.storage(["habits"])).habits ?? [];
+    const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+    const newHabit = async (name, kind, target, unit) => {
+      await p.click("+ New Habit");
+      await sleep(250);
+      await p.eval(`(() => { const i = document.querySelector('input[placeholder="Habit name..."]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(name)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+      if (kind) {
+        await p.eval(`[...document.querySelectorAll('[role="radiogroup"][aria-label="Habit type"] button')].find(b => b.textContent.startsWith(${JSON.stringify(kind)})).click()`);
+        await sleep(150);
+        await p.eval(`(() => { const i = document.querySelector('#habit-target'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "${target}"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+        if (unit) await p.eval(`(() => { const i = document.querySelector('input[aria-label="Unit"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(unit)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+      }
+      await sleep(150);
+      await p.click("Save");
+      await sleep(500);
+    };
+    await newHabit("Water", "Count", 8, "glasses");
+    let h = (await habits()).find((x) => x.name === "Water");
+    check("Habits: a Count habit saves its target and unit", h?.kind === "count" && h?.target === 8 && h?.unit === "glasses", JSON.stringify(h));
+    for (let i = 0; i < 3; i++) await p.eval(`document.querySelector('button[aria-label="+1: Water"]').click()`), await sleep(150);
+    h = (await habits()).find((x) => x.name === "Water");
+    check("Habits: +1 logs the amount and shows progress", h?.log?.[today] === 3 && !h.completedDays.includes(today) && (await p.text()).includes("today: 3/8 glasses"), JSON.stringify(h?.log));
+    await newHabit("No smoking", "Quit", 0);
+    check("Habits: a Quit habit shows days kept", (await p.text()).includes("No smoking") && (await p.eval(`!!document.querySelector('button[aria-label="Slipped: No smoking"]')`)));
+    await p.eval(`document.querySelector('button[aria-label="Slipped: No smoking"]').click()`);
+    await sleep(400);
+    h = (await habits()).find((x) => x.name === "No smoking");
+    check("Habits: Slipped logs a slip for today", h?.log?.[today] === 1 && h.completedDays.length === 0, JSON.stringify(h));
+    // A habit only on another weekday isn't due today.
+    await p.click("+ New Habit");
+    await sleep(250);
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder="Habit name..."]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Gym"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    // Keep only tomorrow's weekday.
+    const keep = (new Date().getDay() + 1) % 7;
+    await p.eval(`[...document.querySelectorAll('[role="group"][aria-label="Days"] button')].forEach((b, i) => { if (i !== ${keep}) b.click(); })`);
+    await sleep(150);
+    await p.click("Save");
+    await sleep(500);
+    h = (await habits()).find((x) => x.name === "Gym");
+    check("Habits: chosen days are saved, and it's not due today", h?.days?.length === 1 && !h.days.includes(new Date().getDay()) && (await p.text()).includes("not due today"), JSON.stringify(h?.days));
+    // Skip a check-off habit today.
+    await newHabit("Stretch");
+    await p.eval(`document.querySelector('button[aria-label="Skip today: Stretch"]').click()`);
+    await sleep(400);
+    h = (await habits()).find((x) => x.name === "Stretch");
+    check("Habits: Skip marks today as skipped (streak safe)", h?.skipped?.includes(today) && (await p.text()).includes("skipped today"), JSON.stringify(h));
+    // Year view.
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.textContent.trim().toLowerCase() === "year").click()`);
+    await sleep(300);
+    check("Habits: the Year view shows a year of days", (await p.eval(`document.querySelectorAll('[role="img"][aria-label*="past year"] > div').length`)) >= 52);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + "]" : "")).join(" | ")))`);
+      check(`A11y (${theme}): habit types, days and the year view have no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("habit-kinds");
+    // Today: count habits get +1, quit habits show their status, not-due habits are hidden.
+    await p.goto("today");
+    const card = () => p.eval(`document.querySelector('[data-testid="habits-today"]').innerText`);
+    check("Habits: Today shows progress and hides habits not due today", (await card()).includes("3/8 glasses") && !(await card()).includes("Gym"), await card());
+    await p.eval(`[...document.querySelectorAll('[data-testid="habits-today"] button')].find(b => b.textContent.includes("Water")).click()`);
+    await sleep(400);
+    h = (await habits()).find((x) => x.name === "Water");
+    check("Habits: tapping a count habit on Today adds one", h?.log?.[today] === 4, JSON.stringify(h?.log));
+    await p.eval(`chrome.storage.local.set({ habits: [] })`);
     await p.close();
   },
 

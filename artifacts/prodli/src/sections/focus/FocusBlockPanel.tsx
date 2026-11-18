@@ -45,13 +45,15 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
   };
   const updateSchedule = (id: string, patch: Partial<BlockSchedule>) => save({ ...s, schedules: s.schedules.map((x) => (x.id === id ? { ...x, ...patch } : x)) });
   const now = blockingNow(s, focusRunning);
+  /** Strict mode while blocking: nothing can be loosened (adding sites is still fine). */
+  const locked = !!s.strict && !!now;
 
   return (
     <section data-testid="focus-block" aria-label="Block distracting sites" style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 14, width: "min(520px, 100%)", boxSizing: "border-box", textAlign: "left" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div style={{ fontWeight: 900, fontSize: 14 }}>🚫 Block distracting sites</div>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, fontWeight: 700 }}>
-          <input type="checkbox" checked={s.enabled} onChange={(e) => save({ ...s, enabled: e.target.checked })} /> On
+          <input type="checkbox" checked={s.enabled} disabled={locked} onChange={(e) => save({ ...s, enabled: e.target.checked })} /> On
         </label>
       </div>
       <div role="status" style={{ fontSize: 12, fontWeight: 700, marginTop: 4, color: now ? "var(--danger-text)" : "hsl(var(--muted-foreground))" }}>
@@ -63,7 +65,7 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
         {s.sites.map((d) => (
           <span key={d} style={{ border: "var(--nb-border)", padding: "2px 4px 2px 8px", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4, background: "hsl(var(--muted))" }}>
             {d}
-            <button aria-label={`Unblock ${d}`} onClick={() => save({ ...s, sites: s.sites.filter((x) => x !== d) })} style={{ border: "none", background: "none", cursor: "pointer", fontWeight: 900, color: "var(--danger-text)", fontSize: 13 }}>×</button>
+            {!locked && <button aria-label={`Unblock ${d}`} onClick={() => save({ ...s, sites: s.sites.filter((x) => x !== d) })} style={{ border: "none", background: "none", cursor: "pointer", fontWeight: 900, color: "var(--danger-text)", fontSize: 13 }}>×</button>}
           </span>
         ))}
       </div>
@@ -89,8 +91,16 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
 
       <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
-          <input type="checkbox" checked={s.duringPomodoro} onChange={(e) => save({ ...s, duringPomodoro: e.target.checked })} /> While a focus session runs
+          <input type="checkbox" checked={s.duringPomodoro} disabled={locked} onChange={(e) => save({ ...s, duringPomodoro: e.target.checked })} /> While a focus session runs
         </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+          <input type="checkbox" checked={!!s.strict} disabled={locked} onChange={(e) => save({ ...s, strict: e.target.checked })} style={{ marginTop: 3 }} />
+          <span>
+            Strict mode
+            <span style={{ display: "block", fontWeight: 400, fontSize: 12, opacity: 0.8 }}>No “Continue anyway”, and blocking can't be loosened while it's on. Disabling the extension or using another browser still gets around it.</span>
+          </span>
+        </label>
+        {locked && <div role="status" data-testid="strict-locked" style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-text)" }}>🔒 Strict mode: you can change these when blocking ends.</div>}
         <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>Focus hours</div>
         {s.schedules.length === 0 && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>None. Add one to block sites at set times.</div>}
         {s.schedules.map((sc) => (
@@ -103,6 +113,7 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
                     key={d}
                     aria-pressed={on}
                     aria-label={DAY_NAMES[d]}
+                    disabled={locked}
                     onClick={() => updateSchedule(sc.id, { days: on ? sc.days.filter((x) => x !== d) : [...sc.days, d].sort() })}
                     style={{ width: 24, height: 24, border: "var(--nb-border)", marginLeft: d ? -2 : 0, background: on ? "hsl(var(--foreground))" : "hsl(var(--card))", color: on ? "hsl(var(--background))" : "hsl(var(--foreground))", fontWeight: 800, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}
                   >
@@ -111,10 +122,10 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
                 );
               })}
             </span>
-            <input type="time" aria-label="From" value={sc.start} onChange={(e) => e.target.value && updateSchedule(sc.id, { start: e.target.value })} style={field} />
+            <input type="time" aria-label="From" value={sc.start} disabled={locked} onChange={(e) => e.target.value && updateSchedule(sc.id, { start: e.target.value })} style={field} />
             <span style={{ fontSize: 12 }}>to</span>
-            <input type="time" aria-label="To" value={sc.end} onChange={(e) => e.target.value && updateSchedule(sc.id, { end: e.target.value })} style={field} />
-            <button aria-label={`Remove focus hours ${scheduleLabel(sc)}`} onClick={() => save({ ...s, schedules: s.schedules.filter((x) => x.id !== sc.id) })} style={{ ...small, color: "var(--danger-text)" }}>×</button>
+            <input type="time" aria-label="To" value={sc.end} disabled={locked} onChange={(e) => e.target.value && updateSchedule(sc.id, { end: e.target.value })} style={field} />
+            {!locked && <button aria-label={`Remove focus hours ${scheduleLabel(sc)}`} onClick={() => save({ ...s, schedules: s.schedules.filter((x) => x.id !== sc.id) })} style={{ ...small, color: "var(--danger-text)" }}>×</button>}
           </div>
         ))}
         <div>

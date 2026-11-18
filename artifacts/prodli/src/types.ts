@@ -95,10 +95,23 @@ export interface Habit {
   name: string;
   emoji: string;
   color: string;
+  /** Days it was done (check, count and timed habits). Quit habits use `log` instead. */
   completedDays: string[];
   createdAt: string;
   updatedAt?: string;
   archived: boolean;
+  /** check (default): done or not · count: N times a day · timed: N minutes a day · quit: at most N a day. */
+  kind?: "check" | "count" | "timed" | "quit";
+  /** count: times · timed: minutes · quit: the most allowed (0 = none). */
+  target?: number;
+  /** count: what's counted, e.g. "glasses". */
+  unit?: string;
+  /** Day → amount (times, minutes, or slips for quit habits). */
+  log?: Record<string, number>;
+  /** Only these weekdays (0 = Sunday); missing = every day. Other days never break a streak. */
+  days?: number[];
+  /** Days skipped on purpose (sick, travel): they don't break a streak. */
+  skipped?: string[];
 }
 
 /** One record per day (Today section): focus, the AI brief, the evening reflection. Synced. */
