@@ -15,12 +15,26 @@ export interface Subtask {
   completed: boolean;
 }
 
+/** How a to-do repeats. Weekly with `weekdays` means on those days (0 = Sunday … 6 = Saturday). */
+export interface Repeat {
+  unit: "day" | "week" | "month" | "year";
+  /** Every N units (1 = every day/week/month/year). */
+  every: number;
+  weekdays?: number[];
+  /** Day of the month it started on, so "monthly on the 31st" comes back to the 31st after short months. */
+  monthDay?: number;
+}
+
 export interface Todo {
   id: string;
   title: string;
   completed: boolean;
   priority?: "high" | "medium" | "low";
   dueDate?: string;
+  /** Time on the due date ("HH:MM"). The extension sends a reminder then. */
+  dueTime?: string;
+  /** Repeating task: completing it saves a done copy and moves this one to its next date. */
+  repeat?: Repeat;
   subtasks?: Subtask[];
   /** Day (YYYY-MM-DD) the user planned to do it — set from Today → Plan your day. */
   plannedFor?: string;
@@ -100,6 +114,8 @@ export interface TodaySettings {
   autoBrief: boolean;
   /** Notify when a time block starts (extension). */
   blockReminders?: boolean;
+  /** Notify at a task's time (to-dos with a time). Default on. */
+  taskReminders?: boolean;
 }
 
 export type Section = "today" | "review" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";

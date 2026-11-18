@@ -232,7 +232,8 @@ const suites = {
       const parts = [];
       rec.ondataavailable = (e) => parts.push(e.data);
       rec.start(1000);
-      await new Promise((r) => setTimeout(r, 9000));
+      // Wait on the audio clock, not wall time: under load the two drift apart and the second tone could be cut off.
+      while (ctx.currentTime < t + 8.5) await new Promise((r) => setTimeout(r, 200));
       await new Promise((r) => { rec.onstop = r; rec.stop(); });
       const blob = new Blob(parts, { type: rec.mimeType });
       await new Promise((resolve, reject) => {
@@ -803,6 +804,85 @@ const suites = {
     await sleep(300);
     check("Improve: if the note changed meanwhile, Replace asks to select again", (await panelText()).includes("The note changed"), await panelText());
     await p.click("Close");
+    await p.close();
+  },
+
+  async repeating(b, check) {
+    // Repeating to-dos and reminders (to-dos with a time).
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("todos");
+    const typeTask = async (text) => {
+      await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Add a new task"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await sleep(150);
+    };
+    const enter = async () => {
+      await p.eval(`document.querySelector('input[placeholder^="Add a new task"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+      await sleep(600);
+    };
+    const todos = async () => (await p.storage(["todos"])).todos ?? [];
+    const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    // Quick add with a repeat and a time.
+    await typeTask("Water plants every day at 11:58pm");
+    const preview = await p.eval(`document.querySelector('[data-testid="smart-add-preview"]')?.innerText ?? ""`);
+    check("Repeat: quick add previews the repeat and time", preview.includes("Every day") && /11:58|23:58/.test(preview), preview);
+    await enter();
+    let t = (await todos()).find((x) => x.title === "Water plants");
+    check("Repeat: quick add saves the repeat, time and today's date", t?.repeat?.unit === "day" && t?.dueTime === "23:58" && t?.dueDate === dayKey(new Date()), JSON.stringify(t));
+    check("Repeat: the task shows 🔁 and ⏰", await p.eval(`(() => { const row = [...document.querySelectorAll(".todo-row")].find(r => r.innerText.includes("Water plants")); return !!row && !!row.querySelector('[data-testid="repeat-badge"]') && row.innerText.includes("⏰"); })()`));
+
+    // The background schedules a reminder for it.
+    await sleep(800);
+    const alarms = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
+    check("Reminder: an alarm is set for the task's time", alarms.includes(`task:${t.id}`), JSON.stringify(alarms));
+
+    // Completing it moves it to tomorrow and keeps a done copy.
+    await p.eval(`[...document.querySelectorAll('button[role="checkbox"]')].find(b => b.getAttribute("aria-label") === "Mark done: Water plants").click()`);
+    await sleep(800);
+    const all = (await todos()).filter((x) => x.title === "Water plants");
+    const open = all.find((x) => !x.completed);
+    const done = all.find((x) => x.completed);
+    check("Repeat: completing moves it to its next date", open?.id === t.id && open?.dueDate === dayKey(new Date(Date.now() + 86_400_000)) && open?.dueTime === "23:58", JSON.stringify(all));
+    check("Repeat: and keeps a completed copy for the review", !!done && done.id !== t.id && !done.repeat && !!done.completedAt, JSON.stringify(done));
+    await sleep(800);
+    const alarms2 = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
+    check("Reminder: the alarm follows the task to its next date", alarms2.includes(`task:${t.id}`), JSON.stringify(alarms2));
+
+    // The ✎ editor: change the repeat and time of an existing task.
+    await typeTask("Pay invoices");
+    await enter();
+    await p.eval(`document.querySelector('button[aria-label="Edit details: Pay invoices"]').click()`);
+    await sleep(300);
+    check("Details: ✎ opens the date/time/repeat editor", await p.eval(`!!document.querySelector('[data-testid="task-details"]')`));
+    await p.eval(`(() => { const sel = document.querySelector('[data-testid="task-details"] select[aria-label="Repeat"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, "month"); sel.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await sleep(500);
+    t = (await todos()).find((x) => x.title === "Pay invoices");
+    check("Details: setting a repeat gives it a start date", t?.repeat?.unit === "month" && t?.dueDate === dayKey(new Date()) && t?.repeat?.monthDay === new Date().getDate(), JSON.stringify(t));
+    await p.eval(`(() => { const sel = document.querySelector('[data-testid="task-details"] select[aria-label="Repeat"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, "custom"); sel.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await sleep(300);
+    await p.eval(`(() => { const sel = document.querySelector('[data-testid="task-details"] select[aria-label="Repeat unit"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, "week"); sel.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await sleep(300);
+    for (const day of ["Tuesday", "Thursday"]) await p.eval(`document.querySelector('[data-testid="task-details"] button[aria-label="${day}"]').click()`);
+    await sleep(500);
+    t = (await todos()).find((x) => x.title === "Pay invoices");
+    check("Details: a custom rule on chosen weekdays", t?.repeat?.unit === "week" && JSON.stringify(t?.repeat?.weekdays) === "[2,4]", JSON.stringify(t?.repeat));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="task-details"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): the task editor has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("task-details");
+    // Reminders can be switched off in Settings.
+    await p.eval(`chrome.storage.local.get("todaySettings").then(r => chrome.storage.local.set({ todaySettings: { ...(r.todaySettings ?? {}), taskReminders: false } }))`);
+    await sleep(800);
+    const off = await p.eval(`chrome.alarms.getAll().then(a => a.filter(x => x.name.startsWith("task:")).length)`);
+    check("Reminder: turning reminders off clears them", off === 0, String(off));
+    await p.eval(`chrome.storage.local.get("todaySettings").then(r => chrome.storage.local.set({ todaySettings: { ...(r.todaySettings ?? {}), taskReminders: true } }))`);
+    await p.eval(`chrome.storage.local.set({ todos: [] })`);
     await p.close();
   },
 

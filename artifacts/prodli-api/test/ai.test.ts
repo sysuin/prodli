@@ -111,7 +111,10 @@ describe("daily brief", () => {
     const env = withKey();
     const auth = await signIn(app, env);
     expect((await app.request("/api/ai/brief", json({ ...day, focus: "FAIL" }, auth), env)).status).toBe(502);
-    for (let i = 0; i < BRIEF_MONTHLY_LIMIT.free; i++) expect((await app.request("/api/ai/brief", json(day, auth), env)).status).toBe(200);
+    // Use up the allowance by setting this month's count (62 requests are too slow for CI).
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    await env.DB.prepare("INSERT INTO brief_usage (user_id, month, count) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, month) DO UPDATE SET count = excluded.count").bind(user.id, monthKey(clock.now), BRIEF_MONTHLY_LIMIT.free - 1).run();
+    expect((await app.request("/api/ai/brief", json(day, auth), env)).status).toBe(200);
     const over = await app.request("/api/ai/brief", json(day, auth), env);
     expect(over.status).toBe(429);
     expect(await over.json()).toMatchObject({ error: "brief_quota_exceeded" });
@@ -197,7 +200,10 @@ describe("Ask ProdLi", () => {
     expect((await app.request("/api/ai/ask", json(ask("q", { snippets: [{ kind: "email", title: "x", text: "y" }] }), auth), env)).status).toBe(400);
     expect((await app.request("/api/ai/ask", json(ask("x".repeat(2000), { history: Array.from({ length: 10 }, () => ({ role: "user", text: "h".repeat(4000) })), snippets: Array.from({ length: 12 }, () => ({ kind: "note", title: "t".repeat(300), text: "y".repeat(3000) })) }), auth), env)).status).toBe(413);
     expect((await app.request("/api/ai/ask", json(ask("q"), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
-    for (let i = 0; i < ASK_MONTHLY_LIMIT.free; i++) await app.request("/api/ai/ask", json(ask("q"), auth), env);
+    // Use up the allowance by setting this month's count (a hundred requests are too slow for CI).
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    await env.DB.prepare("INSERT INTO ask_usage (user_id, month, count) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, month) DO UPDATE SET count = excluded.count").bind(user.id, monthKey(NOW), ASK_MONTHLY_LIMIT.free - 1).run();
+    expect((await app.request("/api/ai/ask", json(ask("q"), auth), env)).status).toBe(200);
     const over = await app.request("/api/ai/ask", json(ask("q"), auth), env);
     expect(over.status).toBe(429);
     expect(await over.json()).toMatchObject({ error: "ask_quota_exceeded" });

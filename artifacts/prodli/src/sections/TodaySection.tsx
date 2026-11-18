@@ -18,6 +18,7 @@ import { reviewDue, weekLabel } from "../lib/review";
 import { openSection } from "./registry";
 import { openSettings } from "../components/Settings";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
+import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 
 const ACCENT = "#F59E0B";
 const card: CSSProperties = { border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 16 };
@@ -181,7 +182,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
     setTodos((list) => list.map((t) => (t.block?.day === today ? { ...t, block: undefined } : t)));
     setBlockNote(null);
   };
-  const toggleTodo = (t: Todo) => updateTodo(t.id, { completed: !t.completed, completedAt: t.completed ? undefined : new Date().toISOString() });
+  const toggleTodo = (t: Todo) => setTodos((list) => toggleCompletion(list, t.id));
   const toggleHabit = (h: Habit) =>
     setHabits((list) => list.map((x) => (x.id === h.id ? { ...x, completedDays: x.completedDays.includes(today) ? x.completedDays.filter((d) => d !== today) : [...x.completedDays, today] } : x)));
   const addPriorityAsTask = (title: string) => {

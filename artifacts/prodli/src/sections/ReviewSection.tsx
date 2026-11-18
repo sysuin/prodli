@@ -9,6 +9,7 @@ import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, t
 import { DAYS_KEY, dayKey } from "../lib/today";
 import { addDays, defaultReviewWeek, loadWeekStats, weekLabel, weekStart, writeReview, type WeekStats } from "../lib/review";
 import type { DayRecord, Todo, WeeklyReview } from "../types";
+import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 
 const ACCENT = "#14B8A6";
 const card: CSSProperties = { border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 16 };
@@ -221,7 +222,7 @@ export function ReviewSection({ onAsk }: { onAsk?: (question?: string) => void }
                           Plan for {weekday(nextMonday)}
                         </button>
                       )}
-                      <button style={smallBtn} onClick={() => updateTodo(t.id, { completed: true, completedAt: new Date().toISOString() })}>
+                      <button style={smallBtn} onClick={() => setTodos((list) => (list.find((x) => x.id === t.id)?.completed ? list : toggleCompletion(list, t.id)))}>
                         Done
                       </button>
                     </li>

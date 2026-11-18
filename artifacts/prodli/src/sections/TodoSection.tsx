@@ -20,7 +20,9 @@ import { storageSet } from "../lib/storage";
 import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import { parseTask } from "../lib/taskParse";
-import type { Todo } from "../types";
+import { repeatLabel, timeLabel, toggleTodo } from "../lib/recurrence";
+import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
+import type { Repeat, Todo } from "../types";
 
 type Priority = "high" | "medium" | "low" | "none";
 type Filter = "all" | "active" | "completed" | "high" | "medium" | "low";
@@ -78,8 +80,12 @@ export function groupByDate(todos: Todo[], today: string): Group[] {
   return groups.filter((g) => g.items.length);
 }
 
-function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggleSubtask, onDeleteSubtask, onTogglePlan, draggable = true }: {
+function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggleSubtask, onDeleteSubtask, onTogglePlan, onUpdate, details, onToggleDetails, draggable = true }: {
   todo: Todo;
+  onUpdate: (id: string, patch: Partial<Todo>) => void;
+  /** The ✎ editor is open (kept by the list, so it stays open when the task moves to another group). */
+  details: boolean;
+  onToggleDetails: (id: string) => void;
   onTogglePlan: (id: string) => void;
   draggable?: boolean;
   onToggle: (id: string) => void;
@@ -190,8 +196,14 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           {/* Due date */}
           {todo.dueDate && (
             <span style={{ fontSize: 10, fontWeight: 700, color: todo.dueDate < today && !todo.completed ? "var(--danger-text)" : "hsl(var(--muted-foreground))", flexShrink: 0 }} title={todo.dueDate}>
-              📅 {dueLabel(todo.dueDate, today)}
+              📅 {dueLabel(todo.dueDate, today)}{todo.dueTime ? ` · ${timeLabel(todo.dueTime)}` : ""}
             </span>
+          )}
+          {todo.repeat && (
+            <span data-testid="repeat-badge" title={repeatLabel(todo.repeat)} aria-label={repeatLabel(todo.repeat)} style={{ fontSize: 11, fontWeight: 800, flexShrink: 0, color: "hsl(var(--muted-foreground))" }}>🔁</span>
+          )}
+          {todo.dueTime && !todo.completed && (
+            <span title={`Reminder at ${timeLabel(todo.dueTime)}`} aria-label={`Reminder at ${timeLabel(todo.dueTime)}`} style={{ fontSize: 11, flexShrink: 0 }}>⏰</span>
           )}
           {!todo.completed && (
             <button
@@ -208,11 +220,14 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
               {expanded ? "▲" : "▼"}
             </button>
           )}
+          {/* Details: date, time, repeat, priority */}
+          <button onClick={() => onToggleDetails(todo.id)} aria-expanded={details} aria-label={`Edit details: ${todo.title}`} title="Date, time, repeat, priority" style={{ border: "var(--nb-border)", background: details ? "hsl(var(--foreground))" : "hsl(var(--muted))", color: details ? "hsl(var(--background))" : "hsl(var(--foreground))", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✎</button>
           {/* Add subtask */}
           <button onClick={() => onAddSubtask(todo.id)} style={{ border: "var(--nb-border)", background: "hsl(var(--muted))", color: "hsl(var(--foreground))", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Add subtask" aria-label={`Add subtask to ${todo.title}`}>+</button>
           {/* Delete */}
           <button onClick={() => onDelete(todo.id)} aria-label={`Delete task: ${todo.title}`} title="Delete task" style={{ border: "1px solid #C62828", background: "#C62828", color: "white", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
         </div>
+        {details && <TaskDetails todo={todo} onChange={(patch) => onUpdate(todo.id, patch)} />}
         {/* Subtasks */}
         {expanded && todo.subtasks && todo.subtasks.length > 0 && (
           <div style={{ borderTop: "var(--nb-border)", background: "hsl(var(--muted))" }}>
@@ -240,6 +255,9 @@ export function TodoSection() {
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [repeat, setRepeat] = useState<Repeat | undefined>(undefined);
+  const [openDetails, setOpenDetails] = useState<string | null>(null);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [search, setSearch] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -267,23 +285,30 @@ export function TodoSection() {
     if (!input.trim()) return;
     // Smart add: words like "tomorrow" or "!high" set the date and priority; the pickers win if used.
     const p = parseTask(input);
-    const todo: Todo = {
+    const time = dueTime || p.dueTime;
+    let todo: Todo = {
       id: generateId(),
       title: p.title,
       completed: false,
       priority: priority === "none" ? p.priority : priority,
-      dueDate: dueDate || p.dueDate,
+      dueDate: dueDate || p.dueDate || (time ? getDayKey() : undefined),
+      dueTime: time || undefined,
       plannedFor: p.planToday ? getDayKey() : undefined,
       subtasks: [],
       createdAt: new Date().toISOString(),
     };
+    const rule = repeat ?? p.repeat;
+    if (rule) todo = repeat ? withRepeat(todo, repeat) : { ...todo, repeat: rule };
     save([todo, ...todos]);
     setInput("");
     setDueDate("");
+    setDueTime("");
+    setRepeat(undefined);
     setPriority("none");
   };
 
-  const toggle = (id: string) => save(todos.map(t => t.id === id ? { ...t, completed: !t.completed, completedAt: t.completed ? undefined : new Date().toISOString() } : t));
+  const toggle = (id: string) => save(toggleTodo(todos, id));
+  const update = (id: string, patch: Partial<Todo>) => save(todos.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const del = (id: string) => save(todos.filter(t => t.id !== id));
   const edit = (id: string, title: string) => save(todos.map(t => t.id === id ? { ...t, title } : t));
   const clearCompleted = () => save(todos.filter(t => !t.completed));
@@ -353,7 +378,7 @@ export function TodoSection() {
   ];
 
   const row = (todo: Todo, draggable: boolean) => (
-    <SortableTodo key={todo.id} todo={todo} onToggle={toggle} onDelete={del} onEdit={edit} onAddSubtask={addSubtask} onToggleSubtask={toggleSubtask} onDeleteSubtask={deleteSubtask} onTogglePlan={togglePlan} draggable={draggable} />
+    <SortableTodo key={todo.id} todo={todo} onToggle={toggle} onDelete={del} onEdit={edit} onAddSubtask={addSubtask} onToggleSubtask={toggleSubtask} onDeleteSubtask={deleteSubtask} onTogglePlan={togglePlan} onUpdate={update} details={openDetails === todo.id} onToggleDetails={(id) => setOpenDetails((cur) => (cur === id ? null : id))} draggable={draggable} />
   );
   const heading = (label: string, count: number, tone?: "warn") => (
     <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "14px 0 6px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: tone === "warn" ? "var(--danger-text)" : "hsl(var(--muted-foreground))" }}>
@@ -453,6 +478,13 @@ export function TodoSection() {
             onChange={e => setDueDate(e.target.value)}
             style={{ border: "var(--nb-border)", padding: "0 8px", height: "38px", boxSizing: "border-box" as const, fontFamily: "inherit", fontSize: 12, boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
           />
+          <input
+            type="time" aria-label="Time (reminder)" title="Time — ProdLi reminds you then"
+            value={dueTime}
+            onChange={e => setDueTime(e.target.value)}
+            style={{ border: "var(--nb-border)", padding: "0 8px", height: "38px", boxSizing: "border-box" as const, fontFamily: "inherit", fontSize: 12, boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
+          />
+          <RepeatPicker value={repeat} onChange={setRepeat} compact />
           <button
             onClick={addTodo}
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 18px", height: "38px", boxSizing: "border-box" as const, background: "#FFD700", fontWeight: 800, cursor: "pointer", fontSize: 13, textTransform: "uppercase", fontFamily: "inherit", color: "#000" }}
@@ -467,7 +499,7 @@ export function TodoSection() {
           </div>
         )}
         {!input && (
-          <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Tip: type “tomorrow”, “friday”, “Nov 20”, “!high” or “#today” — e.g. <em>Pay rent friday !high</em></div>
+          <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Tip: type “tomorrow”, “friday”, “at 3pm”, “every monday”, “!high” or “#today” — e.g. <em>Pay rent monthly on Dec 1 !high</em></div>
         )}
       </div>
 
