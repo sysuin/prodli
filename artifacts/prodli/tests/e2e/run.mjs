@@ -968,6 +968,41 @@ const suites = {
     await p.close();
   },
 
+  async quickadd(b, check) {
+    // Full quick add from ⌘K and the Quick add window (dates, times, repeats, #list, @labels).
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [] })`);
+    await p.goto("today");
+    const setValue = (sel, text) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const proto = i.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await setValue('input[placeholder^="Go to, do"]', "Pay rent monthly Dec 1 #Home @bills at 9am !high");
+    await sleep(300);
+    const entry = await p.eval(`[...document.querySelectorAll('[role="option"], button, li')].map(e => e.textContent).find(t => t && t.includes("Add to-do:")) ?? ""`);
+    check("Quick add: ⌘K shows how it reads the phrase", entry.includes("“Pay rent”") && entry.includes("Every month") && entry.includes("📁 Home") && entry.includes("@bills"), entry);
+    await p.eval(`[...document.querySelectorAll('[role="option"], button, li')].find(e => e.textContent && e.textContent.includes("Add to-do:") && e.children.length < 6).click()`);
+    await sleep(800);
+    let { todos = [], lists = [] } = await p.storage(["todos", "lists"]);
+    const rent = todos.find((t) => t.title === "Pay rent");
+    const home = lists.find((l) => l.name === "Home");
+    check("Quick add: ⌘K saves date, time, repeat, list, label and priority", !!rent && rent.dueDate?.endsWith("-12-01") && rent.dueTime === "09:00" && rent.repeat?.unit === "month" && rent.priority === "high" && rent.listId === home?.id && rent.labels?.[0] === "bills", JSON.stringify({ rent, lists }));
+
+    // The Quick add window (sidebar ➕) previews the phrase too.
+    await p.eval(`document.querySelector('button[title="Quick add a to-do or note"]').click()`);
+    await sleep(300);
+    await setValue('input[aria-label="Title"]', "Call dentist tomorrow at 4pm #Home");
+    await sleep(200);
+    const preview = await p.eval(`document.querySelector('[data-testid="quickadd-preview"]')?.innerText ?? ""`);
+    check("Quick add: the Quick add window previews the phrase", preview.includes("Tomorrow") && /4:00|16:00/.test(preview) && preview.includes("Home"), preview);
+    await p.click("Save");
+    await sleep(800);
+    ({ todos = [], lists = [] } = await p.storage(["todos", "lists"]));
+    const dentist = todos.find((t) => t.title === "Call dentist");
+    check("Quick add: the window saves into the existing list (no duplicate)", dentist?.dueTime === "16:00" && dentist?.listId === home?.id && lists.filter((l) => l.kind === "list").length === 1, JSON.stringify({ dentist, lists }));
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [] })`);
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

@@ -77,3 +77,24 @@ describe("to-do labels", () => {
     expect(parseTask("Email sam@example.com about #2 issue", now)).toMatchObject({ title: "Email sam@example.com about #2 issue" });
   });
 });
+
+describe("quick add from anywhere (⌘K, Quick add window)", () => {
+  it("saves the time, repeat, list and labels, creating the list once", async () => {
+    const { addTask } = await import("../../src/lib/capture");
+    const { storageGet, storageSet } = await import("../../src/lib/storage");
+    await storageSet("todos", []);
+    await storageSet("lists", []);
+    const a = await addTask({ title: "Pay rent monthly Dec 1 #Home @bills at 9am !high", smart: true });
+    expect(a).toMatchObject({ title: "Pay rent", dueDate: expect.stringMatching(/-12-01$/), dueTime: "09:00", priority: "high", labels: ["bills"], repeat: { unit: "month", every: 1, monthDay: 1 } });
+    const b = await addTask({ title: "Fix tap #home", smart: true });
+    const lists = await storageGet<ListItem[]>("lists", []);
+    expect(lists).toHaveLength(1);
+    expect(lists[0]).toMatchObject({ kind: "list", name: "Home" });
+    expect(a.listId).toBe(lists[0].id);
+    expect(b.listId).toBe(lists[0].id);
+    // Right-click saves of a page title are never parsed.
+    const c = await addTask({ title: "Best #Home tips for tomorrow" });
+    expect(c).toMatchObject({ title: "Best #Home tips for tomorrow" });
+    expect(c.listId).toBeUndefined();
+  });
+});

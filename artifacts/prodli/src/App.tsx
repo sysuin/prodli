@@ -332,7 +332,7 @@ export default function App() {
   const paletteActions = {
     go: (s: Section) => void handleSectionChange(s),
     ask: (question?: string) => setAsk({ open: true, question }),
-    addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}` : ""}`)),
+    addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.repeat ? " · repeats" : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
     toggleTheme: () => void toggleTheme(),
     account: () => setSettingsTab("account"),

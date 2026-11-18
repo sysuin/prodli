@@ -2,7 +2,8 @@
 // stored together in the synced "lists" collection; labels are just names on
 // tasks, so the label list is whatever the tasks use.
 
-import { getDayKey } from "./utils";
+import { generateId, getDayKey } from "./utils";
+import { storageGet, storageSet } from "./storage";
 import type { ListItem, TaskQuery, Todo } from "../types";
 
 export type TaskList = Extract<ListItem, { kind: "list" }>;
@@ -64,3 +65,15 @@ export function describeQuery(q: TaskQuery, lists: ListItem[]): string {
 }
 
 export const LIST_EMOJIS = ["📁", "💼", "🏠", "🛒", "📚", "💡", "🏃", "✈️", "💰", "🎯", "🧑‍💻", "❤️"];
+
+/** Finds a list by name in storage, or creates it (quick add from anywhere: "#Work"). Returns its id. */
+export async function ensureListStored(name: string): Promise<string> {
+  const lists = await storageGet<ListItem[]>("lists", []);
+  const existing = findList(lists, name);
+  if (existing) return existing.id;
+  const now = new Date().toISOString();
+  const id = generateId();
+  const emoji = LIST_EMOJIS[lists.filter(isList).length % LIST_EMOJIS.length];
+  await storageSet("lists", [...lists, { id, kind: "list", name: name.trim().slice(0, 60), emoji, createdAt: now, updatedAt: now }]);
+  return id;
+}

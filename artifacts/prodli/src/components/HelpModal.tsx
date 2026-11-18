@@ -103,7 +103,10 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
 
           {/* To-Dos */}
           <Section emoji="✅" title="To-Dos">
-            <Row label={<Tag>Add task</Tag>} desc="Type a task title, optionally set Priority and Due Date, then click Add or press Enter." />
+            <Row label={<Tag>Add task</Tag>} desc="Type a task and press Enter. Words set the details: “tomorrow”, “next month”, “at 3pm”, “tonight”, “in 2 hours”, “every monday”, “every weekday”, “monthly”, “!high”, “#Work” (list) and “@errands” (label). The preview shows how it was read. Works in ⌘K and Quick add (Alt+Shift+A) too." />
+            <Row label={<Tag>Lists & labels</Tag>} desc="The side panel has All, Inbox, Today, your lists, labels and saved filters. Add a list with +; ⋯ renames or deletes it. ☆ Save view keeps the current list, filter and search as a saved filter." />
+            <Row label={<Tag>✎ Details</Tag>} desc="Edit a task's date, time (reminder), repeat, list, labels and priority. Completing a repeating task moves it to its next date." />
+            <Row label={<Tag>⏰ Reminders</Tag>} desc="A task with a time gets a notification then, with Mark done and Snooze 10 min (extension). Turn off in Settings → Today & planning." />
             <Row label={<Tag>Double-click</Tag>} desc="Double-click any task title to edit it inline. Press Enter or click away to save." />
             <Row label={<Tag>⠿ Drag handle</Tag>} desc="Drag tasks to reorder them (available in All filter mode)." />
             <Row label={<Tag>Priority badge</Tag>} desc="HIGH (red), MEDIUM (orange), LOW (green). Shown inline on each task." />
