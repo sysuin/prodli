@@ -2,6 +2,7 @@
 // shortcut (its own small window), the phone share sheet and the command palette.
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addNote, addTask, type CaptureInput } from "../lib/capture";
+import { parseTask } from "../lib/taskParse";
 
 const field: CSSProperties = { border: "var(--nb-border)", padding: "8px 10px", fontFamily: "inherit", fontSize: 14, background: "hsl(var(--background))", color: "hsl(var(--foreground))", width: "100%", boxSizing: "border-box" };
 
@@ -53,6 +54,19 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
         ))}
       </div>
       <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : "Note title"} aria-label="Title" maxLength={300} style={field} />
+      {kind === "todo" && title.trim() && (() => {
+        const p = parseTask(title);
+        return p.matched.length ? (
+          <div aria-live="polite" data-testid="quickadd-preview" style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 11, fontWeight: 700 }}>
+            <span style={{ opacity: 0.8 }}>Will add “{p.title}”:</span>
+            {p.matched.map((m) => (
+              <span key={m} style={{ border: "var(--nb-border)", padding: "1px 6px", background: "hsl(var(--muted))" }}>{m}</span>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, opacity: 0.75 }}>Try “tomorrow at 3pm”, “every monday”, “#Work”, “@errands”, “!high”.</div>
+        );
+      })()}
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={kind === "todo" ? "Details (optional)" : "Text (optional)"} aria-label="Details" rows={kind === "note" ? 5 : 2} style={{ ...field, resize: "vertical" }} />
       {initial?.url && (
         <div style={{ fontSize: 12, opacity: 0.75, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={initial.url}>

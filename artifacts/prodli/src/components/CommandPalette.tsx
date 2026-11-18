@@ -5,6 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SECTIONS } from "../sections/registry";
 import type { Section } from "../types";
 import { openImprove, REWRITE_ACTIONS } from "../lib/write";
+import { parseTask } from "../lib/taskParse";
+
+/** "Add to-do: “Pay rent” · 📅 Dec 1 · 🔁 Every month" — shows how quick add reads the text. */
+export function taskLabel(text: string): string {
+  const p = parseTask(text);
+  return `Add to-do: “${p.title}”${p.matched.length ? ` · ${p.matched.join(" · ")}` : ""}`;
+}
 
 export interface PaletteActions {
   go: (s: Section) => void;
@@ -65,7 +72,7 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
     const typed: Command[] = text
       ? [
           { id: "typed-ask", label: `Ask ProdLi: “${text}”`, icon: "✨", run: () => actions.ask(text) },
-          { id: "typed-task", label: `Add to-do: “${text}”`, icon: "✅", run: () => actions.addTask(text) },
+          { id: "typed-task", label: taskLabel(text), icon: "✅", run: () => actions.addTask(text) },
         ]
       : [];
     return matched.length ? [...matched, ...typed] : typed;

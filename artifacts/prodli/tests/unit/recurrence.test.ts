@@ -115,3 +115,24 @@ describe("setting a repeat on an existing task", () => {
     expect(withRepeat({ dueDate: "2026-11-30", repeat: { unit: "day", every: 1 } }, undefined).repeat).toBeUndefined();
   });
 });
+
+describe("quick add: more date and time phrases", () => {
+  const now = new Date(2026, 10, 18, 10, 0); // Wednesday
+  it("understands next month, weekend, end of week/month", () => {
+    expect(parseTask("Review budget next month", now)).toMatchObject({ title: "Review budget", dueDate: "2026-12-18" });
+    expect(parseTask("Clean garage this weekend", now)).toMatchObject({ title: "Clean garage", dueDate: "2026-11-21" });
+    expect(parseTask("Send report by end of week", now)).toMatchObject({ title: "Send report", dueDate: "2026-11-20" });
+    expect(parseTask("Invoices eom", now)).toMatchObject({ title: "Invoices", dueDate: "2026-11-30" });
+    expect(parseTask("Pay card end of the month", new Date(2027, 1, 3)).dueDate).toBe("2027-02-28");
+  });
+  it("understands tonight and in N hours/minutes", () => {
+    expect(parseTask("Call mom tonight", now)).toMatchObject({ title: "Call mom", dueDate: "2026-11-18", dueTime: "19:00" });
+    expect(parseTask("Take pizza out in 25 min", now)).toMatchObject({ title: "Take pizza out", dueDate: "2026-11-18", dueTime: "10:25" });
+    expect(parseTask("Check build in 2 hours", now)).toMatchObject({ dueTime: "12:00" });
+    expect(parseTask("Stretch in 3 hours", new Date(2026, 10, 18, 23, 0))).toMatchObject({ dueDate: "2026-11-19", dueTime: "02:00" });
+  });
+  it("still leaves ordinary words alone", () => {
+    expect(parseTask("Weekend reading list", now).dueDate).toBeUndefined(); // "Weekend" at the start isn't a date
+    expect(parseTask("Clean garage weekend", now).dueDate).toBe("2026-11-21");
+  });
+});

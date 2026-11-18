@@ -8,6 +8,7 @@ import { generateId } from "./utils";
 import type { Note, Todo } from "../types";
 import { dayKey } from "./today";
 import { parseTask } from "./taskParse";
+import { ensureListStored, normLabel } from "./taskLists";
 
 export interface CaptureInput {
   title: string;
@@ -55,6 +56,11 @@ export async function addTask(input: CaptureInput & { planToday?: boolean; smart
     createdAt: now,
     updatedAt: now,
   };
+  // Everything quick add understands: time (reminder), repeat, #list, @labels.
+  if (p?.dueTime) todo.dueTime = p.dueTime;
+  if (p?.repeat) todo.repeat = p.repeat;
+  if (p?.labels?.length) todo.labels = [...new Set(p.labels.map(normLabel))];
+  if (p?.listName) todo.listId = await ensureListStored(p.listName);
   const todos = await storageGet<Todo[]>("todos", []);
   await storageSet("todos", [todo, ...todos]);
   return todo;

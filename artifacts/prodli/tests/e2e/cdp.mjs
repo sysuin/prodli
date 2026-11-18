@@ -26,6 +26,10 @@ export class Browser {
     if (!existsSync(path.join(EXT, "manifest.json"))) throw new Error(`${path.basename(EXT)} missing — run: PRODLI_OUT_DIR=${path.basename(EXT)} node scripts/build-extension.mjs`);
     this.profile = mkdtempSync(path.join(tmpdir(), "prodli-e2e-"));
     this.downloads = mkdtempSync(path.join(tmpdir(), "prodli-dl-"));
+    // Remove the throwaway profile even if a run crashes or is stopped (they're ~15 MB each).
+    const cleanup = () => this.close();
+    process.once("exit", cleanup);
+    for (const sig of ["SIGINT", "SIGTERM"]) process.once(sig, () => (cleanup(), process.exit(130)));
     this.proc = spawn(
       CHROME,
       ["--headless=new", "--remote-debugging-pipe", "--enable-unsafe-extension-debugging", `--user-data-dir=${this.profile}`, "--no-first-run", "--no-default-browser-check", "--autoplay-policy=no-user-gesture-required", "--mute-audio", ...(process.env.CI ? ["--no-sandbox"] : []), ...(process.env.PRODLI_CHROME_ARGS ? process.env.PRODLI_CHROME_ARGS.split(" ") : []), "about:blank"],
@@ -83,7 +87,11 @@ export class Browser {
     return this.events.filter((e) => e.method === "Runtime.exceptionThrown" || (e.method === "Runtime.consoleAPICalled" && e.params.type === "error"));
   }
   close() {
-    this.proc.kill();
+    if (this.closed) return;
+    this.closed = true;
+    try {
+      this.proc.kill();
+    } catch {}
     try {
       rmSync(this.profile, { recursive: true, force: true });
       rmSync(this.downloads, { recursive: true, force: true });

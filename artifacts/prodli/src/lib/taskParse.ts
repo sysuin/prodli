@@ -1,7 +1,8 @@
 // Smart add: "Pay rent tomorrow !high" → title "Pay rent", due tomorrow, high
 // priority. Understands:
 //   dates      today · tomorrow (tmr) · monday…sunday (next one) · next week ·
-//              in 3 days / in 2 weeks · Nov 20 / 20 Nov / November 20 · 2026-11-20
+//              in 3 days / in 2 weeks · Nov 20 / 20 Nov / November 20 · 2026-11-20 ·
+//              next month · this weekend · end of week · end of month · tonight · in 2 hours
 //   priority   !high !h !1 p1 · !med !m !2 p2 · !low !l !3 p3
 //   plan       #today or ☀️ → planned for today
 //   repeat     every day / daily · every weekday · every monday and thursday ·
@@ -101,6 +102,21 @@ export function parseTask(input: string, now = new Date()): ParsedTask {
     return setRepeat(w === "biweekly" || w === "fortnightly" ? { unit: "week", every: 2 } : { unit: w === "daily" || w === "everyday" ? "day" : w === "weekly" ? "week" : w === "monthly" ? "month" : "year", every: 1 });
   });
 
+  // Relative times: "in 2 hours", "in 30 minutes", "tonight"
+  take(/\sin\s+(\d{1,3})\s*(hours?|hrs?|h|minutes?|mins?|m)(?=\s)/i, (m) => {
+    const mins = +m[1] * (m[2].toLowerCase().startsWith("h") ? 60 : 1);
+    if (!mins || mins > 7 * 24 * 60 || out.dueTime || out.dueDate) return false;
+    const at = new Date(now.getTime() + mins * 60_000);
+    out.dueDate = getDayKey(at);
+    out.dueTime = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+    return true;
+  });
+  take(/\s(tonight)(?=\s)/i, () => {
+    if (out.dueTime) return false;
+    out.dueTime = "19:00";
+    return setDate(now) || true;
+  });
+
   // Time of day (a reminder at that time)
   const setTime = (h: number, min: number) => {
     if (out.dueTime || h > 23 || min > 59) return false;
@@ -126,6 +142,14 @@ export function parseTask(input: string, now = new Date()): ParsedTask {
   take(/\s(?:on\s+|by\s+|due\s+)?(today|tod)(?=\s)/i, () => setDate(now));
   take(/\s(?:on\s+|by\s+|due\s+)?(tomorrow|tmrw?|tmr)(?=\s)/i, () => setDate(addDays(now, 1)));
   take(/\snext\s+week(?=\s)/i, () => setDate(addDays(now, ((8 - now.getDay()) % 7) || 7)));
+  take(/\snext\s+month(?=\s)/i, () => {
+    const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return setDate(new Date(d.getFullYear(), d.getMonth(), Math.min(now.getDate(), new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())));
+  });
+  // Like a bare weekday, "weekend" alone only counts at the end ("Weekend reading list" stays a title).
+  take(/\s(?:(?:this|on\s+the|by\s+the)\s+weekend(?=\s)|weekend(?=\s+$))/i, () => setDate(addDays(now, now.getDay() === 6 ? 0 : now.getDay() === 0 ? 0 : 6 - now.getDay())));
+  take(/\s(?:by\s+)?(?:end\s+of\s+(?:the\s+)?week|eow)(?=\s)/i, () => setDate(addDays(now, (5 - now.getDay() + 7) % 7)));
+  take(/\s(?:by\s+)?(?:end\s+of\s+(?:the\s+)?month|eom)(?=\s)/i, () => setDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
   take(/\sin\s+(\d{1,3})\s+(day|days|week|weeks)(?=\s)/i, (m) => setDate(addDays(now, +m[1] * (m[2].toLowerCase().startsWith("week") ? 7 : 1))));
   // A bare weekday only counts at the end ("Lunch with Sam friday"), or after on/by/due/next,
   // so titles like "Read Monday Morning Leadership" stay as they are.
