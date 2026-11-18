@@ -3,6 +3,7 @@ import { AI_MONTHLY_LIMIT, monthKey } from "../src/ai";
 import { BRIEF_MONTHLY_LIMIT } from "../src/brief";
 import { ASK_MONTHLY_LIMIT } from "../src/ask";
 import { MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, WRITE_MONTHLY_LIMIT } from "../src/write";
+import { TRANSCRIBE_MONTHLY_MINUTES, wavSeconds } from "../src/transcribe";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
 
@@ -35,7 +36,7 @@ describe("AI summaries", () => {
     expect(await res.json()).toMatchObject({ summary: { title: "Notes: Standup" }, usage: { used: 1, limit: AI_MONTHLY_LIMIT.free } });
     expect(calls.filter((c) => c.kind === "summarize")).toHaveLength(1);
     const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
-    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free }, writes: { used: 0, limit: WRITE_MONTHLY_LIMIT.free } });
+    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free }, writes: { used: 0, limit: WRITE_MONTHLY_LIMIT.free }, transcribeSeconds: { used: 0, limit: TRANSCRIBE_MONTHLY_MINUTES.free * 60, available: false } });
   });
 
   it("stops at the monthly limit, and the allowance resets next month", async () => {
@@ -304,5 +305,70 @@ describe("Writing help (follow-up email)", () => {
     const { app } = makeApp();
     const auth = await signIn(app, base);
     expect((await app.request("/api/ai/follow-up", json(followUp("formal"), auth), base)).status).toBe(503);
+  });
+});
+
+describe("Audio transcription (Workers AI Whisper)", () => {
+  /** A 16 kHz mono 16-bit WAV of `seconds`, optionally starting with a marker sample. */
+  const wav = (seconds: number, { rate = 16000, channels = 1, first = 0 } = {}) => {
+    const data = Math.round(seconds * rate) * 2 * channels;
+    const b = new Uint8Array(44 + data);
+    const v = new DataView(b.buffer);
+    const put = (at: number, t: string) => [...t].forEach((ch, i) => (b[at + i] = ch.charCodeAt(0)));
+    put(0, "RIFF"); v.setUint32(4, 36 + data, true); put(8, "WAVE"); put(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, channels, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2 * channels, true); v.setUint16(32, 2 * channels, true); v.setUint16(34, 16, true);
+    put(36, "data"); v.setUint32(40, data, true);
+    if (data) b[44] = first;
+    return b;
+  };
+  const post = (body: Uint8Array, headers: Record<string, string>) => ({ method: "POST", headers: { ...headers, "Content-Type": "audio/wav" }, body });
+  const withAi = () => ({ ...withKey(), AI: {} as Ai }) as Env;
+
+  it("reads WAV headers and rejects other formats", () => {
+    expect(wavSeconds(wav(30))).toBe(30);
+    expect(wavSeconds(wav(1, { rate: 44100 }))).toBeNull();
+    expect(wavSeconds(wav(1, { channels: 2 }))).toBeNull();
+    expect(wavSeconds(new TextEncoder().encode("not audio at all, definitely not a wav file header"))).toBeNull();
+  });
+
+  it("transcribes a piece and counts its seconds", async () => {
+    const { app, calls } = makeApp();
+    const env = withAi();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/transcribe", post(wav(29.5), auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: "Kumusta, let's start the review.", segments: [{ start: 0.4, end: 2.1, text: "Kumusta, let's start the review." }], language: "tl", usage: { usedSeconds: 30, limitSeconds: TRANSCRIBE_MONTHLY_MINUTES.free * 60 } });
+    expect(calls.filter((c) => c.kind === "transcribe")).toHaveLength(1);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ transcribeSeconds: { used: 30, limit: TRANSCRIBE_MONTHLY_MINUTES.free * 60, available: true }, writes: { used: 0 } });
+    const billing = (await (await app.request("/api/billing", { headers: auth }, env)).json()) as { limits: { pro: { transcribeMinutes: number } } };
+    expect(billing.limits.pro.transcribeMinutes).toBe(TRANSCRIBE_MONTHLY_MINUTES.pro);
+  });
+
+  it("refunds failures, enforces the minutes and validates the audio", async () => {
+    const { app } = makeApp();
+    const env = withAi();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/transcribe", post(wav(10, { first: 0x7f }), auth), env)).status).toBe(503);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ transcribeSeconds: { used: 0 } });
+    expect((await app.request("/api/ai/transcribe", post(wav(1, { rate: 44100 }), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/transcribe", post(wav(0.1), auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/transcribe", post(wav(36), auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/transcribe", post(wav(5), { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+    const { user } = (await (await app.request("/api/me", { headers: auth }, env)).json()) as { user: { id: string } };
+    const limit = TRANSCRIBE_MONTHLY_MINUTES.free * 60;
+    await env.DB.prepare("INSERT INTO transcribe_usage (user_id, month, seconds) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, month) DO UPDATE SET seconds = excluded.seconds").bind(user.id, monthKey(NOW), limit - 10).run();
+    expect((await app.request("/api/ai/transcribe", post(wav(10), auth), env)).status).toBe(200);
+    const over = await app.request("/api/ai/transcribe", post(wav(1), auth), env);
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: "transcribe_quota_exceeded", usage: { usedSeconds: limit, limitSeconds: limit } });
+  });
+
+  it("is off where Workers AI isn't bound (local development)", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/transcribe", post(wav(5), auth), env)).status).toBe(503);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ transcribeSeconds: { available: false } });
   });
 });

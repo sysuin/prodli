@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 import { onStorageChange, storageGet, storageRemove, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
-import { deleteMeeting, getAudio, listMeetings, updateMeeting } from "../recorder/db";
+import { deleteMeeting, getAudio, listMeetings, MEETINGS_CHANNEL, updateMeeting } from "../recorder/db";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting } from "../recorder/summarize";
 import { openAsk } from "../lib/ask";
 import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
+import { AudioTranscribe } from "./meetings/AudioTranscribe";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -189,7 +190,7 @@ function SetupPanel({
           <p style={{ fontSize: 13, marginTop: 8 }}>{SIGN_IN_FOR_SUMMARIES}</p>
         )}
         <p style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
-          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Audio never leaves this computer; only the transcript is sent to make the summary.
+          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Audio stays on this computer (only the transcript is sent to make the summary), unless you choose 🌐 Transcribe audio with AI for a meeting.
         </p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={autoSummarize} onChange={onToggleAuto} /> Summarize automatically when a meeting ends
@@ -414,6 +415,7 @@ function MeetingDetail({
           <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
             Download audio
           </a>
+          <AudioTranscribe meeting={meeting} busy={busy} flash={flash} onSummarize={onSummarize} canSummarize={canSummarize} />
         </Section>
       )}
 
@@ -553,6 +555,14 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
     check();
     return onProdliAccountChange(check);
   }, []);
+
+  // Changes saved anywhere (this tab included) announce themselves; refresh right away.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel(MEETINGS_CHANNEL);
+    ch.onmessage = () => void refresh();
+    return () => ch.close();
+  }, [refresh]);
 
   // Web app: meetings arrive through sync; IndexedDB has no change events, so poll.
   useEffect(() => {

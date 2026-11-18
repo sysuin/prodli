@@ -33,6 +33,7 @@ import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTE
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
@@ -48,6 +49,8 @@ export interface Env extends BillingVars {
   AUTH_LIMITER?: RateLimit;
   SYNC_LIMITER?: RateLimit;
   AI_LIMITER?: RateLimit;
+  /** Workers AI (staging and production only): Whisper for "Transcribe audio with AI". */
+  AI?: Ai;
   /** Secret (`wrangler secret put ANTHROPIC_API_KEY --env …`). Without it, server summaries are off. */
   ANTHROPIC_API_KEY?: string;
   /** R2 bucket for nightly backups (src/backup.ts). */
@@ -69,12 +72,13 @@ export interface Deps {
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
+  transcribe: (wav: Uint8Array, ai: Ai) => Promise<TranscriptPiece>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -370,7 +374,7 @@ export function createApp(deps: Deps = realDeps) {
     const products = productsOnSale(c.env);
     const prices: Partial<Record<Interval, Price | null>> = {};
     if (products) for (const i of ["monthly", "yearly"] as const) if (products[i]) prices[i] = await priceOf(c, products[i]!);
-    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan] });
+    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan] });
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
       onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
@@ -444,6 +448,7 @@ export function createApp(deps: Deps = realDeps) {
   const askLimit = (plan: string) => ASK_MONTHLY_LIMIT[plan as keyof typeof ASK_MONTHLY_LIMIT] ?? ASK_MONTHLY_LIMIT.free;
   const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
   const writeLimit = (plan: string) => WRITE_MONTHLY_LIMIT[plan as keyof typeof WRITE_MONTHLY_LIMIT] ?? WRITE_MONTHLY_LIMIT.free;
+  const transcribeLimitSeconds = (plan: string) => 60 * (TRANSCRIBE_MONTHLY_MINUTES[plan as keyof typeof TRANSCRIBE_MONTHLY_MINUTES] ?? TRANSCRIBE_MONTHLY_MINUTES.free);
 
   app.get("/api/ai/usage", requireAuth, async (c) => {
     const auth = c.get("auth");
@@ -455,6 +460,7 @@ export function createApp(deps: Deps = realDeps) {
       briefs: { used: await aiUsage(c.env.DB, auth.user.id, now, "brief_usage"), limit: briefLimit(auth.user.plan) },
       asks: { used: await aiUsage(c.env.DB, auth.user.id, now, "ask_usage"), limit: askLimit(auth.user.plan) },
       writes: { used: await aiUsage(c.env.DB, auth.user.id, now, "write_usage"), limit: writeLimit(auth.user.plan) },
+      transcribeSeconds: { used: await transcribeUsage(c.env.DB, auth.user.id, now), limit: transcribeLimitSeconds(auth.user.plan), available: !!c.env.AI },
     });
   });
 
@@ -620,6 +626,32 @@ export function createApp(deps: Deps = realDeps) {
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "write_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST <16 kHz mono WAV, ≤ 35 s> → { text, segments, language, usage }. One piece of a
+  // meeting's recording, transcribed by Whisper on Workers AI. The audio isn't stored.
+  app.post("/api/ai/transcribe", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.AI) return c.json({ error: "ai_unavailable" }, 503);
+    const declared = Number(c.req.header("Content-Length") ?? 0);
+    if (declared > MAX_PIECE_BYTES) return c.json({ error: "too_large" }, 413);
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (bytes.length > MAX_PIECE_BYTES) return c.json({ error: "too_large" }, 413);
+    const seconds = wavSeconds(bytes);
+    if (seconds === null || seconds < 0.2) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = transcribeLimitSeconds(auth.user.plan);
+    const cost = Math.ceil(seconds);
+    const used = await reserveSeconds(c.env.DB, auth.user.id, now, cost, limit);
+    if (used === null) return c.json({ error: "transcribe_quota_exceeded", usage: { usedSeconds: await transcribeUsage(c.env.DB, auth.user.id, now), limitSeconds: limit } }, 429);
+    try {
+      const r = await deps.transcribe(bytes, c.env.AI);
+      return c.json({ ...r, usage: { usedSeconds: used, limitSeconds: limit } });
+    } catch (err) {
+      await refundSeconds(c.env.DB, auth.user.id, now, cost);
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, 503);
       throw err;
     }
   });
