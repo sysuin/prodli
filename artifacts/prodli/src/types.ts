@@ -25,6 +25,15 @@ export interface Repeat {
   monthDay?: number;
 }
 
+/** A saved set of browser tabs ("Saved tabs" on Today). Synced as the "tabSessions" collection. */
+export interface TabSession {
+  id: string;
+  name: string;
+  tabs: { url: string; title: string }[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
 /** What a saved filter (or the current To-do view) shows. */
 export interface TaskQuery {
   /** A list id, or "inbox" for tasks without a list. */
