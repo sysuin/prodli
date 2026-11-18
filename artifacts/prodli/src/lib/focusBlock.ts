@@ -19,6 +19,8 @@ export interface FocusBlockSettings {
   sites: string[];
   schedules: BlockSchedule[];
   duringPomodoro: boolean;
+  /** No "Continue anyway", and blocking can't be loosened while it's on. */
+  strict?: boolean;
 }
 
 export type BlockReason = "pomodoro" | "schedule" | "limit";

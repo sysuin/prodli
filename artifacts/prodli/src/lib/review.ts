@@ -11,6 +11,7 @@ import { getDayKey } from "./utils";
 import { DAYS_KEY } from "./today";
 import type { DayRecord, Habit, Note, Todo, WeeklyReview } from "../types";
 import type { Meeting } from "../recorder/types";
+import { isDone, isScheduled } from "./habits";
 
 const DAY_MS = 86_400_000;
 const at = (key: string) => new Date(`${key}T12:00:00`);
@@ -100,8 +101,9 @@ export function weekStats(input: {
     .map((h) => {
       const created = h.createdAt && !Number.isNaN(Date.parse(h.createdAt)) ? getDayKey(h.createdAt) : "";
       const from = created > input.start ? created : input.start;
-      const span = counted.filter((d) => d >= from);
-      return { id: h.id, name: h.name, emoji: h.emoji, done: span.filter((d) => h.completedDays.includes(d)).length, of: span.length };
+      // Only days the habit was due (chosen weekdays, not skipped) count.
+      const span = counted.filter((d) => d >= from && isScheduled(h, d));
+      return { id: h.id, name: h.name, emoji: h.emoji, done: span.filter((d) => isDone(h, d)).length, of: span.length };
     })
     .filter((h) => h.of > 0);
 

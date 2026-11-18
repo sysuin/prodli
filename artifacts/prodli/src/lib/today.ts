@@ -12,6 +12,7 @@ import { getDayKey } from "./utils";
 import type { CalendarEvent } from "./calendar";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 import type { Meeting } from "../recorder/types";
+import { currentStreak, isDone } from "./habits";
 
 export const DAYS_KEY = "days";
 export const TODAY_SETTINGS_KEY = "todaySettings";
@@ -72,15 +73,7 @@ export type BriefContext = {
 };
 
 export function habitStreak(h: Habit, today: string): number {
-  const done = new Set(h.completedDays);
-  const d = new Date(`${today}T12:00:00`);
-  if (!done.has(today)) d.setDate(d.getDate() - 1); // a streak still counts until today is over
-  let n = 0;
-  while (done.has(getDayKey(d))) {
-    n++;
-    d.setDate(d.getDate() - 1);
-  }
-  return n;
+  return currentStreak(h, today);
 }
 
 const clip = (s: string, n = 280) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -128,7 +121,7 @@ export function contextFrom(input: {
       openSubtasks: t.subtasks?.filter((s) => !s.completed).length || undefined,
     })),
     doneYesterday: input.todos.filter((t) => t.completed && t.completedAt && getDayKey(t.completedAt) === yesterday).map((t) => clip(t.title)).slice(0, 20),
-    habits: input.habits.filter((h) => !h.archived).slice(0, 30).map((h) => ({ name: clip(h.name, 100), doneToday: h.completedDays.includes(today), streak: habitStreak(h, today) })),
+    habits: input.habits.filter((h) => !h.archived).slice(0, 30).map((h) => ({ name: clip(h.name, 100), doneToday: isDone(h, today), streak: habitStreak(h, today) })),
     events: input.events.slice(0, 30).map((e) => ({ title: clip(e.title), start: e.start ?? undefined, end: e.end ?? undefined, allDay: e.allDay || undefined })),
     meetingActions: input.meetings
       .filter((m) => m.summary && Date.now() - new Date(m.startedAt).getTime() < 14 * 86_400_000)

@@ -21,6 +21,7 @@ import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types
 import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
+import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
 
 const ACCENT = "#F59E0B";
 const card: CSSProperties = { border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 16 };
@@ -186,7 +187,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   };
   const toggleTodo = (t: Todo) => setTodos((list) => toggleCompletion(list, t.id));
   const toggleHabit = (h: Habit) =>
-    setHabits((list) => list.map((x) => (x.id === h.id ? { ...x, completedDays: x.completedDays.includes(today) ? x.completedDays.filter((d) => d !== today) : [...x.completedDays, today] } : x)));
+    setHabits((list) => list.map((x) => (x.id !== h.id ? x : kindOf(x) === "check" ? toggleCheck(x, today) : kindOf(x) === "quit" ? x : addAmount(x, today, kindOf(x) === "timed" ? 5 : 1))));
   const addPriorityAsTask = (title: string) => {
     const existing = todos.find((t) => t.title.trim().toLowerCase() === title.trim().toLowerCase());
     if (existing) return updateTodo(existing.id, { plannedFor: today });
@@ -422,16 +423,20 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
                 <p style={{ fontSize: 13, margin: 0, opacity: 0.75 }}>No habits yet — add some in Habits.</p>
               ) : (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {activeHabits.map((h) => {
-                    const done = h.completedDays.includes(today);
+                  {activeHabits.filter((h) => isScheduled(h, today)).map((h) => {
+                    const done = isDone(h, today);
+                    const k = kindOf(h);
                     return (
                       <button
                         key={h.id}
                         onClick={() => toggleHabit(h)}
-                        aria-pressed={done}
-                        style={{ ...btn(), background: done ? h.color : "hsl(var(--card))", color: done ? "#000" : "hsl(var(--foreground))", textTransform: "none", fontSize: 13 }}
+                        disabled={k === "quit"}
+                        aria-pressed={k === "check" ? done : undefined}
+                        aria-label={k === "check" ? undefined : `${h.name}: ${progressLabel(h, today)}${k === "quit" ? "" : k === "timed" ? ". Add 5 minutes" : ". Add one"}`}
+                        title={k === "quit" ? "Log slips on the Habits page" : undefined}
+                        style={{ ...btn(), background: done ? h.color : "hsl(var(--card))", color: done ? "#000" : "hsl(var(--foreground))", textTransform: "none", fontSize: 13, cursor: k === "quit" ? "default" : "pointer", opacity: 1 }}
                       >
-                        {h.emoji} {h.name} {done ? "✓" : ""}
+                        {h.emoji} {h.name} {k === "check" ? (done ? "✓" : "") : k === "quit" ? (done ? `🛡 ${currentStreak(h, today)}d` : "✗") : `${progressLabel(h, today)}${done ? " ✓" : " +"}`}
                       </button>
                     );
                   })}

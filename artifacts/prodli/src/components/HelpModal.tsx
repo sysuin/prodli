@@ -140,10 +140,13 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Session Log</Tag>} desc="Right panel shows your completed focus sessions with label, duration, and time. Limited to the 20 most recent." />
             <Row label={<Tag>🔴 Nav indicator</Tag>} desc="A blinking dot appears on the Pomodoro tab when the timer is running and you're viewing another section." />
             <Row label={<Tag>🚫 Block sites</Tag>} desc="Under the timer: block distracting sites while a focus session runs and during focus hours you set. A blocked site shows a pause screen with Close tab; Continue anyway waits 10 seconds, then allows 5 minutes (extension)." />
+            <Row label={<Tag>🔒 Strict mode</Tag>} desc="In the block panel: no “Continue anyway”, and blocking can't be loosened while it's on (disabling the extension still gets around it)." />
           </Section>
 
           {/* Habits */}
           <Section emoji="🎯" title="Habits">
+            <Row label={<Tag>Types</Tag>} desc="Check off (done or not), Count (e.g. 8 glasses: tap +1), Timed (e.g. 20 minutes: +5m) or Quit / limit (log a slip; the streak is days kept)." />
+            <Row label={<Tag>Days & Skip</Tag>} desc="Pick the days a habit is due (gym on Mon/Wed/Fri). Days off, and days you Skip, never break the streak. Year shows the past year as a heatmap." />
             <Row label={<Tag>+ New Habit</Tag>} desc="Create a habit with a name, emoji icon, and color." />
             <Row label={<Tag>○ / ✓ button</Tag>} desc="Click to mark today as done (fills with the habit color). Click again to undo." />
             <Row label={<Tag>🔥 Streak</Tag>} desc="Counts consecutive days with a check-in. The streak badge appears once it reaches 2+ days." />
