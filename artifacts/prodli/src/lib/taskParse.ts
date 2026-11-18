@@ -8,6 +8,7 @@
 //              every week / weekly · every 2 weeks / every other week ·
 //              every month / monthly · every year / yearly · every 3 days
 //   time       at 3pm · 3:30pm · 9am · at 15:00 · noon  (a reminder at that time)
+//   list       #Work (an existing list, or a new one)   · label  @errands (any number)
 // Words are only taken when they stand alone, and the parsed meaning is shown
 // before saving, so nothing surprising happens.
 import { getDayKey } from "./utils";
@@ -22,6 +23,10 @@ export interface ParsedTask {
   repeat?: Repeat;
   /** "HH:MM" */
   dueTime?: string;
+  /** "#Work" → "Work" (the caller finds or creates the list). */
+  listName?: string;
+  /** "@errands" → ["errands"] */
+  labels?: string[];
   /** Human-readable bits that were understood, for the preview. */
   matched: string[];
 }
@@ -57,6 +62,23 @@ export function parseTask(input: string, now = new Date()): ParsedTask {
   if (!out.priority) take(/\s(?:!(low|l|3)|p3)(?=\s)/i, () => ((out.priority = "low"), out.matched.push("Low priority"), true));
   // Plan for today
   take(/\s(?:#today|☀️|☀)(?=\s)/i, () => ((out.planToday = true), out.matched.push("☀️ Planned for today"), true));
+
+  // Labels (@errands) and a list (#Work). "#today" is the plan-for-today shortcut above.
+  for (let i = 0; i < 10; i++) {
+    const before = text;
+    take(/\s@([\p{L}][\p{L}\p{N}_-]{0,30})(?=\s)/u, (m) => {
+      const l = m[1].toLowerCase();
+      out.labels = [...new Set([...(out.labels ?? []), l])];
+      return true;
+    });
+    if (text === before) break;
+  }
+  if (out.labels?.length) out.matched.push(out.labels.map((l) => `@${l}`).join(" "));
+  take(/\s#([\p{L}][\p{L}\p{N}_-]{0,40})(?=\s)/u, (m) => {
+    out.listName = m[1];
+    out.matched.push(`📁 ${m[1]}`);
+    return true;
+  });
 
   // Repeat (before dates: "every monday" isn't a one-off Monday)
   const wdName = "(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(?:day|nesday|sday|urday)?";

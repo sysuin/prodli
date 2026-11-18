@@ -25,6 +25,22 @@ export interface Repeat {
   monthDay?: number;
 }
 
+/** What a saved filter (or the current To-do view) shows. */
+export interface TaskQuery {
+  /** A list id, or "inbox" for tasks without a list. */
+  list?: string;
+  label?: string;
+  priority?: "high" | "medium" | "low";
+  due?: "overdue" | "today" | "week" | "none";
+  status?: "active" | "completed";
+  text?: string;
+}
+
+/** A to-do list (project) or a saved filter. Synced as the "lists" collection. */
+export type ListItem =
+  | { id: string; kind: "list"; name: string; emoji?: string; createdAt: string; updatedAt?: string }
+  | { id: string; kind: "filter"; name: string; query: TaskQuery; createdAt: string; updatedAt?: string };
+
 export interface Todo {
   id: string;
   title: string;
@@ -35,6 +51,10 @@ export interface Todo {
   dueTime?: string;
   /** Repeating task: completing it saves a done copy and moves this one to its next date. */
   repeat?: Repeat;
+  /** The list (project) it belongs to; none = Inbox. */
+  listId?: string;
+  /** Labels without the "@", e.g. ["errands", "waiting"]. */
+  labels?: string[];
   subtasks?: Subtask[];
   /** Day (YYYY-MM-DD) the user planned to do it — set from Today → Plan your day. */
   plannedFor?: string;

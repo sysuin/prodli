@@ -54,6 +54,7 @@ export function mergeSnapshots(local: SyncSnapshot, remote: SyncSnapshot | null)
   data.notes = mergeById(L.notes as Item[], R.notes as Item[], t("notes"));
   data.todos = mergeById(L.todos as Item[], R.todos as Item[], t("todos"));
   data.habits = mergeById(L.habits as Item[], R.habits as Item[], t("habits"));
+  data.lists = mergeById((L.lists ?? []) as Item[], (R.lists ?? []) as Item[], t("lists"));
   data.pomodoroSessions = mergeSessions(L.pomodoroSessions as never, R.pomodoroSessions as never);
   data.completedPomodoros = Math.max(Number(L.completedPomodoros ?? 0), Number(R.completedPomodoros ?? 0));
   return {

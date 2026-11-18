@@ -4,7 +4,8 @@
 import { useId, useState } from "react";
 import { firstOccurrence, repeatLabel } from "../../lib/recurrence";
 import { getDayKey } from "../../lib/utils";
-import type { Repeat, Todo } from "../../types";
+import { isList, normLabel } from "../../lib/taskLists";
+import type { ListItem, Repeat, Todo } from "../../types";
 
 type Preset = "" | "day" | "weekdays" | "week" | "week2" | "month" | "year" | "custom";
 const PRESETS: { id: Preset; label: string }[] = [
@@ -138,9 +139,18 @@ const PRIORITIES: { id: "" | "high" | "medium" | "low"; label: string }[] = [
   { id: "low", label: "Low" },
 ];
 
-/** Inline editor under a task: date, time, repeat, priority. Changes save as they're made. */
-export function TaskDetails({ todo, onChange }: { todo: Todo; onChange: (patch: Partial<Todo>) => void }) {
+/** "errands, @waiting  Home" → ["errands", "waiting", "home"] */
+export const parseLabels = (text: string) => [...new Set(text.split(/[,\s]+/).map(normLabel).filter(Boolean))];
+
+/** Inline editor under a task: date, time, repeat, list, labels, priority. Changes save as they're made. */
+export function TaskDetails({ todo, onChange, lists = [], onCreateList }: { todo: Todo; onChange: (patch: Partial<Todo>) => void; lists?: ListItem[]; onCreateList?: (name: string) => string }) {
   const id = useId();
+  const [labelText, setLabelText] = useState((todo.labels ?? []).join(", "));
+  const commitLabels = () => {
+    const labels = parseLabels(labelText);
+    setLabelText(labels.join(", "));
+    if (labels.join() !== (todo.labels ?? []).join()) onChange({ labels: labels.length ? labels : undefined });
+  };
   const label: React.CSSProperties = { fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 3 };
   return (
     <div data-testid="task-details" style={{ borderTop: "var(--nb-border)", padding: "10px 12px", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", background: "hsl(var(--muted))" }}>
@@ -161,6 +171,37 @@ export function TaskDetails({ todo, onChange }: { todo: Todo; onChange: (patch: 
       <div>
         <span style={label}>Repeat</span>
         <RepeatPicker value={todo.repeat} onChange={(r) => onChange(withRepeat(todo, r))} />
+      </div>
+      <div>
+        <label style={label} htmlFor={`${id}-list`}>List</label>
+        <select
+          id={`${id}-list`}
+          value={todo.listId ?? ""}
+          onChange={(e) => {
+            if (e.target.value !== "__new") return onChange({ listId: e.target.value || undefined });
+            const name = window.prompt("New list name:")?.trim();
+            if (name && onCreateList) onChange({ listId: onCreateList(name) });
+          }}
+          style={field}
+        >
+          <option value="">📥 Inbox</option>
+          {lists.filter(isList).map((l) => (
+            <option key={l.id} value={l.id}>{l.emoji ?? "📁"} {l.name}</option>
+          ))}
+          {onCreateList && <option value="__new">+ New list…</option>}
+        </select>
+      </div>
+      <div>
+        <label style={label} htmlFor={`${id}-labels`}>Labels</label>
+        <input
+          id={`${id}-labels`}
+          value={labelText}
+          placeholder="errands, waiting"
+          onChange={(e) => setLabelText(e.target.value)}
+          onBlur={commitLabels}
+          onKeyDown={(e) => e.key === "Enter" && commitLabels()}
+          style={{ ...field, width: 150 }}
+        />
       </div>
       <div>
         <label style={label} htmlFor={`${id}-pri`}>Priority</label>

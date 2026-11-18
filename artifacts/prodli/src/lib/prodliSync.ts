@@ -71,7 +71,7 @@ interface Adapter {
 
 type Stamped = { id: string; updatedAt?: unknown; createdAt?: unknown };
 
-function listAdapter(c: "notes" | "todos" | "habits" | "days", newOnTop: boolean): Adapter {
+function listAdapter(c: "notes" | "todos" | "habits" | "days" | "lists", newOnTop: boolean): Adapter {
   return {
     c,
     kind: "lww",
@@ -177,6 +177,7 @@ const ADAPTERS: Adapter[] = [
   listAdapter("todos", true),
   listAdapter("habits", false),
   listAdapter("days", true),
+  listAdapter("lists", false),
   meetingsAdapter,
   pomodoroSessionsAdapter,
   statsAdapter,
@@ -184,7 +185,7 @@ const ADAPTERS: Adapter[] = [
 ];
 
 /** Storage keys whose change means "sync soon". (Time Tracker days sync every 15 minutes instead.) */
-const WATCHED_KEYS = new Set(["notes", "todos", "habits", "days", "pomodoroSessions", "completedPomodoros"]);
+const WATCHED_KEYS = new Set(["notes", "todos", "habits", "days", "lists", "pomodoroSessions", "completedPomodoros"]);
 
 // ── State ────────────────────────────────────────────────────────────────────
 
