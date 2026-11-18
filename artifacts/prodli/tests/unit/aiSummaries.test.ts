@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { summarizeMeeting, SummarizeError } from "../../src/recorder/summarize";
 import { audioFileName, meetingMatches } from "../../src/sections/MeetingsSection";
+import { parseVocabulary } from "../../src/recorder/types";
 import { storageSet } from "../../src/lib/storage";
 import type { Meeting } from "../../src/recorder/types";
 
@@ -31,6 +32,20 @@ describe("AI summaries through the ProdLi account", () => {
     const s = await summarizeMeeting(meeting);
     expect(s.title).toBe("Standup notes");
     expect(requests[0]).toMatchObject({ url: "https://api.test/api/ai/summarize", body: { title: "Standup", date: "2026-11-01", transcript: "[00:00] Ann: Ship it on Friday" } });
+  });
+
+  it("sends the meeting type and word list (the meeting's own type wins)", async () => {
+    await storageSet("prodliAccount", { id: "u", email: "a@example.com", name: "A", picture: null, plan: "free", createdAt: 0 });
+    await storageSet("recorderDefaultTemplate", "standup");
+    await storageSet("recorderVocabulary", ["Priya Shah", "Flynn"]);
+    await summarizeMeeting(meeting);
+    expect(requests[0].body).toMatchObject({ template: "standup", glossary: ["Priya Shah", "Flynn"] });
+    await summarizeMeeting({ ...meeting, template: "interview" });
+    expect(requests[1].body.template).toBe("interview");
+    await summarizeMeeting({ ...meeting, template: "general" });
+    expect(requests[2].body.template).toBeUndefined(); // general is the plain prompt
+    await storageSet("recorderDefaultTemplate", "general");
+    await storageSet("recorderVocabulary", []);
   });
 
   it("explains the monthly limit in plain words", async () => {
@@ -65,5 +80,11 @@ describe("meeting audio download", () => {
     expect(audioFileName({ title: 'Q3: plan / budget? "draft"', audioMimeType: null })).toBe("Q3 plan budget draft-audio.webm");
     expect(audioFileName({ title: "x".repeat(300), audioMimeType: null })).toBe(`${"x".repeat(100)}-audio.webm`);
     expect(audioFileName({ title: "///", audioMimeType: null })).toBe("meeting-audio.webm");
+  });
+});
+
+describe("meeting word list", () => {
+  it("splits on commas and new lines, without duplicates", () => {
+    expect(parseVocabulary("Priya Shah, Flynn\n DSR ,Flynn,,  ")).toEqual(["Priya Shah", "Flynn", "DSR"]);
   });
 });

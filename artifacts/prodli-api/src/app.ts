@@ -32,7 +32,7 @@ import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAn
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
-import { AI_MONTHLY_LIMIT, AiError, aiUsage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanGlossary, isMeetingTemplate, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
@@ -72,7 +72,7 @@ export interface Deps {
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
-  transcribe: (wav: Uint8Array, ai: Ai) => Promise<TranscriptPiece>;
+  transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[]) => Promise<TranscriptPiece>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
@@ -540,7 +540,9 @@ export function createApp(deps: Deps = realDeps) {
     const used = await reserveAi(c.env.DB, auth.user.id, now, limit);
     if (used === null) return c.json({ error: "ai_quota_exceeded", usage: { used: limit, limit } }, 429);
     try {
-      const summary = await deps.summarize({ title, date, transcript }, c.env.ANTHROPIC_API_KEY);
+      const template = isMeetingTemplate(body?.template) ? body.template : undefined;
+      const glossary = cleanGlossary(body?.glossary);
+      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}) }, c.env.ANTHROPIC_API_KEY);
       return c.json({ summary, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now);
@@ -647,7 +649,14 @@ export function createApp(deps: Deps = realDeps) {
     const used = await reserveSeconds(c.env.DB, auth.user.id, now, cost, limit);
     if (used === null) return c.json({ error: "transcribe_quota_exceeded", usage: { usedSeconds: await transcribeUsage(c.env.DB, auth.user.id, now), limitSeconds: limit } }, 429);
     try {
-      const r = await deps.transcribe(bytes, c.env.AI);
+      // Optional word list (names, jargon) as a hint for Whisper: comma-separated, URI-encoded.
+      let vocabulary: string[] = [];
+      try {
+        vocabulary = cleanGlossary(decodeURIComponent(c.req.header("X-ProdLi-Vocabulary") ?? "").split(",")).slice(0, 40);
+      } catch {
+        vocabulary = [];
+      }
+      const r = await deps.transcribe(bytes, c.env.AI, vocabulary);
       return c.json({ ...r, usage: { usedSeconds: used, limitSeconds: limit } });
     } catch (err) {
       await refundSeconds(c.env.DB, auth.user.id, now, cost);

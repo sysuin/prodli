@@ -261,9 +261,9 @@ const suites = {
     const stub = (mode = "ok") =>
       p.eval(`(() => {
         window.__pieces = [];
-        globalThis.__prodliTranscribeStub = async (wav, startMs) => {
+        globalThis.__prodliTranscribeStub = async (wav, startMs, vocabulary) => {
           const seconds = (wav.length - 44) / 32000;
-          const n = window.__pieces.push({ startMs, seconds, riff: String.fromCharCode(...wav.slice(0, 4)) });
+          const n = window.__pieces.push({ startMs, seconds, riff: String.fromCharCode(...wav.slice(0, 4)), vocabulary });
           await new Promise((r) => setTimeout(r, 100));
           if (${JSON.stringify(mode)} === "fail") throw new Error("boom");
           return { text: n === 1 ? "Kumusta, simulan na natin." : "Okay, let's review the numbers.", segments: [{ start: 0.2, end: 1.8, text: n === 1 ? "Kumusta, simulan na natin." : "Okay, let's review the numbers." }], language: n === 1 ? "tl" : "en", usage: { usedSeconds: 6 * n, limitSeconds: 18000 } };
@@ -279,6 +279,7 @@ const suites = {
     check("Transcribe: a failure shows a message and keeps the captions", /went wrong|try again/i.test(await panel()) && (await p.text()).includes("Garbled caption text"), await panel());
 
     await stub();
+    await p.eval(`chrome.storage.local.set({ recorderVocabulary: ["Kumusta Corp", "DSR"] })`);
     await p.click("🌐 Transcribe audio with AI");
     await sleep(300);
     const during = await panel();
@@ -286,6 +287,8 @@ const suites = {
     const pieces = await p.eval("window.__pieces");
     check("Transcribe: shows progress while working", during.includes("Transcribing the audio") || pieces.length > 0, during);
     check("Transcribe: the recording is cut at the pause into two WAV pieces", pieces.length === 2 && pieces.every((x) => x.riff === "RIFF" && x.seconds > 2.2 && x.seconds < 3.6), JSON.stringify(pieces));
+    check("Transcribe: the word list goes with every piece (spelling hint for Whisper)", pieces.every((x) => JSON.stringify(x.vocabulary) === '["Kumusta Corp","DSR"]'), JSON.stringify(pieces.map((x) => x.vocabulary)));
+    await p.eval(`chrome.storage.local.remove("recorderVocabulary")`);
     const starts = pieces.map((x) => x.startMs).sort((a, b) => a - b);
     check("Transcribe: pieces start where the speech starts", Math.abs(starts[0] - 600) < 450 && Math.abs(starts[1] - 4600) < 450, JSON.stringify(starts));
     const text = await p.text();
@@ -1193,6 +1196,40 @@ const suites = {
     check("Links: typing an address opens it", (await p.eval("location.href")) === target, await p.eval("location.href"));
     await p.close();
     server.close();
+  },
+
+  async meetingnotes(b, check) {
+    // Meeting types, the word list and the heads-up message.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("meetings");
+    check("Meeting notes: Setup has the meeting-notes panel", await p.eval(`!!document.querySelector('[data-testid="meeting-notes-settings"]')`));
+    const panelSel = '[data-testid="meeting-notes-settings"]';
+    await p.eval(`(() => { const sel = document.querySelector('${panelSel} select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, "interview"); sel.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await p.eval(`(() => { const [w, m] = document.querySelectorAll('${panelSel} textarea'); const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("focusout", { bubbles: true })); }; set(w, "Priya Shah, Flynn\\nDSR"); set(m, "Hi all, ProdLi is taking notes for me."); return true; })()`);
+    await sleep(500);
+    const st = await p.storage(["recorderDefaultTemplate", "recorderVocabulary", "recorderDisclosure"]);
+    check("Meeting notes: the usual type, word list and message are saved", st.recorderDefaultTemplate === "interview" && JSON.stringify(st.recorderVocabulary) === '["Priya Shah","Flynn","DSR"]' && st.recorderDisclosure === "Hi all, ProdLi is taking notes for me.", JSON.stringify(st));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('${panelSel}'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): the meeting-notes panel has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // A meeting can pick its own type.
+    await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const tx = req.result.transaction("meetings", "readwrite"); const now = new Date(); tx.objectStore("meetings").put({ id: "mtg_type", platform: "google-meet", title: "Customer call", meetingCode: null, url: "", startedAt: new Date(now.getTime() + 120000).toISOString(), endedAt: now.toISOString(), durationSec: 600, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: now.toISOString(), transcript: [{ id: "1", speaker: "You", text: "Budget?", startMs: 0, endMs: 1000 }], summary: null }); tx.oncomplete = () => resolve(true); }; })`);
+    await p.goto("meetings");
+    await p.eval(`[...document.querySelectorAll(".meetings-list button")].find(b => b.textContent.includes("Customer call")).click()`);
+    await sleep(500);
+    await p.eval(`(() => { const sel = document.querySelector('select[aria-label="Meeting type"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, "sales"); sel.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(500);
+    const m = await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const g = req.result.transaction("meetings").objectStore("meetings").get("mtg_type"); g.onsuccess = () => resolve(g.result); }; })`);
+    check("Meeting notes: a meeting keeps its own type", m.template === "sales", JSON.stringify(m.template));
+    check("Meeting notes: the type menu shows it", (await p.eval(`document.querySelector('select[aria-label="Meeting type"]').value`)) === "sales");
+    await p.eval(`chrome.storage.local.remove(["recorderDefaultTemplate", "recorderVocabulary", "recorderDisclosure"])`);
+    await p.close();
   },
 
   async todosSync(b, check) {

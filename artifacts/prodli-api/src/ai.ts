@@ -41,10 +41,31 @@ The transcript comes from live captions, so expect missing punctuation, misheard
 
 Only list an action item when someone committed to doing something or a task was clearly assigned. Write every field in the main language of the meeting.`;
 
+/** Meeting types: each shapes what the notes pull out (same fields, different focus). */
+export const MEETING_TEMPLATES = {
+  general: "",
+  one_on_one: "This is a 1:1. In key points cover how the person is doing, wins, blockers and feedback given either way. Action items are commitments by either person.",
+  interview: "This is a job interview. In key points list the candidate's relevant experience, then strengths (start each with \"Strength:\") and concerns (start each with \"Concern:\"), based only on what was said. In decisions include the interviewer's recommendation or next step only if it was stated. Don't judge the candidate beyond the transcript.",
+  sales: "This is a sales or customer call. In key points cover the customer's needs and pain points, current tools, budget, timeline and who decides. Put objections in open questions. Action items are next steps agreed with the customer.",
+  standup: "This is a stand-up. Keep it short: in key points list what each person did and is doing next (\"Name: …\"), and put blockers first, starting with \"Blocker:\".",
+  planning: "This is a planning meeting. In decisions list what was prioritised, cut or deferred, with owners and dates when stated. In key points cover scope, risks and dependencies.",
+} as const;
+export type MeetingTemplate = keyof typeof MEETING_TEMPLATES;
+export const isMeetingTemplate = (x: unknown): x is MeetingTemplate => typeof x === "string" && x in MEETING_TEMPLATES;
+
+/** Names and terms the user wants spelled exactly (people, products, jargon). */
+export const MAX_GLOSSARY = 60;
+export function cleanGlossary(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((x): x is string => typeof x === "string").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, MAX_GLOSSARY);
+}
+
 export interface SummarizeInput {
   title: string;
   date: string;
   transcript: string;
+  template?: MeetingTemplate;
+  glossary?: string[];
 }
 
 export class AiError extends Error {
@@ -67,7 +88,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
       messages: [
         {
           role: "user",
-          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
+          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.template && MEETING_TEMPLATES[input.template] ? `\n${MEETING_TEMPLATES[input.template]}\n` : ""}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
         },
       ],
     });

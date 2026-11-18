@@ -160,6 +160,9 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Stop</Tag>} desc="Click Stop on the yellow badge, click the icon again, leave the call, or close the tab." />
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku through your ProdLi account (free monthly allowance)." />
             <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
+            <Row label={<Tag>Meeting type</Tag>} desc="Pick General, 1:1, Interview, Sales call, Stand-up or Planning next to Summarize; it shapes what the summary pulls out. Set your usual type in Setup → Meeting notes." />
+            <Row label={<Tag>Word list</Tag>} desc="Setup → Meeting notes: names and terms (people, products, jargon) that summaries and audio transcripts should spell exactly." />
+            <Row label={<Tag>Heads-up</Tag>} desc="Edit your “I'm taking AI notes” message in Setup; Copy heads-up (also in the recording bar) puts it on the clipboard to paste in the meeting chat." />
           </Section>
 
           {/* Files */}

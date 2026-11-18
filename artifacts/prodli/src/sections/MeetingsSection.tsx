@@ -10,6 +10,7 @@ import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/fo
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
+import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -33,6 +34,8 @@ import {
   SPEECH_LANG_STORAGE_KEY,
   RECORDER_PERMISSIONS,
   RECORDING_STATE_KEY,
+  MEETING_TEMPLATES,
+  type MeetingTemplate,
   type ActionItem,
   type BackgroundMessage,
   type Meeting,
@@ -40,7 +43,6 @@ import {
 } from "../recorder/types";
 
 const ACCENT = "#FF4FA3";
-const DISCLOSURE_TEXT = "Heads-up: I'm taking AI-assisted notes of this call so I can share a summary afterwards.";
 
 const NO_AI_HINT = SIGN_IN_FOR_SUMMARIES;
 
@@ -269,7 +271,8 @@ function SetupPanel({
         <button
           style={btn()}
           onClick={() => {
-            void navigator.clipboard.writeText(DISCLOSURE_TEXT).then(() => {
+            void copyDisclosure().then((ok) => {
+              if (!ok) return;
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             });
@@ -278,6 +281,8 @@ function SetupPanel({
           {copied ? "Copied ✓" : "Copy a heads-up message"}
         </button>
       </div>
+
+      <MeetingNotesSettings />
     </div>
   );
 }
@@ -385,6 +390,22 @@ function MeetingDetail({
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select
+            aria-label="Meeting type"
+            title="Meeting type: shapes what the summary pulls out"
+            value={meeting.template ?? ""}
+            onChange={(e) => {
+              // Read the choice now: the update runs later, after React has reset this controlled menu.
+              const template = (e.target.value || undefined) as MeetingTemplate | undefined;
+              void updateMeeting(meeting.id, () => ({ template }));
+            }}
+            style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "4px 6px" }}
+          >
+            <option value="">Type: usual</option>
+            {MEETING_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>Type: {t.label}</option>
+            ))}
+          </select>
           <button style={btn("primary", !canSummarize)} disabled={!canSummarize} onClick={onSummarize} title={hasKey ? "" : NO_AI_HINT}>
             {meeting.status === "processing" ? "Summarizing…" : s ? "Re-summarize" : "✨ Summarize"}
           </button>
@@ -794,7 +815,8 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
           Recording · {formatTimestamp(elapsed * 1000)}
           <span style={{ opacity: 0.85 }}>{recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
-          <button style={{ ...btn("primary"), marginLeft: "auto" }} onClick={() => void stopRecording()}>■ Stop</button>
+          <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
+          <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
       )}
 

@@ -378,3 +378,30 @@ describe("Audio transcription (Workers AI Whisper)", () => {
     expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ transcribeSeconds: { available: false } });
   });
 });
+
+describe("Meeting templates and word list", () => {
+  const meeting = { title: "Screen", date: "2026-11-18", transcript: "[00:00] You: Tell me about Flynn." };
+  it("passes a known meeting type and a cleaned word list to the summary", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/summarize", json({ ...meeting, template: "interview", glossary: ["Ghill  John", "Flynn", "Flynn", 42, " "] }, auth), env);
+    expect(res.status).toBe(200);
+    expect(calls.find((c) => c.kind === "summarize-options")?.clientId).toBe("interview|Ghill John,Flynn");
+    await app.request("/api/ai/summarize", json({ ...meeting, template: "made-up" }, auth), env);
+    expect(calls.filter((c) => c.kind === "summarize-options")).toHaveLength(1); // unknown types are ignored
+  });
+
+  it("sends the word list to Whisper as a hint", async () => {
+    const { app, calls } = makeApp();
+    const env = { ...withKey(), AI: {} as Ai } as Env;
+    const auth = await signIn(app, env);
+    const wav = new Uint8Array(44 + 32000);
+    const v = new DataView(wav.buffer);
+    const put = (at: number, t: string) => [...t].forEach((ch, i) => (wav[at + i] = ch.charCodeAt(0)));
+    put(0, "RIFF"); put(8, "WAVE"); put(12, "fmt "); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint16(34, 16, true); put(36, "data"); v.setUint32(40, 32000, true);
+    const res = await app.request("/api/ai/transcribe", { method: "POST", headers: { ...auth, "Content-Type": "audio/wav", "X-ProdLi-Vocabulary": encodeURIComponent("Ghill John,Flynn,DSR") }, body: wav }, env);
+    expect(res.status).toBe(200);
+    expect(calls.find((c) => c.kind === "transcribe")?.clientId).toBe("Ghill John|Flynn|DSR");
+  });
+});
