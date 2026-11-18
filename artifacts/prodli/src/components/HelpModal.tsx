@@ -94,6 +94,8 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="✍️" title="Editor">
+            <Row label={<Tag>▾ Templates</Tag>} desc="New note from a template: Meeting notes, Daily note, Weekly plan, Project brief, 1:1, Decision record, or your own (⋯ → Save as template). Templates can use {{date}}, {{weekday}} and {{time}}." />
+            <Row label={<Tag>📅 Daily note</Tag>} desc="Opens today's note, created once a day with your main focus and planned tasks. Make your own template called “Daily note” to change its layout. Also in ⌘K." />
             <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
             <Row label={<Tag>Select text</Tag>} desc="A small menu appears over selected text for bold, italic, underline, strikethrough, highlight, code and links." />
             <Row label={<Tag>✨ Improve</Tag>} desc="Select text, then click ✨ Improve (or press Ctrl/⌘+J) to fix spelling and grammar, make it shorter or clearer, or change the tone. You see the suggestion first; Replace is one undo step. Needs a ProdLi account (free)." />

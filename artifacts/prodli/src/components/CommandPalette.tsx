@@ -19,6 +19,7 @@ export interface PaletteActions {
   addTask: (title: string) => void;
   quickAdd: () => void;
   saveTabs: () => void;
+  dailyNote: () => void;
   toggleTheme: () => void;
   account: () => void;
   backup: () => void;
@@ -47,6 +48,7 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
     const base: Command[] = [
       { id: "ask", label: "Ask ProdLi…", icon: "✨", hint: "AI assistant", keywords: "chat question ai help", run: () => actions.ask() },
       { id: "quick-add", label: "Quick add a to-do or note", icon: "➕", keywords: "new create capture", run: actions.quickAdd },
+      { id: "daily-note", label: "Open today's daily note", icon: "📅", keywords: "journal daily note today log", run: actions.dailyNote },
       { id: "save-tabs", label: "Save open tabs and close them", icon: "🗂", keywords: "tabs session onetab window clear later", run: actions.saveTabs },
       // Writing help works on the text selected in Notes (the selection survives opening the palette).
       ...REWRITE_ACTIONS.map((a) => ({
