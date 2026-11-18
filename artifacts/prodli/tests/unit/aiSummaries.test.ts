@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { summarizeMeeting, SummarizeError } from "../../src/recorder/summarize";
-import { meetingMatches } from "../../src/sections/MeetingsSection";
+import { audioFileName, meetingMatches } from "../../src/sections/MeetingsSection";
 import { storageSet } from "../../src/lib/storage";
 import type { Meeting } from "../../src/recorder/types";
 
@@ -52,5 +52,18 @@ describe("meeting search", () => {
     expect(meetingMatches(meeting, "budget")).toBe(false);
     expect(meetingMatches({ ...meeting, summary: { title: "t", overview: "Budget review", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "", generatedAt: "" } }, "budget")).toBe(true);
     expect(meetingMatches(meeting, "  ")).toBe(true);
+  });
+});
+
+describe("meeting audio download", () => {
+  it("names the file after the meeting, with an extension that matches the recording", () => {
+    expect(audioFileName({ title: "Google Meet · abc", audioMimeType: "audio/webm;codecs=opus", summary: { title: "Weekly sync" } })).toBe("Weekly sync-audio.webm");
+    expect(audioFileName({ title: "Call", audioMimeType: "audio/ogg" })).toBe("Call-audio.ogg");
+    expect(audioFileName({ title: "Call", audioMimeType: "audio/mp4" })).toBe("Call-audio.m4a");
+    expect(audioFileName({ title: "Call", audioMimeType: null })).toBe("Call-audio.webm");
+    // Characters that file systems reject are replaced; very long names are shortened.
+    expect(audioFileName({ title: 'Q3: plan / budget? "draft"', audioMimeType: null })).toBe("Q3 plan budget draft-audio.webm");
+    expect(audioFileName({ title: "x".repeat(300), audioMimeType: null })).toBe(`${"x".repeat(100)}-audio.webm`);
+    expect(audioFileName({ title: "///", audioMimeType: null })).toBe("meeting-audio.webm");
   });
 });

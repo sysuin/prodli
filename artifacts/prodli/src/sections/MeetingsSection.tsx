@@ -114,6 +114,14 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+/** "Weekly sync-audio.webm": the meeting's name plus an extension that matches how the audio was recorded. */
+export function audioFileName(m: Pick<Meeting, "title" | "audioMimeType"> & { summary?: { title?: string } | null }): string {
+  const base = (m.summary?.title || m.title).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "meeting";
+  const type = (m.audioMimeType ?? "").toLowerCase();
+  const ext = type.includes("ogg") ? "ogg" : type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("mpeg") ? "mp3" : type.includes("wav") ? "wav" : "webm";
+  return `${base}-audio.${ext}`;
+}
+
 function actionItemTitle(item: ActionItem): string {
   return item.owner ? `${item.task} (${item.owner})` : item.task;
 }
@@ -403,6 +411,9 @@ function MeetingDetail({
       {audioUrl && (
         <Section title={`Audio${meeting.micIncluded ? "" : " (other participants only)"}`}>
           <audio controls src={audioUrl} style={{ width: "100%" }} />
+          <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
+            Download audio
+          </a>
         </Section>
       )}
 
@@ -790,7 +801,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           </div>
         ) : (
           <div className="meetings-layout" style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-            <div className="meetings-list" style={{ width: 280, flexShrink: 0, display: "grid", gap: 8 }}>
+            <div className="meetings-list" style={{ width: 280, flexShrink: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
               <input
                 type="search"
                 value={query}
@@ -806,8 +817,10 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
                   <button
                     key={m.id}
                     onClick={() => setSelectedId(m.id)}
+                    title={m.summary?.title || m.title}
                     style={{
                       ...card,
+                      minWidth: 0,
                       padding: "10px 12px",
                       textAlign: "left",
                       cursor: "pointer",
