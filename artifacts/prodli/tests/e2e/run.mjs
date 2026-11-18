@@ -1441,6 +1441,54 @@ const suites = {
     server.close();
   },
 
+  async voicetasks(b, check) {
+    // 🎙 Speak tasks: a brain dump → reviewed tasks (a stub stands in for the AI; test builds only).
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [{ id: "w", kind: "list", name: "Work", createdAt: "x" }] })`);
+    await p.goto("todos");
+    await p.eval(`document.querySelector('button[aria-label="Speak tasks"]').click()`);
+    await sleep(400);
+    check("Voice: 🎙 on To-dos opens Speak tasks", await p.eval(`!!document.querySelector('[data-testid="voice-tasks"]')`));
+    await p.eval(`(() => { window.__dumps = []; globalThis.__prodliExtractStub = async (text, lists) => { window.__dumps.push({ text, lists }); await new Promise(r => setTimeout(r, 150)); return { lines: ["Call mom tomorrow at 5pm", "Finish the report friday #Work !high", "Buy milk"] }; }; return true; })()`);
+    await p.eval(`(() => { const t = document.querySelector('textarea[aria-label="Your tasks, in your own words"]'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(t, "ugh call mom tomorrow around five, the work report is due friday and it's urgent, oh and milk"); t.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(150);
+    await p.click("Make tasks");
+    await sleep(80);
+    check("Voice: shows progress while finding tasks", /finding tasks/i.test(await p.eval(`document.querySelector('[data-testid="voice-tasks"]').innerText`)));
+    await sleep(500);
+    const dumps = await p.eval("window.__dumps");
+    check("Voice: sends the words and the user's list names", dumps.length === 1 && dumps[0].lists.join() === "Work" && dumps[0].text.includes("report"), JSON.stringify(dumps));
+    const review = await p.eval(`document.querySelector('[data-testid="voice-tasks"]').innerText`);
+    check("Voice: the review shows each task with how it was read", (await p.eval(`document.querySelectorAll('[data-testid="voice-task"]').length`)) === 3 && /Tomorrow/.test(review) && /Work/.test(review) && /High priority/.test(review), review.slice(0, 300));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="voice-tasks"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Speak tasks has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("voice-tasks");
+    // Leave out "Buy milk", then add.
+    await p.eval(`document.querySelector('input[type="checkbox"][aria-label="Add “Buy milk”"]').click()`);
+    await sleep(150);
+    await p.click("Add 2 tasks");
+    await sleep(1200);
+    const { todos = [] } = await p.storage(["todos"]);
+    const report = todos.find((t) => t.title === "Finish the report");
+    check("Voice: only the checked tasks are added, read by quick add", todos.length === 2 && report?.listId === "w" && report?.priority === "high" && todos.find((t) => t.title === "Call mom")?.dueTime === "17:00" && !todos.some((t) => t.title === "Buy milk"), JSON.stringify(todos.map((t) => [t.title, t.listId, t.priority, t.dueTime])));
+    check("Voice: the window closes after adding", !(await p.eval(`!!document.querySelector('[data-testid="voice-tasks"]')`)));
+    // ⌘K has it too.
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Go to, do"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "speak"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(300);
+    check("Voice: ⌘K offers Speak or paste tasks", (await p.text()).includes("Speak or paste tasks"));
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [] })`);
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

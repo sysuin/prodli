@@ -70,6 +70,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { tldr: `About ${input.title}.`, points: ["One", "Two"], model: "test" };
     },
+    extractTasks: async (input) => {
+      calls.push({ kind: "extract", clientId: input.lists.join(",") });
+      if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
+      return { lines: input.text.split(" and ").map((x) => x.trim()), model: "test" };
+    },
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");

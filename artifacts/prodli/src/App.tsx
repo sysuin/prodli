@@ -17,6 +17,8 @@ import { QuickAddModal } from "./components/QuickAdd";
 import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
 import { saveAndCloseWindow } from "./lib/tabSessions";
 import { requestDailyNote } from "./lib/noteTemplates";
+import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
+import { VoiceTasksModal } from "./components/VoiceTasks";
 import { ASK_EVENT } from "./lib/ask";
 import { fileNameOf, readLocalFile } from "./lib/localFiles";
 
@@ -121,6 +123,13 @@ export default function App() {
   });
   const closeAsk = useCallback(() => setAsk({ open: false }), []);
   const closeQuickAdd = useCallback(() => setQuickAdd({ open: false }), []);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const closeVoice = useCallback(() => setVoiceOpen(false), []);
+  useEffect(() => {
+    const open = () => setVoiceOpen(true);
+    window.addEventListener(VOICE_TASKS_EVENT, open);
+    return () => window.removeEventListener(VOICE_TASKS_EVENT, open);
+  }, []);
   const flash = useCallback((m: string) => {
     setToast(m);
     setTimeout(() => setToast(null), 2600);
@@ -336,6 +345,7 @@ export default function App() {
     ask: (question?: string) => setAsk({ open: true, question }),
     addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.repeat ? " · repeats" : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
+    voiceTasks: () => setVoiceOpen(true),
     dailyNote: () => void requestDailyNote().then(() => handleSectionChange("editor")),
     saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
@@ -474,6 +484,7 @@ export default function App() {
       {toast && <div role="status" className="app-toast">{toast}</div>}
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} />}
+      {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {settingsTab && <SettingsModal tab={settingsTab} onTab={setSettingsTab} onClose={closeSettings} isDark={isDark} setDark={(d) => void setTheme(d)} pomodoro={{ settings: pomodoroTimer.settings, save: pomodoroTimer.saveSettings }} />}

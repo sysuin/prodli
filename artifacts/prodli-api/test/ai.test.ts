@@ -422,3 +422,20 @@ describe("Page summaries (right-click Summarize page)", () => {
     expect((await app.request("/api/ai/summarize-page", json({ text: "y" }, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
   });
 });
+
+describe("Tasks from a brain dump", () => {
+  it("returns quick-add lines, passes list names, and counts a writing-help use", async () => {
+    const { app, calls } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/extract-tasks", json({ text: "call mom tomorrow and buy milk", lists: ["Home", "Work"] }, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ lines: ["call mom tomorrow", "buy milk"], usage: { used: 1, limit: WRITE_MONTHLY_LIMIT.free } });
+    expect(calls.find((c) => c.kind === "extract")?.clientId).toBe("Home,Work");
+    expect((await app.request("/api/ai/extract-tasks", json({ text: "FAIL" }, auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ writes: { used: 1 } });
+    expect((await app.request("/api/ai/extract-tasks", json({ text: "  " }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/extract-tasks", json({ text: "x".repeat(4001) }, auth), env)).status).toBe(413);
+    expect((await app.request("/api/ai/extract-tasks", json({ text: "x" }, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+  });
+});
