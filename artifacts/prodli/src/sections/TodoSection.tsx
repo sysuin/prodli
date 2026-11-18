@@ -20,6 +20,7 @@ import { storageSet } from "../lib/storage";
 import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import { parseTask } from "../lib/taskParse";
+import { VOICE_TASKS_EVENT } from "../lib/voiceTasks";
 import { repeatLabel, timeLabel, toggleTodo } from "../lib/recurrence";
 import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
 import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection } from "./todo/TodoNav";
@@ -581,6 +582,12 @@ export function TodoSection() {
             style={{ border: "var(--nb-border)", padding: "0 8px", height: "38px", boxSizing: "border-box" as const, fontFamily: "inherit", fontSize: 12, boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
           />
           <RepeatPicker value={repeat} onChange={setRepeat} compact />
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent(VOICE_TASKS_EVENT))}
+            title="Speak or paste several tasks at once"
+            aria-label="Speak tasks"
+            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px", height: "38px", boxSizing: "border-box" as const, background: "hsl(var(--card))", color: "hsl(var(--foreground))", cursor: "pointer", fontSize: 15 }}
+          >🎙</button>
           <button
             onClick={addTodo}
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 18px", height: "38px", boxSizing: "border-box" as const, background: "#FFD700", fontWeight: 800, cursor: "pointer", fontSize: 13, textTransform: "uppercase", fontFamily: "inherit", color: "#000" }}
