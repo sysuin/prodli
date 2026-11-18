@@ -886,6 +886,88 @@ const suites = {
     await p.close();
   },
 
+  async lists(b, check) {
+    // Lists (projects), labels and saved filters on the To-do page.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [] })`);
+    await p.eval(`localStorage.removeItem("prodli_todo_selection")`);
+    await p.goto("todos");
+    const add = async (text) => {
+      await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Add a new task"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await sleep(150);
+      await p.eval(`document.querySelector('input[placeholder^="Add a new task"]').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+      await sleep(600);
+    };
+    const nav = (id) => p.eval(`document.querySelector('[data-testid="${id}"]').click()`).then(() => sleep(300));
+    const titles = () => p.eval(`[...document.querySelectorAll(".todo-title")].map(e => e.textContent)`);
+    const store = async () => p.storage(["todos", "lists"]);
+    const answer = (prompt, confirm = true) => p.eval(`(() => { window.prompt = () => ${JSON.stringify(prompt)}; window.confirm = () => ${confirm}; return true; })()`);
+
+    await add("Buy milk #Groceries @errands");
+    await add("Write report");
+    let { todos = [], lists = [] } = await store();
+    const groceries = lists.find((l) => l.kind === "list" && l.name === "Groceries");
+    check("Lists: #Groceries in quick add creates the list", !!groceries && todos.find((t) => t.title === "Buy milk")?.listId === groceries?.id, JSON.stringify(lists));
+    check("Lists: @errands becomes a label", JSON.stringify(todos.find((t) => t.title === "Buy milk")?.labels) === '["errands"]');
+    check("Lists: the side panel shows the list and the label", await p.eval(`!!document.querySelector('[data-testid="nav-list-Groceries"]') && !!document.querySelector('[data-testid="nav-label-errands"]')`));
+    check("Lists: tasks show their list and labels in All tasks", await p.eval(`(() => { const row = [...document.querySelectorAll(".todo-row")].find(r => r.innerText.includes("Buy milk")); return !!row?.querySelector('[data-testid="list-chip"]') && row.innerText.includes("@errands"); })()`));
+
+    await nav("nav-list-Groceries");
+    check("Lists: a list shows only its tasks", JSON.stringify(await titles()) === '["Buy milk"]', JSON.stringify(await titles()));
+    await add("Eggs !high");
+    ({ todos = [] } = await store());
+    check("Lists: adding while viewing a list puts the task in it", todos.find((t) => t.title === "Eggs")?.listId === groceries.id);
+    await nav("nav-inbox");
+    check("Lists: the Inbox shows tasks without a list", JSON.stringify(await titles()) === '["Write report"]', JSON.stringify(await titles()));
+    await nav("nav-label-errands");
+    await add("Post office");
+    ({ todos = [] } = await store());
+    check("Labels: adding while viewing a label adds the label", JSON.stringify(todos.find((t) => t.title === "Post office")?.labels) === '["errands"]');
+    check("Labels: a label shows only its tasks", JSON.stringify((await titles()).sort()) === '["Buy milk","Post office"]', JSON.stringify(await titles()));
+
+    // Save view: the Groceries list + High priority becomes a saved filter.
+    await nav("nav-list-Groceries");
+    await p.click("🔴 High");
+    await sleep(200);
+    await answer("Urgent groceries");
+    await p.click("☆ Save view");
+    await sleep(600);
+    ({ lists = [] } = await store());
+    const f = lists.find((l) => l.kind === "filter");
+    check("Filters: Save view stores the list, priority and name", f?.name === "Urgent groceries" && f?.query?.list === groceries.id && f?.query?.priority === "high", JSON.stringify(f));
+    check("Filters: the saved filter is selected and shows its tasks", (await p.eval(`document.querySelector('[data-testid="todo-view-title"]').textContent`)).includes("Urgent groceries") && JSON.stringify(await titles()) === '["Eggs"]', JSON.stringify(await titles()));
+
+    // Move a task to another list from the ✎ editor.
+    await nav("nav-all");
+    await p.eval(`document.querySelector('button[aria-label="Edit details: Write report"]').click()`);
+    await sleep(300);
+    await p.eval(`(() => { const sel = document.querySelector('[data-testid="task-details"] select[id$="-list"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(sel, ${JSON.stringify(groceries.id)}); sel.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    await sleep(500);
+    ({ todos = [] } = await store());
+    check("Lists: the ✎ editor moves a task to a list", todos.find((t) => t.title === "Write report")?.listId === groceries.id);
+
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector(".todo-body"), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + "]" : "")).join(" | ")))`);
+      check(`A11y (${theme}): lists, labels and filters have no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("todo-lists");
+
+    // Delete the list: its tasks move to the Inbox.
+    await answer("", true);
+    await p.eval(`document.querySelector('button[aria-label="Rename or delete list Groceries"]').click()`);
+    await sleep(600);
+    ({ todos = [], lists = [] } = await store());
+    check("Lists: deleting a list moves its tasks to the Inbox", !lists.some((l) => l.kind === "list") && todos.every((t) => !t.listId), JSON.stringify({ lists, ids: todos.map((t) => t.listId) }));
+    await p.eval(`chrome.storage.local.set({ todos: [], lists: [] })`);
+    await p.eval(`localStorage.removeItem("prodli_todo_selection")`);
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

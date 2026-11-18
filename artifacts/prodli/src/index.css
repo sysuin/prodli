@@ -488,7 +488,16 @@
   /* Meetings: list above the selected meeting. */
   .meetings-layout { flex-direction: column; }
   .meetings-layout .meetings-list { width: 100% !important; }
+  /* To-dos: views, lists and labels become a scrolling row above the tasks. */
+  .todo-body { flex-direction: column; }
+  .todo-nav { width: auto !important; display: flex; overflow-x: auto; overflow-y: hidden !important; border-right: none !important; border-bottom: var(--nb-border); padding-bottom: 0 !important; }
+  .todo-nav-group { display: flex; align-items: stretch; padding-top: 0 !important; }
+  .todo-nav-group > div:first-child:not(.todo-nav-item) { padding: 0 6px !important; }
+  .todo-nav-item { flex-shrink: 0; }
 }
+
+/* To-do labels: readable purple in both themes. */
+.dark .todo-label { color: #C4B5FD !important; }
 
 /* ── Editor: blocks added in v1.3 ───────────────────────────────────────── */
 .tiptap blockquote {

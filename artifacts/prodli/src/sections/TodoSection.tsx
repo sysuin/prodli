@@ -22,7 +22,9 @@ import { generateId, getDayKey } from "../lib/utils";
 import { parseTask } from "../lib/taskParse";
 import { repeatLabel, timeLabel, toggleTodo } from "../lib/recurrence";
 import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
-import type { Repeat, Todo } from "../types";
+import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection } from "./todo/TodoNav";
+import { findList, isList, LIST_EMOJIS, matchesQuery, normLabel } from "../lib/taskLists";
+import type { ListItem, Repeat, TaskQuery, Todo } from "../types";
 
 type Priority = "high" | "medium" | "low" | "none";
 type Filter = "all" | "active" | "completed" | "high" | "medium" | "low";
@@ -54,6 +56,7 @@ function dueLabel(due: string, today: string): string {
 
 type View = "date" | "order";
 const VIEW_KEY = "prodli_todo_view";
+const SEL_KEY = "prodli_todo_selection";
 type Group = { id: string; label: string; items: Todo[]; tone?: "warn" };
 
 /** Pure: open tasks grouped by when they're due (planned-for-today counts as today). */
@@ -80,8 +83,12 @@ export function groupByDate(todos: Todo[], today: string): Group[] {
   return groups.filter((g) => g.items.length);
 }
 
-function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggleSubtask, onDeleteSubtask, onTogglePlan, onUpdate, details, onToggleDetails, draggable = true }: {
+function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggleSubtask, onDeleteSubtask, onTogglePlan, onUpdate, details, onToggleDetails, listName, lists, onCreateList, draggable = true }: {
   todo: Todo;
+  /** Shown as a chip when the task isn't being viewed inside its own list. */
+  listName?: string;
+  lists: ListItem[];
+  onCreateList: (name: string) => string;
   onUpdate: (id: string, patch: Partial<Todo>) => void;
   /** The ✎ editor is open (kept by the list, so it stays open when the task moves to another group). */
   details: boolean;
@@ -199,6 +206,10 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
               📅 {dueLabel(todo.dueDate, today)}{todo.dueTime ? ` · ${timeLabel(todo.dueTime)}` : ""}
             </span>
           )}
+          {listName && <span data-testid="list-chip" style={{ fontSize: 10, fontWeight: 800, border: "1px solid var(--nb-section-border)", padding: "0 5px", flexShrink: 0, color: "hsl(var(--muted-foreground))", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listName}</span>}
+          {(todo.labels ?? []).map((l) => (
+            <span key={l} data-testid="label-chip" style={{ fontSize: 10, fontWeight: 800, color: "#6D28D9", flexShrink: 0 }} className="todo-label">@{l}</span>
+          ))}
           {todo.repeat && (
             <span data-testid="repeat-badge" title={repeatLabel(todo.repeat)} aria-label={repeatLabel(todo.repeat)} style={{ fontSize: 11, fontWeight: 800, flexShrink: 0, color: "hsl(var(--muted-foreground))" }}>🔁</span>
           )}
@@ -227,7 +238,7 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           {/* Delete */}
           <button onClick={() => onDelete(todo.id)} aria-label={`Delete task: ${todo.title}`} title="Delete task" style={{ border: "1px solid #C62828", background: "#C62828", color: "white", width: 20, height: 20, cursor: "pointer", fontSize: 11, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
         </div>
-        {details && <TaskDetails todo={todo} onChange={(patch) => onUpdate(todo.id, patch)} />}
+        {details && <TaskDetails todo={todo} lists={lists} onCreateList={onCreateList} onChange={(patch) => onUpdate(todo.id, patch)} />}
         {/* Subtasks */}
         {expanded && todo.subtasks && todo.subtasks.length > 0 && (
           <div style={{ borderTop: "var(--nb-border)", background: "hsl(var(--muted))" }}>
@@ -258,6 +269,24 @@ export function TodoSection() {
   const [dueTime, setDueTime] = useState("");
   const [repeat, setRepeat] = useState<Repeat | undefined>(undefined);
   const [openDetails, setOpenDetails] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection>(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(SEL_KEY) ?? "null") as Selection | null;
+      return s && typeof s === "object" && "kind" in s ? s : { kind: "all" };
+    } catch {
+      return { kind: "all" };
+    }
+  });
+  const select = (sel: Selection) => {
+    setSelection(sel);
+    setFilter("all");
+    setSearch("");
+    try {
+      localStorage.setItem(SEL_KEY, JSON.stringify(sel));
+    } catch {
+      // ignore
+    }
+  };
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [search, setSearch] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -280,6 +309,61 @@ export function TodoSection() {
 
   // Synced across ProdLi tabs: edits in one tab never overwrite another's.
   const { items: todos, setItems: save, loaded } = useSyncedList<Todo>("todos");
+  const { items: lists, setItems: saveLists } = useSyncedList<ListItem>("lists");
+  // A list or filter deleted on another device: fall back to all tasks.
+  const current: Selection = (selection.kind === "list" || selection.kind === "filter") && !lists.some((l) => l.id === selection.id) ? { kind: "all" } : selection;
+  const viewQuery = selectionQuery(current, lists);
+
+  /** Creates a list and returns its id (used by #Name in quick add, + in the side panel and the ✎ editor). */
+  const createList = (name: string): string => {
+    const existing = findList(lists, name);
+    if (existing) return existing.id;
+    const id = generateId();
+    const emoji = LIST_EMOJIS[lists.filter(isList).length % LIST_EMOJIS.length];
+    saveLists([...lists, { id, kind: "list", name: name.trim().slice(0, 60), emoji, createdAt: new Date().toISOString() }]);
+    return id;
+  };
+  const addList = () => {
+    const name = window.prompt("New list name:")?.trim();
+    if (!name) return;
+    select({ kind: "list", id: createList(name) });
+  };
+  const listMenu = (id: string) => {
+    const l = lists.find((x) => x.id === id);
+    if (!l) return;
+    const name = window.prompt(`Rename “${l.name}”. Clear the name to delete the list.`, l.name);
+    if (name === null) return;
+    if (name.trim()) {
+      saveLists(lists.map((x) => (x.id === id ? { ...x, name: name.trim().slice(0, 60) } : x)));
+      return;
+    }
+    const n = todos.filter((t) => t.listId === id).length;
+    if (!window.confirm(`Delete the list “${l.name}”?${n ? ` Its ${n} task${n > 1 ? "s" : ""} move to the Inbox.` : ""}`)) return;
+    if (n) save(todos.map((t) => (t.listId === id ? { ...t, listId: undefined } : t)));
+    saveLists(lists.filter((x) => x.id !== id));
+    if (current.kind === "list" && current.id === id) select({ kind: "all" });
+  };
+  const deleteFilter = (id: string) => {
+    const f = lists.find((x) => x.id === id);
+    if (!f || !window.confirm(`Delete the saved filter “${f.name}”? Its tasks stay.`)) return;
+    saveLists(lists.filter((x) => x.id !== id));
+    if (current.kind === "filter" && current.id === id) select({ kind: "all" });
+  };
+  /** The current list + priority/status filter + search, as a query. */
+  const currentQuery = (): TaskQuery => ({
+    ...viewQuery,
+    ...(filter === "active" || filter === "completed" ? { status: filter } : {}),
+    ...(filter === "high" || filter === "medium" || filter === "low" ? { priority: filter } : {}),
+    ...(search.trim() ? { text: search.trim() } : {}),
+  });
+  const canSaveView = current.kind !== "filter" && (current.kind !== "all" || filter !== "all" || !!search.trim());
+  const saveView = () => {
+    const name = window.prompt("Name this filter:", selectionTitle(current, lists).replace(/^[^\p{L}\p{N}@]+/u, ""))?.trim();
+    if (!name) return;
+    const id = generateId();
+    saveLists([...lists, { id, kind: "filter", name: name.slice(0, 60), query: currentQuery(), createdAt: new Date().toISOString() }]);
+    select({ kind: "filter", id });
+  };
 
   const addTodo = () => {
     if (!input.trim()) return;
@@ -297,6 +381,12 @@ export function TodoSection() {
       subtasks: [],
       createdAt: new Date().toISOString(),
     };
+    const viewLabel = current.kind === "label" ? current.name : undefined;
+    const labels = [...new Set([...(viewLabel ? [viewLabel] : []), ...(p.labels ?? []).map(normLabel)])].filter(Boolean);
+    if (labels.length) todo.labels = labels;
+    const listId = p.listName ? createList(p.listName) : current.kind === "list" ? current.id : viewQuery.list && viewQuery.list !== "inbox" ? viewQuery.list : undefined;
+    if (listId) todo.listId = listId;
+    if (current.kind === "today" && !todo.dueDate && !todo.plannedFor) todo.plannedFor = getDayKey();
     const rule = repeat ?? p.repeat;
     if (rule) todo = repeat ? withRepeat(todo, repeat) : { ...todo, repeat: rule };
     save([todo, ...todos]);
@@ -357,6 +447,7 @@ export function TodoSection() {
 
   const q = search.trim().toLowerCase();
   const filtered = todos.filter(t => {
+    if (!matchesQuery(t, viewQuery)) return false;
     if (q && !t.title.toLowerCase().includes(q) && !(t.subtasks ?? []).some(st => st.title.toLowerCase().includes(q))) return false;
     if (filter === "active") return !t.completed;
     if (filter === "completed") return t.completed;
@@ -367,6 +458,7 @@ export function TodoSection() {
   });
 
   const completedCount = todos.filter(t => t.completed).length;
+  const listNames = new Map(lists.filter(isList).map((l) => [l.id, `${l.emoji ?? "📁"} ${l.name}`]));
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all", label: "All" },
@@ -378,7 +470,7 @@ export function TodoSection() {
   ];
 
   const row = (todo: Todo, draggable: boolean) => (
-    <SortableTodo key={todo.id} todo={todo} onToggle={toggle} onDelete={del} onEdit={edit} onAddSubtask={addSubtask} onToggleSubtask={toggleSubtask} onDeleteSubtask={deleteSubtask} onTogglePlan={togglePlan} onUpdate={update} details={openDetails === todo.id} onToggleDetails={(id) => setOpenDetails((cur) => (cur === id ? null : id))} draggable={draggable} />
+    <SortableTodo key={todo.id} todo={todo} onToggle={toggle} onDelete={del} onEdit={edit} onAddSubtask={addSubtask} onToggleSubtask={toggleSubtask} onDeleteSubtask={deleteSubtask} onTogglePlan={togglePlan} onUpdate={update} lists={lists} onCreateList={createList} listName={todo.listId && !(current.kind === "list" && current.id === todo.listId) ? listNames.get(todo.listId) : undefined} details={openDetails === todo.id} onToggleDetails={(id) => setOpenDetails((cur) => (cur === id ? null : id))} draggable={draggable} />
   );
   const heading = (label: string, count: number, tone?: "warn") => (
     <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "14px 0 6px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: tone === "warn" ? "var(--danger-text)" : "hsl(var(--muted-foreground))" }}>
@@ -427,12 +519,16 @@ export function TodoSection() {
       <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))" }}>
         <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
           To-Do List
+          <span data-testid="todo-view-title" style={{ fontSize: 14, fontWeight: 800, marginLeft: 12, textTransform: "none", letterSpacing: 0 }}>{selectionTitle(current, lists)}</span>
           <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: "#FFD700", padding: "2px 8px", verticalAlign: "middle" }}>
             {completedCount}/{todos.length} done
           </span>
         </div>
       </div>
 
+      <div className="todo-body" style={{ flex: 1, display: "flex", minHeight: 0 }}>
+      <TodoNav todos={todos} lists={lists} selection={current} onSelect={select} onAddList={addList} onListMenu={listMenu} onDeleteFilter={deleteFilter} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
       {/* Input area */}
       <div style={{ borderBottom: "var(--nb-border)", padding: "12px 24px", background: "hsl(var(--card))", display: "flex", flexDirection: "column", gap: 8 }}>
         <div className="todo-add-row" style={{ display: "flex", gap: 8 }}>
@@ -499,7 +595,7 @@ export function TodoSection() {
           </div>
         )}
         {!input && (
-          <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Tip: type “tomorrow”, “friday”, “at 3pm”, “every monday”, “!high” or “#today” — e.g. <em>Pay rent monthly on Dec 1 !high</em></div>
+          <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Tip: type “tomorrow”, “at 3pm”, “every monday”, “!high”, “#Work” (list) or “@errands” (label) — e.g. <em>Pay rent monthly on Dec 1 #Home !high</em></div>
         )}
       </div>
 
@@ -530,6 +626,9 @@ export function TodoSection() {
           <ViewButton current={view} value="date" label="📅 By date" onPick={changeView} />
           <ViewButton current={view} value="order" label="↕ My order" onPick={changeView} />
         </div>
+        {canSaveView && (
+          <button onClick={saveView} title="Save this list, label, filter and search as a saved filter" style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}>☆ Save view</button>
+        )}
         {completedCount > 0 && (
           <button
             onClick={clearCompleted}
@@ -542,13 +641,15 @@ export function TodoSection() {
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: 48, color: "hsl(var(--muted-foreground))", fontWeight: 700, fontSize: 16, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            {todos.length === 0 ? "No tasks yet. Add one above!" : "No tasks match this filter."}
+            {todos.length === 0 ? "No tasks yet. Add one above!" : current.kind === "list" ? "No tasks in this list yet. Add one above!" : "No tasks match this filter."}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {renderList()}
           </DndContext>
         )}
+      </div>
+      </div>
       </div>
     </div>
   );
