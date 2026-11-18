@@ -174,6 +174,39 @@ const suites = {
     await fu("Discard");
     await sleep(200);
     check("Follow-up: Discard closes it and nothing was saved", !(await p.eval(`!!document.querySelector('[data-testid="follow-up"]')`)) && !JSON.stringify(await p.storage(null)).includes("Edited by me"));
+
+    // A long meeting name stays inside the list (it used to push over the meeting
+    // on the right), and a meeting with audio offers Download audio.
+    const longTitle = "2nd Interview - Credit Analyst Candidate With A Very Long Name For The Meeting List";
+    await p.eval(`new Promise((resolve, reject) => {
+      const req = indexedDB.open("prodli-meetings", 1);
+      req.onsuccess = () => {
+        const tx = req.result.transaction(["meetings", "audio"], "readwrite");
+        const now = new Date();
+        tx.objectStore("meetings").put({
+          id: "mtg_long", platform: "google-meet", title: ${JSON.stringify(longTitle)}, meetingCode: "xyz-abcd-efg",
+          url: "https://meet.google.com/xyz-abcd-efg", startedAt: now.toISOString(), endedAt: now.toISOString(),
+          durationSec: 2940, status: "ready", error: null, notice: null, hasAudio: true, micIncluded: true, audioMimeType: "audio/webm;codecs=opus", updatedAt: now.toISOString(),
+          transcript: [{ id: "1", speaker: "You", text: "Hello.", startMs: 0, endMs: 1000 }], summary: null,
+        });
+        tx.objectStore("audio").put(new Blob([new Uint8Array([26, 69, 223, 163])], { type: "audio/webm" }), "mtg_long");
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      };
+    })`);
+    await p.goto("meetings");
+    await sleep(800);
+    const fits = await p.eval(`(() => {
+      const list = document.querySelector(".meetings-list");
+      const item = [...list.querySelectorAll("button")].find(b => b.textContent.includes("2nd Interview"));
+      const title = item.firstElementChild;
+      return { fits: item.getBoundingClientRect().right <= list.getBoundingClientRect().right + 0.5, cut: title.scrollWidth > title.clientWidth, hover: item.title };
+    })()`);
+    check("Meetings: a long name stays inside the list, cut off with …", fits.fits && fits.cut && fits.hover === longTitle, JSON.stringify(fits));
+    await p.eval(`[...document.querySelectorAll(".meetings-list button")].find(b => b.textContent.includes("2nd Interview")).click()`);
+    await sleep(800);
+    const dl = await p.eval(`(() => { const a = [...document.querySelectorAll("a")].find(a => a.textContent.trim() === "Download audio"); return a ? { name: a.getAttribute("download"), href: a.href } : null; })()`);
+    check("Meetings: Download audio saves the recording with the meeting's name", dl?.name === longTitle + "-audio.webm" && dl.href.startsWith("blob:"), JSON.stringify(dl));
     await p.close();
   },
 
