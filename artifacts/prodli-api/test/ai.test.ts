@@ -185,8 +185,11 @@ describe("Ask ProdLi", () => {
     const auth = await signIn(app, env);
     const res = await app.request("/api/ai/ask", json(ask("What should I do first?"), auth), env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ answer: "Start with Write release notes.", actions: [{ type: "plan_today", title: "Write release notes", details: "" }], usage: { used: 1, limit: ASK_MONTHLY_LIMIT.free } });
-    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ used: 0, briefs: { used: 0 }, asks: { used: 1 } });
+    expect(await res.json()).toEqual({ answer: "Start with Write release notes.", actions: [{ type: "plan_today", title: "Write release notes", details: "" }], sources: [1], usage: { used: 1, limit: ASK_MONTHLY_LIMIT.free } });
+    // Without note/meeting snippets there are no sources.
+    const noSnippets = await app.request("/api/ai/ask", json(ask("What did we decide?", { snippets: [] }), auth), env);
+    expect(await noSnippets.json()).toMatchObject({ sources: [] });
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ used: 0, briefs: { used: 0 }, asks: { used: 2 } });
   });
 
   it("refunds failures, enforces the limit and validates input", async () => {

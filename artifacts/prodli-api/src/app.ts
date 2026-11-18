@@ -575,7 +575,7 @@ export function createApp(deps: Deps = realDeps) {
     if (used === null) return c.json({ error: "ask_quota_exceeded", usage: { used: limit, limit } }, 429);
     try {
       const r = await deps.ask(input.data, c.env.ANTHROPIC_API_KEY);
-      return c.json({ answer: r.answer, actions: r.actions, usage: { used, limit } });
+      return c.json({ answer: r.answer, actions: r.actions, sources: r.sources ?? [], usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "ask_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);

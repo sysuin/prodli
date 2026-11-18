@@ -3,6 +3,9 @@
 // meetings; suggested actions apply only when the user clicks them.
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { askProdli, canAsk, SUGGESTIONS, type AskAction, type ChatTurn } from "../lib/ask";
+import { openSource } from "../lib/askOpen";
+import { addPrompt } from "../lib/askPrompts";
+import { SavedPrompts } from "./SavedPrompts";
 import { addNote, addTask } from "../lib/capture";
 import { accountsEnabled, onProdliAccountChange } from "../lib/prodliAccount";
 import { storageGet, storageSet } from "../lib/storage";
@@ -46,8 +49,9 @@ async function applyAction(a: AskAction): Promise<string> {
 
 const ACTION_LABEL: Record<AskAction["type"], string> = { add_task: "✅ Add to-do", plan_today: "☀️ Plan for today", add_note: "✍️ Save note" };
 
-export function AskPanel({ onClose, initialQuestion }: { onClose: () => void; initialQuestion?: string }) {
-  const [turns, setTurns] = useState<ChatTurn[]>(chat);
+export function AskPanel({ onClose, initialQuestion, initialTurns }: { onClose: () => void; initialQuestion?: string; initialTurns?: ChatTurn[] }) {
+  const [turns, setTurns] = useState<ChatTurn[]>(initialTurns ?? chat);
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -82,7 +86,7 @@ export function AskPanel({ onClose, initialQuestion }: { onClose: () => void; in
     setBusy(true);
     try {
       const r = await askProdli(q, history);
-      setTurns((t) => [...t, { role: "assistant", text: r.answer, actions: r.actions }]);
+      setTurns((t) => [...t, { role: "assistant", text: r.answer, actions: r.actions, sources: r.sources }]);
     } catch (err) {
       setTurns((t) => [...t, { role: "assistant", text: err instanceof Error ? err.message : "Something went wrong.", error: true }]);
     } finally {
@@ -117,7 +121,7 @@ export function AskPanel({ onClose, initialQuestion }: { onClose: () => void; in
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "grid", gap: 12, alignContent: "start" }} aria-live="polite">
-          {allowed === false ? (
+          {allowed === false && turns.length === 0 ? (
             <div style={{ fontSize: 14, lineHeight: 1.6 }}>
               <strong>Ask ProdLi about your day.</strong>
               <p style={{ margin: "6px 0 0" }}>{accountsEnabled() ? "Sign in (👤) to ask questions about your tasks, calendar, notes and meetings. It's free." : "Ask ProdLi needs a ProdLi account, which isn't available in this copy of ProdLi."}</p>
@@ -125,6 +129,7 @@ export function AskPanel({ onClose, initialQuestion }: { onClose: () => void; in
           ) : turns.length === 0 ? (
             <div style={{ display: "grid", gap: 10 }}>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>Ask about your tasks, calendar, habits, notes and meetings. ProdLi can also add to-dos and notes for you.</p>
+              <SavedPrompts onRun={(q) => void send(q)} disabled={!allowed || busy} />
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {SUGGESTIONS.map((s) => (
                   <button key={s} onClick={() => void send(s)} disabled={!allowed || busy} style={{ ...btn(false, !allowed || busy), fontWeight: 600, fontSize: 12 }}>
@@ -142,6 +147,37 @@ export function AskPanel({ onClose, initialQuestion }: { onClose: () => void; in
                 >
                   {t.text}
                 </div>
+                {t.role === "user" && (
+                  <div style={{ textAlign: "right", marginTop: 2 }}>
+                    <button
+                      onClick={() => void addPrompt(t.text).then(() => setSaved((x) => ({ ...x, [t.text]: true })))}
+                      disabled={saved[t.text]}
+                      aria-label={saved[t.text] ? "Saved prompt" : `Save prompt: ${t.text}`}
+                      title="Save this question to ask again (or on a schedule)"
+                      style={{ border: "none", background: "none", cursor: saved[t.text] ? "default" : "pointer", fontSize: 11, fontWeight: 800, color: "hsl(var(--muted-foreground))", fontFamily: "inherit", padding: 0 }}
+                    >
+                      {saved[t.text] ? "★ Saved" : "☆ Save prompt"}
+                    </button>
+                  </div>
+                )}
+                {t.sources && t.sources.length > 0 && (
+                  <div data-testid="ask-sources" style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginTop: 6, fontSize: 11 }}>
+                    <span style={{ fontWeight: 800, opacity: 0.75 }}>Sources:</span>
+                    {t.sources.map((src) => (
+                      <button
+                        key={src.id}
+                        onClick={() => {
+                          void openSource(src);
+                          onClose();
+                        }}
+                        title={`Open ${src.kind === "note" ? "note" : "meeting"}${src.date ? ` (${src.date})` : ""}`}
+                        style={{ border: "1px solid var(--nb-section-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "1px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      >
+                        {src.kind === "note" ? "📝" : "🎙"} {src.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {t.actions && t.actions.length > 0 && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                     {t.actions.map((a, j) => {

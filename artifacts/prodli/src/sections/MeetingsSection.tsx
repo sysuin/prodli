@@ -5,6 +5,7 @@ import type { Note, Todo } from "../types";
 import { deleteMeeting, getAudio, listMeetings, MEETINGS_CHANNEL, updateMeeting } from "../recorder/db";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting } from "../recorder/summarize";
 import { openAsk } from "../lib/ask";
+import { OPEN_ITEM_EVENT, OPEN_MEETING_KEY } from "../lib/askOpen";
 import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from "../lib/prodliAccount";
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
@@ -563,8 +564,19 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const refresh = useCallback(async () => {
     const list = await listMeetings();
     setMeetings(list);
-    setSelectedId((cur) => (cur && list.some((m) => m.id === cur) ? cur : (list[0]?.id ?? null)));
+    // Ask ProdLi → a source meeting: open that one.
+    const wanted = await storageGet<string | null>(OPEN_MEETING_KEY, null);
+    if (wanted) void storageRemove(OPEN_MEETING_KEY);
+    setSelectedId((cur) => (wanted && list.some((m) => m.id === wanted) ? wanted : cur && list.some((m) => m.id === cur) ? cur : (list[0]?.id ?? null)));
   }, []);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const src = (e as CustomEvent<{ kind: string; id: string }>).detail;
+      if (src?.kind === "meeting") void refresh();
+    };
+    window.addEventListener(OPEN_ITEM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ITEM_EVENT, onOpen);
+  }, [refresh]);
 
   // ProdLi account: free summaries without a key (and, on the web, meetings synced from the extension).
   useEffect(() => {

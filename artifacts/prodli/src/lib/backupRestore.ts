@@ -26,7 +26,7 @@ const DATA_KEYS = [
 ] as const;
 
 /** Settings added in 1.1 — only restored from 1.1+ backups. */
-const SETTINGS_KEYS_V11 = ["tt_settings", "recorderMicEnabled", "recorderAutoSummarize", "recorderDefaultTemplate", "recorderVocabulary", "recorderDisclosure", "focusBlock"] as const;
+const SETTINGS_KEYS_V11 = ["tt_settings", "recorderMicEnabled", "recorderAutoSummarize", "recorderDefaultTemplate", "recorderVocabulary", "recorderDisclosure", "focusBlock", "askPrompts"] as const;
 
 type DataKey = typeof DATA_KEYS[number];
 
