@@ -17,38 +17,11 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
   const [newDomain, setNewDomain] = useState("");
   const [newLimit, setNewLimit] = useState(30);
   const [focusError, setFocusError] = useState("");
-  const [redirectPermissionGranted, setRedirectPermissionGranted] = useState(false);
   const domainInputRef = useRef<HTMLInputElement>(null);
   const [newExcludedDomain, setNewExcludedDomain] = useState("");
   const [excludeError, setExcludeError] = useState("");
   const excludedInputRef = useRef<HTMLInputElement>(null);
   const [domainToClear, setDomainToClear] = useState<string | null>(null);
-
-  const checkRedirectPermission = useCallback(async () => {
-    if (!isExtension() || !chrome.permissions) return;
-    const granted = await chrome.permissions.contains({ permissions: ["scripting"], origins: ["<all_urls>"] });
-    setRedirectPermissionGranted(granted);
-  }, []);
-
-  const requestRedirectPermission = async (enableForRuleId?: string) => {
-    if (!isExtension() || !chrome.permissions) return;
-    try {
-      const granted = await chrome.permissions.request({ permissions: ["scripting"], origins: ["<all_urls>"] });
-      setRedirectPermissionGranted(granted);
-      // If triggered from a specific rule row, auto-enable redirect for that rule
-      if (granted && enableForRuleId) {
-        const next: TrackerSettings = {
-          ...settings,
-          focusList: (settings.focusList ?? []).map((r) =>
-            r.id === enableForRuleId ? { ...r, redirectEnabled: true } : r
-          ),
-        };
-        await saveSettings(next);
-      }
-    } catch {
-      setRedirectPermissionGranted(false);
-    }
-  };
 
   const loadData = useCallback(async () => {
     const today = await storageGet<TimeTrackingDay>(`tt_${getDayKey()}`, {});
@@ -68,8 +41,7 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
 
     const s = await storageGet<TrackerSettings>("tt_settings", DEFAULT_SETTINGS);
     setSettings(s);
-    await checkRedirectPermission();
-  }, [checkRedirectPermission]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -517,50 +489,9 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
               Set daily time limits per site. You'll get a notification when the limit is reached.
             </div>
 
-            {/* Redirect permission banner */}
             {isExtension() && (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                border: `2px solid ${redirectPermissionGranted ? "#22c55e" : "hsl(var(--border))"}`,
-                background: redirectPermissionGranted ? "rgba(34,197,94,0.08)" : "hsl(var(--muted))",
-                padding: "8px 12px",
-                marginBottom: 14,
-                flexWrap: "wrap",
-              }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: redirectPermissionGranted ? "#22c55e" : "hsl(var(--foreground))", marginBottom: 2 }}>
-                    {redirectPermissionGranted ? "✓ Redirect permission granted" : "Auto-redirect (optional)"}
-                  </div>
-                  <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
-                    {redirectPermissionGranted
-                      ? "When a limit is hit, the tab will redirect to your new tab page."
-                      : "Grant permission to automatically redirect tabs when a limit is reached."}
-                  </div>
-                </div>
-                {!redirectPermissionGranted && (
-                  <button
-                    onClick={() => requestRedirectPermission()}
-                    style={{
-                      background: ACCENT,
-                      color: ON_ACCENT,
-                      border: `2px solid ${ACCENT}`,
-                      fontWeight: 800,
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      padding: "5px 12px",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      boxShadow: "2px 2px 0 #000",
-                      flexShrink: 0,
-                    }}
-                  >
-                    Grant Permission
-                  </button>
-                )}
+              <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", marginBottom: 12 }}>
+                Turn on <strong>Redirect</strong> for a site to show ProdLi's pause screen once its daily limit is used up (for the rest of the day).
               </div>
             )}
 
@@ -724,18 +655,12 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
                             Redirect
                           </span>
                           <button
-                            onClick={() => redirectPermissionGranted ? toggleRedirect(rule.id) : requestRedirectPermission(rule.id)}
-                            title={
-                              !redirectPermissionGranted
-                                ? "Grant redirect permission first (click to request)"
-                                : rule.redirectEnabled
-                                  ? "Click to disable auto-redirect"
-                                  : "Click to enable auto-redirect to new tab"
-                            }
+                            onClick={() => toggleRedirect(rule.id)}
+                            title={rule.redirectEnabled ? "Click to stop pausing this site when its limit is used up" : "Click to pause this site once its limit is used up"}
                             style={{
-                              border: `2px solid ${!redirectPermissionGranted ? "hsl(var(--border))" : rule.redirectEnabled ? ACCENT : "hsl(var(--border))"}`,
-                              background: !redirectPermissionGranted ? "hsl(var(--muted))" : rule.redirectEnabled ? ACCENT : "hsl(var(--muted))",
-                              color: !redirectPermissionGranted ? "hsl(var(--muted-foreground))" : rule.redirectEnabled ? "#fff" : "hsl(var(--muted-foreground))",
+                              border: `2px solid ${rule.redirectEnabled ? ACCENT : "hsl(var(--border))"}`,
+                              background: rule.redirectEnabled ? ACCENT : "hsl(var(--muted))",
+                              color: rule.redirectEnabled ? "#fff" : "hsl(var(--muted-foreground))",
                               fontWeight: 800,
                               fontSize: 10,
                               textTransform: "uppercase",
@@ -744,10 +669,10 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
                               cursor: "pointer",
                               fontFamily: "inherit",
                               transition: "all 0.15s",
-                              opacity: !redirectPermissionGranted ? 0.5 : 1,
+                              opacity: 1,
                             }}
                           >
-                            {!redirectPermissionGranted ? "–" : rule.redirectEnabled ? "On" : "Off"}
+                            {rule.redirectEnabled ? "On" : "Off"}
                           </button>
                         </div>
                       </div>

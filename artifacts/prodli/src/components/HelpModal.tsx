@@ -128,6 +128,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>⚙ Settings</Tag>} desc="Customize Focus, Short Break, Long Break durations (in minutes), and how many focus sessions trigger a long break." />
             <Row label={<Tag>Session Log</Tag>} desc="Right panel shows your completed focus sessions with label, duration, and time. Limited to the 20 most recent." />
             <Row label={<Tag>🔴 Nav indicator</Tag>} desc="A blinking dot appears on the Pomodoro tab when the timer is running and you're viewing another section." />
+            <Row label={<Tag>🚫 Block sites</Tag>} desc="Under the timer: block distracting sites while a focus session runs and during focus hours you set. A blocked site shows a pause screen with Close tab; Continue anyway waits 10 seconds, then allows 5 minutes (extension)." />
           </Section>
 
           {/* Habits */}

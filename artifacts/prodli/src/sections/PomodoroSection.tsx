@@ -4,6 +4,9 @@ import { formatTime, getDayKey } from "../lib/utils";
 import type { Todo } from "../types";
 import type { Phase, PomodoroSettings, PomodoroSession } from "../lib/usePomodoroTimer";
 import { openSettings } from "../components/Settings";
+import { FocusBlockPanel } from "./focus/FocusBlockPanel";
+
+const isExtension = typeof chrome !== "undefined" && !!chrome.runtime?.id;
 
 const PHASE_COLORS: Record<Phase, string> = {
   work: "#FFD700",
@@ -138,7 +141,7 @@ export function PomodoroSection({
 
       {/* Main timer */}
       <div style={{ display: "flex", flex: 1, gap: 0 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 24 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", padding: 32, gap: 24, overflowY: "auto", minHeight: 0 }}>
           {/* Phase tabs */}
           <div style={{ display: "flex", border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)" }}>
             {(["work", "short-break", "long-break"] as Phase[]).map(p => (
@@ -238,6 +241,7 @@ export function PomodoroSection({
               </div>
             ))}
           </div>
+          {isExtension && <FocusBlockPanel focusRunning={running && phase === "work"} />}
         </div>
 
         {/* Session log */}
