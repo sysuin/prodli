@@ -89,6 +89,11 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>+ Link / Edit</Tag>} desc="Add up to 16 links as tiles. In Edit, click a tile to rename it or × to remove it. Links sync with your account." />
           </Section>
 
+          <Section emoji="📚" title="Read later & page summaries">
+            <Row label={<Tag>Read later</Tag>} desc="Right-click a page or link → Read later in ProdLi (or pick 📚 Later in Quick add, or paste a link on Today). Opening it marks it read." />
+            <Row label={<Tag>Summarize page</Tag>} desc="Right-click a page → Summarize page to ProdLi notes: a note with the source, a short summary and key points (uses writing help; signed out, you get an excerpt). ProdLi reads only that page, only when you click." />
+          </Section>
+
           <Section emoji="🗂" title="Saved tabs">
             <Row label={<Tag>Save this window</Tag>} desc="On Today: saves this window's web pages (and closes them if you like). Open all brings them back in a new window; ▸ lists them to open one. Also in ⌘K: “Save open tabs and close them”. Synced and backed up with your account." />
           </Section>

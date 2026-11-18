@@ -29,6 +29,17 @@ export interface Repeat {
   monthDay?: number;
 }
 
+/** A page saved to read later. Synced as the "readLater" collection. */
+export interface ReadLaterItem {
+  id: string;
+  url: string;
+  title: string;
+  createdAt: string;
+  updatedAt?: string;
+  /** When it was opened or marked read. */
+  readAt?: string;
+}
+
 /** A quick link tile on Today. Synced as the "quickLinks" collection. */
 export interface QuickLink {
   id: string;

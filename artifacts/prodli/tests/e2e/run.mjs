@@ -1393,6 +1393,54 @@ const suites = {
     await p.close();
   },
 
+  async readlater(b, check) {
+    // Read later on Today, and the Quick add window's "Later" option.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const server = http.createServer((_req, res) => (res.writeHead(200, { "Content-Type": "text/html" }), res.end("<title>Article</title>ok")));
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const article = `http://127.0.0.1:${server.address().port}/article`;
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ readLater: [] })`);
+    await p.goto("today");
+    const items = async () => (await p.storage(["readLater"])).readLater ?? [];
+    await p.eval(`(() => { const i = document.querySelector('input[aria-label="Link to read later"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "example.com/long-read"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="read-later"] form button[type="submit"]').click()`);
+    await sleep(500);
+    check("Read later: pasting a link saves it", (await items())[0]?.url === "https://example.com/long-read" && (await p.eval(`document.querySelectorAll('[data-testid="read-later-item"]').length`)) === 1);
+    // The Quick add window (opened from a page) offers "Later".
+    const qa = await b.openPage(`chrome-extension://${b.extId}/index.html#quick-add?title=${encodeURIComponent("A great article")}&url=${encodeURIComponent(article)}`);
+    await sleep(800);
+    await qa.eval(`[...document.querySelectorAll('[role="radio"]')].find(b => b.textContent.includes("Later")).click()`);
+    await sleep(150);
+    await qa.click("Save");
+    await sleep(800);
+    check("Read later: the Quick add window saves the page with its title", (await items()).some((i) => i.url === article && i.title === "A great article"), JSON.stringify(await items()));
+    await qa.close().catch(() => {});
+    await sleep(300);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="read-later"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Read later has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Opening an item marks it read (and opens it in a tab).
+    await p.eval(`[...document.querySelectorAll('[data-testid="read-later-item"] button')].find(b => b.textContent.includes("A great article")).click()`);
+    await sleep(1200);
+    const opened = await p.eval(`chrome.tabs.query({}).then(t => t.some(x => x.url === ${JSON.stringify(article)}))`);
+    check("Read later: opening an item opens it and marks it read", opened && !!(await items()).find((i) => i.url === article)?.readAt);
+    await p.eval(`chrome.tabs.query({}).then(t => chrome.tabs.remove(t.filter(x => x.url === ${JSON.stringify(article)}).map(x => x.id)))`);
+    await p.click("▸ Read (1)").catch(() => p.eval(`[...document.querySelectorAll('[data-testid="read-later"] button')].find(b => b.textContent.includes("Read (")).click()`));
+    await sleep(300);
+    check("Read later: read items are tucked away under Read", (await p.eval(`document.querySelector('[data-testid="read-later"]').innerText`)).includes("A great article"));
+    await p.eval(`document.querySelector('button[aria-label="Remove A great article"]').click()`);
+    await sleep(400);
+    check("Read later: × removes an item", !(await items()).some((i) => i.url === article));
+    await p.close();
+    server.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");
@@ -1728,7 +1776,10 @@ const suites = {
       check("Blocks: removing a block cancels its reminder", !after.todos.find((t) => t.id === "b1").block && !alarmsAfter.includes("block:b1") && alarmsAfter.includes("block:b2"), JSON.stringify(alarmsAfter));
       check("Blocks: blocks don't overlap", (await p.eval(`document.body.innerText.includes("OVERLAPS")`)) === false);
     } else {
-      check("Blocks: late at night, Block time says the tasks don't fit", /didn't fit/.test(await p.eval(`document.querySelector('[data-testid="agenda"]').innerText`)));
+      // Late at night some or all tasks may not fit: the message must match what happened.
+      const unplaced = todos.filter((t) => ["b1", "b2"].includes(t.id) && !t.block).length;
+      const agendaText = await p.eval(`document.querySelector('[data-testid="agenda"]').innerText`);
+      check("Blocks: late at night, Block time says which tasks don't fit", unplaced > 0 ? /didn't fit/.test(agendaText) : !/didn't fit/.test(agendaText), `${unplaced} unplaced | ${agendaText.slice(0, 160)}`);
     }
     await p.close();
   },

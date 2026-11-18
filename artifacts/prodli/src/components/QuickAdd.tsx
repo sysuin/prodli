@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addNote, addTask, type CaptureInput } from "../lib/capture";
 import { parseTask } from "../lib/taskParse";
+import { addReadLater } from "../lib/readLater";
 
 const field: CSSProperties = { border: "var(--nb-border)", padding: "8px 10px", fontFamily: "inherit", fontSize: 14, background: "hsl(var(--background))", color: "hsl(var(--foreground))", width: "100%", boxSizing: "border-box" };
 
 export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureInput; onDone: (message: string) => void; onCancel: () => void }) {
-  const [kind, setKind] = useState<"todo" | "note">(initial?.text && initial.text.length > 120 ? "note" : "todo");
+  const [kind, setKind] = useState<"todo" | "note" | "later">(initial?.text && initial.text.length > 120 ? "note" : "todo");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [text, setText] = useState(initial?.text ?? "");
   const [planToday, setPlanToday] = useState(false);
@@ -22,6 +23,9 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
       if (kind === "todo") {
         const t = await addTask({ title, text, url: initial?.url, planToday, smart: true });
         onDone(`Added to-do: ${t.title}`);
+      } else if (kind === "later") {
+        const item = await addReadLater(initial?.url, title);
+        onDone(item ? `Saved to Read later: ${item.title}` : "Only web pages can be saved to Read later.");
       } else {
         const n = await addNote({ title, text, url: initial?.url });
         onDone(`Saved note: ${n.title}`);
@@ -40,7 +44,7 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
       style={{ display: "grid", gap: 10 }}
     >
       <div role="radiogroup" aria-label="Add as" style={{ display: "flex", gap: 6 }}>
-        {(["todo", "note"] as const).map((k) => (
+        {(initial?.url ? (["todo", "note", "later"] as const) : (["todo", "note"] as const)).map((k) => (
           <button
             key={k}
             type="button"
@@ -49,7 +53,7 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
             onClick={() => setKind(k)}
             style={{ flex: 1, border: "var(--nb-border)", padding: "6px 10px", fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.04em", background: kind === k ? "#FFD700" : "hsl(var(--card))", color: kind === k ? "#000" : "hsl(var(--foreground))", cursor: "pointer", fontFamily: "inherit" }}
           >
-            {k === "todo" ? "✅ To-do" : "✍️ Note"}
+            {k === "todo" ? "✅ To-do" : k === "note" ? "✍️ Note" : "📚 Later"}
           </button>
         ))}
       </div>

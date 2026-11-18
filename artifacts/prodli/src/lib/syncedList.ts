@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { onStorageChange, storageGet, storageSet } from "./storage";
 import { recordDeletions, type Collection } from "./tombstones";
 
-const SYNCED_COLLECTIONS: ReadonlySet<string> = new Set(["notes", "todos", "habits", "days", "lists", "tabSessions", "quickLinks"]);
+const SYNCED_COLLECTIONS: ReadonlySet<string> = new Set(["notes", "todos", "habits", "days", "lists", "tabSessions", "quickLinks", "readLater"]);
 
 export interface SyncItem {
   id: string;

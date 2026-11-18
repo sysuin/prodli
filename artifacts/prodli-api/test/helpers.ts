@@ -65,6 +65,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (wav[44] === 0x7f) throw new AiError("ai_busy", "Transcription is busy right now. Try again in a minute.");
       return { text: "Kumusta, let's start the review.", segments: [{ start: 0.4, end: 2.1, text: "Kumusta, let's start the review." }], language: "tl" };
     },
+    summarizePage: async (input) => {
+      calls.push({ kind: "page", clientId: input.title });
+      if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
+      return { tldr: `About ${input.title}.`, points: ["One", "Two"], model: "test" };
+    },
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");

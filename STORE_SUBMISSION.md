@@ -100,9 +100,10 @@ ProdLi replaces the new tab page with a personal assistant that helps the user p
 | `contextMenus` | Adds "Add to ProdLi to-dos" and "Save to ProdLi notes" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
 | `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in Chrome, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
 | `search` | The search box on ProdLi's new tab page sends what the user types to their default search engine through Chrome's Search API. ProdLi never changes the search engine and doesn't see the results. |
+| `activeTab` | When the user right-clicks a page and picks "Summarize page to ProdLi notes", ProdLi reads that one page's text to write the summary. Access lasts only for that click and that tab. |
+| `scripting` | Used with `activeTab` to read the page's text for "Summarize page", and to start the Google Meet caption reader on a Meet tab when the user starts recording. |
 | `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet tab the user starts recording (toolbar icon or Alt+Shift+R). The audio stays on the device. |
 | `offscreen` *(optional)* | Runs the meeting recorder's audio capture in an offscreen document. |
-| `scripting` *(optional)* | Runs the caption reader in the Google Meet tab being recorded, and the Time Tracker's optional auto-redirect when a site's daily limit is reached. |
 | `downloads` *(optional)* | Requested only with "Open files from anywhere": Chrome downloads some local files (such as CSV) instead of opening them; ProdLi cancels that download and shows the file in its viewer instead. |
 | Host access *(optional)*: `<all_urls>`, `file:///*` | `meet.google.com` for the meeting recorder; other websites only for the optional Time Tracker auto-redirect; `file:///*` only for "Open files from anywhere". Each is requested when the user turns that feature on. |
 

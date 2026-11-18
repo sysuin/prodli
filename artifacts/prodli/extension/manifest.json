@@ -20,10 +20,11 @@
     "identity",
     "contextMenus",
     "webNavigation",
-    "search"
+    "search",
+    "activeTab",
+    "scripting"
   ],
   "optional_permissions": [
-    "scripting",
     "tabCapture",
     "offscreen",
     "downloads"
