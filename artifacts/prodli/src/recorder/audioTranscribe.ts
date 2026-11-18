@@ -12,7 +12,8 @@
 // memory as raw audio. Other formats fall back to decodeAudioData.
 
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "../lib/prodliAccount";
-import type { TranscriptEntry } from "./types";
+import { storageGet } from "../lib/storage";
+import { VOCABULARY_STORAGE_KEY, type TranscriptEntry } from "./types";
 
 export const RATE = 16_000;
 const FRAME = RATE / 50; // 20 ms
@@ -347,23 +348,26 @@ const MESSAGES: Record<string, string> = {
   bad_request: "Part of the audio couldn't be read. Try again.",
 };
 
-type Stub = (wav: Uint8Array, startMs: number) => Promise<PieceResult>;
+type Stub = (wav: Uint8Array, startMs: number, vocabulary: string[]) => Promise<PieceResult>;
 
-async function sendPiece(wav: Uint8Array, startMs: number): Promise<PieceResult> {
+async function sendPiece(wav: Uint8Array, startMs: number, vocabulary: string[]): Promise<PieceResult> {
   if (import.meta.env.VITE_E2E === "1") {
     const stub = (globalThis as { __prodliTranscribeStub?: Stub }).__prodliTranscribeStub;
-    if (stub) return stub(wav, startMs);
+    if (stub) return stub(wav, startMs, vocabulary);
   }
-  return accountRequest<PieceResult>("/api/ai/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav as BodyInit }, MESSAGES);
+  const headers: Record<string, string> = { "Content-Type": "audio/wav" };
+  // Names and terms as a spelling hint for Whisper (Setup → word list).
+  if (vocabulary.length) headers["X-ProdLi-Vocabulary"] = encodeURIComponent(vocabulary.slice(0, 40).join(",")).slice(0, 1500);
+  return accountRequest<PieceResult>("/api/ai/transcribe", { method: "POST", headers, body: wav as BodyInit }, MESSAGES);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const retryable = (err: unknown) => err instanceof AccountError && (err.status === 0 || err.status === 502 || err.status === 503 || /reach ProdLi/.test(err.message));
 
-async function sendWithRetry(wav: Uint8Array, startMs: number, signal?: AbortSignal): Promise<PieceResult> {
+async function sendWithRetry(wav: Uint8Array, startMs: number, vocabulary: string[], signal?: AbortSignal): Promise<PieceResult> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await sendPiece(wav, startMs);
+      return await sendPiece(wav, startMs, vocabulary);
     } catch (err) {
       if (signal?.aborted || attempt >= 2 || !retryable(err)) throw err;
       await sleep(attempt === 0 ? 1500 : 4000);
@@ -406,6 +410,7 @@ export async function transcribeRecording(
     if (!accountsEnabled()) throw new TranscribeError("Audio transcription isn't available in this copy of ProdLi.");
     if (!(await getProdliAccount())) throw new TranscribeError(SIGN_IN_FOR_TRANSCRIPTION);
   }
+  const vocabulary = await storageGet<string[]>(VOCABULARY_STORAGE_KEY, []);
   const results: { startMs: number; durationMs: number; result: PieceResult }[] = [];
   let usage: PieceResult["usage"];
   let doneMs = 0;
@@ -430,7 +435,7 @@ export async function transcribeRecording(
       const piece = next.value;
       const durationMs = Math.round((piece.samples.length / RATE) * 1000);
       try {
-        const result = await sendWithRetry(encodeWav(piece.samples), piece.startMs, signal);
+        const result = await sendWithRetry(encodeWav(piece.samples), piece.startMs, vocabulary, signal);
         results.push({ startMs: piece.startMs, durationMs, result });
         if (result.usage && (!usage || result.usage.usedSeconds > usage.usedSeconds)) usage = result.usage;
         doneMs = Math.max(doneMs, piece.startMs + durationMs);

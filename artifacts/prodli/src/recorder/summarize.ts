@@ -5,6 +5,8 @@
 
 import { transcriptToText } from "./format";
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "../lib/prodliAccount";
+import { storageGet } from "../lib/storage";
+import { MEETING_TEMPLATE_STORAGE_KEY, VOCABULARY_STORAGE_KEY, type MeetingTemplate } from "./types";
 import type { Meeting, MeetingSummary } from "./types";
 
 export class SummarizeError extends Error {}
@@ -20,10 +22,18 @@ export const SIGN_IN_FOR_SUMMARIES = "Sign in to your ProdLi account (👤, free
 export async function summarizeMeeting(meeting: Meeting): Promise<MeetingSummary> {
   if (meeting.transcript.length === 0) throw new SummarizeError("There is no transcript to summarize.");
   if (!(await canUseProdliAi())) throw new SummarizeError(accountsEnabled() ? SIGN_IN_FOR_SUMMARIES : "AI summaries aren't available in this copy of ProdLi.");
+  const [defaultTemplate, glossary] = await Promise.all([storageGet<MeetingTemplate>(MEETING_TEMPLATE_STORAGE_KEY, "general"), storageGet<string[]>(VOCABULARY_STORAGE_KEY, [])]);
+  const template = meeting.template ?? defaultTemplate;
   try {
     const r = await accountRequest<{ summary: MeetingSummary }>("/api/ai/summarize", {
       method: "POST",
-      body: JSON.stringify({ title: meeting.title, date: new Date(meeting.startedAt).toISOString().slice(0, 10), transcript: transcriptToText(meeting.transcript) }),
+      body: JSON.stringify({
+        title: meeting.title,
+        date: new Date(meeting.startedAt).toISOString().slice(0, 10),
+        transcript: transcriptToText(meeting.transcript),
+        ...(template !== "general" ? { template } : {}),
+        ...(glossary.length ? { glossary } : {}),
+      }),
     });
     return r.summary;
   } catch (err) {

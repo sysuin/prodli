@@ -50,6 +50,8 @@ export interface Meeting {
   notice: string | null;
   hasAudio: boolean;
   micIncluded: boolean;
+  /** Meeting type for its summary; missing = the default from Setup. */
+  template?: MeetingTemplate;
   /** On-device transcript (used when Meet captions weren't available) */
   speechTranscript?: TranscriptEntry[];
   /** Where `transcript` came from. Missing means Meet's captions (with on-device gap filling). */
@@ -75,6 +77,29 @@ export const CLAUDE_KEY_STORAGE_KEY = "claudeApiKey";
 export const MIC_ENABLED_STORAGE_KEY = "recorderMicEnabled";
 export const SPEECH_ENABLED_STORAGE_KEY = "recorderSpeechEnabled";
 export const SPEECH_LANG_STORAGE_KEY = "recorderSpeechLang";
+/** Default meeting type for summaries (a meeting can pick its own). */
+export const MEETING_TEMPLATE_STORAGE_KEY = "recorderDefaultTemplate";
+/** Names and terms to spell exactly (summaries and audio transcription). */
+export const VOCABULARY_STORAGE_KEY = "recorderVocabulary";
+/** The "I'm taking AI notes" message people paste into the meeting chat. */
+export const DISCLOSURE_STORAGE_KEY = "recorderDisclosure";
+export const DEFAULT_DISCLOSURE = "Heads-up: I'm taking AI-assisted notes of this call so I can share a summary afterwards.";
+
+/** Meeting types: they shape what the summary pulls out (server: prodli-api/src/ai.ts MEETING_TEMPLATES). */
+export const MEETING_TEMPLATES = [
+  { id: "general", label: "General" },
+  { id: "one_on_one", label: "1:1" },
+  { id: "interview", label: "Interview" },
+  { id: "sales", label: "Sales / customer call" },
+  { id: "standup", label: "Stand-up" },
+  { id: "planning", label: "Planning" },
+] as const;
+export type MeetingTemplate = (typeof MEETING_TEMPLATES)[number]["id"];
+
+/** "Ghill John, Flynn\nDSR" → ["Ghill John", "Flynn", "DSR"] */
+export function parseVocabulary(text: string): string[] {
+  return [...new Set(text.split(/[,\n]/).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 60);
+}
 export const AUTO_SUMMARIZE_STORAGE_KEY = "recorderAutoSummarize";
 /** Show a small "recording" label inside the Meet call (only the recorder sees it). Off by default. */
 export const SHOW_INDICATOR_STORAGE_KEY = "recorderShowIndicator";
