@@ -641,7 +641,6 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
 
   const toggleRecorder = async () => {
     if (recorderOn) {
-      // Keep "scripting" — the Time Tracker's auto-redirect may also use it.
       await chrome.permissions.remove({ permissions: ["tabCapture", "offscreen"] }).catch(() => false);
       setRecorderOn(await chrome.permissions.contains(RECORDER_PERMISSIONS));
       return;

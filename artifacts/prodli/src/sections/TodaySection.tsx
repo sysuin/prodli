@@ -21,6 +21,7 @@ import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types
 import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
+import { ReadLater } from "./today/ReadLater";
 import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
 
 const ACCENT = "#F59E0B";
@@ -442,6 +443,10 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
                   })}
                 </div>
               )}
+            </Card>
+
+            <Card title="📚 Read later" testId="read-later-card">
+              <ReadLater />
             </Card>
 
             <Card title="🗂 Saved tabs" testId="saved-tabs-card">

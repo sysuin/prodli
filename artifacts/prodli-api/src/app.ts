@@ -34,6 +34,7 @@ import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Rev
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanGlossary, isMeetingTemplate, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
+import { MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
@@ -73,12 +74,13 @@ export interface Deps {
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
   transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[]) => Promise<TranscriptPiece>;
+  summarizePage: (input: PageSummaryInput, apiKey: string) => Promise<PageSummary>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -625,6 +627,30 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const r = await deps.followUp(input.data, c.env.ANTHROPIC_API_KEY);
       return c.json({ subject: r.subject, body: r.body, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "write_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST { title, url, text } → { summary: { tldr, points }, usage }. Right-click "Summarize page".
+  // Counts toward the writing allowance; the page text goes to Anthropic and isn't stored.
+  app.post("/api/ai/summarize-page", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
+    if (typeof body?.text === "string" && body.text.length > MAX_PAGE_CHARS) return c.json({ error: "too_large" }, 413);
+    const input = PageSummaryInputSchema.safeParse(body);
+    if (!input.success || !input.data.text.trim()) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = writeLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "write_usage");
+    if (used === null) return c.json({ error: "write_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.summarizePage(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ summary: { tldr: r.tldr, points: r.points }, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "write_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);

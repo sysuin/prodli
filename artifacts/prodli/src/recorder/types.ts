@@ -106,7 +106,7 @@ export const SHOW_INDICATOR_STORAGE_KEY = "recorderShowIndicator";
 
 /** Optional permissions requested when the user turns the recorder on. */
 export const RECORDER_PERMISSIONS: chrome.permissions.Permissions = {
-  permissions: ["tabCapture", "offscreen", "scripting"],
+  permissions: ["tabCapture", "offscreen"],
   origins: ["https://meet.google.com/*"],
 };
 
