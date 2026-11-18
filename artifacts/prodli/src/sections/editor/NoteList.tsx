@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Note } from "../../types";
+import { BUILTIN_TEMPLATES } from "../../lib/noteTemplates";
 
 export type NoteSort = "updated" | "created" | "title";
 
@@ -72,10 +73,18 @@ interface Props {
   onTogglePin: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Your templates (notes marked as templates). */
+  templates: Note[];
+  onFromTemplate: (html: string, name: string) => void;
+  onEditTemplate: (id: string) => void;
+  onDeleteTemplate: (id: string) => void;
+  onSaveAsTemplate: (id: string) => void;
+  onDailyNote: () => void;
 }
 
-export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCreate, onRename, onTogglePin, onDuplicate, onDelete }: Props) {
+export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCreate, onRename, onTogglePin, onDuplicate, onDelete, templates, onFromTemplate, onEditTemplate, onDeleteTemplate, onSaveAsTemplate, onDailyNote }: Props) {
   const [search, setSearch] = useState("");
+  const [showTemplates, setShowTemplates] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -122,6 +131,23 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
             <option value="title">A–Z</option>
           </select>
           <button
+            onClick={onDailyNote}
+            title="Today's daily note"
+            aria-label="Today's daily note"
+            style={{ border: "var(--nb-border)", background: "hsl(var(--card))", width: 26, height: 26, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--nb-shadow-sm)", color: "hsl(var(--foreground))" }}
+          >
+            📅
+          </button>
+          <button
+            onClick={() => setShowTemplates((v) => !v)}
+            title="New note from a template"
+            aria-label="New note from a template"
+            aria-expanded={showTemplates}
+            style={{ border: "var(--nb-border)", background: showTemplates ? "hsl(var(--foreground))" : "hsl(var(--card))", color: showTemplates ? "hsl(var(--background))" : "hsl(var(--foreground))", width: 26, height: 26, cursor: "pointer", fontWeight: 900, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "var(--nb-shadow-sm)" }}
+          >
+            ▾
+          </button>
+          <button
             onClick={onCreate}
             title="New note (Alt+N)"
             aria-label="New note"
@@ -131,6 +157,27 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
           </button>
         </div>
       </div>
+      {showTemplates && (
+        <div role="menu" aria-label="Templates" data-testid="templates-menu" style={{ borderBottom: "var(--nb-border)", background: "hsl(var(--card))", padding: 6, maxHeight: 320, overflowY: "auto" }}>
+          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: "hsl(var(--muted-foreground))", padding: "2px 4px 4px" }}>New from a template</div>
+          {BUILTIN_TEMPLATES.map((t) => (
+            <button key={t.id} role="menuitem" onClick={() => (setShowTemplates(false), onFromTemplate(t.html, t.name))} style={menuItem}>
+              {t.emoji} {t.name}
+            </button>
+          ))}
+          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: "hsl(var(--muted-foreground))", padding: "8px 4px 4px" }}>Your templates</div>
+          {templates.length === 0 && <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))", padding: "0 4px 4px" }}>Use ⋯ → Save as template on any note. A template named “Daily note” is used by 📅.</div>}
+          {templates.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center" }}>
+              <button role="menuitem" onClick={() => (setShowTemplates(false), onFromTemplate(t.content, t.title))} style={{ ...menuItem, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                ☆ {t.title || "Untitled template"}
+              </button>
+              <button onClick={() => (setShowTemplates(false), onEditTemplate(t.id))} aria-label={`Edit template ${t.title}`} title="Edit" style={tplIcon}>✎</button>
+              <button onClick={() => onDeleteTemplate(t.id)} aria-label={`Delete template ${t.title}`} title="Delete" style={{ ...tplIcon, color: "#E53935" }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--nb-section-border)" }}>
         <input
           type="search"
@@ -219,6 +266,7 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
                       { label: note.pinned ? "Unpin" : "Pin to top", run: () => onTogglePin(note.id) },
                       { label: "Rename", run: () => { setEditing(note.id); setTempTitle(note.title); } },
                       { label: "Duplicate", run: () => onDuplicate(note.id) },
+                      { label: "Save as template", run: () => onSaveAsTemplate(note.id) },
                       { label: "Delete", run: () => onDelete(note.id), danger: true },
                     ].map((item) => (
                       <button
@@ -243,3 +291,6 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
     </div>
   );
 }
+
+const menuItem: React.CSSProperties = { display: "block", width: "100%", textAlign: "left", padding: "6px 8px", border: "none", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" };
+const tplIcon: React.CSSProperties = { border: "none", background: "none", cursor: "pointer", fontWeight: 900, fontSize: 13, padding: "0 6px", color: "hsl(var(--foreground))", fontFamily: "inherit" };

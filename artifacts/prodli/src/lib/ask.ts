@@ -102,7 +102,8 @@ export interface AskResult {
 }
 
 export async function askProdli(question: string, history: ChatTurn[]): Promise<AskResult> {
-  const [context, notes] = await Promise.all([buildContext([]), storageGet<Note[]>("notes", [])]);
+  const [context, allNotes] = await Promise.all([buildContext([]), storageGet<Note[]>("notes", [])]);
+  const notes = allNotes.filter((n) => !n.template); // templates aren't content
   let meetings: Meeting[] = [];
   try {
     meetings = await (await import("../recorder/db")).listMeetings();

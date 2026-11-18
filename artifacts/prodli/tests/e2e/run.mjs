@@ -1232,6 +1232,78 @@ const suites = {
     await p.close();
   },
 
+  async templates(b, check) {
+    // Note templates and the daily note.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+    await p.eval(`chrome.storage.local.set({ todos: [{ id: "t1", title: "Review the budget", completed: false, plannedFor: "${today}", createdAt: "x" }] })`);
+    await p.goto("editor");
+    const notes = async () => (await p.storage(["notes"])).notes ?? [];
+    // New from a built-in template.
+    await p.eval(`document.querySelector('button[aria-label="New note from a template"]').click()`);
+    await sleep(300);
+    check("Templates: ▾ lists the built-in templates", /Meeting notes[\s\S]*Decision record/.test(await p.eval(`document.querySelector('[data-testid="templates-menu"]').innerText`)));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="templates-menu"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): the templates menu has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`[...document.querySelectorAll('[data-testid="templates-menu"] button')].find(b => b.textContent.includes("1:1")).click()`);
+    await sleep(900);
+    let html = await p.editorHtml();
+    check("Templates: a note from “1:1” has its sections and today's date", html.includes("How are things?") && html.includes("Next steps") && !html.includes("{{"), html.slice(0, 200));
+    // Save it as your own template, use it, edit it, delete it.
+    const activeId = await p.eval(`chrome.storage.local.get("activeNoteId").then(r => r.activeNoteId)`);
+    const title1 = (await notes()).find((n) => n.id === activeId)?.title;
+    await p.eval(`document.querySelector(${JSON.stringify(`button[aria-label="Actions for ${title1}"]`)}).click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find(b => b.textContent === "Save as template").click()`);
+    await sleep(700);
+    const tpl = (await notes()).find((n) => n.template);
+    check("Templates: ⋯ → Save as template makes a template", !!tpl && tpl.content.includes("How are things?"), JSON.stringify((await notes()).map((n) => [n.title, !!n.template])));
+    check("Templates: templates stay out of the note list", !(await p.eval(`document.querySelector(".editor-sidebar").innerText`)).split("Your templates")[0].includes("☆"));
+    await p.eval(`document.querySelector('button[aria-label="New note from a template"]').click()`);
+    await sleep(300);
+    check("Templates: your template shows under Your templates", (await p.eval(`document.querySelector('[data-testid="templates-menu"]').innerText`)).includes(`☆ ${tpl.title}`));
+    await p.eval(`document.querySelector('button[aria-label="Edit template ${tpl.title}"]').click()`);
+    await sleep(600);
+    check("Templates: ✎ opens the template with a banner", (await p.eval(`document.querySelector('[data-testid="template-banner"]')?.innerText ?? ""`)).includes("Editing the template"));
+    await p.eval(`(() => { window.confirm = () => true; return true; })()`);
+    await p.eval(`document.querySelector('button[aria-label="New note from a template"]').click()`);
+    await sleep(300);
+    await p.eval(`document.querySelector('button[aria-label="Delete template ${tpl.title}"]').click()`);
+    await sleep(700);
+    check("Templates: × deletes the template and opens a real note", !(await notes()).some((n) => n.template) && !(await p.eval(`!!document.querySelector('[data-testid="template-banner"]')`)));
+
+    // Daily note: created once with today's planned tasks, then reopened.
+    await p.eval(`document.querySelector('button[aria-label="Today\\'s daily note"]').click()`);
+    await sleep(900);
+    let daily = (await notes()).filter((n) => n.dailyFor === today);
+    html = await p.editorHtml();
+    check("Daily note: 📅 creates today's note with planned tasks", daily.length === 1 && html.includes("Review the budget") && daily[0].title.startsWith("Daily note"), JSON.stringify(daily.map((d) => d.title)));
+    // Open another note, then 📅 again: same note, no duplicate.
+    await p.click("+").catch(() => p.eval(`document.querySelector('button[aria-label="New note"]').click()`));
+    await sleep(500);
+    await p.eval(`document.querySelector('button[aria-label="Today\\'s daily note"]').click()`);
+    await sleep(700);
+    daily = (await notes()).filter((n) => n.dailyFor === today);
+    check("Daily note: 📅 again opens the same note", daily.length === 1 && (await p.eval(`chrome.storage.local.get("activeNoteId").then(r => r.activeNoteId)`)) === daily[0].id);
+    // From ⌘K on another page.
+    await p.goto("todos");
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await p.eval(`(() => { const i = document.querySelector('input[placeholder^="Go to, do"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "daily note"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(300);
+    await p.eval(`[...document.querySelectorAll('[role="option"], button, li')].find(e => e.textContent && e.textContent.includes("Open today's daily note") && e.children.length < 6).click()`);
+    await sleep(2500);
+    check("Daily note: ⌘K opens it from another page", (await p.lowerText()).includes("review the budget") && (await notes()).filter((n) => n.dailyFor === today).length === 1);
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

@@ -150,7 +150,7 @@ export async function loadWeekStats(start: string, today = getDayKey()): Promise
   }
   const tracking: Record<string, Record<string, number> | undefined> = {};
   for (const d of weekDays(start)) tracking[d] = all[`tt_${d}`] as Record<string, number> | undefined;
-  return weekStats({ start, today, todos, habits, days, sessions, tracking, meetings, notes });
+  return weekStats({ start, today, todos, habits, days, sessions, tracking, meetings, notes: notes.filter((n) => !n.template) });
 }
 
 /** What the server gets: the stats, trimmed to what's useful (and allowed). */

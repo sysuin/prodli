@@ -7,6 +7,10 @@ export interface Note {
   pinned?: boolean;
   /** True until the user renames the note: the title follows the first line. */
   autoTitle?: boolean;
+  /** A template (Editor → ▾ templates), kept out of the note list and search. */
+  template?: boolean;
+  /** The day (YYYY-MM-DD) this is the daily note for. */
+  dailyFor?: string;
 }
 
 export interface Subtask {

@@ -25,6 +25,7 @@ import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashSta
 import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
 import { isImprovable, useImprove } from "./editor/ImproveMenu";
 import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
+import { DAILY_NOTE_EVENT, newNoteFromTemplate, PENDING_DAILY_KEY, prepareDailyNote } from "../lib/noteTemplates";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -401,7 +402,15 @@ export function EditorSection() {
       selectNote(welcome.id);
       return;
     }
-    if (!activeIdRef.current || !notes.some((n) => n.id === activeIdRef.current)) selectNote(sortNotes(notes, sort)[0].id);
+    const real = notes.filter((n) => !n.template);
+    if (!activeIdRef.current || !notes.some((n) => n.id === activeIdRef.current)) {
+      if (real.length) selectNote(sortNotes(real, sort)[0].id);
+      else {
+        const blank = newNote();
+        setNotes((prev) => [blank, ...prev]);
+        selectNote(blank.id);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesLoaded, prefsLoaded, notes.length]);
 
@@ -451,6 +460,58 @@ export function EditorSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNotes]);
 
+  const createFromTemplate = (html: string, name: string) => {
+    if (pendingEdit.current) commitEdit();
+    const note = newNoteFromTemplate(html, name);
+    setNotes((prev) => [note, ...prev]);
+    selectNote(note.id);
+    setMobilePane("note");
+    showToast(`New note from “${name}”`);
+  };
+  const saveAsTemplate = (id: string) => {
+    if (pendingEdit.current) commitEdit();
+    const src = notesRef.current.find((n) => n.id === id);
+    if (!src) return;
+    const tpl = newNote({ title: src.title || "Untitled template", content: src.content, autoTitle: false, template: true });
+    setNotes((prev) => [tpl, ...prev]);
+    showToast(`Saved “${tpl.title}” as a template (▾ menu)`);
+  };
+  const deleteTemplate = (id: string) => {
+    const t = notesRef.current.find((n) => n.id === id);
+    if (!t || !window.confirm(`Delete the template “${t.title}”? Notes made from it stay.`)) return;
+    const remaining = notesRef.current.filter((n) => n.id !== id);
+    setNotes(remaining);
+    if (activeIdRef.current === id) {
+      const next = sortNotes(remaining.filter((n) => !n.template), sort)[0];
+      if (next) selectNote(next.id);
+    }
+  };
+  const dailyBusy = useRef(false);
+  const openDailyNote = useCallback(async () => {
+    if (dailyBusy.current) return;
+    dailyBusy.current = true;
+    try {
+      await storageSet(PENDING_DAILY_KEY, false).catch(() => {});
+      if (pendingEdit.current) commitEdit();
+      const r = await prepareDailyNote(notesRef.current);
+      if (r.note) setNotes((prev) => [r.note!, ...prev]);
+      selectNote(r.id);
+      setMobilePane("note");
+    } finally {
+      dailyBusy.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setNotes]);
+
+  // ⌘K → "Open today's daily note": a flag (if Notes wasn't open yet) or an event (if it was).
+  useEffect(() => {
+    if (!notesLoaded || !prefsLoaded) return;
+    void storageGet<boolean>(PENDING_DAILY_KEY, false).then((pending) => pending && void openDailyNote());
+    const onEvent = () => void openDailyNote();
+    window.addEventListener(DAILY_NOTE_EVENT, onEvent);
+    return () => window.removeEventListener(DAILY_NOTE_EVENT, onEvent);
+  }, [notesLoaded, prefsLoaded, openDailyNote]);
+
   const renameNote = (id: string, title: string) =>
     setNotes((prev) =>
       prev.map((n) => {
@@ -478,13 +539,14 @@ export function EditorSection() {
     const removed = notesRef.current.find((n) => n.id === id);
     if (!removed) return;
     const remaining = notesRef.current.filter((n) => n.id !== id);
-    if (remaining.length === 0) {
+    const real = remaining.filter((n) => !n.template);
+    if (real.length === 0) {
       const blank = newNote();
-      setNotes([blank]);
+      setNotes([blank, ...remaining]);
       selectNote(blank.id);
     } else {
       setNotes(remaining);
-      if (activeIdRef.current === id) selectNote(sortNotes(remaining, sort)[0].id);
+      if (activeIdRef.current === id) selectNote(sortNotes(real, sort)[0].id);
     }
     showToast(`Deleted “${removed.title || "Untitled"}”`, () => {
       setNotes((prev) => [removed, ...prev.filter((n) => n.id !== removed.id && !(n.autoTitle && !n.content && prev.length === 1))]);
@@ -592,7 +654,13 @@ export function EditorSection() {
     >
       {!isFullscreen && (
         <NoteList
-          notes={notes}
+          notes={notes.filter((n) => !n.template)}
+          templates={notes.filter((n) => n.template)}
+          onFromTemplate={createFromTemplate}
+          onEditTemplate={(id) => openNote(id)}
+          onDeleteTemplate={deleteTemplate}
+          onSaveAsTemplate={saveAsTemplate}
+          onDailyNote={() => void openDailyNote()}
           activeId={activeId}
           sort={sort}
           onSortChange={changeSort}
@@ -609,6 +677,11 @@ export function EditorSection() {
         <button className="mobile-only editor-back" onClick={() => setMobilePane("list")} aria-label="Back to all notes">
           ← All notes <span style={{ opacity: 0.6, fontWeight: 600 }}>({notes.length})</span>
         </button>
+        {activeNote?.template && (
+          <div role="status" data-testid="template-banner" style={{ borderBottom: "var(--nb-border)", background: "#FFF3CD", color: "#000", padding: "6px 16px", fontSize: 12, fontWeight: 700 }}>
+            ✎ Editing the template “{activeNote.title}”. New notes made from it use these changes.
+          </div>
+        )}
         {/* Toolbar */}
         <div className="editor-toolbar" role="toolbar" aria-label="Formatting" style={{ borderBottom: "var(--nb-border)", padding: "8px 16px", display: "flex", gap: 4, flexWrap: "wrap", background: "hsl(var(--muted))", alignItems: "center" }}>
           <ToolbarButton onClick={run((e) => e.chain().focus().undo().run())} disabled={!t?.canUndo} title="Undo (Ctrl/⌘+Z)">↩</ToolbarButton>
