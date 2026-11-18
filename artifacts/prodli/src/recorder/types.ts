@@ -8,8 +8,8 @@ export interface TranscriptEntry {
   startMs: number;
   /** ms since the recording started */
   endMs: number;
-  /** "device": from on-device transcription, filling a gap in Meet's captions. */
-  source?: "device";
+  /** "device": from on-device transcription, filling a gap in Meet's captions. "audio": from "Transcribe audio with AI". */
+  source?: "device" | "audio";
 }
 
 export interface ActionItem {
@@ -52,6 +52,12 @@ export interface Meeting {
   micIncluded: boolean;
   /** On-device transcript (used when Meet captions weren't available) */
   speechTranscript?: TranscriptEntry[];
+  /** Where `transcript` came from. Missing means Meet's captions (with on-device gap filling). */
+  transcriptSource?: "captions" | "audio";
+  /** The captions transcript, kept when `transcript` was replaced by "Transcribe audio with AI". */
+  captionTranscript?: TranscriptEntry[];
+  /** Languages Whisper heard, most-spoken first (e.g. ["en", "tl"]). */
+  audioLanguages?: string[];
   audioMimeType: string | null;
   updatedAt: string;
 }

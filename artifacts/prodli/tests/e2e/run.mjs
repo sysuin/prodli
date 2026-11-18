@@ -210,6 +210,104 @@ const suites = {
     await p.close();
   },
 
+  async transcribe(b, check) {
+    // "Transcribe audio with AI": a real WebM/Opus recording made here with
+    // MediaRecorder (two 2.5 s tones with pauses), read and cut at the pauses by
+    // the app; a stub stands in for /api/ai/transcribe (test builds only).
+    const p = await b.openPage();
+    await p.goto("meetings");
+    const made = await p.eval(`(async () => {
+      const ctx = new AudioContext();
+      await ctx.resume();
+      const dest = ctx.createMediaStreamDestination();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 220;
+      osc.connect(gain).connect(dest);
+      osc.start();
+      const t = ctx.currentTime + 0.3;
+      for (const [on, off] of [[0.5, 3], [4.5, 7]]) { gain.gain.setValueAtTime(0.4, t + on); gain.gain.setValueAtTime(0, t + off); }
+      const rec = new MediaRecorder(dest.stream, { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 32000 });
+      const parts = [];
+      rec.ondataavailable = (e) => parts.push(e.data);
+      rec.start(1000);
+      await new Promise((r) => setTimeout(r, 9000));
+      await new Promise((r) => { rec.onstop = r; rec.stop(); });
+      const blob = new Blob(parts, { type: rec.mimeType });
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.open("prodli-meetings", 1);
+        req.onsuccess = () => {
+          const tx = req.result.transaction(["meetings", "audio"], "readwrite");
+          const now = new Date();
+          tx.objectStore("meetings").put({
+            id: "mtg_audio", platform: "google-meet", title: "Mixed language call", meetingCode: null, url: "https://meet.google.com/aaa-bbbb-ccc",
+            startedAt: new Date(now.getTime() + 60000).toISOString(), endedAt: now.toISOString(), durationSec: 9, status: "ready", error: null, notice: null,
+            hasAudio: true, micIncluded: true, audioMimeType: rec.mimeType, updatedAt: now.toISOString(),
+            transcript: [{ id: "c1", speaker: "Priya", text: "Garbled caption text", startMs: 500, endMs: 2500 }], summary: null,
+          });
+          tx.objectStore("audio").put(blob, "mtg_audio");
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => reject(tx.error);
+        };
+      });
+      return { size: blob.size, type: rec.mimeType };
+    })()`);
+    check("Transcribe: made a real WebM/Opus recording", made.size > 1000 && /webm/.test(made.type), JSON.stringify(made));
+    await p.goto("meetings");
+    await p.eval(`[...document.querySelectorAll(".meetings-list button")].find(b => b.textContent.includes("Mixed language call")).click()`);
+    await sleep(800);
+    const stub = (mode = "ok") =>
+      p.eval(`(() => {
+        window.__pieces = [];
+        globalThis.__prodliTranscribeStub = async (wav, startMs) => {
+          const seconds = (wav.length - 44) / 32000;
+          const n = window.__pieces.push({ startMs, seconds, riff: String.fromCharCode(...wav.slice(0, 4)) });
+          await new Promise((r) => setTimeout(r, 100));
+          if (${JSON.stringify(mode)} === "fail") throw new Error("boom");
+          return { text: n === 1 ? "Kumusta, simulan na natin." : "Okay, let's review the numbers.", segments: [{ start: 0.2, end: 1.8, text: n === 1 ? "Kumusta, simulan na natin." : "Okay, let's review the numbers." }], language: n === 1 ? "tl" : "en", usage: { usedSeconds: 6 * n, limitSeconds: 18000 } };
+        };
+        return true;
+      })()`);
+    const panel = () => p.eval(`document.querySelector('[data-testid="audio-transcribe"]')?.innerText ?? ""`);
+    check("Transcribe: the button shows under the audio", /transcribe audio with ai/i.test(await panel()) && (await panel()).includes("more than one language"), await panel());
+
+    await stub("fail");
+    await p.click("🌐 Transcribe audio with AI");
+    await sleep(2500);
+    check("Transcribe: a failure shows a message and keeps the captions", /went wrong|try again/i.test(await panel()) && (await p.text()).includes("Garbled caption text"), await panel());
+
+    await stub();
+    await p.click("🌐 Transcribe audio with AI");
+    await sleep(300);
+    const during = await panel();
+    await sleep(3500);
+    const pieces = await p.eval("window.__pieces");
+    check("Transcribe: shows progress while working", during.includes("Transcribing the audio") || pieces.length > 0, during);
+    check("Transcribe: the recording is cut at the pause into two WAV pieces", pieces.length === 2 && pieces.every((x) => x.riff === "RIFF" && x.seconds > 2.2 && x.seconds < 3.6), JSON.stringify(pieces));
+    const starts = pieces.map((x) => x.startMs).sort((a, b) => a - b);
+    check("Transcribe: pieces start where the speech starts", Math.abs(starts[0] - 600) < 450 && Math.abs(starts[1] - 4600) < 450, JSON.stringify(starts));
+    const text = await p.text();
+    check("Transcribe: the transcript is replaced by the audio transcript", text.includes("Kumusta, simulan na natin.") && text.includes("Okay, let's review the numbers.") && !text.includes("Garbled caption text"));
+    check("Transcribe: says which languages it heard", (await panel()).includes("Filipino") && (await panel()).includes("English"), await panel());
+    const saved = await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const g = req.result.transaction("meetings").objectStore("meetings").get("mtg_audio"); g.onsuccess = () => resolve(g.result); }; })`);
+    check("Transcribe: saved, with the captions kept for switching back", saved.transcriptSource === "audio" && saved.transcript.length === 2 && saved.transcript[0].source === "audio" && saved.captionTranscript?.[0]?.text === "Garbled caption text" && saved.audioLanguages.join() === "tl,en", JSON.stringify({ src: saved.transcriptSource, cap: saved.captionTranscript, langs: saved.audioLanguages }));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8") + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="audio-transcribe"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): the transcribe panel has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.shot("transcribe-audio");
+    await p.click("Use Meet captions instead");
+    await sleep(400);
+    const back = await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const g = req.result.transaction("meetings").objectStore("meetings").get("mtg_audio"); g.onsuccess = () => resolve({ src: g.result.transcriptSource, t: g.result.transcript.map(e => e.text) }); }; })`);
+    check("Transcribe: Use Meet captions instead brings the captions back", (await p.text()).includes("Garbled caption text") && !(await p.text()).includes("Kumusta, simulan"), JSON.stringify(back) + " | " + (await p.text()).slice(-400));
+    await p.close();
+  },
+
   async files(b, check) {
     const p = await b.openPage();
     await p.goto("files");

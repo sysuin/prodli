@@ -165,6 +165,8 @@ export interface AiUsage {
   briefs?: { used: number; limit: number };
   asks?: { used: number; limit: number };
   writes?: { used: number; limit: number };
+  /** Seconds of audio transcribed this month ("Transcribe audio with AI"). */
+  transcribeSeconds?: { used: number; limit: number; available: boolean };
 }
 
 /** This month's AI summaries through ProdLi. */
