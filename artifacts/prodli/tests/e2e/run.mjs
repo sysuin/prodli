@@ -1097,6 +1097,48 @@ const suites = {
     server.close();
   },
 
+  async tabsessions(b, check) {
+    // Saved tabs on Today: save this window's tabs (and close them), reopen them later.
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(`<title>Page ${req.url}</title><h1>${req.url}</h1>`);
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ tabSessions: [] })`);
+    await p.goto("today");
+    check("Tabs: the Saved tabs card shows on Today", await p.eval(`!!document.querySelector('[data-testid="tab-sessions"]')`));
+    // Two web pages in the same window as ProdLi.
+    const wid = await p.eval(`chrome.windows.getCurrent().then(w => w.id)`);
+    await p.eval(`Promise.all(["/one", "/two"].map(path => chrome.tabs.create({ windowId: ${wid}, url: "${base}" + path, active: false })))`);
+    await sleep(1500);
+    const pages = () => p.eval(`chrome.tabs.query({}).then(t => t.filter(x => x.url && x.url.startsWith("${base}")).length)`);
+    check("Tabs: two test pages are open", (await pages()) === 2, String(await pages()));
+    await p.click("Save this window");
+    await sleep(1200);
+    const { tabSessions = [] } = await p.storage(["tabSessions"]);
+    check("Tabs: Save this window stores the web pages (not ProdLi)", tabSessions.length === 1 && tabSessions[0].tabs.length === 2 && tabSessions[0].tabs.every((t) => t.url.startsWith(base)), JSON.stringify(tabSessions));
+    check("Tabs: and closes them, keeping ProdLi open", (await pages()) === 0 && (await p.eval("location.href")).includes("index.html"));
+    check("Tabs: the session is listed with its tab count", /2 tabs/.test(await p.eval(`document.querySelector('[data-testid="tab-session"]')?.innerText ?? ""`)));
+    // Expand and open one tab; then open all.
+    await p.eval(`document.querySelector('[data-testid="tab-session"] button[aria-expanded]').click()`);
+    await sleep(300);
+    check("Tabs: expanding lists the site names", (await p.eval(`document.querySelector('[data-testid="tab-session"]').innerText`)).includes("127.0.0.1"));
+    await p.eval(`[...document.querySelectorAll('[data-testid="tab-session"] button')].find(x => x.getAttribute("aria-label")?.startsWith("Open all tabs")).click()`);
+    await sleep(2000);
+    check("Tabs: Open all reopens every tab", (await pages()) === 2, String(await pages()));
+    await p.eval(`chrome.tabs.query({}).then(t => chrome.tabs.remove(t.filter(x => x.url && x.url.startsWith("${base}")).map(x => x.id)))`);
+    await sleep(500);
+    // Delete the session.
+    await p.eval(`(() => { window.confirm = () => true; return true; })()`);
+    await p.eval(`[...document.querySelectorAll('[data-testid="tab-session"] button')].find(x => x.getAttribute("aria-label")?.startsWith("Delete")).click()`);
+    await sleep(600);
+    check("Tabs: deleting removes the session", ((await p.storage(["tabSessions"])).tabSessions ?? []).length === 0);
+    await p.close();
+    server.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

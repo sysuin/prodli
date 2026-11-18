@@ -84,6 +84,10 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </div>
 
           {/* Editor */}
+          <Section emoji="🗂" title="Saved tabs">
+            <Row label={<Tag>Save this window</Tag>} desc="On Today: saves this window's web pages (and closes them if you like). Open all brings them back in a new window; ▸ lists them to open one. Also in ⌘K: “Save open tabs and close them”. Synced and backed up with your account." />
+          </Section>
+
           <Section emoji="✍️" title="Editor">
             <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
             <Row label={<Tag>Select text</Tag>} desc="A small menu appears over selected text for bold, italic, underline, strikethrough, highlight, code and links." />

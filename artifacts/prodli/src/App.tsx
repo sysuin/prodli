@@ -15,6 +15,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { AskPanel } from "./components/AskPanel";
 import { QuickAddModal } from "./components/QuickAdd";
 import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
+import { saveAndCloseWindow } from "./lib/tabSessions";
 import { ASK_EVENT } from "./lib/ask";
 import { fileNameOf, readLocalFile } from "./lib/localFiles";
 
@@ -334,6 +335,7 @@ export default function App() {
     ask: (question?: string) => setAsk({ open: true, question }),
     addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.repeat ? " · repeats" : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
+    saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
     account: () => setSettingsTab("account"),
     backup: () => setSettingsTab("data"),
