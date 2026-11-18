@@ -11,15 +11,21 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { QuickAddWindow } from "./components/QuickAdd";
 import { captureFromUrl } from "./lib/capture";
+import { parsePausePage } from "./lib/focusBlock";
+import { PausePage } from "./components/PausePage";
 import "./index.css";
 
 // index.html#quick-add?title=…&url=… is the Quick add window (Alt+Shift+A).
 const quickAdd = location.hash.startsWith("#quick-add");
-if (quickAdd) {
+// index.html#blocked?u=…&r=… is the focus-blocking pause page.
+const paused = parsePausePage(location.hash);
+if (quickAdd || paused) {
   try {
     if (localStorage.getItem("prodli_theme_hint") === "dark") document.documentElement.classList.add("dark");
   } catch {
     // ignore
   }
 }
-createRoot(document.getElementById("root")!).render(quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />);
+createRoot(document.getElementById("root")!).render(
+  paused ? <PausePage {...paused} /> : quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />,
+);

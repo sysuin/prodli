@@ -1003,6 +1003,100 @@ const suites = {
     await p.close();
   },
 
+  async focusblock(b, check) {
+    // Focus blocking: a blocked site goes to the pause page during a focus session,
+    // "Continue anyway" waits and then allows it, schedules and the settings panel.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<title>Distracting</title><h1>Distracting site</h1>");
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const site = `http://127.0.0.1:${server.address().port}/feed`;
+    const p = await b.openPage();
+    await p.goto("pomodoro");
+    check("Focus: the block panel shows on the Pomodoro page", await p.eval(`!!document.querySelector('[data-testid="focus-block"]')`));
+    // Add the site from the panel and turn blocking on.
+    await p.eval(`(() => { const i = document.querySelector('input[aria-label="Site to block"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "127.0.0.1"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(100);
+    await p.eval(`document.querySelector('[data-testid="focus-block"] form button[type="submit"]').click()`);
+    await sleep(400);
+    let { focusBlock } = await p.storage(["focusBlock"]);
+    check("Focus: adding a site saves it and turns blocking on", focusBlock?.enabled === true && focusBlock.sites.includes("127.0.0.1") && focusBlock.duringPomodoro === true, JSON.stringify(focusBlock));
+    await p.shot("focus-panel");
+    check("Focus: the timer's top stays visible (the column scrolls)", await p.eval(`(() => { const t = [...document.querySelectorAll("button")].find(b => /START|PAUSE/.test(b.textContent)); const r = t.getBoundingClientRect(); return r.top >= 0; })()`));
+    check("Focus: the panel says it isn't blocking yet", /not blocking right now/i.test(await p.eval(`document.querySelector('[data-testid="focus-block"]').innerText`)));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="focus-block"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80) + (n.any[0]?.data?.fgColor ? " [" + n.any[0].data.fgColor + " on " + n.any[0].data.bgColor + "]" : "")).join(" | ")))`);
+      check(`A11y (${theme}): the block panel has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+
+    // Not blocked without a session.
+    const free = await b.openPage(site);
+    await sleep(800);
+    check("Focus: the site opens normally outside focus time", (await free.eval("location.href")).startsWith("http://127.0.0.1"));
+    await free.close();
+
+    // Start a focus session: the site goes to the pause page.
+    await p.eval(`chrome.storage.local.set({ pomodoroTimer: { phase: "work", running: true, endsAt: Date.now() + 20 * 60000, remaining: 1500, label: "Focus", lastCompletedAt: null, lastCompletedPhase: null } })`);
+    await sleep(600);
+    check("Focus: the panel says it's blocking during the session", /blocking now: focus session/i.test(await p.eval(`document.querySelector('[data-testid="focus-block"]').innerText`)));
+    const blocked = await b.openPage(site);
+    await sleep(1500);
+    const href = await blocked.eval("location.href");
+    check("Focus: during a focus session the site goes to the pause page", href.includes("#blocked?") && href.includes("r=pomodoro") && href.includes(encodeURIComponent(site)), href);
+    const text = await blocked.eval(`document.body.innerText`);
+    check("Focus: the pause page explains why and offers Close tab", text.includes("127.0.0.1") && /focus session: \d+ min to go/.test(text) && /close tab/i.test(text), text.slice(0, 200));
+    await blocked.shot("pause-page");
+    for (const theme of ["light", "dark"]) {
+      await blocked.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await blocked.eval(axeSource + ";true");
+      const v = await blocked.eval(`axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): the pause page has no serious problems`, v.length === 0, v.join(", "));
+    }
+    // Continue anyway: a wait, then the site for 5 minutes.
+    await blocked.click("Continue anyway");
+    await sleep(500);
+    check("Focus: Continue anyway makes you wait first", /take a breath/i.test(await blocked.eval("document.body.innerText")));
+    await sleep(10_500);
+    await blocked.eval(`[...document.querySelectorAll("button")].find(x => /^Open .* for 5 minutes$/.test(x.textContent.trim())).click()`);
+    await sleep(1500);
+    check("Focus: after the wait the site opens and stays open", (await blocked.eval("location.href")).startsWith("http://127.0.0.1"), await blocked.eval("location.href"));
+    await blocked.close();
+    const { focusBlockStats } = await p.storage(["focusBlockStats"]);
+    check("Focus: pauses are counted for today", Object.values(Object.values(focusBlockStats ?? {})[0] ?? {})[0] >= 1, JSON.stringify(focusBlockStats));
+
+    // Close tab closes it.
+    await p.eval(`chrome.storage.session.set({ focusPasses: {} })`);
+    const again = await b.openPage(site);
+    await sleep(1500);
+    const before = (await b.send("Target.getTargets")).targetInfos.filter((t) => t.type === "page").length;
+    await again.eval(`[...document.querySelectorAll("button")].find(x => /close tab/i.test(x.textContent)).click()`).catch(() => {});
+    await sleep(800);
+    const after = (await b.send("Target.getTargets")).targetInfos.filter((t) => t.type === "page").length;
+    check("Focus: Close tab closes the tab", after === before - 1, `${before} → ${after}`);
+
+    // Focus hours: a schedule that covers now blocks without a session.
+    await p.eval(`chrome.storage.local.set({ pomodoroTimer: { phase: "work", running: false, endsAt: null, remaining: 1500, label: "Focus", lastCompletedAt: null, lastCompletedPhase: null } })`);
+    const d = new Date();
+    const hh = (x) => String(x).padStart(2, "0");
+    focusBlock = { ...focusBlock, schedules: [{ id: "s", days: [d.getDay()], start: `${hh(d.getHours())}:00`, end: `${hh((d.getHours() + 1) % 24)}:59` }] };
+    await p.eval(`chrome.storage.local.set({ focusBlock: ${JSON.stringify(focusBlock)} })`);
+    await sleep(500);
+    const sched = await b.openPage(site);
+    await sleep(1500);
+    check("Focus: focus hours block the site without a session", (await sched.eval("location.href")).includes("r=schedule"), await sched.eval("location.href"));
+    await sched.close();
+    await p.eval(`chrome.storage.local.remove(["focusBlock", "focusBlockStats"])`);
+    await p.close();
+    server.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");

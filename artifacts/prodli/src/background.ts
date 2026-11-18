@@ -10,6 +10,7 @@ import { registerBackgroundSync } from "./lib/prodliSync";
 import { registerTodayReminder } from "./lib/todayBackground";
 import { registerCapture } from "./lib/captureBackground";
 import { registerLocalFiles } from "./lib/localFilesBackground";
+import { checkTab, registerFocusBlock } from "./lib/focusBlockBackground";
 import { keepNotificationsInside } from "./lib/quietNotifications";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
@@ -28,6 +29,8 @@ registerTodayReminder();
 registerCapture();
 // Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).
 registerLocalFiles();
+// Focus blocking: blocked sites go to the pause page (schedules, Pomodoro focus, used-up daily limits).
+registerFocusBlock();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,
@@ -197,26 +200,12 @@ async function checkFocusLimit(domain: string): Promise<void> {
     });
 
     if (rule.redirectEnabled) {
+      // The pause page (no extra permission needed); later visits today are paused too (focusBlockBackground).
       try {
-        // Redirect requires the optional scripting + <all_urls> permission granted by the user
-        const hasPermission = await chrome.permissions.contains({
-          permissions: ["scripting"],
-          origins: ["<all_urls>"],
-        });
-        if (hasPermission) {
-          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-          if (tab?.id && tab.url && extractDomain(tab.url) === domain) {
-            const newTabUrl = chrome.runtime.getURL("index.html");
-            // Inject a content-script-style redirect into the page
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: (url: string) => { window.location.replace(url); },
-              args: [newTabUrl],
-            });
-          }
-        }
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tab?.id && tab.url && extractDomain(tab.url) === domain) await checkTab(tab.id, tab.url);
       } catch {
-        // Tab may have been closed, navigated away, or permission revoked
+        // Tab may have been closed or navigated away
       }
     }
   }
