@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { meetingCodeFromUrl, notACallReason } from "../../src/recorder/controller";
+import { meetingCodeFromUrl, micOffNote, notACallReason } from "../../src/recorder/controller";
 
 describe("recognising a Google Meet call", () => {
   it.each([
@@ -23,5 +23,14 @@ describe("recognising a Google Meet call", () => {
     expect(notACallReason("https://mail.google.com/mail/u/0/#inbox")).toMatch(/inside Gmail or Calendar/);
     expect(notACallReason("https://example.com/")).toMatch(/records Google Meet, Zoom and Microsoft Teams calls/);
     expect(notACallReason(undefined)).toMatch(/couldn't read this tab's address/);
+  });
+});
+
+describe("warning when your voice isn't recorded", () => {
+  it("only warns on Zoom and Teams without a microphone", () => {
+    expect(micOffNote("google-meet", false, false)).toBeNull(); // Meet captions include you
+    expect(micOffNote("zoom", true, true)).toBeNull();
+    expect(micOffNote("zoom", false, false)).toMatch(/microphone is off.*Include my microphone/);
+    expect(micOffNote("teams", false, true)).toMatch(/couldn't use your microphone/);
   });
 });

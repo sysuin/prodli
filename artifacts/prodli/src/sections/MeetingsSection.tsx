@@ -214,6 +214,7 @@ function SetupPanel({
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={micOn} onChange={onToggleMic} /> Include my microphone in the audio recording
         </label>
+        <p data-testid="mic-hint" style={{ fontSize: 12, margin: "2px 0 0 22px", opacity: 0.8 }}>Needed for Zoom and Teams: ProdLi records the call's tab, which plays only the other people. Without it, your own voice isn't in the recording (ProdLi warns you when a call starts). Meet doesn't need it: its captions include you.</p>
         <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 6 }}>
           <input type="checkbox" checked={indicator} onChange={onToggleIndicator} style={{ marginTop: 3 }} />
           <span>

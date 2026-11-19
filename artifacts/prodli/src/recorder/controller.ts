@@ -86,8 +86,8 @@ async function closeOffscreenDocument(): Promise<void> {
   if (await hasOffscreenDocument()) await chrome.offscreen.closeDocument().catch(() => {});
 }
 
-function notify(title: string, message: string): void {
-  chrome.notifications.create(`rec_${Date.now()}`, {
+function notify(title: string, message: string, id = `rec_${Date.now()}`): void {
+  chrome.notifications.create(id, {
     type: "basic",
     iconUrl: "icons/icon-128.png",
     title,
@@ -102,8 +102,21 @@ async function openMeetingsSection(): Promise<void> {
 
 const DEFAULT_TITLE = "ProdLi — click on a Google Meet, Zoom or Teams call tab to record";
 
+/**
+ * Zoom and Teams: ProdLi records the call's tab, which plays only the other
+ * people, so your own voice is in the recording only with the microphone on.
+ * (Meet doesn't need it: its captions include you.)
+ */
+export const MIC_OFF_NOTIFICATION_ID = "rec_mic_off";
+export function micOffNote(platform: CallPlatform, micIncluded: boolean, micWanted: boolean): string | null {
+  if (platform === "google-meet" || micIncluded) return null;
+  return micWanted
+    ? "ProdLi couldn't use your microphone, so your own voice isn't in this recording. Allow the microphone for ProdLi (Meetings → Setup → Include my microphone)."
+    : "Your own voice isn't in this recording: the microphone is off. Turn on “Include my microphone” in Meetings → Setup for Zoom and Teams calls.";
+}
+
 /** REC (red) while recording with captions; CC (amber) when captions are missing, so there's no transcript. */
-async function setRecordingBadge(tabId: number | null, captionsMissing = false, platform: CallPlatform = "google-meet"): Promise<void> {
+async function setRecordingBadge(tabId: number | null, captionsMissing = false, platform: CallPlatform = "google-meet", micOff = false): Promise<void> {
   if (tabId === null) {
     await chrome.action.setBadgeText({ text: "" });
     await chrome.action.setTitle({ title: DEFAULT_TITLE });
@@ -114,7 +127,7 @@ async function setRecordingBadge(tabId: number | null, captionsMissing = false, 
   await chrome.action.setBadgeText({ text: captionsMissing ? "CC" : "REC" });
   await chrome.action.setTitle({
     title: platform !== "google-meet"
-      ? `ProdLi is recording this ${PLATFORM_LABEL[platform]} call's audio; the transcript is made after the call. Click to stop.`
+      ? `ProdLi is recording this ${PLATFORM_LABEL[platform]} call's audio; the transcript is made after the call.${micOff ? " Your microphone is off, so your own voice isn't recorded." : ""} Click to stop.`
       : captionsMissing
       ? "ProdLi is recording audio, but captions are off — turn on captions (CC) in Meet for a transcript. Click to stop."
       : "ProdLi is recording and taking notes from captions. Click to stop.",
@@ -182,8 +195,10 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallI
     const speechOn = await getLocal<boolean>(SPEECH_ENABLED_STORAGE_KEY, false);
     const speechLang = speechOn ? await getLocal<string>(SPEECH_LANG_STORAGE_KEY, "en-US") : null;
     const startCmd: OffscreenCommand = { target: "offscreen", type: "start", meetingId, streamId, withMic, speechLang };
-    const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string } | undefined;
+    const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string; micIncluded?: boolean } | undefined;
     if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
+    // Zoom/Teams with no microphone: say so now, while there's still time to fix it.
+    const micNote = micOffNote(call.platform, !!res.micIncluded, withMic);
 
     if (call.platform === "google-meet") {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
@@ -192,7 +207,8 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallI
       await chrome.tabs.sendMessage(tab.id, captionsCmd);
     }
 
-    await setRecordingBadge(tab.id, false, call.platform);
+    await setRecordingBadge(tab.id, false, call.platform, !!micNote);
+    if (micNote) notify("Your voice isn't being recorded", micNote, MIC_OFF_NOTIFICATION_ID);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await setState(null);
@@ -242,7 +258,9 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
 
     // 3. Save the finished meeting.
     const endedAt = new Date();
+    const micWanted = await getLocal<boolean>(MIC_ENABLED_STORAGE_KEY, false);
     const meeting = await updateMeeting(state.meetingId, (m) => {
+      const micNote = micOffNote(platform, m.micIncluded, micWanted);
       const captions = entries && entries.length >= m.transcript.length ? entries : m.transcript;
       const speech = speechEntries && speechEntries.length >= (m.speechTranscript?.length ?? 0) ? speechEntries : (m.speechTranscript ?? []);
       // Meet captions have real speaker names, so they win; on-device speech fills in when
@@ -255,7 +273,7 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
         durationSec: Math.round((endedAt.getTime() - new Date(m.startedAt).getTime()) / 1000),
         status: "processing",
         speechTranscript: speech,
-        notice:
+        notice: withNote(
           platform !== "google-meet"
             ? transcribe
               ? "Transcribing the recording with AI…"
@@ -271,15 +289,19 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
               : filled
                 ? `Captions missed part of the call; ${filled} line${filled > 1 ? "s" : ""} from on-device transcription fill${filled > 1 ? "" : "s"} the gaps (marked “on device”, speakers: You / Others).`
                 : null,
+          micNote,
+        ),
       };
     });
-    if (meeting && transcribe) await transcribeAfterCall(meeting.id, audio.mimeType);
+    if (meeting && transcribe) await transcribeAfterCall(meeting.id, audio.mimeType, micOffNote(platform, meeting.micIncluded, micWanted));
     await closeOffscreenDocument();
     if (meeting) await finishMeeting(meeting.id);
   } finally {
     stopping = false;
   }
 }
+
+const withNote = (notice: string | null, extra: string | null) => [notice, extra].filter(Boolean).join(" ") || null;
 
 /** May the recording be sent for AI transcription? (Signed in; test builds use a stub.) */
 async function canTranscribe(): Promise<boolean> {
@@ -288,7 +310,7 @@ async function canTranscribe(): Promise<boolean> {
 }
 
 /** AI transcript of a Zoom/Teams recording, made in the offscreen document; on failure the meeting keeps what it had. */
-async function transcribeAfterCall(meetingId: string, mimeType: string | null): Promise<void> {
+async function transcribeAfterCall(meetingId: string, mimeType: string | null, micNote: string | null): Promise<void> {
   let res: { ok: true; entries: TranscriptEntry[]; languages: string[] } | { ok: false; error: string } | undefined;
   try {
     const cmd: OffscreenCommand = { target: "offscreen", type: "transcribe", meetingId, mimeType };
@@ -298,8 +320,8 @@ async function transcribeAfterCall(meetingId: string, mimeType: string | null): 
   }
   await updateMeeting(meetingId, (m) =>
     res?.ok
-      ? { transcript: res.entries, transcriptSource: "audio", audioLanguages: res.languages, notice: null }
-      : { notice: `The recording couldn't be transcribed${res && !res.ok ? `: ${res.error}` : "."} Try “Transcribe audio with AI” on this meeting.${m.transcript.length ? " The on-device transcript is shown for now." : ""}` },
+      ? { transcript: res.entries, transcriptSource: "audio", audioLanguages: res.languages, notice: micNote }
+      : { notice: withNote(`The recording couldn't be transcribed${res && !res.ok ? `: ${res.error}` : "."} Try “Transcribe audio with AI” on this meeting.${m.transcript.length ? " The on-device transcript is shown for now." : ""}`, micNote) },
   );
 }
 

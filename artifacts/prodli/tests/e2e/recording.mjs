@@ -100,6 +100,7 @@ try {
   const state = await swEval(`chrome.storage.session.get("rec_state").then(r => r.rec_state ?? null)`);
   const notifications = await swEval(`(async () => { const r = await new Promise((res) => indexedDB.open("prodli-meetings").onsuccess = (e) => { const q = e.target.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result); }); return r.map((m) => m.status + ": " + (m.error ?? "")); })()`);
   check("Clicking ProdLi on a Meet call starts recording (REC badge)", badge === "REC" && !!state, `badge=${JSON.stringify(badge)} state=${JSON.stringify(state)} err=${startErr} notifications=${JSON.stringify(notifications)}`);
+  check("Meet: no microphone warning (Meet's captions include you)", !(await swEval(`chrome.notifications.getAll().then((n) => Object.keys(n))`)).includes("rec_mic_off"));
   check("No new ProdLi tab was opened instead", !(await b.send("Target.getTargets")).targetInfos.some((t) => t.type === "page" && t.url.startsWith(`chrome-extension://${extId}/index.html`)));
   check("Captions were switched on, with no label in the call (off by default)", await meet.eval(`!!document.getElementById('cap') && !document.querySelector('[data-prodli-badge]')`));
 
@@ -180,11 +181,13 @@ try {
   await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://app.zoom.us/*" }); await __prodliToggleRecording(t); return true; })()`);
   await sleep(2000);
   check("Zoom: clicking ProdLi on a Zoom web call starts recording", (await swEval("chrome.action.getBadgeText({})")) === "REC" && /Zoom call's audio/.test(await swEval("chrome.action.getTitle({})")), await swEval("chrome.action.getTitle({})"));
+  check("Zoom: with the microphone off, a notification and the icon say your voice isn't recorded", (await swEval(`chrome.notifications.getAll().then((n) => Object.keys(n))`)).includes("rec_mic_off") && /microphone is off/.test(await swEval("chrome.action.getTitle({})")));
   await sleep(5000);
   await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://app.zoom.us/*" }); await __prodliToggleRecording(t); return true; })()`);
   const zm = await waitReady("zoom");
   check("Zoom: the meeting is saved with its name from the tab and the meeting ID", zm?.title === "Acme pilot review" && zm?.code === "86012345678", JSON.stringify(zm));
-  check("Zoom: the audio is recorded and transcribed with AI after the call", zm?.hasAudio === true && zm?.source === "audio" && zm?.transcript?.[0] === "Speaker: We agreed on a two-week pilot." && JSON.stringify(zm?.languages) === '["en"]' && !zm?.notice, JSON.stringify(zm));
+  check("Zoom: the audio is recorded and transcribed with AI after the call", zm?.hasAudio === true && zm?.source === "audio" && zm?.transcript?.[0] === "Speaker: We agreed on a two-week pilot." && JSON.stringify(zm?.languages) === '["en"]', JSON.stringify(zm));
+  check("Zoom: the saved meeting notes that your own voice isn't in it", /Your own voice isn't in this recording/.test(zm?.notice ?? "") && !/couldn't be transcribed/.test(zm?.notice ?? ""), zm?.notice);
   const pieces = await swEval("__pieces");
   check("Zoom: audio went to the AI in WAV pieces through the background", pieces.length >= 1 && pieces.every((x) => x.bytes > 44), JSON.stringify(pieces));
   check("Zoom: the badge is cleared", (await swEval("chrome.action.getBadgeText({})")) === "");

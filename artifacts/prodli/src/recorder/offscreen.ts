@@ -37,7 +37,7 @@ function pickMimeType(): string {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 }
 
-async function start(meetingId: string, streamId: string, withMic: boolean, speechLang: string | null): Promise<void> {
+async function start(meetingId: string, streamId: string, withMic: boolean, speechLang: string | null): Promise<boolean> {
   if (session) await stop();
   lastStopped = null;
 
@@ -106,6 +106,7 @@ async function start(meetingId: string, streamId: string, withMic: boolean, spee
     }, 5000);
   }
   send({ target: "background", type: "offscreen-started", meetingId, micIncluded });
+  return micIncluded;
 }
 
 interface Stopped {
@@ -184,7 +185,7 @@ chrome.runtime.onMessage.addListener((msg: OffscreenCommand, _sender, sendRespon
   if (msg?.target !== "offscreen") return;
   if (msg.type === "start") {
     start(msg.meetingId, msg.streamId, msg.withMic, msg.speechLang ?? null)
-      .then(() => sendResponse({ ok: true }))
+      .then((micIncluded) => sendResponse({ ok: true, micIncluded }))
       .catch((err: unknown) => {
         // The background's start flow reports this failure to the user.
         sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
