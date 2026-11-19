@@ -11,6 +11,7 @@ import { registerTodayReminder } from "./lib/todayBackground";
 import { registerCapture } from "./lib/captureBackground";
 import { registerLocalFiles } from "./lib/localFilesBackground";
 import { checkTab, registerFocusBlock } from "./lib/focusBlockBackground";
+import { registerAskPrompts } from "./lib/askBackground";
 import { keepNotificationsInside } from "./lib/quietNotifications";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
@@ -31,6 +32,8 @@ registerCapture();
 registerLocalFiles();
 // Focus blocking: blocked sites go to the pause page (schedules, Pomodoro focus, used-up daily limits).
 registerFocusBlock();
+// Ask ProdLi: saved prompts that run on a schedule and arrive as notifications.
+registerAskPrompts();
 
 const DEFAULT_SETTINGS: TrackerSettings = {
   idleThreshold: 60,

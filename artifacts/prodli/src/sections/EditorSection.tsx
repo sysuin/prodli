@@ -26,6 +26,7 @@ import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
 import { isImprovable, useImprove } from "./editor/ImproveMenu";
 import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
 import { DAILY_NOTE_EVENT, newNoteFromTemplate, PENDING_DAILY_KEY, prepareDailyNote } from "../lib/noteTemplates";
+import { OPEN_ITEM_EVENT } from "../lib/askOpen";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -502,6 +503,17 @@ export function EditorSection() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNotes]);
+
+  // Ask ProdLi → a source note: open it (Notes was already showing).
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const src = (e as CustomEvent<{ kind: string; id: string }>).detail;
+      if (src?.kind === "note" && notesRef.current.some((n) => n.id === src.id)) selectNote(src.id);
+    };
+    window.addEventListener(OPEN_ITEM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ITEM_EVENT, onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ⌘K → "Open today's daily note": a flag (if Notes wasn't open yet) or an event (if it was).
   useEffect(() => {

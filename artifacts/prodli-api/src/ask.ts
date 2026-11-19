@@ -35,6 +35,7 @@ const AnswerSchema = z.object({
       }),
     )
     .describe("Up to 3 helpful one-click actions the user may want, only when clearly useful (e.g. they asked to remember something, or a follow-up task emerged). Empty if none."),
+  sources: z.array(z.number().int()).describe("The numbers (n) of the note/meeting snippets the answer used; empty if none"),
 });
 export type AskAnswer = z.infer<typeof AnswerSchema> & { model: string };
 
@@ -45,11 +46,13 @@ Rules:
 - Be concise and concrete: a direct answer first, then at most a few bullets. Use the user's own wording for tasks.
 - Times are the user's local time. "Now" is given in the context.
 - Suggest actions only when they help (for example "add a task to send the deck"). Never claim you've done something; the user applies actions with a click.
-- You can't browse the web or read email; say so if asked.`;
+- You can't browse the web or read email; say so if asked.
+- In "sources", list the n of each note or meeting snippet you relied on (not the context).`;
 
 export async function askClaude(input: AskInput, apiKey: string): Promise<AskAnswer> {
   const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 60_000 });
-  const data = { context: input.context ?? null, snippets: input.snippets ?? [] };
+  // Snippets are numbered so the answer can say which ones it used (shown as sources in the app).
+  const data = { context: input.context ?? null, snippets: (input.snippets ?? []).map((s, i) => ({ n: i + 1, ...s })) };
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: `My data as JSON (for reference in this conversation):\n<data>\n${JSON.stringify(data)}\n</data>` },
     { role: "assistant", content: "Got it. What would you like to know?" },
@@ -66,7 +69,9 @@ export async function askClaude(input: AskInput, apiKey: string): Promise<AskAns
     });
     if (response.stop_reason === "refusal") throw new AiError("ai_refused", "ProdLi can't help with that one.");
     if (!response.parsed_output) throw new AiError("ai_failed", "Something went wrong. Try asking again.");
-    return { ...response.parsed_output, actions: response.parsed_output.actions.slice(0, 3), model: AI_MODEL };
+    const count = input.snippets?.length ?? 0;
+    const sources = [...new Set(response.parsed_output.sources ?? [])].filter((n) => n >= 1 && n <= count).slice(0, 8);
+    return { ...response.parsed_output, actions: response.parsed_output.actions.slice(0, 3), sources, model: AI_MODEL };
   } catch (err) {
     if (err instanceof AiError) throw err;
     if (err instanceof Anthropic.RateLimitError || err instanceof Anthropic.InternalServerError) throw new AiError("ai_busy", "ProdLi is busy right now. Try again in a minute.");

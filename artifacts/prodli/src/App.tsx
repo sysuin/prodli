@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense, lazy, useCallback, useRef } from "react";
-import { storageGet, storageSet } from "./lib/storage";
+import { storageGet, storageRemove, storageSet } from "./lib/storage";
 import type { Section } from "./types";
 import { usePomodoroTimer } from "./lib/usePomodoroTimer";
 import { OnboardingModal } from "./components/OnboardingModal";
@@ -19,6 +19,8 @@ import { saveAndCloseWindow } from "./lib/tabSessions";
 import { requestDailyNote } from "./lib/noteTemplates";
 import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
 import { VoiceTasksModal } from "./components/VoiceTasks";
+import { INBOX_KEY, OPEN_INBOX_KEY, type InboxAnswer } from "./lib/askPrompts";
+import type { ChatTurn } from "./lib/ask";
 import { ASK_EVENT } from "./lib/ask";
 import { fileNameOf, readLocalFile } from "./lib/localFiles";
 
@@ -110,7 +112,17 @@ export default function App() {
   const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
   const closeSettings = useCallback(() => setSettingsTab(null), []);
   const [showPalette, setShowPalette] = useState(false);
-  const [ask, setAsk] = useState<{ open: boolean; question?: string }>({ open: false });
+  const [ask, setAsk] = useState<{ open: boolean; question?: string; turns?: ChatTurn[] }>({ open: false });
+  // A scheduled prompt's notification was clicked: open Ask ProdLi with that answer.
+  useEffect(() => {
+    void (async () => {
+      const id = await storageGet<string | null>(OPEN_INBOX_KEY, null);
+      if (!id) return;
+      await storageRemove(OPEN_INBOX_KEY);
+      const item = (await storageGet<InboxAnswer[]>(INBOX_KEY, [])).find((x) => x.id === id);
+      if (item) setAsk({ open: true, turns: [{ role: "user", text: item.question }, { role: "assistant", text: item.answer, sources: item.sources }] });
+    })();
+  }, []);
   const [quickAdd, setQuickAdd] = useState<{ open: boolean; initial?: CaptureInput }>({ open: false });
   const [showMore, setShowMore] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -483,7 +495,7 @@ export default function App() {
 
       {toast && <div role="status" className="app-toast">{toast}</div>}
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
-      {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} />}
+      {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} initialTurns={ask.turns} />}
       {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}

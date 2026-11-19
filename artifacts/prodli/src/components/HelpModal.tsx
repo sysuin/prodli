@@ -84,6 +84,11 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </div>
 
           {/* Editor */}
+          <Section emoji="✨" title="Ask ProdLi">
+            <Row label={<Tag>Sources</Tag>} desc="Answers list the notes and meetings they used; click one to open it." />
+            <Row label={<Tag>☆ Save prompt</Tag>} desc="Save a question to ask again from ★ Saved prompts. With 🕒 you can run it on chosen days at a time; the answer arrives as a notification (each run uses one question; extension)." />
+          </Section>
+
           <Section emoji="🔎" title="Search & quick links">
             <Row label={<Tag>Search</Tag>} desc="The box at the top of Today searches with your default search engine (or opens an address you type)." />
             <Row label={<Tag>+ Link / Edit</Tag>} desc="Add up to 16 links as tiles. In Edit, click a tile to rename it or × to remove it. Links sync with your account." />

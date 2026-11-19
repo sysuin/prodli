@@ -20,6 +20,15 @@ export interface ChatTurn {
   text: string;
   actions?: AskAction[];
   error?: boolean;
+  /** Notes and meetings the answer used (click to open). */
+  sources?: AskSource[];
+}
+
+export interface AskSource {
+  kind: "note" | "meeting";
+  id: string;
+  title: string;
+  date?: string;
 }
 
 export interface Snippet {
@@ -27,6 +36,8 @@ export interface Snippet {
   title: string;
   date?: string;
   text: string;
+  /** The note or meeting it came from (kept on the device, not sent). */
+  id?: string;
 }
 
 const STOP = new Set("a an and are as at be by can did do for from had has have how i if in is it me my of on or our should so that the this to was we what when where which who why will with you your".split(" "));
@@ -61,7 +72,7 @@ export function pickSnippets(question: string, notes: Note[], meetings: Meeting[
   for (const n of notes) {
     const body = plain(n.content);
     const score = count(n.title, ts) * 3 + count(body, ts);
-    if (score > 0) scored.push({ score, at: n.updatedAt, s: { kind: "note", title: n.title.slice(0, 300), date: n.updatedAt.slice(0, 10), text: excerpt(body, ts, perItem) } });
+    if (score > 0) scored.push({ score, at: n.updatedAt, s: { kind: "note", id: n.id, title: n.title.slice(0, 300), date: n.updatedAt.slice(0, 10), text: excerpt(body, ts, perItem) } });
   }
   const sortedMeetings = [...meetings].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   for (const [i, m] of sortedMeetings.entries()) {
@@ -74,7 +85,7 @@ export function pickSnippets(question: string, notes: Note[], meetings: Meeting[
     if (score <= 0) continue;
     const matchingLines = transcript.split("\n").filter((l) => ts.some((t) => l.toLowerCase().includes(t))).slice(0, 12).join("\n");
     const text = [summaryText, matchingLines && `Transcript:\n${matchingLines}`].filter(Boolean).join("\n").slice(0, perItem) || transcript.slice(0, perItem);
-    scored.push({ score, at: m.startedAt, s: { kind: "meeting", title: title.slice(0, 300), date: m.startedAt.slice(0, 10), text } });
+    scored.push({ score, at: m.startedAt, s: { kind: "meeting", id: m.id, title: title.slice(0, 300), date: m.startedAt.slice(0, 10), text } });
   }
   return scored
     .sort((a, b) => b.score - a.score || b.at.localeCompare(a.at))
@@ -91,13 +102,18 @@ function excerpt(text: string, ts: string[], max: number): string {
   return (start > 0 ? "…" : "") + text.slice(start, start + max) + (start + max < text.length ? "…" : "");
 }
 
+type AskStub = (body: { question: string; snippets: Omit<Snippet, "id">[] }) => Promise<{ answer: string; actions: AskAction[]; sources: number[] }>;
+const askStub = (): AskStub | undefined => (import.meta.env.VITE_E2E === "1" ? (globalThis as { __prodliAskStub?: AskStub }).__prodliAskStub : undefined);
+
 export async function canAsk(): Promise<boolean> {
+  if (askStub()) return true; // test builds only
   return accountsEnabled() && !!(await getProdliAccount());
 }
 
 export interface AskResult {
   answer: string;
   actions: AskAction[];
+  sources: AskSource[];
   usage?: { used: number; limit: number };
 }
 
@@ -110,19 +126,34 @@ export async function askProdli(question: string, history: ChatTurn[]): Promise<
   } catch {
     // IndexedDB unavailable
   }
+  const snippets = pickSnippets(question, notes, meetings);
   const body = {
     question: question.slice(0, 2000),
     history: history.filter((h) => !h.error).slice(-8).map((h) => ({ role: h.role, text: h.text.slice(0, 4000) })),
     context,
-    snippets: pickSnippets(question, notes, meetings),
+    snippets: snippets.map(({ id: _id, ...s }) => s),
   };
   try {
-    return await accountRequest<AskResult>("/api/ai/ask", { method: "POST", body: JSON.stringify(body) });
+    const stub = askStub();
+    const r = stub ? await stub(body) : await accountRequest<Omit<AskResult, "sources"> & { sources?: number[] }>("/api/ai/ask", { method: "POST", body: JSON.stringify(body) });
+    return { ...r, sources: sourcesFrom(r.sources ?? [], snippets) };
   } catch (err) {
     if (err instanceof AccountError && err.status === 503) throw new AccountError("Ask ProdLi isn't available right now. Try again later.", 503);
     throw err;
   }
 }
+
+/** The answer's snippet numbers (1-based) → the notes and meetings they came from. */
+export function sourcesFrom(numbers: number[], snippets: Snippet[]): AskSource[] {
+  const out: AskSource[] = [];
+  for (const n of numbers) {
+    const s = snippets[n - 1];
+    if (s?.id && !out.some((o) => o.id === s.id)) out.push({ kind: s.kind, id: s.id, title: s.title, date: s.date });
+  }
+  return out;
+}
+
+
 
 export const SUGGESTIONS = ["What should I focus on now?", "What's overdue?", "Summarize my last meeting", "Plan my afternoon", "What did I get done yesterday?"];
 

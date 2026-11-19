@@ -1489,6 +1489,67 @@ const suites = {
     await p.close();
   },
 
+  async asksources(b, check) {
+    // Ask ProdLi: sources you can open, saved prompts, schedules, and a scheduled answer (stubbed AI; test builds only).
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ askPrompts: [], askInbox: [], notes: [{ id: "n-launch", title: "Launch plan", content: "<h1>Launch plan</h1><p>Ship the beta on Friday.</p>", createdAt: "${now}", updatedAt: "${now}" }, { id: "n-other", title: "Groceries", content: "<p>Milk</p>", createdAt: "${now}", updatedAt: "${now}" }], activeNoteId: "n-other" })`);
+    await p.goto("today");
+    const stub = `(() => { window.__asks = []; globalThis.__prodliAskStub = async (body) => { window.__asks.push(body); const n = body.snippets.findIndex((x) => x.title === "Launch plan") + 1; return { answer: "You ship the beta on Friday.", actions: [], sources: n ? [n] : [] }; }; return true; })()`;
+    await p.eval(stub);
+    await p.eval(`document.querySelector('button[title="Ask ProdLi (AI assistant)"]').click()`);
+    await sleep(500);
+    await p.eval(`(() => { const t = document.querySelector('textarea[aria-label="Ask ProdLi a question"]'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(t, "When do we ship the launch?"); t.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(100);
+    await p.eval(`document.querySelector('.ask-panel form button[type="submit"]').click()`);
+    await sleep(800);
+    const sent = await p.eval("window.__asks");
+    check("Ask: note snippets are sent without their ids", sent.length === 1 && sent[0].snippets.some((x) => x.title === "Launch plan") && sent[0].snippets.every((x) => !("id" in x)), JSON.stringify(sent[0]?.snippets));
+    check("Ask: the answer shows its source", (await p.eval(`document.querySelector('[data-testid="ask-sources"]')?.innerText ?? ""`)).includes("Launch plan"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('.ask-panel'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): Ask with sources and saving has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Save the question.
+    await p.eval(`document.querySelector('button[aria-label="Save prompt: When do we ship the launch?"]').click()`);
+    await sleep(400);
+    let { askPrompts = [] } = await p.storage(["askPrompts"]);
+    check("Ask: ☆ Save prompt saves the question", askPrompts.length === 1 && askPrompts[0].text === "When do we ship the launch?");
+    // Clicking the source opens that note.
+    await p.eval(`[...document.querySelectorAll('[data-testid="ask-sources"] button')].find(b => b.textContent.includes("Launch plan")).click()`);
+    await sleep(1800);
+    check("Ask: clicking a source opens that note", (await p.eval(`chrome.storage.local.get("activeNoteId").then(r => r.activeNoteId)`)) === "n-launch" && (await p.editorHtml()).includes("Ship the beta"));
+    // A new chat shows saved prompts; schedule one.
+    await p.eval(stub);
+    await p.eval(`document.querySelector('button[title="Ask ProdLi (AI assistant)"]').click()`);
+    await sleep(400);
+    await p.click("New chat").catch(() => {});
+    await sleep(300);
+    check("Ask: saved prompts show in a new chat", (await p.eval(`document.querySelector('[data-testid="saved-prompts"]')?.innerText ?? ""`)).includes("When do we ship the launch?"));
+    await p.eval(`document.querySelector('button[aria-label="Schedule: When do we ship the launch?"]').click()`);
+    await sleep(200);
+    await p.eval(`document.querySelector('[data-testid="saved-prompts"] button[aria-label="Monday"]').click()`);
+    await sleep(800);
+    ({ askPrompts = [] } = await p.storage(["askPrompts"]));
+    const alarms = await p.eval(`chrome.alarms.getAll().then(a => a.map(x => x.name))`);
+    check("Ask: scheduling saves the days and sets an alarm", askPrompts[0]?.schedule?.time === "08:30" && JSON.stringify(askPrompts[0]?.schedule?.days) === "[1]" && alarms.includes(`askprompt:${askPrompts[0].id}`), JSON.stringify({ s: askPrompts[0]?.schedule, alarms }));
+    await p.eval(`document.querySelector('[data-testid="saved-prompts"] button[aria-label^="Remove saved prompt"]').click()`);
+    await sleep(800);
+    check("Ask: removing a saved prompt clears its alarm", !(await p.eval(`chrome.alarms.getAll().then(a => a.some(x => x.name.startsWith("askprompt:")))`)));
+    // A scheduled answer's notification opens Ask with the answer.
+    await p.eval(`chrome.storage.local.set({ askInbox: [{ id: "in1", promptId: "x", question: "What's overdue?", answer: "Nothing is overdue.", sources: [], at: "${now}" }], openAskInbox: "in1" })`);
+    await p.send("Page.reload", {});
+    await sleep(1800);
+    check("Ask: a scheduled answer opens in Ask ProdLi", (await p.eval(`document.querySelector('.ask-panel')?.innerText ?? ""`)).includes("Nothing is overdue.") && !(await p.storage(["openAskInbox"])).openAskInbox, JSON.stringify({ panel: await p.eval(`document.querySelector('.ask-panel')?.innerText?.slice(0, 200) ?? "none"`), key: (await p.storage(["openAskInbox"])).openAskInbox }));
+    await p.eval(`chrome.storage.local.set({ askPrompts: [], askInbox: [], notes: [] })`);
+    await p.close();
+  },
+
   async todosSync(b, check) {
     const a = await b.openPage();
     await a.goto("todos");
