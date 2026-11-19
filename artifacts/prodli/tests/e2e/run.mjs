@@ -1599,9 +1599,15 @@ const suites = {
     await key(report, "Delete");
     t = await todos();
     check("Timebox: Delete unblocks a block", !t.find((x) => x.id === "w1")?.block);
+    // "Next free time" starts from now, so open the working day up to the whole day (CI runs at any hour).
+    await p.eval(`chrome.storage.local.set({ todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: false } })`);
+    await sleep(500);
     await key('[data-testid="tray-task"][aria-label^="Email Sam"]', "Enter");
     t = await todos();
-    check("Timebox: Enter on a task places it in the next free time", /^\d\d:\d\d$/.test(t.find((x) => x.id === "w2")?.block?.start ?? ""), JSON.stringify(t.map((x) => [x.id, x.block])));
+    const placed = t.find((x) => x.id === "w2")?.block?.start ?? "";
+    const lateNight = new Date().getHours() * 60 + new Date().getMinutes() > 23 * 60 + 20;
+    const said = await p.eval(`document.querySelector('[data-testid="day-view"] [role="status"]').innerText`);
+    check("Timebox: Enter on a task places it in the next free time", /^\d\d:\d\d$/.test(placed) || (lateNight && /no free time left today/.test(said)), JSON.stringify({ blocks: t.map((x) => [x.id, x.block]), said }));
     // List view is still there, and remembered.
     await p.eval(`[...document.querySelectorAll('[aria-label="Agenda view"] button')].find((b) => b.textContent === "List").click()`);
     await sleep(400);
