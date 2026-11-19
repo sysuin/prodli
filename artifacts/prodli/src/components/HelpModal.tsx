@@ -89,6 +89,10 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>☆ Save prompt</Tag>} desc="Save a question to ask again from ★ Saved prompts. With 🕒 you can run it on chosen days at a time; the answer arrives as a notification (each run uses one question; extension)." />
           </Section>
 
+          <Section emoji="🗒" title="Meeting prep">
+            <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
+          </Section>
+
           <Section emoji="🔎" title="Search & quick links">
             <Row label={<Tag>Search</Tag>} desc="The box at the top of Today searches with your default search engine (or opens an address you type)." />
             <Row label={<Tag>+ Link / Edit</Tag>} desc="Add up to 16 links as tiles. In Edit, click a tile to rename it or × to remove it. Links sync with your account." />

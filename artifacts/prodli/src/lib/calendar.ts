@@ -20,18 +20,24 @@ export interface CalendarEvent {
   allDay: boolean;
   location?: string;
   meetLink?: string;
+  /** Other people invited (not you, not rooms). Used on this device for meeting prep. */
+  attendees?: { name?: string; email?: string }[];
 }
 
 export class CalendarError extends Error {}
 
 const isExtension = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.identity;
+/** Test builds only: canned events instead of Google Calendar. */
+const calendarStub = (): (() => CalendarEvent[]) | undefined => (import.meta.env.VITE_E2E === "1" ? (globalThis as { __prodliCalendarStub?: () => CalendarEvent[] }).__prodliCalendarStub : undefined);
 
 /** Can this build connect a calendar at all? */
 export function calendarAvailable(): boolean {
+  if (calendarStub()) return true;
   return isExtension() ? googleConfigured() : typeof window !== "undefined";
 }
 
 export function isCalendarConnected(): Promise<boolean> {
+  if (calendarStub()) return Promise.resolve(true);
   return storageGet<boolean>(CALENDAR_KEY, false);
 }
 
@@ -106,7 +112,7 @@ interface ApiEvent {
   hangoutLink?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
-  attendees?: { self?: boolean; responseStatus?: string }[];
+  attendees?: { self?: boolean; resource?: boolean; responseStatus?: string; displayName?: string; email?: string }[];
 }
 
 /** Pure: Google Calendar API items → today's events (declined and cancelled ones dropped). */
@@ -123,6 +129,10 @@ export function toEvents(items: ApiEvent[]): CalendarEvent[] {
         allDay,
         location: e.location,
         meetLink: e.hangoutLink,
+        attendees: e.attendees
+          ?.filter((a) => !a.self && !a.resource && a.responseStatus !== "declined")
+          .slice(0, 30)
+          .map((a) => ({ name: a.displayName?.trim() || undefined, email: a.email || undefined })),
       };
     })
     .sort((a, b) => (a.allDay === b.allDay ? (a.start ?? "").localeCompare(b.start ?? "") : a.allDay ? -1 : 1));
@@ -130,6 +140,8 @@ export function toEvents(items: ApiEvent[]): CalendarEvent[] {
 
 /** Today's events from the primary calendar. `interactive`: may show Google's prompt. */
 export async function todaysEvents(interactive = false, day = new Date()): Promise<CalendarEvent[]> {
+  const stub = calendarStub();
+  if (stub) return stub();
   const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
   const end = new Date(start.getTime() + 86_400_000);
   const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=50&timeMin=${encodeURIComponent(start.toISOString())}&timeMax=${encodeURIComponent(end.toISOString())}`;

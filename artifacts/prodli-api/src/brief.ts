@@ -41,6 +41,19 @@ export const BriefContextSchema = z.object({
   habits: z.array(z.object({ name: z.string().max(120), doneToday: z.boolean(), streak: z.number().int().min(0).max(10000) })).max(40).optional(),
   events: z.array(z.object({ title: z.string().max(300), start: hhmm.optional(), end: hhmm.optional(), allDay: z.boolean().optional() })).max(40).optional(),
   meetingActions: z.array(z.object({ task: z.string().max(300), owner: z.string().max(120).nullable().optional(), due: z.string().max(10).nullable().optional(), meeting: z.string().max(200) })).max(30).optional(),
+  meetingPrep: z
+    .array(
+      z.object({
+        event: z.string().max(300),
+        start: hhmm.optional(),
+        lastMet: z.string().max(30).optional(),
+        lastSummary: z.string().max(600).optional(),
+        openItems: z.array(z.string().max(300)).max(8),
+        relatedTasks: z.array(z.string().max(300)).max(6).optional(),
+      }),
+    )
+    .max(10)
+    .optional(),
   yesterday: z
     .object({
       browsingMinutes: z.number().min(0).max(1440).optional(),
@@ -70,6 +83,9 @@ const BriefSchema = z.object({
     .describe("A realistic plan from now until the end of the working day: calendar events exactly as given, focus blocks for priorities, short breaks. Empty if there's nothing to schedule."),
   watchouts: z.array(z.string()).describe("Overdue items, conflicts, too much planned for the time available; empty if none"),
   habits: z.array(z.string()).describe("Short nudges for habits not done yet today; empty if none"),
+  prep: z
+    .array(z.object({ event: z.string().describe("The meeting title (and start time) as given in meetingPrep"), note: z.string().describe("One short sentence: what to follow up on or bring, from last time's summary and open items") }))
+    .describe("One entry per meeting in meetingPrep, in time order; empty if meetingPrep is empty"),
   tip: z.string().describe("One practical tip based on yesterday (focus, browsing, reflection), or general if there's no data"),
 });
 export type Brief = z.infer<typeof BriefSchema> & { model: string; generatedAt: string };
@@ -79,6 +95,7 @@ const SYSTEM_PROMPT = `You are ProdLi, a calm, practical personal assistant. Eac
 Rules:
 - Use only the data provided. Never invent meetings, tasks, people or deadlines.
 - Calendar events are fixed: keep their exact times. Plan focus blocks for the top priorities in the free time, inside working hours, starting from the current time. Add short breaks for long stretches. Don't schedule more than the time available — say so in watchouts instead.
+- meetingPrep lists today's meetings with history from earlier meetings: when they last met, last time's summary, action items still open and related to-dos. For each, write one prep note naming the specific open items or questions to follow up on. Don't add prep for meetings not in meetingPrep.
 - Prefer tasks the user planned for today, then overdue and due-today tasks, then high priority.
 - Be brief and concrete. Use the user's own task wording. No motivational fluff.
 - If there's very little data, keep the brief short and suggest one simple way to start the day.`;

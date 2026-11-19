@@ -1489,6 +1489,49 @@ const suites = {
     await p.close();
   },
 
+  async meetingprep(b, check) {
+    // Meeting prep on Today: an upcoming calendar event (stubbed calendar; test builds only) matched to an earlier recorded meeting.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const d = new Date();
+    const mins = Math.min(d.getHours() * 60 + d.getMinutes() + 5, 23 * 60 + 50);
+    const start = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    const event = { id: "ev1", title: "Acme pilot review", start, end: "23:59", allDay: false, meetLink: "https://meet.google.com/aaa-bbbb-ccc", attendees: [{ name: "Priya Shah", email: "priya@acme.com" }] };
+    await p.send("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__prodliCalendarStub = () => ${JSON.stringify([event])};` });
+    await p.goto("today"); // opens (creates) the meetings database
+    const past = new Date(Date.now() - 7 * 86400000).toISOString();
+    const meeting = { id: "mtg_prep", platform: "google-meet", title: "Acme pilot review", meetingCode: "aaa-bbbb-ccc", url: "https://meet.google.com/aaa-bbbb-ccc", startedAt: past, endedAt: past, durationSec: 1800, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: past, transcript: [{ id: "1", speaker: "Priya Shah", text: "Let's run a pilot.", startMs: 0, endMs: 1000 }], summary: { title: "Acme pilot review", overview: "Agreed on a two-week pilot.", keyPoints: [], decisions: ["Pilot starts Monday"], openQuestions: ["Who signs the contract?"], actionItems: [{ task: "Send Priya the pilot plan", owner: "You", dueDate: null, priority: "high" }, { task: "Draft the pricing sheet", owner: null, dueDate: null, priority: "medium" }], model: "t", generatedAt: past } };
+    await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const tx = req.result.transaction("meetings", "readwrite"); tx.objectStore("meetings").put(${JSON.stringify(meeting)}); tx.oncomplete = () => resolve(true); }; })`);
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ days: [], todos: [{ id: "t-done", title: "Draft the pricing sheet", completed: true, createdAt: "${now}" }, { id: "t-rel", title: "Call Priya about pricing", completed: false, createdAt: "${now}" }, { id: "t-other", title: "Buy milk", completed: false, createdAt: "${now}" }], todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: "08:30", startOnToday: true, autoBrief: true, blockReminders: true } })`);
+    await p.goto("today");
+    await sleep(800);
+    const card = await p.eval(`document.querySelector('[data-testid="meeting-prep"]')?.innerText ?? ""`);
+    check("Meeting prep: shows last time's summary, decisions and open questions", card.includes("Acme pilot review") && card.includes("Agreed on a two-week pilot.") && card.includes("Pilot starts Monday") && card.includes("Who signs the contract?") && /same meet link/i.test(card), card.slice(0, 400));
+    check("Meeting prep: open items exclude done to-dos; related to-dos show", card.includes("Send Priya the pilot plan") && !card.includes("Draft the pricing sheet") && card.includes("Call Priya about pricing") && !card.includes("Buy milk"));
+    const brief = await p.eval(`document.querySelector('[data-testid="brief-prep"]')?.innerText ?? ""`);
+    check("Meeting prep: the daily brief has a line for the meeting", brief.includes("Acme pilot review") && brief.includes("Send Priya the pilot plan"), brief);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="meeting-prep"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): Meeting prep has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('button[aria-label="+ To-do: Send Priya the pilot plan"]').click()`);
+    await sleep(900);
+    const { todos = [] } = await p.storage(["todos"]);
+    check("Meeting prep: + To-do adds the action item", todos.some((t) => t.title === "Send Priya the pilot plan" && !t.completed));
+    check("Meeting prep: the item then shows as in to-dos", (await p.eval(`document.querySelector('[data-testid="meeting-prep"]').innerText`)).includes("In to-dos ✓"));
+    await p.click("Open last meeting");
+    await sleep(1800);
+    check("Meeting prep: Open last meeting opens it in Meetings", (await p.eval(`document.body.innerText`)).includes("Agreed on a two-week pilot.") && (await p.eval(`chrome.storage.local.get("lastSection").then(r => r.lastSection)`)) === "meetings");
+    await p.eval(`new Promise((resolve) => { const req = indexedDB.open("prodli-meetings", 1); req.onsuccess = () => { const tx = req.result.transaction("meetings", "readwrite"); tx.objectStore("meetings").delete("mtg_prep"); tx.oncomplete = () => resolve(true); }; })`);
+    await p.eval(`chrome.storage.local.set({ todos: [], days: [] }).then(() => chrome.storage.local.remove("todaySettings"))`);
+    await p.close();
+  },
+
   async asksources(b, check) {
     // Ask ProdLi: sources you can open, saved prompts, schedules, and a scheduled answer (stubbed AI; test builds only).
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

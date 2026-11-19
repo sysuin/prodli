@@ -13,6 +13,7 @@ import type { CalendarEvent } from "./calendar";
 import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types";
 import type { Meeting } from "../recorder/types";
 import { currentStreak, isDone } from "./habits";
+import { buildPrep, metLabel } from "./meetingPrep";
 
 export const DAYS_KEY = "days";
 export const TODAY_SETTINGS_KEY = "todaySettings";
@@ -69,6 +70,8 @@ export type BriefContext = {
   habits?: { name: string; doneToday: boolean; streak: number }[];
   events?: { title: string; start?: string; end?: string; allDay?: boolean }[];
   meetingActions?: { task: string; owner?: string | null; due?: string | null; meeting: string }[];
+  /** What ProdLi knows from earlier meetings, for today's upcoming events (lib/meetingPrep.ts). */
+  meetingPrep?: { event: string; start?: string; lastMet?: string; lastSummary?: string; openItems: string[]; relatedTasks?: string[] }[];
   yesterday?: { browsingMinutes?: number; topSites?: { site: string; minutes: number }[]; focusSessions?: number; reflection?: string };
 };
 
@@ -128,6 +131,14 @@ export function contextFrom(input: {
       .flatMap((m) => m.summary!.actionItems.map((a) => ({ task: clip(a.task), owner: a.owner, due: a.dueDate, meeting: clip(m.summary!.title || m.title, 180) })))
       .filter((a) => !todoTitles.has(a.task.trim().toLowerCase()))
       .slice(0, 20),
+    meetingPrep: buildPrep(input.events, input.meetings, input.todos, now).map((p) => ({
+      event: clip(p.title),
+      start: p.start ?? undefined,
+      lastMet: p.last ? metLabel(p.last.date, now) : undefined,
+      lastSummary: p.last?.overview ? clip(p.last.overview, 500) : undefined,
+      openItems: p.openItems.map((i) => clip(i.task)),
+      relatedTasks: p.relatedTasks.length ? p.relatedTasks.map((t) => clip(t.title)) : undefined,
+    })),
     yesterday: {
       browsingMinutes: browsing ? Math.round(browsing / 60) : undefined,
       topSites: sites.slice(0, 5).map(([site, s]) => ({ site: clip(site, 100), minutes: Math.round(s / 60) })),
@@ -158,6 +169,18 @@ export async function buildContext(events: CalendarEvent[], now = new Date()): P
   return contextFrom({ now, settings, todos, habits, meetings, days, events, trackingYesterday, sessions });
 }
 
+/** "Last met 12 Nov · 2 open items: send the deck; book the venue" (basic brief). */
+export function prepNote(p: NonNullable<BriefContext["meetingPrep"]>[number]): string {
+  const n = p.openItems.length;
+  return [
+    p.lastMet ? `Last met ${p.lastMet}` : "",
+    n ? `${n} open item${n > 1 ? "s" : ""}: ${p.openItems.slice(0, 2).join("; ")}${n > 2 ? "…" : ""}` : "",
+    !n && p.relatedTasks?.length ? `Related to-do: ${p.relatedTasks[0]}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** A useful brief without AI (not signed in, offline, or allowance used up). */
 export function basicBrief(ctx: BriefContext): DailyBrief {
   const forToday = ctx.tasks.filter((t) => t.planned || t.overdue || (t.due && t.due <= ctx.date));
@@ -185,6 +208,7 @@ export function basicBrief(ctx: BriefContext): DailyBrief {
     schedule: timed.map((e) => ({ start: e.start!, end: e.end!, title: e.title, kind: "meeting" as const })),
     watchouts,
     habits: (ctx.habits ?? []).filter((h) => !h.doneToday).slice(0, 5).map((h) => (h.streak ? `${h.name} — keep your ${h.streak}-day streak going` : h.name)),
+    prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.start ? `${p.event} (${p.start})` : p.event, note: prepNote(p) })),
     tip: ctx.yesterday?.reflection ? `Yesterday you noted: “${ctx.yesterday.reflection.slice(0, 140)}”` : "Pick one task and give it a focused 25-minute Pomodoro before checking messages.",
     model: "basic",
     generatedAt: new Date().toISOString(),
