@@ -1,12 +1,26 @@
-# Runs on every push and pull request: type check, unit tests, extension build,
-# and end-to-end tests in headless Chrome. The built extension zip is attached
-# to each run (Actions → run → Artifacts), ready to upload to the Chrome Web Store.
-# Free: GitHub Actions is free for public repos and includes 2,000 min/month for private ones.
+# Runs on pull requests and on pushes to main: type check, unit tests, extension
+# build, and end-to-end tests in headless Chrome. The built extension zip is
+# attached to each run (Actions → run → Artifacts), ready to upload to the
+# Chrome Web Store.
+#
+# Minutes: GitHub Actions is free for public repos and includes 2,000 min/month
+# for private ones; a run takes about 12 minutes. So that a push to a pull
+# request branch runs CI once (not once for the push and again for the PR),
+# branch pushes only run through their pull request; a newer push cancels the
+# older run of the same PR; and changes to docs only don't run it.
 name: CI
 
 on:
   push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
