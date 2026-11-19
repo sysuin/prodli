@@ -78,7 +78,7 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
-      return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
+      return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.event, note: p.openItems[0] ?? "" })), tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
     review: async (ctx) => {
       calls.push({ kind: "review", clientId: ctx.weekStart });

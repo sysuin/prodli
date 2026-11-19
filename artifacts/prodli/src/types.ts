@@ -149,6 +149,8 @@ export interface DailyBrief {
   watchouts: string[];
   habits: string[];
   tip: string;
+  /** One line per upcoming meeting that has history (older briefs don't have it). */
+  prep?: { event: string; note: string }[];
   model: string;
   generatedAt: string;
   /** "ai" from ProdLi's server, "basic" built on the device without AI. */

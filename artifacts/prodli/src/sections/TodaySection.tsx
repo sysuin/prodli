@@ -22,6 +22,8 @@ import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
 import { ReadLater } from "./today/ReadLater";
+import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
+import { buildPrep } from "../lib/meetingPrep";
 import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
 
 const ACCENT = "#F59E0B";
@@ -75,6 +77,8 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   const [askDraft, setAskDraft] = useState("");
   const [blockNote, setBlockNote] = useState<{ warn: boolean; text: string } | null>(null);
   const autoTried = useRef(false);
+  const meetings = useMeetings();
+  const prep = useMemo(() => buildPrep(events, meetings, todos), [events, meetings, todos]);
 
   const record = days.find((d) => d.id === today);
   const brief = record?.brief;
@@ -419,6 +423,12 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               )}
             </Card>
 
+            {prep.length > 0 && (
+              <Card title="🗒 Meeting prep" testId="meeting-prep">
+                <MeetingPrepList prep={prep} onAsk={onAsk} />
+              </Card>
+            )}
+
             <Card title="🎯 Habits today" testId="habits-today">
               {activeHabits.length === 0 ? (
                 <p style={{ fontSize: 13, margin: 0, opacity: 0.75 }}>No habits yet — add some in Habits.</p>
@@ -566,6 +576,20 @@ function BriefView({ brief, onAddPriority, plannedTitles }: { brief: DailyBrief;
             ))}
           </ul>
         </>
+      )}
+
+      {!!brief.prep?.length && (
+        <div data-testid="brief-prep">
+          <div style={sub}>Before your meetings</div>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {brief.prep.map((p, i) => (
+              <li key={i}>
+                <strong>{p.event}</strong>
+                {p.note ? `: ${p.note}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {brief.habits.length > 0 && (

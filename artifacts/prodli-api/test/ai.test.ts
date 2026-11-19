@@ -120,6 +120,16 @@ describe("daily brief", () => {
     expect(await over.json()).toMatchObject({ error: "brief_quota_exceeded" });
   });
 
+  it("accepts meeting prep for today's meetings, within limits", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const meetingPrep = [{ event: "Acme pilot review", start: "14:00", lastMet: "12 Nov", lastSummary: "Agreed on a two-week pilot.", openItems: ["Send Priya the pilot plan"], relatedTasks: ["Book the venue with Priya"] }];
+    expect((await app.request("/api/ai/brief", json({ ...day, meetingPrep }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/brief", json({ ...day, meetingPrep: [{ ...meetingPrep[0], openItems: Array.from({ length: 20 }, () => "x") }] }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/brief", json({ ...day, meetingPrep: [{ ...meetingPrep[0], start: "2pm" }] }, auth), env)).status).toBe(400);
+  });
+
   it("validates the day it's given", async () => {
     const { app } = makeApp();
     const env = withKey();
