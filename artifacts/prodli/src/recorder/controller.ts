@@ -1,14 +1,24 @@
 // Background-side control of meeting recording.
 //
-// Start: click the ProdLi toolbar icon (or press Alt+Shift+R) on a Google Meet
-// tab. Chrome only lets an extension capture a tab's audio after one of those
-// user actions, which is why recording can't start from a button inside Meet.
+// Start: click the ProdLi toolbar icon (or press Alt+Shift+R) on a Google Meet,
+// Zoom or Teams call tab (see calls.ts). Chrome only lets an extension capture a
+// tab's audio after one of those user actions, which is why recording can't
+// start from a button inside the call.
+//
+// Meet: transcript from Meet's captions (content script meet-captions.js).
+// Zoom and Teams: no captions are read; the audio is transcribed with AI right
+// after the call (in the offscreen document, piece by piece through here,
+// where the account is), or by on-device transcription if that's on.
 
 import { getMeeting, putMeeting, updateMeeting } from "./db";
-import { fillCaptionGaps } from "./format";
+import { base64ToBytes, fillCaptionGaps } from "./format";
+import { callFromUrl, isPlaceholderTitle, notACallReason, placeholderTitle, PLATFORM_LABEL, stillInCall, titleFromTab, type CallInfo, type CallPlatform } from "./calls";
+import { sendWithRetry } from "./audioTranscribe";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
+  AUTO_TRANSCRIBE_STORAGE_KEY,
+  VOCABULARY_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
   SPEECH_ENABLED_STORAGE_KEY,
@@ -32,31 +42,7 @@ let stopping = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** The meeting code (abc-defg-hij) of a Google Meet call URL, wherever it is in the path. */
-export function meetingCodeFromUrl(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    if (u.hostname !== "meet.google.com") return null;
-    return /(?:^|\/)([a-z]{3}-[a-z]{4}-[a-z]{3})(?:\/|$)/.exec(u.pathname)?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** Why recording can't start on this tab, in plain words (null when it can). */
-export function notACallReason(url: string | undefined): string | null {
-  if (meetingCodeFromUrl(url)) return null;
-  if (!url) return "ProdLi couldn't read this tab's address. Click the ProdLi icon while the Google Meet call is the active tab.";
-  try {
-    const u = new URL(url);
-    if (u.hostname === "meet.google.com") return "Join the call first: ProdLi records once you're in a meeting (the address looks like meet.google.com/abc-defg-hij).";
-    if (u.hostname === "mail.google.com" || u.hostname === "calendar.google.com") return "Meet calls inside Gmail or Calendar can't be recorded. Open the call in its own tab at meet.google.com, then click the ProdLi icon.";
-  } catch {
-    // not a normal web address
-  }
-  return "ProdLi records Google Meet calls. Join a call at meet.google.com, then click the ProdLi icon (or press Alt+Shift+R) on that tab.";
-}
+export { meetingCodeFromUrl, notACallReason } from "./calls";
 
 async function reportProblem(message: string): Promise<void> {
   await chrome.storage.local.set({ [RECORDER_PROBLEM_KEY]: { message, at: new Date().toISOString() } });
@@ -92,7 +78,7 @@ async function ensureOffscreenDocument(): Promise<void> {
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
     reasons: [chrome.offscreen.Reason.USER_MEDIA],
-    justification: "Record Google Meet audio for ProdLi meeting notes",
+    justification: "Record the call's audio for ProdLi meeting notes",
   });
 }
 
@@ -114,10 +100,10 @@ async function openMeetingsSection(): Promise<void> {
   await chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
 }
 
-const DEFAULT_TITLE = "ProdLi — click on a Google Meet tab to record";
+const DEFAULT_TITLE = "ProdLi — click on a Google Meet, Zoom or Teams call tab to record";
 
 /** REC (red) while recording with captions; CC (amber) when captions are missing, so there's no transcript. */
-async function setRecordingBadge(tabId: number | null, captionsMissing = false): Promise<void> {
+async function setRecordingBadge(tabId: number | null, captionsMissing = false, platform: CallPlatform = "google-meet"): Promise<void> {
   if (tabId === null) {
     await chrome.action.setBadgeText({ text: "" });
     await chrome.action.setTitle({ title: DEFAULT_TITLE });
@@ -127,7 +113,9 @@ async function setRecordingBadge(tabId: number | null, captionsMissing = false):
   await chrome.action.setBadgeTextColor?.({ color: captionsMissing ? "#000000" : "#FFFFFF" });
   await chrome.action.setBadgeText({ text: captionsMissing ? "CC" : "REC" });
   await chrome.action.setTitle({
-    title: captionsMissing
+    title: platform !== "google-meet"
+      ? `ProdLi is recording this ${PLATFORM_LABEL[platform]} call's audio; the transcript is made after the call. Click to stop.`
+      : captionsMissing
       ? "ProdLi is recording audio, but captions are off — turn on captions (CC) in Meet for a transcript. Click to stop."
       : "ProdLi is recording and taking notes from captions. Click to stop.",
   });
@@ -144,20 +132,20 @@ export async function toggleRecording(tab: chrome.tabs.Tab | undefined): Promise
   // The click's tab normally carries its address; if not, look it up.
   let url = tab?.url ?? tab?.pendingUrl;
   if (!url && tab?.id) url = await chrome.tabs.get(tab.id).then((t) => t.url ?? t.pendingUrl, () => undefined);
-  const code = meetingCodeFromUrl(url);
-  if (!tab?.id || !code) {
-    await reportProblem(notACallReason(url) ?? "This tab isn't a Google Meet call.");
+  const call = callFromUrl(url);
+  if (!tab?.id || !call) {
+    await reportProblem(notACallReason(url) ?? "This tab isn't a call ProdLi can record.");
     await openMeetingsSection();
     return;
   }
   await chrome.storage.local.remove(RECORDER_PROBLEM_KEY);
-  await startRecording({ ...tab, url } as chrome.tabs.Tab & { id: number }, code);
+  await startRecording({ ...tab, url } as chrome.tabs.Tab & { id: number }, call);
 }
 
-async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: string): Promise<void> {
+async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallInfo): Promise<void> {
   const granted = await chrome.permissions.contains(RECORDER_PERMISSIONS);
   if (!granted) {
-    await reportProblem("The recorder isn't allowed to capture Google Meet yet. In Meetings → Setup, click “Turn on recorder” and choose Allow.");
+    await reportProblem("The recorder isn't turned on yet. In Meetings → Setup, click “Turn on recorder” and choose Allow.");
     await openMeetingsSection();
     return;
   }
@@ -170,10 +158,10 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
 
     const meeting: Meeting = {
       id: meetingId,
-      platform: "google-meet",
-      title: `Google Meet · ${code}`,
-      meetingCode: code,
-      url: tab.url ?? `https://meet.google.com/${code}`,
+      platform: call.platform,
+      title: titleFromTab(call.platform, tab.title) ?? placeholderTitle(call),
+      meetingCode: call.code,
+      url: tab.url ?? "",
       startedAt: startedAt.toISOString(),
       endedAt: null,
       durationSec: 0,
@@ -188,7 +176,7 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
       updatedAt: startedAt.toISOString(),
     };
     await putMeeting(meeting);
-    await setState({ meetingId, tabId: tab.id, startedAt: meeting.startedAt, captionsOn: false });
+    await setState({ meetingId, tabId: tab.id, startedAt: meeting.startedAt, captionsOn: false, platform: call.platform });
 
     const withMic = await getLocal<boolean>(MIC_ENABLED_STORAGE_KEY, false);
     const speechOn = await getLocal<boolean>(SPEECH_ENABLED_STORAGE_KEY, false);
@@ -197,12 +185,14 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, code: strin
     const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string } | undefined;
     if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
 
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
-    const showIndicator = await getLocal<boolean>(SHOW_INDICATOR_STORAGE_KEY, false);
-    const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime(), showIndicator };
-    await chrome.tabs.sendMessage(tab.id, captionsCmd);
+    if (call.platform === "google-meet") {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
+      const showIndicator = await getLocal<boolean>(SHOW_INDICATOR_STORAGE_KEY, false);
+      const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime(), showIndicator };
+      await chrome.tabs.sendMessage(tab.id, captionsCmd);
+    }
 
-    await setRecordingBadge(tab.id);
+    await setRecordingBadge(tab.id, false, call.platform);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await setState(null);
@@ -222,9 +212,10 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
     await setState(null);
     await setRecordingBadge(null);
 
+    const platform = state.platform ?? "google-meet";
     // 1. Collect the final transcript from the Meet tab (if it's still open).
     let entries = finalEntries;
-    if (!entries && reason !== "tab-closed") {
+    if (!entries && reason !== "tab-closed" && platform === "google-meet") {
       try {
         const stopCmd: ContentCommand = { target: "captions", type: "stop" };
         const res = (await chrome.tabs.sendMessage(state.tabId, stopCmd)) as { entries?: TranscriptEntry[] } | undefined;
@@ -236,14 +227,18 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
 
     // 2. Stop the audio recorder (it saves the audio, and returns any on-device transcript).
     let speechEntries: TranscriptEntry[] | undefined;
+    let audio: { hasAudio: boolean; mimeType: string | null } = { hasAudio: false, mimeType: null };
     try {
       const stopCmd: OffscreenCommand = { target: "offscreen", type: "stop" };
-      const res = (await chrome.runtime.sendMessage(stopCmd)) as { speechEntries?: TranscriptEntry[] } | undefined;
+      const res = (await chrome.runtime.sendMessage(stopCmd)) as { speechEntries?: TranscriptEntry[]; hasAudio?: boolean; mimeType?: string | null } | undefined;
       speechEntries = res?.speechEntries;
+      audio = { hasAudio: !!res?.hasAudio, mimeType: res?.mimeType ?? null };
     } catch {
       // Offscreen document already gone.
     }
-    await closeOffscreenDocument();
+    // Zoom and Teams: transcribe the recording with AI now (before the offscreen document closes).
+    const autoTranscribe = await getLocal<boolean>(AUTO_TRANSCRIBE_STORAGE_KEY, true);
+    const transcribe = platform !== "google-meet" && audio.hasAudio && autoTranscribe && (await canTranscribe());
 
     // 3. Save the finished meeting.
     const endedAt = new Date();
@@ -261,7 +256,15 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
         status: "processing",
         speechTranscript: speech,
         notice:
-          transcript.length === 0
+          platform !== "google-meet"
+            ? transcribe
+              ? "Transcribing the recording with AI…"
+              : transcript.length === 0
+                ? autoTranscribe
+                  ? `${PLATFORM_LABEL[platform]} calls are saved as audio. Sign in (👤, free) to transcribe them with AI after the call, or turn on on-device transcription in Meetings → Setup.`
+                  : `${PLATFORM_LABEL[platform]} calls are saved as audio. Use 🌐 Transcribe audio with AI below for a transcript, or turn on on-device transcription in Meetings → Setup.`
+                : `This transcript was made on your computer (speakers: You / Others).`
+            : transcript.length === 0
             ? "No captions were captured. Next time, make sure captions (CC) are on in Google Meet — only you can see them — or turn on on-device transcription in Meetings → Setup."
             : usedSpeech
               ? "Captions were off, so this transcript was made on your computer (speakers: You / Others)."
@@ -270,10 +273,34 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
                 : null,
       };
     });
+    if (meeting && transcribe) await transcribeAfterCall(meeting.id, audio.mimeType);
+    await closeOffscreenDocument();
     if (meeting) await finishMeeting(meeting.id);
   } finally {
     stopping = false;
   }
+}
+
+/** May the recording be sent for AI transcription? (Signed in; test builds use a stub.) */
+async function canTranscribe(): Promise<boolean> {
+  if (import.meta.env.VITE_E2E === "1" && (globalThis as { __prodliTranscribeStub?: unknown }).__prodliTranscribeStub) return true;
+  return canUseProdliAi();
+}
+
+/** AI transcript of a Zoom/Teams recording, made in the offscreen document; on failure the meeting keeps what it had. */
+async function transcribeAfterCall(meetingId: string, mimeType: string | null): Promise<void> {
+  let res: { ok: true; entries: TranscriptEntry[]; languages: string[] } | { ok: false; error: string } | undefined;
+  try {
+    const cmd: OffscreenCommand = { target: "offscreen", type: "transcribe", meetingId, mimeType };
+    res = await chrome.runtime.sendMessage(cmd);
+  } catch {
+    res = undefined;
+  }
+  await updateMeeting(meetingId, (m) =>
+    res?.ok
+      ? { transcript: res.entries, transcriptSource: "audio", audioLanguages: res.languages, notice: null }
+      : { notice: `The recording couldn't be transcribed${res && !res.ok ? `: ${res.error}` : "."} Try “Transcribe audio with AI” on this meeting.${m.transcript.length ? " The on-device transcript is shown for now." : ""}` },
+  );
 }
 
 async function finishMeeting(meetingId: string): Promise<void> {
@@ -298,7 +325,7 @@ export async function runSummary(meetingId: string): Promise<{ ok: boolean; erro
     await updateMeeting(meetingId, (m) => ({
       status: "ready",
       summary,
-      title: m.title.startsWith("Google Meet · ") && summary.title ? summary.title : m.title,
+      title: isPlaceholderTitle(m.title) && summary.title ? summary.title : m.title,
     }));
     notify("Meeting notes ready", `${summary.title} — ${summary.actionItems.length} action item(s).`);
     return { ok: true };
@@ -318,10 +345,10 @@ async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
       if (state?.meetingId === msg.meetingId && state.captionsOn !== msg.captionsOn) {
         await setState({ ...state, captionsOn: msg.captionsOn });
       }
-      if (state?.meetingId === msg.meetingId) await setRecordingBadge(state.tabId, !!msg.captionsMissing);
+      if (state?.meetingId === msg.meetingId) await setRecordingBadge(state.tabId, !!msg.captionsMissing, state.platform);
       await updateMeeting(msg.meetingId, (m) => ({
         transcript: msg.entries.length >= m.transcript.length ? msg.entries : m.transcript,
-        title: msg.title && m.title.startsWith("Google Meet · ") ? msg.title : m.title,
+        title: msg.title && isPlaceholderTitle(m.title) ? msg.title : m.title,
       }));
       return { ok: true };
     }
@@ -346,6 +373,14 @@ async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
       return { ok: true };
     case "summarize":
       return runSummary(msg.meetingId);
+    case "transcribe-piece": {
+      const vocabulary = await getLocal<string[]>(VOCABULARY_STORAGE_KEY, []);
+      try {
+        return { ok: true, result: await sendWithRetry(base64ToBytes(msg.wav), msg.startMs, vocabulary) };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Transcription didn't work." };
+      }
+    }
   }
 }
 
@@ -389,10 +424,14 @@ export function registerRecorder(): void {
   });
 
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
-    if (!changeInfo.url) return;
+    if (!changeInfo.url && !changeInfo.title) return;
     const state = await getState();
     if (state?.tabId !== tabId) return;
-    if (!meetingCodeFromUrl(changeInfo.url)) await stopRecording("left-call");
+    const platform = state.platform ?? "google-meet";
+    if (changeInfo.url && !stillInCall(platform, changeInfo.url)) return void (await stopRecording("left-call"));
+    // Zoom and Teams: the meeting's name comes from the tab title.
+    const name = titleFromTab(platform, changeInfo.title);
+    if (name) await updateMeeting(state.meetingId, (m) => (isPlaceholderTitle(m.title) ? { title: name } : {}));
   });
 
   void recoverIfStale();

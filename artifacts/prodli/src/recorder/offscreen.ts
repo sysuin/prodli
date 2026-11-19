@@ -2,7 +2,9 @@
 // with the microphone (you) and saves it to IndexedDB in 10-second chunks, so a
 // crash or closed tab loses at most a few seconds.
 
-import { appendAudioChunk, finalizeAudio } from "./db";
+import { appendAudioChunk, finalizeAudio, getAudio } from "./db";
+import { TranscribeError, transcribeRecording, type PieceResult } from "./audioTranscribe";
+import { bytesToBase64 } from "./format";
 import { LiveTranscriber, mergeSpeechEntries, speechAvailability } from "./speech";
 
 // Test hook: lets the end-to-end tests exercise on-device transcription here.
@@ -37,6 +39,7 @@ function pickMimeType(): string {
 
 async function start(meetingId: string, streamId: string, withMic: boolean, speechLang: string | null): Promise<void> {
   if (session) await stop();
+  lastStopped = null;
 
   const tabStream = await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -105,9 +108,35 @@ async function start(meetingId: string, streamId: string, withMic: boolean, spee
   send({ target: "background", type: "offscreen-started", meetingId, micIncluded });
 }
 
-async function stop(): Promise<TranscriptEntry[]> {
+interface Stopped {
+  speechEntries: TranscriptEntry[];
+  hasAudio: boolean;
+  mimeType: string | null;
+}
+
+let stopping: Promise<Stopped> | null = null;
+let lastStopped: Stopped | null = null;
+
+/**
+ * Stops recording. A second call while stopping (or after) gets the same result:
+ * when the call's tab closes, the tab audio ends and stops the recorder here a
+ * moment before the background asks, and the background must still learn that
+ * there is audio (and wait until it's saved).
+ */
+function stop(): Promise<Stopped> {
+  if (stopping) return stopping;
+  if (!session) return Promise.resolve(lastStopped ?? { speechEntries: [], hasAudio: false, mimeType: null });
+  stopping = finishRecording().then((r) => {
+    lastStopped = r;
+    stopping = null;
+    return r;
+  });
+  return stopping;
+}
+
+async function finishRecording(): Promise<Stopped> {
   const s = session;
-  if (!s) return [];
+  if (!s) return { speechEntries: [], hasAudio: false, mimeType: null };
   session = null;
   // Collect the on-device transcript before the audio tracks are stopped.
   const speech = mergeSpeechEntries(...(await Promise.all(s.transcribers.map((t) => t.stop()))));
@@ -129,7 +158,26 @@ async function stop(): Promise<TranscriptEntry[]> {
     hasAudio = false;
   }
   send({ target: "background", type: "offscreen-stopped", meetingId: s.meetingId, hasAudio, mimeType: hasAudio ? s.mimeType : null });
-  return speech;
+  return { speechEntries: speech, hasAudio, mimeType: hasAudio ? s.mimeType : null };
+}
+
+/** AI transcription of a saved recording (runs here: it needs audio decoding, which the background can't do). */
+async function transcribe(meetingId: string, mimeType: string | null): Promise<{ ok: true; entries: TranscriptEntry[]; languages: string[] } | { ok: false; error: string }> {
+  const blob = await getAudio(meetingId);
+  if (!blob) return { ok: false, error: "The recording couldn't be found." };
+  try {
+    // Offscreen documents can't reach the account, so each piece goes through the background.
+    const send = async (wav: Uint8Array, startMs: number): Promise<PieceResult> => {
+      const msg: BackgroundMessage = { target: "background", type: "transcribe-piece", meetingId, wav: bytesToBase64(wav), startMs };
+      const r = (await chrome.runtime.sendMessage(msg)) as { ok: true; result: PieceResult } | { ok: false; error: string } | undefined;
+      if (!r?.ok) throw new TranscribeError(r && !r.ok ? r.error : "ProdLi's background stopped responding.");
+      return r.result;
+    };
+    const r = await transcribeRecording(blob, mimeType, { send });
+    return { ok: true, entries: r.entries, languages: r.languages };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Transcription didn't work." };
+  }
 }
 
 chrome.runtime.onMessage.addListener((msg: OffscreenCommand, _sender, sendResponse) => {
@@ -144,7 +192,11 @@ chrome.runtime.onMessage.addListener((msg: OffscreenCommand, _sender, sendRespon
     return true;
   }
   if (msg.type === "stop") {
-    stop().then((speechEntries) => sendResponse({ ok: true, speechEntries }));
+    stop().then((r) => sendResponse({ ok: true, ...r }));
+    return true;
+  }
+  if (msg.type === "transcribe") {
+    transcribe(msg.meetingId, msg.mimeType).then(sendResponse);
     return true;
   }
   return undefined;

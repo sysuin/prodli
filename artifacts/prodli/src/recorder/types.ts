@@ -1,5 +1,7 @@
 // Shared types for the ProdLi meeting recorder (background, offscreen, content script, UI).
 
+import type { CallPlatform } from "./calls";
+
 export interface TranscriptEntry {
   id: string;
   speaker: string;
@@ -34,7 +36,7 @@ export type MeetingStatus = "recording" | "processing" | "ready" | "error";
 
 export interface Meeting {
   id: string;
-  platform: "google-meet";
+  platform: CallPlatform;
   title: string;
   meetingCode: string | null;
   url: string;
@@ -70,6 +72,8 @@ export interface RecordingState {
   tabId: number;
   startedAt: string;
   captionsOn: boolean;
+  /** Missing in recordings started by older versions: Google Meet. */
+  platform?: CallPlatform;
 }
 
 export const RECORDING_STATE_KEY = "rec_state";
@@ -101,6 +105,8 @@ export function parseVocabulary(text: string): string[] {
   return [...new Set(text.split(/[,\n]/).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 60);
 }
 export const AUTO_SUMMARIZE_STORAGE_KEY = "recorderAutoSummarize";
+/** Zoom and Teams (no captions): transcribe the recording with AI right after the call. On by default. */
+export const AUTO_TRANSCRIBE_STORAGE_KEY = "recorderAutoTranscribe";
 /** Show a small "recording" label inside the Meet call (only the recorder sees it). Off by default. */
 export const SHOW_INDICATOR_STORAGE_KEY = "recorderShowIndicator";
 
@@ -114,7 +120,9 @@ export const RECORDER_PERMISSIONS: chrome.permissions.Permissions = {
 
 export type OffscreenCommand =
   | { target: "offscreen"; type: "start"; meetingId: string; streamId: string; withMic: boolean; speechLang: string | null }
-  | { target: "offscreen"; type: "stop" };
+  | { target: "offscreen"; type: "stop" }
+  /** Transcribe a saved recording with AI (Zoom and Teams, after the call). */
+  | { target: "offscreen"; type: "transcribe"; meetingId: string; mimeType: string | null };
 
 export type BackgroundMessage =
   | { target: "background"; type: "offscreen-started"; meetingId: string; micIncluded: boolean }
@@ -124,6 +132,8 @@ export type BackgroundMessage =
   | { target: "background"; type: "captions-ended"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "speech-update"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "stop-recording" }
+  /** One piece of audio (WAV, base64) to transcribe with the user's account. */
+  | { target: "background"; type: "transcribe-piece"; meetingId: string; wav: string; startMs: number }
   | { target: "background"; type: "summarize"; meetingId: string };
 
 export type ContentCommand =
