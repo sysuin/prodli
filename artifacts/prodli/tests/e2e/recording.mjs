@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Meeting recorder, end to end, in a real (headless) Chrome with the built extension:
 // toolbar click → tab audio capture (offscreen recorder) → captions read from the
-// Meet page → stop → meeting saved with transcript and audio.
+// Meet page → stop → meeting saved with transcript and audio. Then Zoom and Teams
+// web calls: audio only, transcribed with (stubbed) AI after the call.
 //
 // The Meet page is a stand-in served at a real meet.google.com address (requests are
 // intercepted), with Meet's caption controls. Chrome needs the toolbar click to allow
@@ -30,6 +31,9 @@ const extId = [...createHash("sha256").update(EXT).digest("hex").slice(0, 32)].m
 
 process.env.PRODLI_OUT_DIR = path.relative(path.resolve(here, "../.."), EXT);
 process.env.PRODLI_CHROME_ARGS = `--allowlisted-extension-id=${extId}`;
+// Sound on: a muted browser also silences captured tab audio, and the Zoom check needs real audio.
+// The stand-in calls play a very quiet tone for a few seconds.
+process.env.PRODLI_UNMUTE = "1";
 const { Browser, sleep } = await import("./cdp.mjs");
 
 let failures = 0;
@@ -45,7 +49,7 @@ const MEET_HTML = `<!doctype html><html><head><title>Meet - Weekly product sync<
 <audio id="a" autoplay loop></audio>
 <script>
   // A little sound so there is tab audio to record.
-  const ctx = new AudioContext(); const o = ctx.createOscillator(); o.frequency.value = 220; o.connect(ctx.destination); o.start();
+  const ctx = new AudioContext(); const o = ctx.createOscillator(); o.frequency.value = 220; const g = ctx.createGain(); g.gain.value = 0.02; o.connect(g); g.connect(ctx.destination); o.start();
   document.querySelector('[aria-label="Turn on captions"]').addEventListener('click', (e) => {
     e.currentTarget.setAttribute('aria-pressed', 'true');
     const r = document.createElement('div'); r.setAttribute('role', 'region'); r.setAttribute('aria-label', 'Captions'); r.id = 'cap'; document.body.appendChild(r);
@@ -74,7 +78,7 @@ try {
   const served = new Set();
   const pump = setInterval(() => {
     for (const e of b.events) {
-      if (e.method !== "Fetch.requestPaused" || served.has(e.params.requestId)) continue;
+      if (e.method !== "Fetch.requestPaused" || served.has(e.params.requestId) || !e.params.request.url.startsWith("https://meet.google.com/")) continue;
       served.add(e.params.requestId);
       const html = e.params.request.url.includes("zzz-yyyy-xxx") ? NO_CC_HTML : MEET_HTML;
       void b.send("Fetch.fulfillRequest", { requestId: e.params.requestId, responseCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }], body: Buffer.from(html).toString("base64") }, e.sessionId);
@@ -142,13 +146,71 @@ try {
   await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://meet.google.com/zzz-yyyy-xxx*" }); await __prodliToggleRecording(t); return true; })()`);
   await sleep(2500);
 
+  // Zoom and Teams calls in the browser: tab audio, no captions; AI transcription after the call (stubbed AI).
+  const CALL_HTML = (title) => `<!doctype html><html><head><title>${title}</title></head><body><h1>${title}</h1><script>const ctx = new AudioContext(); const o = ctx.createOscillator(); o.frequency.value = 330; const g = ctx.createGain(); g.gain.value = 0.02; o.connect(g); g.connect(ctx.destination); o.start();</script></body></html>`;
+  const openCall = async (pattern, url, title) => {
+    const { targetId } = await b.send("Target.createTarget", { url: "about:blank" });
+    const { sessionId } = await b.send("Target.attachToTarget", { targetId, flatten: true });
+    await b.send("Runtime.enable", {}, sessionId);
+    await b.send("Page.enable", {}, sessionId);
+    await b.send("Fetch.enable", { patterns: [{ urlPattern: pattern }] }, sessionId);
+    const done = new Set();
+    const serve = setInterval(() => {
+      for (const e of b.events) {
+        if (e.method !== "Fetch.requestPaused" || e.sessionId !== sessionId || done.has(e.params.requestId)) continue;
+        done.add(e.params.requestId);
+        b.send("Fetch.fulfillRequest", { requestId: e.params.requestId, responseCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }], body: Buffer.from(CALL_HTML(title)).toString("base64") }, sessionId).catch(() => {});
+      }
+    }, 50);
+    await b.send("Page.navigate", { url }, sessionId);
+    await sleep(1500);
+    return { targetId, stop: () => clearInterval(serve) };
+  };
+  const readMeetings = () => swEval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result.map((m) => ({ id: m.id, platform: m.platform, title: m.title, code: m.meetingCode, status: m.status, hasAudio: m.hasAudio, notice: m.notice, error: m.error, source: m.transcriptSource, languages: m.audioLanguages, transcript: m.transcript.map((e) => e.speaker + ": " + e.text) }))); }; })`);
+  const waitReady = async (platform) => {
+    for (let i = 0; i < 40; i++) {
+      const m = (await readMeetings()).find((x) => x.platform === platform);
+      if (m && m.status !== "recording" && m.status !== "processing") return m;
+      await sleep(500);
+    }
+    return (await readMeetings()).find((x) => x.platform === platform);
+  };
+  await swEval(`(() => { globalThis.__pieces = []; globalThis.__prodliTranscribeStub = async (wav, startMs) => { __pieces.push({ bytes: wav.length, startMs }); return { text: "We agreed on a two-week pilot.", segments: [{ start: 0, end: 2, text: "We agreed on a two-week pilot." }], language: "en" }; }; return true; })()`);
+  const zoom = await openCall("https://app.zoom.us/*", "https://app.zoom.us/wc/86012345678/join?pwd=abc", "Acme pilot review - Zoom");
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://app.zoom.us/*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(2000);
+  check("Zoom: clicking ProdLi on a Zoom web call starts recording", (await swEval("chrome.action.getBadgeText({})")) === "REC" && /Zoom call's audio/.test(await swEval("chrome.action.getTitle({})")), await swEval("chrome.action.getTitle({})"));
+  await sleep(5000);
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://app.zoom.us/*" }); await __prodliToggleRecording(t); return true; })()`);
+  const zm = await waitReady("zoom");
+  check("Zoom: the meeting is saved with its name from the tab and the meeting ID", zm?.title === "Acme pilot review" && zm?.code === "86012345678", JSON.stringify(zm));
+  check("Zoom: the audio is recorded and transcribed with AI after the call", zm?.hasAudio === true && zm?.source === "audio" && zm?.transcript?.[0] === "Speaker: We agreed on a two-week pilot." && JSON.stringify(zm?.languages) === '["en"]' && !zm?.notice, JSON.stringify(zm));
+  const pieces = await swEval("__pieces");
+  check("Zoom: audio went to the AI in WAV pieces through the background", pieces.length >= 1 && pieces.every((x) => x.bytes > 44), JSON.stringify(pieces));
+  check("Zoom: the badge is cleared", (await swEval("chrome.action.getBadgeText({})")) === "");
+  zoom.stop();
+
+  // Teams, with AI transcription switched off: the audio is kept and the meeting says how to get a transcript.
+  await swEval(`chrome.storage.local.set({ recorderAutoTranscribe: false }).then(() => { __pieces = []; return true; })`);
+  const teams = await openCall("https://teams.microsoft.com/*", "https://teams.microsoft.com/v2/", "Weekly sync | Microsoft Teams");
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://teams.microsoft.com/*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(4000);
+  check("Teams: clicking ProdLi on a Teams tab starts recording", (await swEval("chrome.action.getBadgeText({})")) === "REC");
+  // Closing the call's tab stops the recording.
+  await b.send("Target.closeTarget", { targetId: teams.targetId });
+  const tm = await waitReady("teams");
+  check("Teams: closing the tab saves the meeting with audio", tm?.title === "Weekly sync" && tm?.hasAudio === true && (await swEval("chrome.action.getBadgeText({})")) === "", JSON.stringify(tm));
+  check("Teams: with AI transcription off, nothing is sent and the meeting says how to get a transcript", (await swEval("__pieces")).length === 0 && /saved as audio.*Transcribe audio with AI/.test(tm?.notice ?? ""), tm?.notice);
+  teams.stop();
+  await swEval(`chrome.storage.local.remove("recorderAutoTranscribe").then(() => { delete globalThis.__prodliTranscribeStub; return true; })`);
+
   // Clicking on a page that isn't a Meet call explains why instead of silently opening ProdLi.
   const other = await b.openPage("https://example.com/");
   await sleep(500);
   await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://example.com/*" }); await __prodliToggleRecording(t); return true; })()`);
   await sleep(1500);
   const last = await swEval(`chrome.storage.local.get("recorderLastProblem").then(r => r.recorderLastProblem ?? null)`);
-  check("Clicking on a non-Meet tab records why (shown in ProdLi)", !!last?.message && /Google Meet call/i.test(last.message), JSON.stringify(last));
+  check("Clicking on a tab that isn't a call records why (shown in ProdLi)", !!last?.message && /Google Meet, Zoom and Microsoft Teams calls/i.test(last.message), JSON.stringify(last));
   await sleep(1500);
   const prodliTab = (await b.send("Target.getTargets")).targetInfos.find((t) => t.type === "page" && t.url.startsWith(`chrome-extension://${extId}/index.html`) && t.targetId !== page.targetId);
   if (prodliTab) {

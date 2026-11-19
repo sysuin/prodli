@@ -21,7 +21,7 @@ describe("recognising a Google Meet call", () => {
     expect(notACallReason("https://meet.google.com/abc-defg-hij")).toBeNull();
     expect(notACallReason("https://meet.google.com/landing")).toMatch(/Join the call first/);
     expect(notACallReason("https://mail.google.com/mail/u/0/#inbox")).toMatch(/inside Gmail or Calendar/);
-    expect(notACallReason("https://example.com/")).toMatch(/records Google Meet calls/);
+    expect(notACallReason("https://example.com/")).toMatch(/records Google Meet, Zoom and Microsoft Teams calls/);
     expect(notACallReason(undefined)).toMatch(/couldn't read this tab's address/);
   });
 });

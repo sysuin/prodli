@@ -12,6 +12,7 @@ import { installSpeech, speechAvailability, type SpeechAvailability } from "../r
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
+import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -29,6 +30,7 @@ const SPEECH_LANGS: { code: string; label: string }[] = [
 ];
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
+  AUTO_TRANSCRIBE_STORAGE_KEY,
   SHOW_INDICATOR_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
   SPEECH_ENABLED_STORAGE_KEY,
@@ -134,7 +136,7 @@ function meetingToNoteHtml(m: Meeting): string {
   const s = m.summary;
   const date = new Date(m.startedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>` : "<p>None</p>");
-  let html = `<h1>${escapeHtml(s?.title || m.title)}</h1><p><em>${escapeHtml(date)} · ${formatDuration(m.durationSec)} · Google Meet</em></p>`;
+  let html = `<h1>${escapeHtml(s?.title || m.title)}</h1><p><em>${escapeHtml(date)} · ${formatDuration(m.durationSec)} · ${PLATFORM_LABEL[m.platform] ?? "Google Meet"}</em></p>`;
   if (s) {
     html += `<h2>Summary</h2><p>${escapeHtml(s.overview)}</p>`;
     html += `<h2>Key points</h2>${list(s.keyPoints)}`;
@@ -203,12 +205,12 @@ function SetupPanel({
       <div>
         <div style={label}>2 · Recorder</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          {recorderOn ? <strong style={{ fontSize: 13 }}>✓ On for Google Meet</strong> : null}
+          {recorderOn ? <strong style={{ fontSize: 13 }}>✓ On for Google Meet, Zoom and Teams</strong> : null}
           <button style={btn(recorderOn ? "plain" : "primary")} onClick={onToggleRecorder}>
             {recorderOn ? "Turn off" : "Turn on recorder"}
           </button>
         </div>
-        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>Chrome will ask to let ProdLi capture tab audio and read captions on meet.google.com.</p>
+        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>Chrome will ask to let ProdLi capture tab audio and read captions on meet.google.com. Zoom and Teams need nothing more.</p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={micOn} onChange={onToggleMic} /> Include my microphone in the audio recording
         </label>
@@ -224,14 +226,15 @@ function SetupPanel({
       <div>
         <div style={label}>3 · How to record</div>
         <ol style={{ fontSize: 13, paddingLeft: 18, marginTop: 8, lineHeight: 1.6, listStyle: "decimal" }}>
-          <li>Join a call on <strong>meet.google.com</strong>.</li>
+          <li>Join a call on <strong>meet.google.com</strong>, or a <strong>Zoom</strong> or <strong>Microsoft Teams</strong> call in the browser.</li>
           <li>Click the <strong>ProdLi icon</strong> in the toolbar (pin it), or press <strong>Alt+Shift+R</strong>.</li>
-          <li>ProdLi turns on Meet’s captions (only you see them) and takes notes from them. No bot joins the call.</li>
+          <li>On Meet, ProdLi turns on Meet’s captions (only you see them) and takes notes from them. On Zoom and Teams it records the call’s audio. No bot joins the call.</li>
           <li>To stop, click the ProdLi icon again (or Alt+Shift+R), or just leave the call.</li>
         </ol>
         <p data-testid="captions-requirement" style={{ fontSize: 12, marginTop: 8, padding: "6px 8px", border: "var(--nb-border)", background: "#FFF3CD", color: "#000", fontWeight: 600 }}>
           Transcripts come from Meet’s captions (CC). If captions are off, only the audio is recorded — the ProdLi icon shows an amber <strong>CC</strong> and a note appears in the call. Set the caption language in Meet (CC → settings) to the language people speak.
         </p>
+        <AutoTranscribeSetting />
       </div>
 
       <div>
@@ -285,6 +288,31 @@ function SetupPanel({
 
       <MeetingNotesSettings />
     </div>
+  );
+}
+
+/** Zoom and Teams: transcribe the recording with AI right after the call. */
+function AutoTranscribeSetting() {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    void storageGet<boolean>(AUTO_TRANSCRIBE_STORAGE_KEY, true).then(setOn);
+  }, []);
+  return (
+    <label data-testid="auto-transcribe" style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 8 }}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setOn(e.target.checked);
+          void storageSet(AUTO_TRANSCRIBE_STORAGE_KEY, e.target.checked);
+        }}
+        style={{ marginTop: 3 }}
+      />
+      <span>
+        Zoom and Teams: transcribe the recording with AI after the call
+        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Zoom and Teams have no captions ProdLi can read, so the call’s audio is sent to ProdLi’s AI (Whisper) when the call ends. Uses your monthly audio minutes; needs a free ProdLi account. Off: the audio stays on this computer and on-device transcription (step 4) is used if it’s on.</span>
+      </span>
+    </label>
   );
 }
 
@@ -727,7 +755,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       if (!meeting) return;
       try {
         const summary = await summarizeMeeting(meeting);
-        await updateMeeting(id, (m) => ({ status: "ready", summary, title: m.title.startsWith("Google Meet · ") && summary.title ? summary.title : m.title }));
+        await updateMeeting(id, (m) => ({ status: "ready", summary, title: isPlaceholderTitle(m.title) && summary.title ? summary.title : m.title }));
         flash("Notes ready");
       } catch (err) {
         const error = err instanceof Error ? err.message : "Summarizing failed";
@@ -762,7 +790,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
         <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
-          AI notes · Google Meet
+          AI notes · Meet, Zoom & Teams
         </span>
       </div>
       {ext && (
@@ -796,7 +824,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         <div style={{ padding: 24 }}>
           <div style={card}>
             <strong>Meeting notes work in the ProdLi Chrome extension.</strong>
-            <p style={{ fontSize: 14 }}>Install ProdLi, join a Google Meet, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
+            <p style={{ fontSize: 14 }}>Install ProdLi, join a Google Meet, Zoom or Teams call in your browser, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
             {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
           </div>
         </div>
@@ -825,7 +853,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         <div style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13 }}>
           <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
           Recording · {formatTimestamp(elapsed * 1000)}
-          <span style={{ opacity: 0.85 }}>{recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
+          <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${PLATFORM_LABEL[recState.platform]} call — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
           <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
@@ -839,7 +867,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>
             <p style={{ fontSize: 14, opacity: 0.8 }}>
-              {ext ? "Join a Google Meet and click the ProdLi icon (or press Alt+Shift+R) to start taking notes." : "Meetings you record with the ProdLi extension appear here."}
+              {ext ? "Join a Google Meet, Zoom or Teams call in your browser and click the ProdLi icon (or press Alt+Shift+R) to start taking notes." : "Meetings you record with the ProdLi extension appear here."}
             </p>
           </div>
         ) : (

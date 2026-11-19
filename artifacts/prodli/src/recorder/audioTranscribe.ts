@@ -364,7 +364,8 @@ async function sendPiece(wav: Uint8Array, startMs: number, vocabulary: string[])
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const retryable = (err: unknown) => err instanceof AccountError && (err.status === 0 || err.status === 502 || err.status === 503 || /reach ProdLi/.test(err.message));
 
-async function sendWithRetry(wav: Uint8Array, startMs: number, vocabulary: string[], signal?: AbortSignal): Promise<PieceResult> {
+/** Sends one piece to ProdLi's AI, retrying brief network problems. (Also used by the background for Zoom/Teams recordings.) */
+export async function sendWithRetry(wav: Uint8Array, startMs: number, vocabulary: string[], signal?: AbortSignal): Promise<PieceResult> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await sendPiece(wav, startMs, vocabulary);
@@ -403,14 +404,23 @@ export interface TranscribeProgress {
 export async function transcribeRecording(
   blob: Blob,
   mimeType: string | null,
-  { signal, onProgress }: { signal?: AbortSignal; onProgress?: (p: TranscribeProgress) => void } = {},
+  {
+    signal,
+    onProgress,
+    send,
+  }: {
+    signal?: AbortSignal;
+    onProgress?: (p: TranscribeProgress) => void;
+    /** Sends a piece somewhere else (the offscreen recorder hands pieces to the background, which has the account). */
+    send?: (wav: Uint8Array, startMs: number) => Promise<PieceResult>;
+  } = {},
 ): Promise<{ entries: TranscriptEntry[]; languages: string[]; usage?: PieceResult["usage"] }> {
   const stubbed = import.meta.env.VITE_E2E === "1" && !!(globalThis as { __prodliTranscribeStub?: Stub }).__prodliTranscribeStub;
-  if (!stubbed) {
+  if (!stubbed && !send) {
     if (!accountsEnabled()) throw new TranscribeError("Audio transcription isn't available in this copy of ProdLi.");
     if (!(await getProdliAccount())) throw new TranscribeError(SIGN_IN_FOR_TRANSCRIPTION);
   }
-  const vocabulary = await storageGet<string[]>(VOCABULARY_STORAGE_KEY, []);
+  const vocabulary = send ? [] : await storageGet<string[]>(VOCABULARY_STORAGE_KEY, []);
   const results: { startMs: number; durationMs: number; result: PieceResult }[] = [];
   let usage: PieceResult["usage"];
   let doneMs = 0;
@@ -435,7 +445,8 @@ export async function transcribeRecording(
       const piece = next.value;
       const durationMs = Math.round((piece.samples.length / RATE) * 1000);
       try {
-        const result = await sendWithRetry(encodeWav(piece.samples), piece.startMs, vocabulary, signal);
+        const wav = encodeWav(piece.samples);
+        const result = send ? await send(wav, piece.startMs) : await sendWithRetry(wav, piece.startMs, vocabulary, signal);
         results.push({ startMs: piece.startMs, durationMs, result });
         if (result.usage && (!usage || result.usage.usedSeconds > usage.usedSeconds)) usage = result.usage;
         doneMs = Math.max(doneMs, piece.startMs + durationMs);

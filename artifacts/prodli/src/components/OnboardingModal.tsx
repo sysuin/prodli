@@ -38,7 +38,7 @@ function steps(): Step[] {
       accent: "#A78BFA",
       title: "Ask ProdLi anything",
       text: `Ask about your day, notes and meetings — “What should I focus on now?”, “Summarize my last meeting”. Press ${mod}+K anywhere to go anywhere or add a to-do.`,
-      points: [`${mod}+K: search & commands`, "Alt+Shift+A: add a to-do or note from any page" + (EXT ? "" : " (extension)"), "Alt+Shift+R: take notes in a Google Meet call" + (EXT ? "" : " (extension)")],
+      points: [`${mod}+K: search & commands`, "Alt+Shift+A: add a to-do or note from any page" + (EXT ? "" : " (extension)"), "Alt+Shift+R: take notes in a Meet, Zoom or Teams call" + (EXT ? "" : " (extension)")],
       action: { label: "Ask ProdLi", run: () => openAsk() },
     },
     sync
@@ -47,7 +47,7 @@ function steps(): Step[] {
           accent: "#00BCD4",
           title: "Sign in to sync (optional)",
           text: "ProdLi works offline and without an account. Sign in with Google to keep everything the same in the extension and at app.prodli.com — and for AI briefs, Ask ProdLi and meeting summaries.",
-          points: ["What's on this device is added, nothing is overwritten", "Meeting audio is never uploaded", "Settings: your avatar, bottom left"],
+          points: ["What's on this device is added, nothing is overwritten", "Meeting audio stays on this device unless you transcribe it with AI", "Settings: your avatar, bottom left"],
           action: { label: "Sign in", run: () => openSettings("account") },
         }
       : {
