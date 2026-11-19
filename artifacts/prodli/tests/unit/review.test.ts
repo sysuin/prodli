@@ -64,7 +64,7 @@ describe("weekly review: the numbers", () => {
       { id: "Water", name: "Water", emoji: "💧", done: 5, of: 7 },
       { id: "Run", name: "Run", emoji: "💧", done: 1, of: 3 }, // created Friday: counts Fri–Sun only
     ]);
-    expect(s.browsing).toEqual({ minutes: 110, topSites: [{ site: "github.com", minutes: 90 }, { site: "x.com", minutes: 20 }] });
+    expect(s.browsing).toEqual({ minutes: 110, topSites: [{ site: "github.com", minutes: 90 }, { site: "x.com", minutes: 20 }], focusScore: 82, categories: [{ id: "work", label: "Work & tools", minutes: 90 }, { id: "social", label: "Social media", minutes: 20 }] });
     expect(s.meetings).toMatchObject({ count: 1, minutes: 15, openActions: ["Send the deck"] }); // "Fix login bug" is already a to-do
     expect(s.notes).toEqual({ created: 1, edited: 0 });
     expect(s.focuses).toEqual([{ day: "2026-11-03", text: "Ship the release" }]);

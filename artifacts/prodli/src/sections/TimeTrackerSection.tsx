@@ -5,6 +5,7 @@ import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
 import { accountsEnabled } from "../lib/prodliAccount";
 import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, compareToUsual, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
+import { CategorySelect, FocusScoreCard, useSiteCategories } from "./tracker/FocusScore";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
 /** `settingsOnly`: just the settings (Settings › Time Tracker). */
@@ -22,6 +23,7 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
   const [excludeError, setExcludeError] = useState("");
   const excludedInputRef = useRef<HTMLInputElement>(null);
   const [domainToClear, setDomainToClear] = useState<string | null>(null);
+  const [siteCategories, setSiteCategory] = useSiteCategories();
 
   const loadData = useCallback(async () => {
     const today = await storageGet<TimeTrackingDay>(`tt_${getDayKey()}`, {});
@@ -779,6 +781,8 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
             )}
           </div>
 
+          <FocusScoreCard today={todayData} week={weekData} overrides={siteCategories} excluded={excludedSet} cardStyle={cardStyle} />
+
           {todayEntries.length === 0 ? (
             <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "hsl(var(--muted-foreground))" }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
@@ -797,9 +801,10 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
                   const pct = todayTotal > 0 ? (secs / todayTotal) * 100 : 0;
                   return (
                     <div key={domain} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      <div style={{ width: 180, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ width: 180, fontSize: 12, fontWeight: 600, color: "hsl(var(--foreground))", flexShrink: 1, minWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {domain}
                       </div>
+                      <CategorySelect domain={domain} overrides={siteCategories} onChange={setSiteCategory} />
                       <div style={{ flex: 1, height: 8, background: "hsl(var(--muted))", position: "relative", overflow: "hidden" }}>
                         <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${pct}%`, background: ACCENT, transition: "width 0.4s ease" }} />
                       </div>

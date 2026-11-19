@@ -28,7 +28,12 @@ export const ReviewContextSchema = z.object({
   perDay: z.array(z.object({ day, done: z.number().int().min(0).max(1000), focusMin: minutes })).max(7),
   habits: z.array(z.object({ name: z.string().max(120), done: z.number().int().min(0).max(7), of: z.number().int().min(0).max(7) })).max(40),
   focus: z.object({ sessions: z.number().int().min(0).max(1000), minutes }),
-  browsing: z.object({ minutes, topSites: z.array(z.object({ site: z.string().max(120), minutes })).max(5) }),
+  browsing: z.object({
+    minutes,
+    topSites: z.array(z.object({ site: z.string().max(120), minutes })).max(5),
+    focusScore: z.number().int().min(0).max(100).optional(),
+    categories: z.array(z.object({ category: z.string().max(40), minutes })).max(12).optional(),
+  }),
   meetings: z.object({ count: z.number().int().min(0).max(500), minutes, titles: z.array(z.string().max(200)).max(20), openActions: z.array(z.string().max(300)).max(20) }),
   notes: z.object({ created: z.number().int().min(0).max(100000), edited: z.number().int().min(0).max(100000) }),
   focuses: z.array(z.object({ day, text: z.string().max(300) })).max(7),
@@ -56,6 +61,7 @@ Rules:
 - If the week isn't over yet (daysSoFar < 7), say "so far" where it matters.
 - Be honest but kind: celebrate real wins, name what slipped without judgement.
 - Next week's priorities should come from slipped high-priority tasks, open meeting action items, the user's daily focus statements and their own notes. Use their wording.
+- browsing.focusScore is the share of productive time out of productive + distracting browsing (0–100); browsing.categories splits browsing time (e.g. "AI tools", "Social media"). Mention them in patterns only when notable.
 - Take the user's own notes on the week seriously; they explain what the numbers can't.
 - Be brief and concrete. No motivational fluff.
 - If there's very little data, keep it short and suggest one simple habit for tracking next week.`;

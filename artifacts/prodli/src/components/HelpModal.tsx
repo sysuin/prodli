@@ -93,6 +93,12 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
           </Section>
 
+          <Section emoji="📊" title="Focus score & site categories">
+            <Row label={<Tag>Focus score</Tag>} desc="Time Tracker → Today: productive time out of productive + distracting browsing (0–100), once there are 10 minutes of either. Email and chat count as neutral." />
+            <Row label={<Tag>Categories</Tag>} desc="Well-known sites get a category (Work & tools, Learning, AI tools, Email & chat, News, Social media, Video & games, Shopping). Change any site's category with the picker next to it. Categories stay on this device." />
+            <Row label={<Tag>Brief & review</Tag>} desc="The daily brief uses yesterday's score; the weekly review shows the week's score and time per category, AI tools included." />
+          </Section>
+
           <Section emoji="🔎" title="Search & quick links">
             <Row label={<Tag>Search</Tag>} desc="The box at the top of Today searches with your default search engine (or opens an address you type)." />
             <Row label={<Tag>+ Link / Edit</Tag>} desc="Add up to 16 links as tiles. In Edit, click a tile to rename it or × to remove it. Links sync with your account." />
