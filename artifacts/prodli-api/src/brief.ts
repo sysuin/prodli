@@ -59,6 +59,7 @@ export const BriefContextSchema = z.object({
       browsingMinutes: z.number().min(0).max(1440).optional(),
       topSites: z.array(z.object({ site: z.string().max(120), minutes: z.number().min(0).max(1440) })).max(5).optional(),
       focusSessions: z.number().int().min(0).max(100).optional(),
+      focusScore: z.number().int().min(0).max(100).optional(),
       reflection: z.string().max(1000).optional(),
     })
     .optional(),

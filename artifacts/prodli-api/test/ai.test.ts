@@ -161,6 +161,17 @@ const week = {
 };
 
 describe("weekly review", () => {
+  it("accepts the focus score and time by category", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const browsing = { ...week.browsing, focusScore: 72, categories: [{ category: "AI tools", minutes: 60 }] };
+    expect((await app.request("/api/ai/review", json({ ...week, browsing }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/review", json({ ...week, browsing: { ...browsing, focusScore: 140 } }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/brief", json({ ...day, yesterday: { focusScore: 64 } }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/brief", json({ ...day, yesterday: { focusScore: -1 } }, auth), env)).status).toBe(400);
+  });
+
   it("writes a review, counted with daily briefs", async () => {
     const { app, calls } = makeApp();
     const env = withKey();

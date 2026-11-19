@@ -5,6 +5,7 @@
 // Weeks run Monday–Sunday. The review is saved on the week's Monday day
 // record (DayRecord.review), so it syncs like everything else.
 
+import { breakdown, CATEGORY, focusScore, scoreLabel, SITE_CATEGORIES_KEY, type CategoryId } from "./siteCategories";
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "./prodliAccount";
 import { storageGet, storageGetAll } from "./storage";
 import { getDayKey } from "./utils";
@@ -51,7 +52,7 @@ export interface WeekStats {
   perDay: { day: string; done: number; focusMin: number }[];
   habits: { id: string; name: string; emoji: string; done: number; of: number }[];
   focus: { sessions: number; minutes: number };
-  browsing: { minutes: number; topSites: { site: string; minutes: number }[] };
+  browsing: { minutes: number; topSites: { site: string; minutes: number }[]; focusScore: number | null; categories: { id: CategoryId; label: string; minutes: number }[] };
   meetings: { count: number; minutes: number; titles: string[]; openActions: string[] };
   notes: { created: number; edited: number };
   focuses: { day: string; text: string }[];
@@ -71,6 +72,8 @@ export function weekStats(input: {
   tracking: Record<string, Record<string, number> | undefined>;
   meetings: Meeting[];
   notes: Note[];
+  /** The user's site categories (lib/siteCategories.ts). */
+  siteCategories?: Record<string, string>;
 }): WeekStats {
   const days = weekDays(input.start);
   const end = days[6];
@@ -110,6 +113,7 @@ export function weekStats(input: {
   const siteTotals: Record<string, number> = {};
   for (const d of days) for (const [site, sec] of Object.entries(input.tracking[d] ?? {})) siteTotals[site] = (siteTotals[site] ?? 0) + (sec || 0);
   const sites = Object.entries(siteTotals).sort((a, b) => b[1] - a[1]);
+  const cats = breakdown(siteTotals, input.siteCategories);
 
   const meetings = input.meetings.filter((m) => inWeek(getDayKey(m.startedAt)));
   const todoTitles = new Set(input.todos.map((t) => t.title.trim().toLowerCase()));
@@ -126,7 +130,12 @@ export function weekStats(input: {
     perDay,
     habits,
     focus: { sessions: sessions.length, minutes: perDay.reduce((n, d) => n + d.focusMin, 0) },
-    browsing: { minutes: Math.round(sites.reduce((n, [, s]) => n + s, 0) / 60), topSites: sites.slice(0, 5).map(([site, s]) => ({ site, minutes: Math.round(s / 60) })) },
+    browsing: {
+      minutes: Math.round(sites.reduce((n, [, s]) => n + s, 0) / 60),
+      topSites: sites.slice(0, 5).map(([site, s]) => ({ site, minutes: Math.round(s / 60) })),
+      focusScore: focusScore(cats),
+      categories: cats.byCategory.map((c) => ({ id: c.id, label: CATEGORY[c.id].label, minutes: Math.round(c.seconds / 60) })).filter((c) => c.minutes > 0),
+    },
     meetings: { count: meetings.length, minutes: Math.round(meetings.reduce((n, m) => n + (m.durationSec || 0), 0) / 60), titles: meetings.map((m) => m.summary?.title || m.title).slice(0, 15), openActions: openActions.slice(0, 15) },
     notes: { created: input.notes.filter((n) => inWeek(dayOf(n.createdAt))).length, edited: input.notes.filter((n) => inWeek(dayOf(n.updatedAt)) && !inWeek(dayOf(n.createdAt))).length },
     focuses: records.filter((r) => r.focus?.trim()).map((r) => ({ day: r.id, text: r.focus!.trim() })).sort((a, b) => a.day.localeCompare(b.day)),
@@ -136,12 +145,13 @@ export function weekStats(input: {
 
 /** Gathers the week's data from this device. */
 export async function loadWeekStats(start: string, today = getDayKey()): Promise<WeekStats> {
-  const [todos, habits, days, sessions, notes, all] = await Promise.all([
+  const [todos, habits, days, sessions, notes, siteCategories, all] = await Promise.all([
     storageGet<Todo[]>("todos", []),
     storageGet<Habit[]>("habits", []),
     storageGet<DayRecord[]>(DAYS_KEY, []),
     storageGet<{ completedAt: string; duration?: number }[]>("pomodoroSessions", []),
     storageGet<Note[]>("notes", []),
+    storageGet<Record<string, string>>(SITE_CATEGORIES_KEY, {}),
     storageGetAll(),
   ]);
   let meetings: Meeting[] = [];
@@ -152,7 +162,7 @@ export async function loadWeekStats(start: string, today = getDayKey()): Promise
   }
   const tracking: Record<string, Record<string, number> | undefined> = {};
   for (const d of weekDays(start)) tracking[d] = all[`tt_${d}`] as Record<string, number> | undefined;
-  return weekStats({ start, today, todos, habits, days, sessions, tracking, meetings, notes: notes.filter((n) => !n.template) });
+  return weekStats({ start, today, todos, habits, days, sessions, tracking, meetings, notes: notes.filter((n) => !n.template), siteCategories });
 }
 
 /** What the server gets: the stats, trimmed to what's useful (and allowed). */
@@ -166,7 +176,7 @@ export type ReviewContext = {
   perDay: { day: string; done: number; focusMin: number }[];
   habits: { name: string; done: number; of: number }[];
   focus: { sessions: number; minutes: number };
-  browsing: { minutes: number; topSites: { site: string; minutes: number }[] };
+  browsing: { minutes: number; topSites: { site: string; minutes: number }[]; focusScore?: number; categories?: { category: string; minutes: number }[] };
   meetings: { count: number; minutes: number; titles: string[]; openActions: string[] };
   notes: { created: number; edited: number };
   focuses: { day: string; text: string }[];
@@ -185,7 +195,12 @@ export function reviewContext(s: WeekStats, userNote?: string): ReviewContext {
     perDay: s.perDay,
     habits: s.habits.slice(0, 30).map((h) => ({ name: clip(h.name, 100), done: h.done, of: h.of })),
     focus: s.focus,
-    browsing: { minutes: Math.min(s.browsing.minutes, 10080), topSites: s.browsing.topSites.map((x) => ({ site: clip(x.site, 100), minutes: Math.min(x.minutes, 10080) })) },
+    browsing: {
+      minutes: Math.min(s.browsing.minutes, 10080),
+      topSites: s.browsing.topSites.map((x) => ({ site: clip(x.site, 100), minutes: Math.min(x.minutes, 10080) })),
+      focusScore: s.browsing.focusScore ?? undefined,
+      categories: s.browsing.categories.length ? s.browsing.categories.map((c) => ({ category: c.label, minutes: Math.min(c.minutes, 10080) })) : undefined,
+    },
     meetings: { count: s.meetings.count, minutes: Math.min(s.meetings.minutes, 10080), titles: s.meetings.titles.map((t) => clip(t, 150)), openActions: s.meetings.openActions.map((t) => clip(t)) },
     notes: s.notes,
     focuses: s.focuses.map((f) => ({ day: f.day, text: clip(f.text, 300) })),
@@ -203,6 +218,7 @@ export function basicReview(s: WeekStats): WeeklyReview {
   const topHabit = [...s.habits].sort((a, b) => b.done / b.of - a.done / a.of)[0];
   const weakHabit = [...s.habits].sort((a, b) => a.done / a.of - b.done / b.of)[0];
   const top = s.browsing.topSites[0];
+  const aiMin = s.browsing.categories.find((c) => c.id === "ai")?.minutes ?? 0;
   const wins = [
     ...(s.done.length ? [`Finished ${plural(s.done.length, "task")}${s.done.some((t) => t.priority === "high") ? `, including ${s.done.filter((t) => t.priority === "high").length} high priority` : ""}.`] : []),
     ...(s.focus.sessions ? [`${plural(s.focus.sessions, "focus session")} (${Math.round((s.focus.minutes / 60) * 10) / 10} h).`] : []),
@@ -211,6 +227,7 @@ export function basicReview(s: WeekStats): WeeklyReview {
   const patterns = [
     ...(bestDay && (bestDay.done || bestDay.focusMin) ? [`Your most productive day was ${at(bestDay.day).toLocaleDateString("en-US", { weekday: "long" })}.`] : []),
     ...(top && s.browsing.minutes ? [`${Math.round((s.browsing.minutes / 60) * 10) / 10} h of browsing; most on ${top.site} (${Math.round((top.minutes / 60) * 10) / 10} h).`] : []),
+    ...(s.browsing.focusScore !== null ? [`Focus score ${s.browsing.focusScore} (${scoreLabel(s.browsing.focusScore).toLowerCase()})${aiMin >= 30 ? `; ${Math.round((aiMin / 60) * 10) / 10} h with AI tools` : ""}.`] : []),
     ...(habitRate !== null ? [`Habits done ${habitRate}% of the time.`] : []),
   ];
   const nextWeek = [

@@ -3,6 +3,8 @@
 // and a short write-up with next week's priorities — by ProdLi's AI when
 // signed in, or a basic one built on this device.
 
+import { CATEGORY } from "../lib/siteCategories";
+import { KIND_COLOR } from "./tracker/FocusScore";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useSyncedList } from "../lib/syncedList";
 import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange, type AiUsage, type ProdliUser } from "../lib/prodliAccount";
@@ -160,6 +162,7 @@ export function ReviewSection({ onAsk }: { onAsk?: (question?: string) => void }
             <Stat value={habitRate === null ? "—" : `${habitRate}%`} caption="Habits kept" />
             <Stat value={String(stats.meetings.count)} caption="Meetings" />
             <Stat value={stats.browsing.minutes ? hours(stats.browsing.minutes) : "—"} caption="Browsing" />
+            {stats.browsing.focusScore !== null && <Stat value={String(stats.browsing.focusScore)} caption="Focus score" />}
           </div>
         )}
 
@@ -298,6 +301,15 @@ export function ReviewSection({ onAsk }: { onAsk?: (question?: string) => void }
 
             {stats && (stats.browsing.topSites.length > 0 || stats.meetings.count > 0) && (
               <Card title="⏱ Where the time went">
+                {stats.browsing.categories.length > 0 && (
+                  <div data-testid="review-categories" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                    {stats.browsing.categories.map((c) => (
+                      <span key={c.id} style={{ border: "1px solid var(--nb-section-border)", borderLeft: `4px solid ${KIND_COLOR[CATEGORY[c.id].kind]}`, padding: "1px 6px", fontSize: 12, fontWeight: 700 }}>
+                        {CATEGORY[c.id].emoji} {c.label} <span style={{ fontWeight: 400 }}>{hours(c.minutes)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {stats.browsing.topSites.length > 0 && (
                   <ul style={{ listStyle: "none", margin: "0 0 8px", padding: 0, display: "grid", gap: 4, fontSize: 13 }}>
                     {stats.browsing.topSites.map((s) => (

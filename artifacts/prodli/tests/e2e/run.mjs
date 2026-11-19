@@ -1489,6 +1489,43 @@ const suites = {
     await p.close();
   },
 
+  async focusscore(b, check) {
+    // Time Tracker: focus score and site categories (seeded tracking data); the weekly review's categories.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const dayKey = await p.eval(`(() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    await p.eval(`chrome.storage.local.set({ siteCategories: {}, "tt_${dayKey}": { "github.com": 3600, "youtube.com": 1200, "mail.google.com": 1800, "chatgpt.com": 600 } })`);
+    await p.goto("tracker");
+    await sleep(600);
+    const card = () => p.eval(`document.querySelector('[data-testid="focus-score"]')?.innerText ?? ""`);
+    let text = await card();
+    check("Focus score: shows today's score and label", /Focus score\s*78\s*Focused/i.test(text), text.slice(0, 200));
+    check("Focus score: shows time by kind and by category", /Productive 1:10:00/.test(text) && /Distracting 0:20:00/.test(text) && text.includes("AI tools") && text.includes("Email & chat"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('main') ?? document.body, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): Time Tracker with the focus score has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Recategorise YouTube as Learning.
+    await p.eval(`(() => { const s = document.querySelector('select[aria-label="Category for youtube.com"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "learning"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(500);
+    const { siteCategories = {} } = await p.storage(["siteCategories"]);
+    text = await card();
+    check("Focus score: changing a site's category saves it and updates the score", siteCategories["youtube.com"] === "learning" && /Focus score\s*100/i.test(text), JSON.stringify({ siteCategories, text: text.slice(0, 80) }));
+    // The weekly review (this week) shows the score and categories.
+    await p.goto("review");
+    await sleep(600);
+    if (!(await p.eval(`document.querySelector('[data-testid="review-week"]').parentElement.innerText.includes("This week")`))) await p.click("Next ›");
+    await sleep(500);
+    const review = await p.eval(`document.querySelector('[data-testid="review-categories"]')?.innerText ?? ""`);
+    check("Focus score: the weekly review shows time by category", review.includes("Work & tools") && review.includes("AI tools") && review.includes("Learning"), review);
+    await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}"])`);
+    await p.close();
+  },
+
   async meetingprep(b, check) {
     // Meeting prep on Today: an upcoming calendar event (stubbed calendar; test builds only) matched to an earlier recorded meeting.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

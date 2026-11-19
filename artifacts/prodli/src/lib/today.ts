@@ -14,6 +14,7 @@ import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types
 import type { Meeting } from "../recorder/types";
 import { currentStreak, isDone } from "./habits";
 import { buildPrep, metLabel } from "./meetingPrep";
+import { breakdown, focusScore, SITE_CATEGORIES_KEY } from "./siteCategories";
 
 export const DAYS_KEY = "days";
 export const TODAY_SETTINGS_KEY = "todaySettings";
@@ -72,7 +73,7 @@ export type BriefContext = {
   meetingActions?: { task: string; owner?: string | null; due?: string | null; meeting: string }[];
   /** What ProdLi knows from earlier meetings, for today's upcoming events (lib/meetingPrep.ts). */
   meetingPrep?: { event: string; start?: string; lastMet?: string; lastSummary?: string; openItems: string[]; relatedTasks?: string[] }[];
-  yesterday?: { browsingMinutes?: number; topSites?: { site: string; minutes: number }[]; focusSessions?: number; reflection?: string };
+  yesterday?: { browsingMinutes?: number; topSites?: { site: string; minutes: number }[]; focusSessions?: number; focusScore?: number; reflection?: string };
 };
 
 export function habitStreak(h: Habit, today: string): number {
@@ -92,6 +93,7 @@ export function contextFrom(input: {
   events: CalendarEvent[];
   trackingYesterday?: Record<string, number>;
   sessions?: { completedAt: string }[];
+  siteCategories?: Record<string, string>;
 }): BriefContext {
   const { now, settings } = input;
   const today = dayKey(now);
@@ -143,6 +145,7 @@ export function contextFrom(input: {
       browsingMinutes: browsing ? Math.round(browsing / 60) : undefined,
       topSites: sites.slice(0, 5).map(([site, s]) => ({ site: clip(site, 100), minutes: Math.round(s / 60) })),
       focusSessions: (input.sessions ?? []).filter((s) => getDayKey(s.completedAt) === yesterday).length || undefined,
+      focusScore: focusScore(breakdown(input.trackingYesterday, input.siteCategories)) ?? undefined,
       reflection: yday?.reflection?.trim() ? clip(yday.reflection.trim(), 900) : undefined,
     },
   };
@@ -151,12 +154,13 @@ export function contextFrom(input: {
 
 /** Gathers today's context from this device. */
 export async function buildContext(events: CalendarEvent[], now = new Date()): Promise<BriefContext> {
-  const [settings, todos, habits, days, sessions, all] = await Promise.all([
+  const [settings, todos, habits, days, sessions, siteCategories, all] = await Promise.all([
     getTodaySettings(),
     storageGet<Todo[]>("todos", []),
     storageGet<Habit[]>("habits", []),
     storageGet<DayRecord[]>(DAYS_KEY, []),
     storageGet<{ completedAt: string }[]>("pomodoroSessions", []),
+    storageGet<Record<string, string>>(SITE_CATEGORIES_KEY, {}),
     storageGetAll(),
   ]);
   let meetings: Meeting[] = [];
@@ -166,7 +170,7 @@ export async function buildContext(events: CalendarEvent[], now = new Date()): P
     // IndexedDB unavailable
   }
   const trackingYesterday = all[`tt_${yesterdayKey(now)}`] as Record<string, number> | undefined;
-  return contextFrom({ now, settings, todos, habits, meetings, days, events, trackingYesterday, sessions });
+  return contextFrom({ now, settings, todos, habits, meetings, days, events, trackingYesterday, sessions, siteCategories });
 }
 
 /** "Last met 12 Nov · 2 open items: send the deck; book the venue" (basic brief). */
@@ -209,7 +213,11 @@ export function basicBrief(ctx: BriefContext): DailyBrief {
     watchouts,
     habits: (ctx.habits ?? []).filter((h) => !h.doneToday).slice(0, 5).map((h) => (h.streak ? `${h.name} — keep your ${h.streak}-day streak going` : h.name)),
     prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.start ? `${p.event} (${p.start})` : p.event, note: prepNote(p) })),
-    tip: ctx.yesterday?.reflection ? `Yesterday you noted: “${ctx.yesterday.reflection.slice(0, 140)}”` : "Pick one task and give it a focused 25-minute Pomodoro before checking messages.",
+    tip: ctx.yesterday?.reflection
+      ? `Yesterday you noted: “${ctx.yesterday.reflection.slice(0, 140)}”`
+      : ctx.yesterday?.focusScore !== undefined
+        ? `Yesterday's focus score was ${ctx.yesterday.focusScore}.${ctx.yesterday.focusScore < 50 ? " Try 🚫 Block distracting sites on the Pomodoro page during your focus hours." : " Start with your top priority to keep it up."}`
+        : "Pick one task and give it a focused 25-minute Pomodoro before checking messages.",
     model: "basic",
     generatedAt: new Date().toISOString(),
     source: "basic",
