@@ -1526,6 +1526,90 @@ const suites = {
     await p.close();
   },
 
+  async timebox(b, check) {
+    // Today → Agenda → Day: drag tasks onto the timeline, move and resize blocks, unblock, and the keyboard.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const day = await p.eval(`(() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    await p.eval(`chrome.storage.local.remove("agendaView").then(() => chrome.storage.local.set({ hasSeenOnboarding: true, days: [], todaySettings: { workStart: "09:00", workEnd: "18:00", reminder: null, startOnToday: false, autoBrief: false, blockReminders: false }, todos: [
+      { id: "w1", title: "Write report", completed: false, plannedFor: "${day}", estimateMin: 60, createdAt: new Date().toISOString() },
+      { id: "w2", title: "Email Sam", completed: false, plannedFor: "${day}", estimateMin: 30, block: { day: "${day}", start: "10:00" }, createdAt: new Date().toISOString() }
+    ] }))`);
+    await p.goto("today");
+    await sleep(800);
+    check("Timebox: the agenda opens in Day view", await p.eval(`!!document.querySelector('[data-testid="day-view"]')`));
+    const todos = async () => (await p.storage(["todos"])).todos;
+    const PX = 1.1;
+    // Scroll so a time is visible, then return a point on the grid for it.
+    const pointAt = async (hhmm) => p.eval(`(() => { const [h, m] = "${hhmm}".split(":").map(Number); const grid = document.querySelector('[data-testid="day-grid"]'); grid.parentElement.scrollTop = Math.max(0, (h * 60 + m - 540) * ${PX} - 150); document.querySelector('[data-testid="day-view"]').scrollIntoView({ block: "start" }); const r = grid.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + (h * 60 + m - 540) * ${PX} }; })()`);
+    // Where an element is now (no scrolling: positions must stay put during a drag).
+    const center = async (sel) => p.eval(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    const drag = async (from, to) => {
+      await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x, y: from.y });
+      await p.send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", buttons: 1, clickCount: 1 });
+      for (let i = 1; i <= 6; i++) await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + ((to.x - from.x) * i) / 6, y: from.y + ((to.y - from.y) * i) / 6, button: "left", buttons: 1 });
+      await p.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: to.x, y: to.y, button: "left", buttons: 0, clickCount: 1 });
+      await sleep(500);
+    };
+    // Drag "Write report" (60 min) from the tray so it's centred on 13:30 → 13:00–14:00.
+    const target = await pointAt("13:30");
+    await drag(await center('[data-testid="tray-task"]'), target);
+    let t = await todos();
+    check("Timebox: dragging a task onto the timeline blocks it there", t.find((x) => x.id === "w1")?.block?.start === "13:00", JSON.stringify(t.map((x) => x.block)));
+    // Move "Email Sam" from 10:00 down an hour.
+    const sam = '[data-testid="day-block"][data-id="w2"]';
+    await pointAt("10:00");
+    let from = await center(sam);
+    await drag(from, { x: from.x, y: from.y + 60 * PX });
+    t = await todos();
+    check("Timebox: dragging a block moves it (snapped to 15 minutes)", t.find((x) => x.id === "w2")?.block?.start === "11:00", JSON.stringify(t.find((x) => x.id === "w2")?.block));
+    // Make it 30 minutes longer by dragging its bottom edge.
+    from = await center(`${sam} [data-testid="block-resize"]`);
+    await drag(from, { x: from.x, y: from.y + 30 * PX });
+    t = await todos();
+    check("Timebox: dragging the bottom edge changes the length", t.find((x) => x.id === "w2")?.estimateMin === 60, String(t.find((x) => x.id === "w2")?.estimateMin));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="agenda"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): the Day view has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Drag it back to the tray to unblock it.
+    await pointAt("11:00");
+    from = await center(sam);
+    await drag(from, await center('[data-testid="day-tray"]'));
+    t = await todos();
+    check("Timebox: dragging a block to the tray unblocks it", !t.find((x) => x.id === "w2")?.block && (await p.eval(`document.querySelector('[data-testid="day-tray"]').innerText`)).includes("Email Sam"));
+    // Keyboard: move, lengthen and unblock "Write report"; Enter places "Email Sam".
+    const key = async (sel, k, shift = false) => {
+      await p.eval(`document.querySelector(${JSON.stringify(sel)}).focus()`);
+      await p.send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code: k, windowsVirtualKeyCode: { ArrowDown: 40, ArrowUp: 38, Delete: 46, Enter: 13 }[k], modifiers: shift ? 8 : 0 });
+      await p.send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code: k, windowsVirtualKeyCode: { ArrowDown: 40, ArrowUp: 38, Delete: 46, Enter: 13 }[k], modifiers: shift ? 8 : 0 });
+      await sleep(400);
+    };
+    const report = '[data-testid="day-block"][data-id="w1"]';
+    await key(report, "ArrowDown");
+    await key(report, "ArrowDown", true);
+    t = await todos();
+    const w1 = t.find((x) => x.id === "w1");
+    check("Timebox: arrow keys move a block; Shift+arrows change its length", w1?.block?.start === "13:15" && w1?.estimateMin === 75, JSON.stringify(w1));
+    check("Timebox: changes are announced", (await p.eval(`document.querySelector('[data-testid="day-view"] [role="status"]').innerText`)).includes("Write report: 75 minutes"));
+    await key(report, "Delete");
+    t = await todos();
+    check("Timebox: Delete unblocks a block", !t.find((x) => x.id === "w1")?.block);
+    await key('[data-testid="tray-task"][aria-label^="Email Sam"]', "Enter");
+    t = await todos();
+    check("Timebox: Enter on a task places it in the next free time", /^\d\d:\d\d$/.test(t.find((x) => x.id === "w2")?.block?.start ?? ""), JSON.stringify(t.map((x) => [x.id, x.block])));
+    // List view is still there, and remembered.
+    await p.eval(`[...document.querySelectorAll('[aria-label="Agenda view"] button')].find((b) => b.textContent === "List").click()`);
+    await sleep(400);
+    check("Timebox: List view switches back and is remembered", !(await p.eval(`!!document.querySelector('[data-testid="day-view"]')`)) && (await p.storage(["agendaView"])).agendaView === "list");
+    await p.eval(`chrome.storage.local.set({ todos: [], days: [] }).then(() => chrome.storage.local.remove(["agendaView", "todaySettings"]))`);
+    await p.close();
+  },
+
   async meetingprep(b, check) {
     // Meeting prep on Today: an upcoming calendar event (stubbed calendar; test builds only) matched to an earlier recorded meeting.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
@@ -1938,7 +2022,7 @@ const suites = {
     // Time blocks on Today: Block time puts planned tasks into free time; reminders are scheduled.
     const p = await b.openPage();
     const [day, nowMin] = await p.eval(`(() => { const d = new Date(); return [d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"), d.getHours() * 60 + d.getMinutes()]; })()`);
-    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: true }, todos: [
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, agendaView: "list", todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: true }, todos: [
       { id: "b1", title: "Write release notes", completed: false, plannedFor: "${day}", estimateMin: 15, priority: "high", createdAt: new Date().toISOString() },
       { id: "b2", title: "Reply to Priya", completed: false, plannedFor: "${day}", estimateMin: 15, createdAt: new Date().toISOString() }
     ] })`);

@@ -133,3 +133,59 @@ export function googleCalendarLink(title: string, day: string, start: string, mi
   const params = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${stamp(s)}/${stamp(s + minutes)}`, details: "Focus time planned in ProdLi", ctz: timeZone });
   return `https://calendar.google.com/calendar/render?${params}`;
 }
+
+// ── Day view (drag-to-timebox) ───────────────────────────────────────────────
+
+/** Times on the day view snap to this many minutes. */
+export const SNAP_MIN = 15;
+export const MIN_BLOCK_MIN = 15;
+
+export const snap = (m: number, step = SNAP_MIN) => Math.round(m / step) * step;
+
+/** The hours the day view shows: the working day, stretched to fit events and blocks (whole hours). */
+export function dayRange(items: Slot[], workStart: string, workEnd: string): Slot {
+  let from = toMin(workStart);
+  let to = Math.max(toMin(workEnd), from + 60);
+  for (const s of items) {
+    from = Math.min(from, s.start);
+    to = Math.max(to, s.end);
+  }
+  return { start: Math.max(0, Math.floor(from / 60) * 60), end: Math.min(24 * 60, Math.ceil(to / 60) * 60) };
+}
+
+/** Keeps a block of `minutes` inside the range, snapped. */
+export function clampStart(start: number, minutes: number, range: Slot): number {
+  return Math.min(Math.max(snap(start), range.start), Math.max(range.start, range.end - minutes));
+}
+
+/** Side-by-side columns for overlapping items: each gets its column and how many share its cluster. */
+export function columns<T extends Slot>(items: T[]): { item: T; col: number; cols: number }[] {
+  const sorted = [...items].sort((a, b) => a.start - b.start || b.end - a.end);
+  const out: { item: T; col: number; cols: number }[] = [];
+  let cluster: { item: T; col: number; cols: number }[] = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    const n = Math.max(1, ...cluster.map((c) => c.col + 1));
+    for (const c of cluster) c.cols = n;
+    out.push(...cluster);
+    cluster = [];
+  };
+  for (const item of sorted) {
+    if (item.start >= clusterEnd) {
+      flush();
+      clusterEnd = -1;
+    }
+    const used = new Set(cluster.filter((c) => c.item.end > item.start).map((c) => c.col));
+    let col = 0;
+    while (used.has(col)) col++;
+    cluster.push({ item, col, cols: 1 });
+    clusterEnd = Math.max(clusterEnd, item.end);
+  }
+  flush();
+  return out;
+}
+
+/** The first free time today for one task (the keyboard "place" action), or null. */
+export function nextFreeStart(task: Todo, todos: Todo[], events: CalendarEvent[], day: string, workStart: string, workEnd: string, nowMin: number): string | null {
+  return autoSchedule({ tasks: [{ ...task, block: undefined }], todos: todos.filter((t) => t.id !== task.id), events, day, workStart, workEnd, nowMin }).placed[task.id] ?? null;
+}

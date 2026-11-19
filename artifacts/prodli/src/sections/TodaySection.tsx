@@ -23,6 +23,7 @@ import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
 import { ReadLater } from "./today/ReadLater";
 import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
+import { DayView } from "./today/DayView";
 import { buildPrep } from "../lib/meetingPrep";
 import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
 
@@ -45,6 +46,8 @@ const btn = (kind: "primary" | "plain" = "plain", disabled = false): CSSProperti
 });
 const KIND_COLORS: Record<DailyBrief["schedule"][number]["kind"], string> = { meeting: "#FF4FA3", focus: ACCENT, task: "#00BCD4", break: "#9CA3AF", habit: "#66BB6A" };
 const ESTIMATES = [15, 30, 60, 90, 120, 180];
+/** Agenda as a draggable day timeline or a list (remembered on this device). */
+const AGENDA_VIEW_KEY = "agendaView";
 const fmtMin = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`);
 
 function Card({ title, right, children, testId }: { title: string; right?: ReactNode; children: ReactNode; testId?: string }) {
@@ -77,6 +80,14 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   const [askDraft, setAskDraft] = useState("");
   const [blockNote, setBlockNote] = useState<{ warn: boolean; text: string } | null>(null);
   const autoTried = useRef(false);
+  const [agendaView, setAgendaView] = useState<"day" | "list">("day");
+  useEffect(() => {
+    void storageGet<"day" | "list">(AGENDA_VIEW_KEY, "day").then((v) => setAgendaView(v === "list" ? "list" : "day"));
+  }, []);
+  const chooseView = (v: "day" | "list") => {
+    setAgendaView(v);
+    void storageSet(AGENDA_VIEW_KEY, v);
+  };
   const meetings = useMeetings();
   const prep = useMemo(() => buildPrep(events, meetings, todos), [events, meetings, todos]);
 
@@ -337,6 +348,13 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               testId="agenda"
               right={
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <span role="group" aria-label="Agenda view" style={{ display: "inline-flex" }}>
+                    {(["day", "list"] as const).map((v, i) => (
+                      <button key={v} aria-pressed={agendaView === v} onClick={() => chooseView(v)} style={{ ...btn(), marginLeft: i ? -2 : 0, background: agendaView === v ? "hsl(var(--foreground))" : "hsl(var(--card))", color: agendaView === v ? "hsl(var(--background))" : "hsl(var(--foreground))" }}>
+                        {v === "day" ? "Day" : "List"}
+                      </button>
+                    ))}
+                  </span>
                   {unblocked.length > 0 && (
                     <button style={btn("primary")} onClick={blockTime} title="Put today's planned tasks into your free time" data-testid="block-time">
                       ⏱ Block time
@@ -370,7 +388,19 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
               {allDay.length > 0 && (
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, opacity: 0.85 }}>All day: {allDay.map((e) => e.title).join(" · ")}</div>
               )}
-              {timeline.length === 0 ? (
+              {agendaView === "day" ? (
+                <DayView
+                  day={today}
+                  events={events}
+                  todos={todos}
+                  unblocked={unblocked}
+                  workStart={settings.workStart}
+                  workEnd={settings.workEnd}
+                  nowMin={nowMin()}
+                  onBlock={(id, start) => updateTodo(id, { block: start ? { day: today, start } : undefined })}
+                  onLength={(id, minutes) => updateTodo(id, { estimateMin: minutes })}
+                />
+              ) : timeline.length === 0 ? (
                 (calendar.connected || !calendarAvailable()) && (
                   <p style={{ fontSize: 13, margin: 0, opacity: 0.75 }}>
                     {calendar.loading ? "Loading…" : calendar.connected ? "Nothing on your calendar today." : "Nothing scheduled."} {planned.length > 0 && "Plan tasks below, give them a time estimate, then ⏱ Block time."}
