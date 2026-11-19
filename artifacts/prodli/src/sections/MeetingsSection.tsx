@@ -195,7 +195,7 @@ function SetupPanel({
           <p style={{ fontSize: 13, marginTop: 8 }}>{SIGN_IN_FOR_SUMMARIES}</p>
         )}
         <p style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
-          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Audio stays on this computer (only the transcript is sent to make the summary), unless you choose 🌐 Transcribe audio with AI for a meeting.
+          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Only the transcript is sent to make the summary. Audio stays on this computer unless it's transcribed with AI: when you choose 🌐 Transcribe audio with AI, or after a Zoom or Teams call (step 3).
         </p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={autoSummarize} onChange={onToggleAuto} /> Summarize automatically when a meeting ends
