@@ -89,6 +89,11 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>☆ Save prompt</Tag>} desc="Save a question to ask again from ★ Saved prompts. With 🕒 you can run it on chosen days at a time; the answer arrives as a notification (each run uses one question; extension)." />
           </Section>
 
+          <Section emoji="🗓" title="Day view (timeboxing)">
+            <Row label={<Tag>Day / List</Tag>} desc="Today → Agenda shows your day as a timeline. Drag a task from To place onto it to block time, drag a block to move it, drag its bottom edge to change its length, or drag it back to To place to unblock it. Times snap to 15 minutes." />
+            <Row label={<Tag>Keyboard</Tag>} desc="Enter on a task places it in the next free time. On a block: ↑/↓ move it 15 minutes, Shift + ↑/↓ change its length, Delete unblocks it." />
+          </Section>
+
           <Section emoji="🗒" title="Meeting prep">
             <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
           </Section>
