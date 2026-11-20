@@ -33,6 +33,7 @@ const SPEECH_LANGS: { code: string; label: string }[] = [
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   AUTO_TRANSCRIBE_STORAGE_KEY,
+  RECORD_ANY_TAB_STORAGE_KEY,
   SHOW_INDICATOR_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
   SPEECH_ENABLED_STORAGE_KEY,
@@ -197,7 +198,7 @@ function SetupPanel({
           <p style={{ fontSize: 13, marginTop: 8 }}>{SIGN_IN_FOR_SUMMARIES}</p>
         )}
         <p style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
-          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Only the transcript is sent to make the summary. Audio stays on this computer unless it's transcribed with AI: when you choose 🌐 Transcribe audio with AI, or after a Zoom or Teams call (step 3).
+          Summary, decisions, action items and open questions, written by {SUMMARY_MODEL}. Only the transcript is sent to make the summary. Audio stays on this computer unless it's transcribed with AI: when you choose 🌐 Transcribe audio with AI, or after a call other than Meet (step 3).
         </p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={autoSummarize} onChange={onToggleAuto} /> Summarize automatically when a meeting ends
@@ -207,16 +208,16 @@ function SetupPanel({
       <div>
         <div style={label}>2 · Recorder</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          {recorderOn ? <strong style={{ fontSize: 13 }}>✓ On for Google Meet, Zoom and Teams</strong> : null}
+          {recorderOn ? <strong style={{ fontSize: 13 }}>✓ On for Meet, Zoom, Teams, Webex, Slack, Discord and more</strong> : null}
           <button style={btn(recorderOn ? "plain" : "primary")} onClick={onToggleRecorder}>
             {recorderOn ? "Turn off" : "Turn on recorder"}
           </button>
         </div>
-        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>Chrome will ask to let ProdLi capture tab audio and read captions on meet.google.com. Zoom and Teams need nothing more.</p>
+        <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>Chrome will ask to let ProdLi capture tab audio and read captions on meet.google.com. Other call apps need nothing more.</p>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={micOn} onChange={onToggleMic} /> Include my microphone in the audio recording
         </label>
-        <p data-testid="mic-hint" style={{ fontSize: 12, margin: "2px 0 0 22px", opacity: 0.8 }}>Needed for Zoom and Teams: ProdLi records the call's tab, which plays only the other people. Without it, your own voice isn't in the recording (ProdLi warns you when a call starts). Meet doesn't need it: its captions include you.</p>
+        <p data-testid="mic-hint" style={{ fontSize: 12, margin: "2px 0 0 22px", opacity: 0.8 }}>Needed for calls other than Meet (Zoom, Teams, Webex, Slack, Discord…): ProdLi records the call's tab, which plays only the other people. Without it, your own voice isn't in the recording (ProdLi warns you when a call starts). Meet doesn't need it: its captions include you.</p>
         <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 6 }}>
           <input type="checkbox" checked={indicator} onChange={onToggleIndicator} style={{ marginTop: 3 }} />
           <span>
@@ -229,15 +230,16 @@ function SetupPanel({
       <div>
         <div style={label}>3 · How to record</div>
         <ol style={{ fontSize: 13, paddingLeft: 18, marginTop: 8, lineHeight: 1.6, listStyle: "decimal" }}>
-          <li>Join a call on <strong>meet.google.com</strong>, or a <strong>Zoom</strong> or <strong>Microsoft Teams</strong> call in the browser.</li>
+          <li>Join a call in the browser: <strong>Google Meet</strong>, <strong>Zoom</strong>, <strong>Microsoft Teams</strong>, <strong>Webex</strong>, a <strong>Slack</strong> huddle, a <strong>Discord</strong> call, <strong>Jitsi</strong> or <strong>Whereby</strong>. For any other call app, turn on “Record any website” below.</li>
           <li>Click the <strong>ProdLi icon</strong> in the toolbar (pin it), or press <strong>Alt+Shift+R</strong>.</li>
-          <li>On Meet, ProdLi turns on Meet’s captions (only you see them) and takes notes from them. On Zoom and Teams it records the call’s audio. No bot joins the call.</li>
+          <li>On Meet, ProdLi turns on Meet’s captions (only you see them) and takes notes from them. On the other apps it records the call’s audio. No bot joins the call.</li>
           <li>To stop, click the ProdLi icon again (or Alt+Shift+R), or just leave the call.</li>
         </ol>
         <p data-testid="captions-requirement" style={{ fontSize: 12, marginTop: 8, padding: "6px 8px", border: "var(--nb-border)", background: "#FFF3CD", color: "#000", fontWeight: 600 }}>
           Transcripts come from Meet’s captions (CC). If captions are off, only the audio is recorded — the ProdLi icon shows an amber <strong>CC</strong> and a note appears in the call. Set the caption language in Meet (CC → settings) to the language people speak.
         </p>
         <AutoTranscribeSetting />
+        <AnyTabSetting />
       </div>
 
       <div>
@@ -294,7 +296,7 @@ function SetupPanel({
   );
 }
 
-/** Zoom and Teams: transcribe the recording with AI right after the call. */
+/** Calls other than Meet: transcribe the recording with AI right after the call. */
 function AutoTranscribeSetting() {
   const [on, setOn] = useState(true);
   useEffect(() => {
@@ -312,8 +314,33 @@ function AutoTranscribeSetting() {
         style={{ marginTop: 3 }}
       />
       <span>
-        Zoom and Teams: transcribe the recording with AI after the call
-        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Zoom and Teams have no captions ProdLi can read, so the call’s audio is sent to ProdLi’s AI (Whisper) when the call ends. Uses your monthly audio minutes; needs a free ProdLi account. Off: the audio stays on this computer and on-device transcription (step 4) is used if it’s on.</span>
+        Calls other than Meet: transcribe the recording with AI after the call
+        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Zoom, Teams, Webex, Slack, Discord and other apps have no captions ProdLi can read, so the call’s audio is sent to ProdLi’s AI (Whisper) when the call ends. Uses your monthly audio minutes; needs a free ProdLi account. Off: the audio stays on this computer and on-device transcription (step 4) is used if it’s on.</span>
+      </span>
+    </label>
+  );
+}
+
+/** "Record any website": the ProdLi icon records any tab, for call apps ProdLi doesn't recognise. */
+function AnyTabSetting() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    void storageGet<boolean>(RECORD_ANY_TAB_STORAGE_KEY, false).then(setOn);
+  }, []);
+  return (
+    <label data-testid="record-any-tab" style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 8 }}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setOn(e.target.checked);
+          void storageSet(RECORD_ANY_TAB_STORAGE_KEY, e.target.checked);
+        }}
+        style={{ marginTop: 3 }}
+      />
+      <span>
+        Record any website when I click the ProdLi icon
+        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>For call apps ProdLi doesn't recognise (Google Chat, Skype, Zoho Meeting, a company's own video tool…). ProdLi then records whatever tab you click the icon on, until you click it again or close the tab. Off: only the apps listed above.</span>
       </span>
     </label>
   );
@@ -796,7 +823,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
         <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
-          AI notes · Meet, Zoom, Teams & in person
+          AI notes · any call & in person
         </span>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -834,7 +861,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         <div style={{ padding: 24 }}>
           <div style={card}>
             <strong>Record a meeting in the room with 🎙 Record in person above</strong>, or get notes from calls with the ProdLi Chrome extension.
-            <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a Google Meet, Zoom or Teams call in your browser, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
+            <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…), and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
             {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
           </div>
         </div>
@@ -865,7 +892,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         <div style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13 }}>
           <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
           Recording · {formatTimestamp(elapsed * 1000)}
-          <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${PLATFORM_LABEL[recState.platform]} call — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
+          <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${recState.platform === "browser" ? "This tab" : `${PLATFORM_LABEL[recState.platform]} call`} — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
           <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
@@ -879,7 +906,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>
             <p style={{ fontSize: 14, opacity: 0.8 }}>
-              {ext ? "Join a Google Meet, Zoom or Teams call in your browser and click the ProdLi icon (or press Alt+Shift+R) to start taking notes. For a meeting in the room, press 🎙 Record in person." : "Press 🎙 Record in person for a meeting in the room. Calls you record with the ProdLi extension appear here too."}
+              {ext ? "Join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…) and click the ProdLi icon (or press Alt+Shift+R) to start taking notes. For a meeting in the room, press 🎙 Record in person." : "Press 🎙 Record in person for a meeting in the room. Calls you record with the ProdLi extension appear here too."}
             </p>
           </div>
         ) : (

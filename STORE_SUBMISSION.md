@@ -2,7 +2,7 @@
 
 Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release.
 
-**New in 1.4.0** (since 1.3.0): repeating to-dos, reminders, lists and labels, and natural-language quick add; 🎙 Speak tasks; focus blocking with schedules and strict mode; saved tabs, quick links and a search box on Today; Read later and "Summarize page to ProdLi notes"; note templates and a daily note; richer habits (count, timed, quit, skip days, year heatmap); Ask ProdLi sources, saved and scheduled prompts; meeting prep; site categories and a daily focus score; the drag-to-timebox Day view; AI notes for Zoom and Teams calls in the browser and for in-person meetings; to-do Board and Eisenhower matrix views; AI audio transcription for mixed-language calls; meeting types and a word list.
+**New in 1.4.0** (since 1.3.0): repeating to-dos, reminders, lists and labels, and natural-language quick add; 🎙 Speak tasks; focus blocking with schedules and strict mode; saved tabs, quick links and a search box on Today; Read later and "Summarize page to ProdLi notes"; note templates and a daily note; richer habits (count, timed, quit, skip days, year heatmap); Ask ProdLi sources, saved and scheduled prompts; meeting prep; site categories and a daily focus score; the drag-to-timebox Day view; AI notes for Zoom, Teams, Webex, Slack, Discord, Jitsi and Whereby calls in the browser (and any website, as an option) and for in-person meetings; to-do Board and Eisenhower matrix views; AI audio transcription for mixed-language calls; meeting types and a word list.
 
 ## 1. Package
 
@@ -23,7 +23,7 @@ All screenshots are 1280×800 and in `artifacts/prodli/store-assets/`. Upload 1�
 |---|---|---|
 | Screenshot 1 | `screenshot-1-today.png` | Today: quick links, AI daily brief, the Day view with time blocks and meetings |
 | Screenshot 2 | `screenshot-2-ask.png` | Ask ProdLi answering "What should I focus on now?" |
-| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes (Meet, Zoom and Teams) |
+| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes (any call, and in person) |
 | Screenshot 4 | `screenshot-6-todos.png` | To-dos with lists, labels, repeats and reminders |
 | Screenshot 5 | `screenshot-7-time-tracker.png` | Time Tracker with the focus score and site categories |
 | Small promo tile (440×280) | `promo-440x280.png` | Logo and "Your day, planned." |
@@ -34,10 +34,10 @@ To regenerate them after UI changes (from `artifacts/prodli`): `node scripts/sto
 
 ## 3. Store listing → Text
 
-**Summary** (from the manifest, 127 of 132 characters):
+**Summary** (from the manifest, 124 of 132 characters):
 
 ```
-Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools, AI notes for Meet, Zoom and Teams.
+Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for any meeting.
 ```
 
 **Description:**
@@ -52,7 +52,7 @@ Each morning ProdLi writes a short daily brief: your top priorities and why, a s
 Ask anything about your day, notes and meetings: "What should I focus on now?", "What's overdue?", "Summarize my last meeting". Answers come from your own data and show the notes and meetings they used, so you can open them. Save questions you ask often, or schedule them ("every weekday at 8:30") and get the answer as a notification.
 
 🎙️ AI MEETING NOTES FOR GOOGLE MEET, ZOOM AND TEAMS, NO BOT
-Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom and Microsoft Teams in the browser, it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…), with names spelled from your own word list. Send action items to your to-dos in one click, or draft a follow-up email. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
+Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom, Microsoft Teams, Webex, Slack huddles, Discord, Jitsi and Whereby in the browser (or any website, if you turn that on), it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…), with names spelled from your own word list. Send action items to your to-dos in one click, or draft a follow-up email. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
 
 ✅ TO-DOS THAT KEEP UP
 Type naturally: "call mom every Monday at 5pm #family" sets the date, time, repeat and list. Repeating tasks, reminders with snooze, lists, labels and subtasks, in a list, a Board or an Eisenhower matrix. Or press 🎙 Speak tasks, say everything on your mind, and review the tasks before they're added.
@@ -89,7 +89,7 @@ No ads, no analytics, no tracking, and your data is never sold. Your data is use
 ### Single purpose
 
 ```
-ProdLi replaces the new tab page with a personal assistant that helps the user plan and organise their own work: a daily plan built from their tasks and calendar, notes, to-dos, habits, focus tools and notes from their Google Meet, Zoom and Teams calls, optionally synced to their ProdLi account.
+ProdLi replaces the new tab page with a personal assistant that helps the user plan and organise their own work: a daily plan built from their tasks and calendar, notes, to-dos, habits, focus tools and notes from their calls and meetings, optionally synced to their ProdLi account.
 ```
 
 ### Permission justifications
@@ -101,14 +101,14 @@ ProdLi replaces the new tab page with a personal assistant that helps the user p
 | `tabs` | Reads the website name (hostname) of the active tab to total browsing time per site for the Time Tracker, and to show a pause screen instead of a site the user chose to block. When the user clicks "Save tabs", it saves the titles and addresses of their open tabs so they can reopen them later. Page content is never read. |
 | `idle` | Pauses time tracking while the user is away so idle time isn't counted. |
 | `alarms` | Schedules the time-tracking heartbeat, the end of Pomodoro sessions, the daily planning reminder, time-block and to-do reminders, focus-hour blocking, the user's scheduled Ask ProdLi questions and background sync. |
-| `notifications` | Tells the user when a Pomodoro session ends, a time block or to-do is due, a daily site limit is reached, meeting notes are ready, a scheduled Ask ProdLi answer arrives, or a Zoom/Teams recording doesn't include their microphone. |
+| `notifications` | Tells the user when a Pomodoro session ends, a time block or to-do is due, a daily site limit is reached, meeting notes are ready, a scheduled Ask ProdLi answer arrives, or a call recording doesn't include their microphone. |
 | `identity` | Used only when the user chooses "Sign in with Google" (to sign in to their ProdLi account) or connects Google Calendar (read-only, to plan their day around their meetings). |
 | `contextMenus` | Adds "Add to ProdLi to-dos", "Save to ProdLi notes", "Read later in ProdLi" and "Summarize page to ProdLi notes" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
 | `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in Chrome, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
 | `search` | The search box on ProdLi's new tab page sends what the user types to their default search engine through Chrome's Search API. ProdLi never changes the search engine and doesn't see the results. |
 | `activeTab` | When the user right-clicks a page and picks "Summarize page to ProdLi notes", ProdLi reads that one page's text to write the summary. Access lasts only for that click and that tab. |
 | `scripting` | Used with `activeTab` to read the page's text for "Summarize page", and to start the Google Meet caption reader on a Meet tab when the user starts recording. |
-| `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the Google Meet, Zoom or Teams tab the user starts recording (toolbar icon or Alt+Shift+R). The audio is saved on the device; it is sent to the AI provider for transcription only when the user asks (“Transcribe audio with AI”), or after a Zoom/Teams call when that setting is on (default) and the user is signed in. |
+| `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the call's tab the user starts recording (Google Meet, Zoom, Teams, Webex, Slack, Discord, Jitsi, Whereby, or any tab if the user turns on "Record any website") (toolbar icon or Alt+Shift+R). The audio is saved on the device; it is sent to the AI provider for transcription only when the user asks (“Transcribe audio with AI”), or after a Zoom/Teams call when that setting is on (default) and the user is signed in. |
 | `offscreen` *(optional)* | Runs the meeting recorder's audio capture in an offscreen document. |
 | `downloads` *(optional)* | Requested only with "Open files from anywhere": Chrome downloads some local files (such as CSV) instead of opening them; ProdLi cancels that download and shows the file in its viewer instead. |
 | Host access *(optional)*: `https://meet.google.com/*`, `file:///*` | `meet.google.com` to read Meet's captions when the user records a Meet call; `file:///*` only for "Open files from anywhere". Each is requested when the user turns that feature on. (1.3.0 also declared `<all_urls>` for a Time Tracker auto-redirect that no longer needs it.) |
@@ -125,7 +125,7 @@ Tick these (they leave the device only when the user signs in or uses a feature)
 |---|---|
 | **Personally identifiable information** | Name, email address and profile picture from Google sign-in, to create and show the account. |
 | **Authentication information** | A Google sign-in token is exchanged for a ProdLi session, used to sync the user's data. |
-| **Personal communications** | Meeting transcripts and summaries (Google Meet, Zoom, Teams), and Zoom/Teams call audio sent for transcription, synced to the account and sent to the AI provider when the user asks for a summary. For writing help, the selected note text or a meeting's summary is sent to the AI provider to write a suggestion or follow-up email; neither is stored on ProdLi's servers. |
+| **Personal communications** | Meeting transcripts and summaries (calls in the browser and in-person meetings), and call or in-person audio sent for transcription, synced to the account and sent to the AI provider when the user asks for a summary. For writing help, the selected note text or a meeting's summary is sent to the AI provider to write a suggestion or follow-up email; neither is stored on ProdLi's servers. |
 | **Web history** | Time Tracker totals per website name (no full addresses), synced and used in the daily brief and weekly review; the titles and addresses of tabs, links and pages the user chooses to save (saved tabs, quick links, Read later), synced to the account. |
 | **Website content** | Text, titles and links the user saves from pages with "Add to ProdLi", stored as notes and to-dos; the text of a page the user asks to summarize ("Summarize page"), sent to the AI provider and not stored on ProdLi's servers. |
 
@@ -138,7 +138,7 @@ Then tick all three: data is **not sold** to third parties, **not used or transf
 ### Notes for the reviewer (if the form asks)
 
 ```
-No account is needed: every section works offline after install. To try the AI features, click the avatar (bottom left) → Sign in with Google; a free ProdLi account is created. The meeting recorder needs a Google Meet call, or a Zoom or Teams call in the browser: Meetings → Setup → Turn on recorder, join a call, then click the ProdLi toolbar icon.
+No account is needed: every section works offline after install. To try the AI features, click the avatar (bottom left) → Sign in with Google; a free ProdLi account is created. The meeting recorder needs a call in the browser (Google Meet, Zoom, Teams, Webex, Slack, Discord…) or works in person (Meetings → Record in person): Meetings → Setup → Turn on recorder, join a call, then click the ProdLi toolbar icon.
 ```
 
 ## 5. Before you submit
@@ -148,7 +148,7 @@ No account is needed: every section works offline after install. To try the AI f
 - [ ] Privacy policy on prodli.com updated for 1.4.0 (PR #71; lawyer review of the changes: `docs/legal/REVIEW-NOTES.md` §7)
 - [ ] 1.4.0 zip built from the latest `main` (`prodli-extension-store.zip`)
 - [ ] Recorder tested on a real Google Meet call
-- [ ] Recorder tested on real Zoom (web client) and Teams (web) calls
+- [ ] Recorder tested on real Zoom (web client), Teams, Webex and Slack huddle calls in the browser
 - [ ] Five screenshots and the promo tile uploaded; old screenshots removed
 - [ ] Description pasted
 - [ ] Single purpose and every permission justification pasted, including the changed `tabs`, `alarms`, `notifications`, `contextMenus` and host access rows

@@ -149,3 +149,5 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 
 **Added later on 20 November 2026 (in-person recording):** "🎙 Record in person" records from the microphone on the Meetings page (extension and web app). The recording stays on the device. Like Zoom/Teams calls, it's transcribed with AI automatically when it ends if the user is signed in and the setting is on (same setting, on by default). Policy updated: device data, audio transcription and microphone access. The consent decision in item 1 above applies here too (people in the room).
 
+**Added later on 20 November 2026 (more call apps):** the recorder also recognises Webex, Slack huddles, Discord voice, Jitsi and Whereby in the browser, and an optional "Record any website" setting (off by default) lets the toolbar icon record any tab. It works the same as Zoom/Teams: tab audio, automatic AI transcription after the call if signed in and the setting is on. No new permissions (tab capture follows the toolbar click). Policy wording now says "calls in your browser (Google Meet, Zoom, Microsoft Teams, Webex, Slack, Discord and others)".
+

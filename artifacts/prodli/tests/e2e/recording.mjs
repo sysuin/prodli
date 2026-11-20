@@ -207,13 +207,41 @@ try {
   teams.stop();
   await swEval(`chrome.storage.local.remove("recorderAutoTranscribe").then(() => { delete globalThis.__prodliTranscribeStub; return true; })`);
 
+  // More call apps: Webex is recognised from its address; any other site only with "Record any website" on.
+  const waitPlatform = async (platform) => {
+    for (let i = 0; i < 40; i++) {
+      const m = (await readMeetings()).find((x) => x.platform === platform);
+      if (m && m.status !== "recording" && m.status !== "processing") return m;
+      await sleep(500);
+    }
+    return (await readMeetings()).find((x) => x.platform === platform);
+  };
+  const webex = await openCall("https://acme.webex.com/*", "https://acme.webex.com/meet/jordan", "Weekly sync - Webex");
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://acme.webex.com/*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(2500);
+  check("Webex: clicking ProdLi on a Webex call starts recording", (await swEval("chrome.action.getBadgeText({})")) === "REC" && /Webex call's audio/.test(await swEval("chrome.action.getTitle({})")), await swEval("chrome.action.getTitle({})"));
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://acme.webex.com/*" }); await __prodliToggleRecording(t); return true; })()`);
+  const wx = await waitPlatform("webex");
+  check("Webex: the meeting is saved with its name from the tab", wx?.title === "Weekly sync" && wx?.status === "ready", JSON.stringify(wx));
+  webex.stop();
+  await swEval(`chrome.storage.local.set({ recorderAnyTab: true }).then(() => true)`);
+  const anySite = await openCall("https://meetings.example.org/*", "https://meetings.example.org/room/42", "Zoho Meeting - Design review");
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://meetings.example.org/*" }); await __prodliToggleRecording(t); return true; })()`);
+  await sleep(2500);
+  check("Any website (Setup option on): clicking ProdLi on another site records that tab", (await swEval("chrome.action.getBadgeText({})")) === "REC" && /recording this tab's audio/.test(await swEval("chrome.action.getTitle({})")), await swEval("chrome.action.getTitle({})"));
+  await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://meetings.example.org/*" }); await __prodliToggleRecording(t); return true; })()`);
+  const br = await waitPlatform("browser");
+  check("Any website: the meeting is saved as a browser call with the tab's title", br?.title === "Zoho Meeting - Design review" && br?.status === "ready", JSON.stringify(br));
+  anySite.stop();
+  await swEval(`chrome.storage.local.remove("recorderAnyTab").then(() => true)`);
+
   // Clicking on a page that isn't a Meet call explains why instead of silently opening ProdLi.
   const other = await b.openPage("https://example.com/");
   await sleep(500);
   await swEval(`(async () => { const [t] = await chrome.tabs.query({ url: "https://example.com/*" }); await __prodliToggleRecording(t); return true; })()`);
   await sleep(1500);
   const last = await swEval(`chrome.storage.local.get("recorderLastProblem").then(r => r.recorderLastProblem ?? null)`);
-  check("Clicking on a tab that isn't a call records why (shown in ProdLi)", !!last?.message && /Google Meet, Zoom and Microsoft Teams calls/i.test(last.message), JSON.stringify(last));
+  check("Clicking on a tab that isn't a call records why (shown in ProdLi)", !!last?.message && /Webex, Slack huddles, Discord/.test(last.message) && /Record any website/.test(last.message), JSON.stringify(last));
   await sleep(1500);
   const prodliTab = (await b.send("Target.getTargets")).targetInfos.find((t) => t.type === "page" && t.url.startsWith(`chrome-extension://${extId}/index.html`) && t.targetId !== page.targetId);
   if (prodliTab) {

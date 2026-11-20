@@ -38,7 +38,7 @@ function steps(): Step[] {
       accent: "#A78BFA",
       title: "Ask ProdLi anything",
       text: `Ask about your day, notes and meetings — “What should I focus on now?”, “Summarize my last meeting”. Press ${mod}+K anywhere to go anywhere or add a to-do.`,
-      points: [`${mod}+K: search & commands`, "Alt+Shift+A: add a to-do or note from any page" + (EXT ? "" : " (extension)"), "Alt+Shift+R: take notes in a Meet, Zoom or Teams call" + (EXT ? "" : " (extension)")],
+      points: [`${mod}+K: search & commands`, "Alt+Shift+A: add a to-do or note from any page" + (EXT ? "" : " (extension)"), "Alt+Shift+R: take notes in a call (Meet, Zoom, Teams, Webex…)" + (EXT ? "" : " (extension)")],
       action: { label: "Ask ProdLi", run: () => openAsk() },
     },
     sync

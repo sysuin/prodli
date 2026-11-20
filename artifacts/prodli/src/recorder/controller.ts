@@ -6,18 +6,19 @@
 // start from a button inside the call.
 //
 // Meet: transcript from Meet's captions (content script meet-captions.js).
-// Zoom and Teams: no captions are read; the audio is transcribed with AI right
+// Other calls (Zoom, Teams, Webex…): no captions are read; the audio is transcribed with AI right
 // after the call (in the offscreen document, piece by piece through here,
 // where the account is), or by on-device transcription if that's on.
 
 import { getMeeting, putMeeting, updateMeeting } from "./db";
 import { base64ToBytes, fillCaptionGaps } from "./format";
-import { callFromUrl, isPlaceholderTitle, notACallReason, placeholderTitle, PLATFORM_LABEL, stillInCall, titleFromTab, type CallInfo, type CallPlatform } from "./calls";
+import { anyWebsiteCall, callFromUrl, isPlaceholderTitle, notACallReason, placeholderTitle, PLATFORM_LABEL, stillInCall, titleFromTab, type CallInfo, type CallPlatform } from "./calls";
 import { sendWithRetry } from "./audioTranscribe";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
   AUTO_TRANSCRIBE_STORAGE_KEY,
+  RECORD_ANY_TAB_STORAGE_KEY,
   VOCABULARY_STORAGE_KEY,
   CLAUDE_KEY_STORAGE_KEY,
   MIC_ENABLED_STORAGE_KEY,
@@ -100,10 +101,10 @@ async function openMeetingsSection(): Promise<void> {
   await chrome.tabs.create({ url: chrome.runtime.getURL("index.html") });
 }
 
-const DEFAULT_TITLE = "ProdLi — click on a Google Meet, Zoom or Teams call tab to record";
+const DEFAULT_TITLE = "ProdLi — click on a call's tab (Meet, Zoom, Teams, Webex, Slack, Discord…) to record";
 
 /**
- * Zoom and Teams: ProdLi records the call's tab, which plays only the other
+ * Calls other than Meet: ProdLi records the call's tab, which plays only the other
  * people, so your own voice is in the recording only with the microphone on.
  * (Meet doesn't need it: its captions include you.)
  */
@@ -112,7 +113,7 @@ export function micOffNote(platform: CallPlatform, micIncluded: boolean, micWant
   if (platform === "google-meet" || micIncluded) return null;
   return micWanted
     ? "ProdLi couldn't use your microphone, so your own voice isn't in this recording. Allow the microphone for ProdLi (Meetings → Setup → Include my microphone)."
-    : "Your own voice isn't in this recording: the microphone is off. Turn on “Include my microphone” in Meetings → Setup for Zoom and Teams calls.";
+    : "Your own voice isn't in this recording: the microphone is off. Turn on “Include my microphone” in Meetings → Setup for calls other than Google Meet.";
 }
 
 /** REC (red) while recording with captions; CC (amber) when captions are missing, so there's no transcript. */
@@ -127,7 +128,7 @@ async function setRecordingBadge(tabId: number | null, captionsMissing = false, 
   await chrome.action.setBadgeText({ text: captionsMissing ? "CC" : "REC" });
   await chrome.action.setTitle({
     title: platform !== "google-meet"
-      ? `ProdLi is recording this ${PLATFORM_LABEL[platform]} call's audio; the transcript is made after the call.${micOff ? " Your microphone is off, so your own voice isn't recorded." : ""} Click to stop.`
+      ? `ProdLi is recording this ${platform === "browser" ? "tab" : `${PLATFORM_LABEL[platform]} call`}'s audio; the transcript is made after the call.${micOff ? " Your microphone is off, so your own voice isn't recorded." : ""} Click to stop.`
       : captionsMissing
       ? "ProdLi is recording audio, but captions are off — turn on captions (CC) in Meet for a transcript. Click to stop."
       : "ProdLi is recording and taking notes from captions. Click to stop.",
@@ -145,7 +146,8 @@ export async function toggleRecording(tab: chrome.tabs.Tab | undefined): Promise
   // The click's tab normally carries its address; if not, look it up.
   let url = tab?.url ?? tab?.pendingUrl;
   if (!url && tab?.id) url = await chrome.tabs.get(tab.id).then((t) => t.url ?? t.pendingUrl, () => undefined);
-  const call = callFromUrl(url);
+  // A recognised call app, or (with "Record any website" on) any web page.
+  const call = callFromUrl(url) ?? ((await getLocal<boolean>(RECORD_ANY_TAB_STORAGE_KEY, false)) ? anyWebsiteCall(url) : null);
   if (!tab?.id || !call) {
     await reportProblem(notACallReason(url) ?? "This tab isn't a call ProdLi can record.");
     await openMeetingsSection();
@@ -197,7 +199,7 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallI
     const startCmd: OffscreenCommand = { target: "offscreen", type: "start", meetingId, streamId, withMic, speechLang };
     const res = (await chrome.runtime.sendMessage(startCmd)) as { ok: boolean; error?: string; micIncluded?: boolean } | undefined;
     if (!res?.ok) throw new Error(res?.error ?? "The recorder didn't start.");
-    // Zoom/Teams with no microphone: say so now, while there's still time to fix it.
+    // Calls other than Meet with no microphone: say so now, while there's still time to fix it.
     const micNote = micOffNote(call.platform, !!res.micIncluded, withMic);
 
     if (call.platform === "google-meet") {
@@ -252,7 +254,7 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
     } catch {
       // Offscreen document already gone.
     }
-    // Zoom and Teams: transcribe the recording with AI now (before the offscreen document closes).
+    // Calls other than Meet: transcribe the recording with AI now (before the offscreen document closes).
     const autoTranscribe = await getLocal<boolean>(AUTO_TRANSCRIBE_STORAGE_KEY, true);
     const transcribe = platform !== "google-meet" && audio.hasAudio && autoTranscribe && (await canTranscribe());
 
@@ -309,7 +311,7 @@ async function canTranscribe(): Promise<boolean> {
   return canUseProdliAi();
 }
 
-/** AI transcript of a Zoom/Teams recording, made in the offscreen document; on failure the meeting keeps what it had. */
+/** AI transcript of a recording of a call other than Meet, made in the offscreen document; on failure the meeting keeps what it had. */
 async function transcribeAfterCall(meetingId: string, mimeType: string | null, micNote: string | null): Promise<void> {
   let res: { ok: true; entries: TranscriptEntry[]; languages: string[] } | { ok: false; error: string } | undefined;
   try {
@@ -451,7 +453,7 @@ export function registerRecorder(): void {
     if (state?.tabId !== tabId) return;
     const platform = state.platform ?? "google-meet";
     if (changeInfo.url && !stillInCall(platform, changeInfo.url)) return void (await stopRecording("left-call"));
-    // Zoom and Teams: the meeting's name comes from the tab title.
+    // Calls other than Meet: the meeting's name comes from the tab title.
     const name = titleFromTab(platform, changeInfo.title);
     if (name) await updateMeeting(state.meetingId, (m) => (isPlaceholderTitle(m.title) ? { title: name } : {}));
   });

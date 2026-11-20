@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ProdLi",
   "version": "1.4.0",
-  "description": "Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools, AI notes for Meet, Zoom and Teams.",
+  "description": "Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for any meeting.",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
@@ -38,7 +38,7 @@
       "suggested_key": {
         "default": "Alt+Shift+R"
       },
-      "description": "Start or stop recording the current call (Google Meet, Zoom or Teams)"
+      "description": "Start or stop recording the current call (Meet, Zoom, Teams, Webex, Slack, Discord…)"
     },
     "quick-add": {
       "suggested_key": {
@@ -53,7 +53,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "ProdLi — click on a Google Meet, Zoom or Teams call tab to record",
+    "default_title": "ProdLi — click on a call's tab (Meet, Zoom, Teams, Webex, Slack, Discord…) to record",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

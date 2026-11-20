@@ -33,7 +33,7 @@ const PLANS = [
 
 const FAQ = [
   { q: "Do I need an account?", a: "No. ProdLi works without an account and offline. Sign in with Google only if you want sync between devices and app.prodli.com, and the AI features (daily brief, weekly review, Ask ProdLi, meeting summaries)." },
-  { q: "Does a bot join my meetings?", a: "No. ProdLi takes notes in your browser: from Google Meet's own captions, or from the call's audio on Zoom and Teams. Nobody else sees anything. Audio leaves your computer only to be transcribed with AI: when you choose it, or after a Zoom or Teams call while you're signed in (you can turn that off)." },
+  { q: "Does a bot join my meetings?", a: "No. ProdLi takes notes in your browser: from Google Meet's own captions, or from the call's audio on Zoom, Teams, Webex, Slack, Discord and other apps. Nobody else sees anything. Audio leaves your computer only to be transcribed with AI: when you choose it, or after a call or in-person recording while you're signed in (you can turn that off)." },
   { q: "Where is my data?", a: "On your device first. If you sign in, synced data is stored in your own private space on ProdLi's servers. You can download or delete it any time. We don't sell data or show ads." },
   { q: "Does it work on my phone?", a: "Yes — open app.prodli.com and add it to your home screen. The Chrome extension adds the new tab, meeting notes, quick add from any page and time tracking." },
 ];

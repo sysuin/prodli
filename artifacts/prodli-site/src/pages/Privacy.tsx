@@ -36,7 +36,7 @@ Grievance officer (India): Sunny Singh, contact@prodli.com.`,
 • Time Tracker (extension): the hostname of the website in your active tab (for example "github.com") and the seconds spent per day, and the category you give each site. Never full web addresses, page titles or page content.
 • Focus blocking (extension): the sites you choose to block, your focus hours, and how many times a day you paused on a blocked site
 • Saved tabs, quick links and Read later: the titles and web addresses of the tabs, links and pages you choose to save
-• Meetings (only if you use the recorder on Google Meet, Zoom or Microsoft Teams, or record a meeting in person from your microphone): transcripts, summaries, audio recordings, the meeting type you pick and your word list of names and terms
+• Meetings (only if you record calls in your browser (Google Meet, Zoom, Microsoft Teams, Webex, Slack, Discord and others) or meetings in person from your microphone): transcripts, summaries, audio recordings, the meeting type you pick and your word list of names and terms
 • Ask ProdLi saved prompts, their schedules and the answers to scheduled prompts
 • settings such as theme and fonts
 
@@ -73,7 +73,7 @@ Weekly review: with an account, ProdLi can write a short review of your week. Ou
 
 Meeting summaries: with an account, our server sends the meeting's transcript, name and date, the meeting type you picked and your word list of names and terms to Anthropic's Claude API, and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and audio isn't part of it. We count how many summaries you use each month.
 
-Audio transcription: with an account, ProdLi can turn a meeting's recording into a transcript. This happens when you choose 🌐 Transcribe audio with AI on a meeting, and automatically when a Zoom or Teams call or an in-person recording ends (you can turn the automatic part off in Meetings → Setup). Your device cuts the recording into short pieces and skips silence; each piece is sent to our server, which has it transcribed by an open speech model (Whisper) running on Cloudflare Workers AI, with your word list as a spelling hint. Neither the audio nor the text is stored on our servers; the transcript is saved with the meeting on your device and synced as text. We count how many minutes you transcribe each month. Recordings contain other participants' voices: you are responsible for telling them and getting their consent where the law requires it.
+Audio transcription: with an account, ProdLi can turn a meeting's recording into a transcript. This happens when you choose 🌐 Transcribe audio with AI on a meeting, and automatically when a recorded call other than Google Meet, or an in-person recording, ends (you can turn the automatic part off in Meetings → Setup). Your device cuts the recording into short pieces and skips silence; each piece is sent to our server, which has it transcribed by an open speech model (Whisper) running on Cloudflare Workers AI, with your word list as a spelling hint. Neither the audio nor the text is stored on our servers; the transcript is saved with the meeting on your device and synced as text. We count how many minutes you transcribe each month. Recordings contain other participants' voices: you are responsible for telling them and getting their consent where the law requires it.
 
 Page summaries (right-click → Summarize page to ProdLi notes): ProdLi reads the text of that page, in that tab and only when you click. With an account, our server sends the page's title, web address and up to about 24,000 characters of its text to Anthropic's Claude API, and the summary is saved as a note. Neither the page text nor the summary is stored on our servers. Without an account, the note gets a short excerpt and nothing is sent. Read later saves only the page's title and address.
 
@@ -142,7 +142,7 @@ These providers process data only to provide their services to us, under data pr
     body: `• Access and portability: download everything synced at any time (account window → Download my data).
 • Correction: edit your content in the app. Your name, email and picture come from your Google account.
 • Deletion: delete your account and synced data at any time (account window → Delete account).
-• Withdrawing consent: sign out, turn off meeting uploads or automatic transcription of Zoom and Teams calls, or stop using the AI features.
+• Withdrawing consent: sign out, turn off meeting uploads or automatic transcription, or stop using the AI features.
 
 Depending on where you live (for example under the EU/UK GDPR or India's DPDP Act), you may also have the right to object to or restrict processing, to nominate someone to exercise your rights, and to complain to your data protection authority (in India, the Data Protection Board). Contact contact@prodli.com; we'll reply within 30 days.`,
   },
@@ -156,7 +156,7 @@ Depending on where you live (for example under the EU/UK GDPR or India's DPDP Ac
 • activeTab and scripting: read the text of the page you right-click for "Summarize page" (only that tab, only then), and start reading Google Meet's captions when you start recording a Meet call
 • webNavigation: to notice when a Markdown, CSV, JSON or text file from your computer is opened in Chrome, so ProdLi can show it in its Files viewer (only if you turn this on; the file is read on your device and never uploaded)
 • Requested only if you turn on "Open files from anywhere in Chrome": access to local files (file:///) and downloads (Chrome downloads some files, such as CSV, instead of opening them; ProdLi cancels that download and shows the file instead), plus Chrome's "Allow access to file URLs" switch, which you control in Chrome's extension settings
-• Requested only when you turn on the meeting recorder: tabCapture and offscreen (to record the audio of the Google Meet, Zoom or Teams tab you start recording) and meet.google.com (to read Meet's captions). If you choose to include your microphone, or record a meeting in person, your browser asks for microphone access. You can remove these at any time in Chrome's extension settings.`,
+• Requested only when you turn on the meeting recorder: tabCapture and offscreen (to record the audio of the call's tab you start recording: a call app ProdLi recognises, or any website if you turn on “Record any website”) and meet.google.com (to read Meet's captions). If you choose to include your microphone, or record a meeting in person, your browser asks for microphone access. You can remove these at any time in Chrome's extension settings.`,
   },
   {
     title: "Google API data",
@@ -193,7 +193,7 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Your content",
-    body: `Your notes, tasks, meetings and other content belong to you. You give us permission to store, copy, sync, back up and process your content only as needed to provide ProdLi to you. This includes sending meeting transcripts to our AI provider when you ask for a summary, and recordings to our transcription service when you transcribe them (automatically after Zoom and Teams calls unless you turn that off). This permission ends when you delete the content or your account, except for backup copies that expire as described in the Privacy Policy.
+    body: `Your notes, tasks, meetings and other content belong to you. You give us permission to store, copy, sync, back up and process your content only as needed to provide ProdLi to you. This includes sending meeting transcripts to our AI provider when you ask for a summary, and recordings to our transcription service when you transcribe them (automatically after calls other than Google Meet, and in-person recordings, unless you turn that off). This permission ends when you delete the content or your account, except for backup copies that expire as described in the Privacy Policy.
 
 You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it.`,
   },
