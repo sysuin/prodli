@@ -26,6 +26,7 @@ import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
 import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection } from "./todo/TodoNav";
 import { findList, isList, LIST_EMOJIS, matchesQuery, normLabel } from "../lib/taskLists";
 import type { ListItem, Repeat, TaskQuery, Todo } from "../types";
+import { BoardView } from "./todo/BoardView";
 
 type Priority = "high" | "medium" | "low" | "none";
 type Filter = "all" | "active" | "completed" | "high" | "medium" | "low";
@@ -55,7 +56,8 @@ function dueLabel(due: string, today: string): string {
   return new Date(`${due}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-type View = "date" | "order";
+type View = "date" | "order" | "board" | "matrix";
+const VIEWS: View[] = ["date", "order", "board", "matrix"];
 const VIEW_KEY = "prodli_todo_view";
 const SEL_KEY = "prodli_todo_selection";
 type Group = { id: string; label: string; items: Todo[]; tone?: "warn" };
@@ -293,7 +295,8 @@ export function TodoSection() {
   const [showDone, setShowDone] = useState(false);
   const [view, setView] = useState<View>(() => {
     try {
-      return localStorage.getItem(VIEW_KEY) === "order" ? "order" : "date";
+      const v = localStorage.getItem(VIEW_KEY) as View | null;
+      return v && VIEWS.includes(v) ? v : "date";
     } catch {
       return "date";
     }
@@ -632,6 +635,8 @@ export function TodoSection() {
         <div role="radiogroup" aria-label="Arrange tasks" style={{ display: "flex", marginLeft: "auto" }}>
           <ViewButton current={view} value="date" label="📅 By date" onPick={changeView} />
           <ViewButton current={view} value="order" label="↕ My order" onPick={changeView} />
+          <ViewButton current={view} value="board" label="▦ Board" onPick={changeView} />
+          <ViewButton current={view} value="matrix" label="⊞ Matrix" onPick={changeView} />
         </div>
         {canSaveView && (
           <button onClick={saveView} title="Save this list, label, filter and search as a saved filter" style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}>☆ Save view</button>
@@ -650,6 +655,8 @@ export function TodoSection() {
           <div style={{ textAlign: "center", padding: 48, color: "hsl(var(--muted-foreground))", fontWeight: 700, fontSize: 16, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             {todos.length === 0 ? "No tasks yet. Add one above!" : current.kind === "list" ? "No tasks in this list yet. Add one above!" : "No tasks match this filter."}
           </div>
+        ) : view === "board" || view === "matrix" ? (
+          <BoardView mode={view} todos={filtered} today={getDayKey()} listNames={listNames} onPatch={update} onToggle={toggle} />
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {renderList()}

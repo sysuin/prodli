@@ -8,7 +8,8 @@
 // Zoom and Teams have no captions ProdLi reads: their audio is recorded and
 // transcribed after the call (AI transcription when signed in, or on-device).
 
-export type CallPlatform = "google-meet" | "zoom" | "teams";
+/** "in-person": recorded from the microphone on the Meetings page (recorder/inPerson.ts), not a call tab. */
+export type CallPlatform = "google-meet" | "zoom" | "teams" | "in-person";
 
 export interface CallInfo {
   platform: CallPlatform;
@@ -16,7 +17,7 @@ export interface CallInfo {
   code: string | null;
 }
 
-export const PLATFORM_LABEL: Record<CallPlatform, string> = { "google-meet": "Google Meet", zoom: "Zoom", teams: "Microsoft Teams" };
+export const PLATFORM_LABEL: Record<CallPlatform, string> = { "google-meet": "Google Meet", zoom: "Zoom", teams: "Microsoft Teams", "in-person": "In person" };
 
 const TEAMS_HOSTS = ["teams.microsoft.com", "teams.live.com", "teams.cloud.microsoft"];
 const isZoomHost = (h: string) => h === "zoom.us" || h.endsWith(".zoom.us") || h === "zoomgov.com" || h.endsWith(".zoomgov.com");
@@ -73,7 +74,7 @@ export function placeholderTitle(call: CallInfo): string {
 
 /** Still the starting title (so a page or summary title may replace it)? */
 export function isPlaceholderTitle(title: string): boolean {
-  return /^(Google Meet|Zoom|Teams) · /.test(title);
+  return /^(Google Meet|Zoom|Teams|In person) · /.test(title);
 }
 
 /** A meeting name from a Zoom or Teams tab title, if it has one ("Weekly sync | Microsoft Teams" → "Weekly sync"). */
@@ -92,7 +93,8 @@ export function titleFromTab(platform: CallPlatform, tabTitle: string | undefine
 export function stillInCall(platform: CallPlatform, url: string | undefined): boolean {
   if (platform === "google-meet") return !!meetingCodeFromUrl(url);
   if (platform === "zoom") return !!zoomMeetingId(url);
-  return isTeamsUrl(url);
+  if (platform === "teams") return isTeamsUrl(url);
+  return true; // in person: not tied to a tab
 }
 
 /** Why recording can't start on this tab, in plain words (null when it can). */

@@ -2,7 +2,7 @@
 
 Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release.
 
-**New in 1.4.0** (since 1.3.0): repeating to-dos, reminders, lists and labels, and natural-language quick add; 🎙 Speak tasks; focus blocking with schedules and strict mode; saved tabs, quick links and a search box on Today; Read later and "Summarize page to ProdLi notes"; note templates and a daily note; richer habits (count, timed, quit, skip days, year heatmap); Ask ProdLi sources, saved and scheduled prompts; meeting prep; site categories and a daily focus score; the drag-to-timebox Day view; AI notes for Zoom and Teams calls in the browser; AI audio transcription for mixed-language calls; meeting types and a word list.
+**New in 1.4.0** (since 1.3.0): repeating to-dos, reminders, lists and labels, and natural-language quick add; 🎙 Speak tasks; focus blocking with schedules and strict mode; saved tabs, quick links and a search box on Today; Read later and "Summarize page to ProdLi notes"; note templates and a daily note; richer habits (count, timed, quit, skip days, year heatmap); Ask ProdLi sources, saved and scheduled prompts; meeting prep; site categories and a daily focus score; the drag-to-timebox Day view; AI notes for Zoom and Teams calls in the browser and for in-person meetings; to-do Board and Eisenhower matrix views; AI audio transcription for mixed-language calls; meeting types and a word list.
 
 ## 1. Package
 
@@ -52,10 +52,10 @@ Each morning ProdLi writes a short daily brief: your top priorities and why, a s
 Ask anything about your day, notes and meetings: "What should I focus on now?", "What's overdue?", "Summarize my last meeting". Answers come from your own data and show the notes and meetings they used, so you can open them. Save questions you ask often, or schedule them ("every weekday at 8:30") and get the answer as a notification.
 
 🎙️ AI MEETING NOTES FOR GOOGLE MEET, ZOOM AND TEAMS, NO BOT
-Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom and Microsoft Teams in the browser, it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…), with names spelled from your own word list. Send action items to your to-dos in one click, or draft a follow-up email. No bot joins the call.
+Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom and Microsoft Teams in the browser, it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…), with names spelled from your own word list. Send action items to your to-dos in one click, or draft a follow-up email. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
 
 ✅ TO-DOS THAT KEEP UP
-Type naturally: "call mom every Monday at 5pm #family" sets the date, time, repeat and list. Repeating tasks, reminders with snooze, lists, labels and subtasks. Or press 🎙 Speak tasks, say everything on your mind, and review the tasks before they're added.
+Type naturally: "call mom every Monday at 5pm #family" sets the date, time, repeat and list. Repeating tasks, reminders with snooze, lists, labels and subtasks, in a list, a Board or an Eisenhower matrix. Or press 🎙 Speak tasks, say everything on your mind, and review the tasks before they're added.
 
 🚫 FOCUS
 Block distracting sites while a focus session runs or during your focus hours. A pause screen offers "Close tab", with strict mode if you want no way around it. The Pomodoro timer keeps running when ProdLi is closed. The Time Tracker sorts your sites into categories (work, AI tools, social media…) and gives you a daily focus score (only website names are recorded, never full addresses).
