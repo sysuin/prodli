@@ -1655,7 +1655,8 @@ const suites = {
     const view = () => p.eval(`document.querySelector('[data-testid="action-items"]')?.innerText ?? ""`);
     let text = await view();
     const groups = await p.eval(`[...document.querySelectorAll('[data-testid="action-owner"] h3')].map((h) => h.innerText.replace(/\\s+\\d+$/, ""))`);
-    check("Action items: open items from all meetings, grouped by owner (you first)", JSON.stringify(groups) === '["YOU","PRIYA"]' && text.includes("Send the pilot plan") && text.includes("Write the job post") && text.includes("Book the venue"), JSON.stringify({ groups, text: text.slice(0, 200) }));
+    // (Other suites may leave meetings behind, so check order and our items rather than an exact list.)
+    check("Action items: open items from all meetings, grouped by owner (you first)", groups[0] === "YOU" && groups.includes("PRIYA") && text.includes("Send the pilot plan") && text.includes("Write the job post") && text.includes("Book the venue"), JSON.stringify({ groups, text: text.slice(0, 200) }));
     check("Action items: overdue items say so, with the meeting they came from", /Overdue · 2020-01-01/.test(text) && text.includes("Acme pilot review"));
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
@@ -1678,7 +1679,7 @@ const suites = {
     check("Action items: the meeting link opens that meeting", !(await p.eval(`!!document.querySelector('[data-testid="action-items"]')`)) && (await p.text()).includes("Hiring sync"));
     // Template gallery (Setup → Meeting notes).
     await p.eval(`chrome.storage.local.set({ recorderCustomTemplates: [] })`);
-    await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
+    if (!(await p.eval(`!!document.querySelector('[data-testid="custom-templates"]')`))) await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
     await sleep(500);
     await p.eval(`(() => { const s = document.querySelector('select[aria-label="Add a ready-made template"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "Sales discovery"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
     await sleep(500);
