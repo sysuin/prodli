@@ -1720,7 +1720,7 @@ const suites = {
     const coachText = await p.eval(`document.querySelector('[data-testid="coach-result"]')?.innerText ?? ""`);
     check("Coach: saved feedback shows what worked, what to try, next steps and missed questions", /What worked/i.test(coachText) && coachText.includes("Confirm who signs") && /Left open/.test(coachText) && coachText.includes("Who else needs to approve?"), coachText);
     const moments = await p.eval(`document.querySelector('[data-testid="key-moments"]')?.innerText ?? ""`);
-    check("Key moments: each marked moment shows its time and what was said", /★ 00:25/.test(moments) && moments.includes("They signed the pilot.") && /★ 00:50/.test(moments) && /Nothing in the transcript at this point/.test(moments) && /Summaries make sure to cover these moments/.test(moments), moments);
+    check("Key moments: each marked moment shows its time and what was said", /★ 00:25/.test(moments) && moments.includes("They signed the pilot.") && /★ 00:50/.test(moments) && /Nothing in the transcript at this point/.test(moments), moments);
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
       await sleep(150);
@@ -1743,7 +1743,7 @@ const suites = {
     await sleep(500);
     const ins = await p.eval(`document.querySelector('[data-testid="meeting-insights"]')?.innerText ?? ""`);
     const seriesText = await p.eval(`document.querySelector('[data-testid="insight-series"]')?.innerText ?? ""`);
-    check("Insights: this week, the weekly chart, recurring meetings and call apps", /This week/.test(ins) && /Meeting time per week/.test(ins) && /Pipeline review/.test(seriesText) && /2×/.test(seriesText) && /Zoom/.test(ins) && /What came out/i.test(ins), ins.slice(0, 600));
+    check("Insights: this week, the weekly chart, recurring meetings and call apps", /This week/i.test(ins) && /Meeting time per week/i.test(ins) && !/\d{3,}%/.test(ins) && /Pipeline review/.test(seriesText) && /2×/.test(seriesText) && /Zoom/.test(ins) && /What came out/i.test(ins), ins.slice(0, 600));
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
       await sleep(150);

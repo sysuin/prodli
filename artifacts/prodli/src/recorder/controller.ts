@@ -154,11 +154,19 @@ export async function markMoment(): Promise<{ ok: boolean; count?: number; error
   return { ok: true, count };
 }
 
+// The badge text to put back after the ★ flash (kept across quick presses, so a
+// second press during the flash doesn't "restore" the ★ itself).
+let badgeBeforeFlash: string | null = null;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
 async function flashMarked(): Promise<void> {
   try {
-    const before = await chrome.action.getBadgeText({});
+    if (badgeBeforeFlash === null) badgeBeforeFlash = await chrome.action.getBadgeText({});
     await chrome.action.setBadgeText({ text: "★" });
-    setTimeout(() => {
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => {
+      const before = badgeBeforeFlash ?? "";
+      badgeBeforeFlash = null;
       // Only put it back if the recording is still going (stopping clears it).
       void getState().then((s) => (s ? chrome.action.setBadgeText({ text: before }) : undefined));
     }, 1200);

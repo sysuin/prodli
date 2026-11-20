@@ -32,7 +32,7 @@ export function KeyMoments({ meeting }: { meeting: Meeting }) {
         ))}
       </ul>
       <div style={{ fontSize: 12, opacity: 0.8 }}>
-        {access?.allowed ? (
+        {!access ? null : access.allowed ? (
           <>Summaries make sure to cover these moments{access.earlyAccess ? " (a Pro feature, free while Pro is launching)" : ""}. Summarize again to include new ones.</>
         ) : (
           <>

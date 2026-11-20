@@ -19,7 +19,10 @@ const weekLabel = (key: string) => new Date(`${key}T12:00:00`).toLocaleDateStrin
 function change(now: number, before: number): string {
   if (!before) return now ? "none the week before" : "";
   const pct = Math.round(((now - before) / before) * 100);
-  return pct === 0 ? "same as last week" : `${pct > 0 ? "+" : ""}${pct}% vs last week`;
+  if (pct === 0) return "same as last week";
+  // A percentage of a tiny week says little ("+8900%"): show last week's time instead.
+  if (Math.abs(pct) > 200 || before < 15) return `${hours(before)} last week`;
+  return `${Math.abs(pct)}% ${pct > 0 ? "more" : "less"} than last week`;
 }
 
 export function MeetingInsights({ meetings, onOpenMeeting }: { meetings: Meeting[]; onOpenMeeting: (id: string) => void }) {
