@@ -15,6 +15,7 @@ import { base64ToBytes, fillCaptionGaps } from "./format";
 import { anyWebsiteCall, callFromUrl, isPlaceholderTitle, notACallReason, placeholderTitle, PLATFORM_LABEL, stillInCall, titleFromTab, type CallInfo, type CallPlatform } from "./calls";
 import { sendWithRetry } from "./audioTranscribe";
 import { labelSpeakers, type SpeakerActivity } from "./speakers";
+import { addMark } from "../lib/moments";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
@@ -134,6 +135,36 @@ async function setRecordingBadge(tabId: number | null, captionsMissing = false, 
       ? "ProdLi is recording audio, but captions are off — turn on captions (CC) in Meet for a transcript. Click to stop."
       : "ProdLi is recording and taking notes from captions. Click to stop.",
   });
+}
+
+// ── Marked moments ──────────────────────────────────────────────────────────
+
+/** "★ Mark moment" during a call: saves the time on the meeting and flashes ★ on the icon. */
+export async function markMoment(): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const state = await getState();
+  if (!state) return { ok: false, error: "Nothing is being recorded." };
+  const at = Date.now() - new Date(state.startedAt).getTime();
+  let count = 0;
+  await updateMeeting(state.meetingId, (m) => {
+    const marks = addMark(m.marks, at);
+    count = marks.length;
+    return { marks };
+  });
+  void flashMarked();
+  return { ok: true, count };
+}
+
+async function flashMarked(): Promise<void> {
+  try {
+    const before = await chrome.action.getBadgeText({});
+    await chrome.action.setBadgeText({ text: "★" });
+    setTimeout(() => {
+      // Only put it back if the recording is still going (stopping clears it).
+      void getState().then((s) => (s ? chrome.action.setBadgeText({ text: before }) : undefined));
+    }, 1200);
+  } catch {
+    // The badge is only feedback.
+  }
 }
 
 // ── Start / stop ──────────────────────────────────────────────────────────────
@@ -389,6 +420,8 @@ async function handleMessage(msg: BackgroundMessage): Promise<unknown> {
     case "stop-recording":
       await stopRecording("user");
       return { ok: true };
+    case "mark-moment":
+      return markMoment();
     case "offscreen-started":
       await updateMeeting(msg.meetingId, () => ({ micIncluded: msg.micIncluded }));
       return { ok: true };
@@ -422,7 +455,7 @@ export function registerRecorder(): void {
   // Summaries now always go through the user's ProdLi account; forget any API key saved by older versions.
   void chrome.storage.local.remove(CLAUDE_KEY_STORAGE_KEY);
   // End-to-end tests (test builds only) drive the same code path as the toolbar click.
-  if (import.meta.env.VITE_E2E === "1") (globalThis as Record<string, unknown>).__prodliToggleRecording = toggleRecording;
+  if (import.meta.env.VITE_E2E === "1") Object.assign(globalThis, { __prodliToggleRecording: toggleRecording, __prodliMarkMoment: markMoment });
 
   chrome.action.onClicked.addListener((tab) => {
     void toggleRecording(tab);
@@ -432,6 +465,7 @@ export function registerRecorder(): void {
   // half-written build), the keyboard shortcut is lost but the rest of the
   // background worker — time tracking, Pomodoro, sync — still starts.
   chrome.commands?.onCommand.addListener((command, tab) => {
+    if (command === "mark-moment") return void markMoment();
     if (command !== "toggle-recording") return;
     if (tab) {
       void toggleRecording(tab);

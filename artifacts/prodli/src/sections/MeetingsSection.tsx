@@ -12,6 +12,8 @@ import { installSpeech, speechAvailability, type SpeechAvailability } from "../r
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
+import { KeyMoments } from "./meetings/KeyMoments";
+import { MeetingInsights } from "./meetings/MeetingInsights";
 import { ActionItems } from "./meetings/ActionItems";
 import { Series } from "./meetings/Series";
 import { meetingSeries } from "../lib/meetingPrep";
@@ -608,6 +610,12 @@ function MeetingDetail({
         </>
       )}
 
+      {(meeting.marks?.length ?? 0) > 0 && (
+        <Section title="Key moments">
+          <KeyMoments meeting={meeting} />
+        </Section>
+      )}
+
       {meeting.transcript.length > 0 && (
         <Section title="Transcript">
           <button style={{ ...btn(), marginBottom: 8 }} onClick={() => setShowTranscript((v) => !v)}>
@@ -653,7 +661,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const [signedIn, setSignedIn] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"meetings" | "actions">("meetings");
+  const [view, setView] = useState<"meetings" | "actions" | "insights">("meetings");
   // Why the last click on the ProdLi icon didn't start recording (recorder/controller.ts).
   const [problem, setProblem] = useState<{ message: string; at: string } | null>(null);
   useEffect(() => {
@@ -865,6 +873,12 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
     flash("Meeting deleted");
   };
 
+  const markMoment = async () => {
+    const msg: BackgroundMessage = { target: "background", type: "mark-moment" };
+    const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean; count?: number } | undefined;
+    flash(res?.ok ? `★ Moment marked${res.count && res.count > 1 ? ` (${res.count})` : ""}` : "Couldn't mark the moment");
+  };
+
   const stopRecording = async () => {
     const msg: BackgroundMessage = { target: "background", type: "stop-recording" };
     await chrome.runtime.sendMessage(msg);
@@ -882,6 +896,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         {meetings.length > 0 && (
           <button style={btn(view === "actions" ? "primary" : "plain")} aria-pressed={view === "actions"} onClick={() => setView((v) => (v === "actions" ? "meetings" : "actions"))} title="Open action items from all your meetings">
             ✅ Action items
+          </button>
+        )}
+        {meetings.length > 0 && (
+          <button style={btn(view === "insights" ? "primary" : "plain")} aria-pressed={view === "insights"} onClick={() => setView((v) => (v === "insights" ? "meetings" : "insights"))} title="Where your meeting time goes">
+            📊 Insights
           </button>
         )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
@@ -951,6 +970,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           Recording · {formatTimestamp(elapsed * 1000)}
           <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${recState.platform === "browser" ? "This tab" : `${PLATFORM_LABEL[recState.platform]} call`} — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
+          <button style={btn("plain")} onClick={() => void markMoment()} title="Mark this moment as important (Alt+Shift+M)">★ Mark moment</button>
           <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
       )}
@@ -958,7 +978,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
         {showSetup && setupPanel}
 
-        {view === "actions" && meetings.length > 0 ? (
+        {view === "insights" && meetings.length > 0 ? (
+          <MeetingInsights meetings={meetings} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
+        ) : view === "actions" && meetings.length > 0 ? (
           <ActionItems meetings={meetings} flash={flash} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
         ) : meetings.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 40 }}>

@@ -1700,8 +1700,9 @@ const suites = {
     const m = { id: "mtg_talk", platform: "zoom", title: "Pipeline review", meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 60, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: true, audioMimeType: null, updatedAt: now,
       transcript: [{ id: "1", speaker: "You", text: "Where are we on Acme?", startMs: 0, endMs: 3000, source: "audio" }, { id: "2", speaker: "Others", text: "They signed the pilot.", startMs: 21000, endMs: 24000, source: "audio" }],
       speakerActivity: [[0, 20000, 0], [20000, 30000, 1], [30000, 45000, 0], [45000, 60000, 1]],
+      marks: [25000, 50000],
       summary: { title: "Pipeline review", overview: "Acme signed the pilot.", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "t", generatedAt: now } };
-    const earlier = { ...m, id: "mtg_talk_prev", startedAt: new Date(Date.now() - 7 * 86400000).toISOString(), speakerActivity: undefined, summary: { ...m.summary, title: "Pipeline review", decisions: ["Push Acme to sign"], actionItems: [{ task: "Send Acme the contract", owner: "You", dueDate: null, priority: "high" }] } };
+    const earlier = { ...m, id: "mtg_talk_prev", startedAt: new Date(Date.now() - 7 * 86400000).toISOString(), speakerActivity: undefined, marks: undefined, summary: { ...m.summary, title: "Pipeline review", decisions: ["Push Acme to sign"], actionItems: [{ task: "Send Acme the contract", owner: "You", dueDate: null, priority: "high" }] } };
     await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.objectStore("meetings").put(${JSON.stringify(earlier)}); t.oncomplete = () => resolve(true); }; })`);
     await p.goto("meetings");
     await sleep(800);
@@ -1711,13 +1712,39 @@ const suites = {
     const series = await p.eval(`document.querySelector('[data-testid="meeting-series"]')?.innerText ?? ""`);
     check("Series: earlier occurrences show with their decisions and open items", /Earlier in this series \(1\)/.test(series) && series.includes("Push Acme to sign") && series.includes("Send Acme the contract"), series);
     check("Talk time: shows how the talking was split, your longest stretch and turns", /You 58%/.test(text) && /Others 42%/.test(text) && /longest stretch: 20 s/.test(text) && /changed 3 times/.test(text), text);
+    const moments = await p.eval(`document.querySelector('[data-testid="key-moments"]')?.innerText ?? ""`);
+    check("Key moments: each marked moment shows its time and what was said", /★ 00:25/.test(moments) && moments.includes("They signed the pilot.") && /★ 00:50/.test(moments) && /Nothing in the transcript at this point/.test(moments) && /Summaries make sure to cover these moments/.test(moments), moments);
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
       await sleep(150);
       await p.eval(axeSource + ";true");
+      const km = await p.eval(`axe.run(document.querySelector('[data-testid="key-moments"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): key moments have no serious problems`, km.length === 0, km.join(", "));
       const v = await p.eval(`axe.run(document.querySelector('[data-testid="talk-time"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
       check(`A11y (${theme}): talk time has no serious problems`, v.length === 0, v.join(", "));
     }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('[aria-label="Remove the moment at 00:50"]')?.click()`);
+    await sleep(600);
+    const after = await p.eval(`document.querySelector('[data-testid="key-moments"]')?.innerText ?? ""`);
+    const saved = await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").get("mtg_talk"); q.onsuccess = () => resolve(q.result?.marks ?? null); }; })`);
+    check("Key moments: × removes a moment", !/00:50/.test(after) && /00:25/.test(after) && JSON.stringify(saved) === "[25000]", `${after} ${JSON.stringify(saved)}`);
+    // 📊 Insights: where meeting time goes (other suites may leave meetings, so only what's ours is checked).
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => /Insights/.test(x.textContent) && x.getAttribute("aria-pressed") !== null)?.click()`);
+    await sleep(500);
+    const ins = await p.eval(`document.querySelector('[data-testid="meeting-insights"]')?.innerText ?? ""`);
+    const seriesText = await p.eval(`document.querySelector('[data-testid="insight-series"]')?.innerText ?? ""`);
+    check("Insights: this week, the weekly chart, recurring meetings and call apps", /This week/.test(ins) && /Meeting time per week/.test(ins) && /Pipeline review/.test(seriesText) && /2×/.test(seriesText) && /Zoom/.test(ins) && /What came out/i.test(ins), ins.slice(0, 600));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      const iv = await p.eval(`axe.run(document.querySelector('[data-testid="meeting-insights"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): insights have no serious problems`, iv.length === 0, iv.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`[...document.querySelectorAll('[data-testid="insight-series"] button')].find((x) => x.textContent.includes("Pipeline review"))?.click()`);
+    await sleep(400);
+    check("Insights: a recurring meeting opens its latest one", (await p.eval(`!!document.querySelector('[data-testid="key-moments"]')`)) === true);
     await p.eval(`document.documentElement.classList.remove("dark")`);
     await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.objectStore("meetings").delete("mtg_talk_prev"); t.oncomplete = () => resolve(true); }; })`);
     await p.close();

@@ -58,6 +58,8 @@ export interface Meeting {
   template?: MeetingTemplate | CustomTemplateRef;
   /** Who talked when (mic vs. call), to label AI transcripts "You" / "Others" (recorder/speakers.ts). */
   speakerActivity?: [number, number, 0 | 1][];
+  /** Moments marked while recording ("★ Mark moment"), in ms since the start (lib/moments.ts). */
+  marks?: number[];
   /** Action items marked done in Meetings → Action items (their task text). */
   doneActions?: string[];
   /** The meeting's shared link, if it's shared (server: /api/shares). */
@@ -163,6 +165,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "captions-ended"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "speech-update"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "stop-recording" }
+  | { target: "background"; type: "mark-moment" }
   /** One piece of audio (WAV, base64) to transcribe with the user's account. */
   | { target: "background"; type: "transcribe-piece"; meetingId: string; wav: string; startMs: number }
   | { target: "background"; type: "summarize"; meetingId: string };

@@ -107,6 +107,12 @@ try {
   // People talk.
   await meet.eval(`__say('Priya Shah', 'Let us ship the onboarding emails on Friday.'); true`);
   await sleep(1500);
+  // ★ Mark moment (what Alt+Shift+M and the ★ buttons do); a quick second press is the same moment.
+  const mark1 = await swEval(`__prodliMarkMoment()`);
+  const flashed = await swEval("chrome.action.getBadgeText({})");
+  await swEval(`__prodliMarkMoment()`);
+  await sleep(1500);
+  check("★ Mark moment saves the moment and flashes ★ on the icon, then REC again", mark1?.ok === true && mark1?.count === 1 && flashed === "★" && (await swEval("chrome.action.getBadgeText({})")) === "REC", JSON.stringify({ mark1, flashed }));
   await meet.eval(`__say('You', 'I will prepare the release notes.'); true`);
   await sleep(3500);
 
@@ -123,6 +129,8 @@ try {
   check("…with its title from the Meet page", m?.title === "Weekly product sync" || m?.title?.includes("abc-defg-hij"), m?.title);
   check("…and the transcript from captions", JSON.stringify((m?.transcript ?? []).map((e) => `${e.speaker}: ${e.text}`)) === JSON.stringify(["Priya Shah: Let us ship the onboarding emails on Friday.", "You: I will prepare the release notes."]), JSON.stringify(m?.transcript));
   check("…and the audio recording", m?.hasAudio === true, JSON.stringify({ hasAudio: m?.hasAudio, error: m?.error, notice: m?.notice }));
+  check("…with the marked moment (one, at the time of the press)", Array.isArray(m?.marks) && m.marks.length === 1 && m.marks[0] > 0 && m.marks[0] < 15000, JSON.stringify(m?.marks));
+  check("★ with nothing recording does nothing", (await swEval(`__prodliMarkMoment()`))?.ok === false);
   check("…and it isn't left in an error state", m && m.status !== "error" && !String(m.error ?? "").startsWith("Recording couldn't start"), `${m?.status} ${m?.error}`);
 
   // Captions don't come on: warn in the call and turn the icon amber (CC); clear both once they're on.

@@ -98,6 +98,15 @@ export interface SummarizeInput {
   custom?: CustomTemplate;
   /** Write the notes in this language (a SUMMARY_LANGUAGES code), whatever was spoken. */
   language?: string;
+  /** Moments the user marked during the meeting (Pro: "★ Mark moment"), as "[mm:ss] what was said". */
+  moments?: string[];
+}
+
+export const MAX_MOMENTS = 30;
+/** Marked moments from the app: trimmed, at most MAX_MOMENTS of 600 characters. */
+export function cleanMoments(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is string => typeof x === "string").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 600)).filter(Boolean).slice(0, MAX_MOMENTS);
 }
 
 /** The meeting-type part of the request. A custom template replaces the built-in ones. */
@@ -129,7 +138,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
       messages: [
         {
           role: "user",
-          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.language && SUMMARY_LANGUAGES[input.language] ? `\nWrite every field in ${SUMMARY_LANGUAGES[input.language]}, whatever language was spoken (this replaces the language rule above). Translate faithfully; keep people's names, product names and quoted terms as they were said.\n` : ""}${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
+          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.language && SUMMARY_LANGUAGES[input.language] ? `\nWrite every field in ${SUMMARY_LANGUAGES[input.language]}, whatever language was spoken (this replaces the language rule above). Translate faithfully; keep people's names, product names and quoted terms as they were said.\n` : ""}${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}${input.moments?.length ? `\nDuring the meeting the user marked these moments as important (time and what was being said). Make sure the notes cover each of them, in whichever section fits:\n<moments>\n${input.moments.join("\n")}\n</moments>\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
         },
       ],
     });

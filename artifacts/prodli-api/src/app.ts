@@ -32,7 +32,7 @@ import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAn
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
-import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, cleanMoments, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
@@ -578,6 +578,8 @@ export function createApp(deps: Deps = realDeps) {
     // Notes in a chosen language (Pro). Unknown codes are ignored.
     const language = isSummaryLanguage((body as { language?: unknown } | null)?.language) ? ((body as { language: string }).language) : undefined;
     if (language && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Notes in another language are part of ProdLi Pro." }, 402);
+    // Marked moments (Pro). Without Pro they're left out rather than refused, so the notes still come.
+    const moments = proFeatureAllowed(auth.user.plan, c.env) ? cleanMoments((body as { moments?: unknown } | null)?.moments) : [];
 
     const now = deps.now();
     const limit = aiLimit(auth.user.plan);
@@ -586,7 +588,7 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const template = isMeetingTemplate(body?.template) ? body.template : undefined;
       const glossary = cleanGlossary(body?.glossary);
-      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}), ...(custom ? { custom } : {}), ...(language ? { language } : {}) }, c.env.ANTHROPIC_API_KEY);
+      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}), ...(custom ? { custom } : {}), ...(language ? { language } : {}), ...(moments.length ? { moments } : {}) }, c.env.ANTHROPIC_API_KEY);
       return c.json({ summary, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now);

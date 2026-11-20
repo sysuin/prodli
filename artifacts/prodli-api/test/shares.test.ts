@@ -227,3 +227,23 @@ describe("notes in your language", () => {
     expect((await app.request("/api/ai/summarize", json(meeting, auth), env)).status).toBe(200);
   });
 });
+
+describe("marked moments in summaries (Pro)", () => {
+  it("passes cleaned moments to the summary during early access", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    const moments = ["  [01:05]  We agreed   to ship Friday ", "", 7, ...Array.from({ length: 40 }, (_, i) => `[0${i}] m${i}`)];
+    expect((await app.request("/api/ai/summarize", json({ title: "M", date: "2026-11-20", transcript: "[00:00] A: hi", moments }, auth), env)).status).toBe(200);
+    const sent = calls.find((c) => c.kind === "summarize-moments")!.clientId.split("|");
+    expect(sent[0]).toBe("[01:05] We agreed to ship Friday");
+    expect(sent).toHaveLength(30);
+  });
+  it("leaves moments out (but still summarizes) without Pro once Pro is on sale", async () => {
+    const { app, calls } = makeApp();
+    const env = selling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/summarize", json({ title: "M", date: "2026-11-20", transcript: "[00:00] A: hi", moments: ["[00:10] x"] }, auth), env)).status).toBe(200);
+    expect(calls.some((c) => c.kind === "summarize-moments")).toBe(false);
+  });
+});
