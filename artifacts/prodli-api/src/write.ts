@@ -16,9 +16,19 @@ export const MAX_REWRITE_CHARS = 6000;
 export const REWRITE_ACTIONS = ["fix", "shorter", "clearer", "formal", "friendly"] as const;
 export type RewriteAction = (typeof REWRITE_ACTIONS)[number];
 
+/** Your writing style (Pro): how you like to write, applied to rewrites (not "fix") and follow-up emails. */
+export const MAX_STYLE_CHARS = 500;
+const styleField = z.string().max(MAX_STYLE_CHARS).optional();
+/** The style as guidance appended to the request, or "". */
+export function styleText(style: string | undefined): string {
+  const s = style?.trim();
+  return s ? `\n\nThe user's own writing style. Follow it where it fits, but it never overrides the rules above or changes the content:\n<style>\n${s}\n</style>` : "";
+}
+
 export const RewriteInputSchema = z.object({
   action: z.enum(REWRITE_ACTIONS),
   text: z.string().min(1).max(MAX_REWRITE_CHARS),
+  style: styleField,
 });
 export type RewriteInput = z.infer<typeof RewriteInputSchema>;
 
@@ -53,7 +63,8 @@ export async function rewriteWithClaude(input: RewriteInput, apiKey: string): Pr
       max_tokens: 8000,
       output_config: { effort: "low", format: zodOutputFormat(OutputSchema) },
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `${INSTRUCTIONS[input.action]}\n\n<passage>\n${input.text}\n</passage>` }],
+      // "Fix" keeps the author's own wording, so the style isn't applied there.
+      messages: [{ role: "user", content: `${INSTRUCTIONS[input.action]}${input.action === "fix" ? "" : styleText(input.style)}\n\n<passage>\n${input.text}\n</passage>` }],
     });
     if (response.stop_reason === "refusal") throw new AiError("ai_refused", "ProdLi can't rewrite this text.");
     if (response.stop_reason === "max_tokens") throw new AiError("ai_truncated", "The rewrite was cut off. Try a shorter selection.");
@@ -91,6 +102,7 @@ export const FollowUpInputSchema = z.object({
       .default([]),
     openQuestions: z.array(line).max(30).default([]),
   }),
+  style: styleField,
 });
 export type FollowUpInput = z.infer<typeof FollowUpInputSchema>;
 
@@ -131,7 +143,7 @@ export async function draftFollowUpWithClaude(input: FollowUpInput, apiKey: stri
       max_tokens: 4000,
       output_config: { effort: "low", format: zodOutputFormat(FollowUpOutputSchema) },
       system: FOLLOW_UP_PROMPT,
-      messages: [{ role: "user", content: `${FOLLOW_UP_TONE[input.tone]}\n\n<meeting_notes>\n${followUpNotes(input.meeting)}\n</meeting_notes>` }],
+      messages: [{ role: "user", content: `${FOLLOW_UP_TONE[input.tone]}${styleText(input.style)}\n\n<meeting_notes>\n${followUpNotes(input.meeting)}\n</meeting_notes>` }],
     });
     if (response.stop_reason === "refusal") throw new AiError("ai_refused", "ProdLi can't write a follow-up for this meeting.");
     if (response.stop_reason === "max_tokens") throw new AiError("ai_truncated", "The email was cut off. Try again.");

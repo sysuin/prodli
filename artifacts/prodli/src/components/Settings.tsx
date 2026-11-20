@@ -13,8 +13,9 @@ import { AccountDataSection, AccountPanel, PlanPanel, box, sectionTitle } from "
 import { BackupModal } from "./BackupModal";
 import { HelpModal, version } from "./HelpModal";
 import { Logo } from "./Logo";
+import { WritingStyleSection } from "./WritingStyle";
 
-export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "writing" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
@@ -42,6 +43,7 @@ const TABS: TabDef[] = [
   { id: "devices", label: "Sync & devices", icon: "🔄", group: "Account", serverOnly: true },
   { id: "data", label: "Backup & data", icon: "💾", group: "Account" },
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
+  { id: "writing", label: "Writing style", icon: "✍️", group: "Preferences", serverOnly: true },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
   { id: "pomodoro", label: "Pomodoro", icon: "🍅", group: "Sections" },
   { id: "tracker", label: "Time Tracker", icon: "⏱", group: "Sections" },
@@ -291,6 +293,14 @@ export function SettingsModal({
         <>
           <Heading>Appearance</Heading>
           <AppearanceSection isDark={isDark} setDark={setDark} />
+        </>
+      );
+      break;
+    case "writing":
+      body = (
+        <>
+          <Heading sub="How ✨ Improve and follow-up emails should sound.">Writing style</Heading>
+          <WritingStyleSection />
         </>
       );
       break;

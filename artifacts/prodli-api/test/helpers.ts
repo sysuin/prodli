@@ -51,12 +51,14 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
     },
     rewrite: async (input) => {
       calls.push({ kind: "rewrite", clientId: input.action });
+      if (input.style) calls.push({ kind: "rewrite-style", clientId: input.style });
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       const text = input.action === "fix" ? input.text.replace(/\bteh\b/g, "the") : `${input.action}: ${input.text}`;
       return { text, changed: text !== input.text, model: "test" };
     },
     followUp: async (input) => {
       calls.push({ kind: "follow-up", clientId: input.tone });
+      if (input.style) calls.push({ kind: "follow-up-style", clientId: input.style });
       if (input.meeting.overview === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { subject: `Follow-up: ${input.meeting.title}`, body: `${input.tone} | ${input.meeting.actionItems.map((a) => a.task).join(", ")}`, model: "test" };
     },
@@ -79,6 +81,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       calls.push({ kind: "brief", clientId: ctx.date });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
       return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.event, note: p.openItems[0] ?? "" })), tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
+    },
+    prep: async (input) => {
+      calls.push({ kind: "prep", clientId: input.event.title });
+      if (input.event.title === "FAIL") throw new AiError("ai_failed", "Couldn't write the prep. Try again.");
+      return { goal: `Move ${input.event.title} forward`, recap: input.history[0].overview, followUps: input.history.flatMap((h) => h.openItems.map((i) => i.task)), questions: input.history.flatMap((h) => h.openQuestions), agenda: ["Recap", "Open items", "Next steps"], model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
     review: async (ctx) => {
       calls.push({ kind: "review", clientId: ctx.weekStart });

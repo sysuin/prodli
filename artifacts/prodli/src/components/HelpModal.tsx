@@ -95,10 +95,12 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="🗒" title="Meeting prep">
+            <Row label={<Tag>✨ Prep with AI · Pro</Tag>} desc="On a meeting prep card: a short AI brief for that meeting (goal, where things stand, what to follow up on, questions to ask, a suggested agenda) from your earlier meetings with those people. Uses your monthly AI briefs." />
             <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
           </Section>
 
           <Section emoji="📊" title="Focus score & site categories">
+            <Row label={<Tag>Focus trends · Pro</Tag>} desc="Time Tracker → Today: your focus score over the last 30 or 90 days, the average, the change from the period before, and your biggest distraction." />
             <Row label={<Tag>Focus score</Tag>} desc="Time Tracker → Today: productive time out of productive + distracting browsing (0–100), once there are 10 minutes of either. Email and chat count as neutral." />
             <Row label={<Tag>Categories</Tag>} desc="Well-known sites get a category (Work & tools, Learning, AI tools, Email & chat, News, Social media, Video & games, Shopping). Change any site's category with the picker next to it. Categories stay on this device." />
             <Row label={<Tag>Brief & review</Tag>} desc="The daily brief uses yesterday's score; the weekly review shows the week's score and time per category, AI tools included." />
@@ -124,6 +126,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
             <Row label={<Tag>Select text</Tag>} desc="A small menu appears over selected text for bold, italic, underline, strikethrough, highlight, code and links." />
             <Row label={<Tag>✨ Improve</Tag>} desc="Select text, then click ✨ Improve (or press Ctrl/⌘+J) to fix spelling and grammar, make it shorter or clearer, or change the tone. You see the suggestion first; Replace is one undo step. Needs a ProdLi account (free)." />
+            <Row label={<Tag>✍️ Writing style · Pro</Tag>} desc="Settings → Writing style: describe how you like to write (e.g. British English, friendly, short sentences). ✨ Improve (except Fix spelling) and follow-up emails follow it." />
             <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
             <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
             <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K adds or edits a link (leave empty to remove). Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
@@ -195,7 +198,9 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku through your ProdLi account (free monthly allowance)." />
             <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
             <Row label={<Tag>🔗 Share</Tag>} desc="Under a meeting's summary: a read-only link to the summary, decisions and action items (never the transcript or audio) for people who weren't there. Choose 7 or 30 days (or no expiry with Pro); Update shared page after re-summarizing; Stop sharing turns the link off." />
-            <Row label={<Tag>Your templates · Pro</Tag>} desc="Setup → Meeting notes → Your meeting templates: name it, say what to focus on, and list your own sections (e.g. Budget, Decision-makers, Need, Timeline). Pick it as a meeting's type, or as your usual type; summaries fill your sections in." />
+            <Row label={<Tag>Series · Pro</Tag>} desc="A recurring meeting (same Meet link or title) shows Earlier in this series: past occurrences with their decisions and still-open items. Click one to open it." />
+            <Row label={<Tag>✅ Action items · Pro</Tag>} desc="Meetings → ✅ Action items: every open action item from every meeting, grouped by owner (you first), overdue first. Tick one when it's done, add it to your to-dos, or open the meeting it came from." />
+            <Row label={<Tag>Your templates · Pro</Tag>} desc="Setup → Meeting notes → Your meeting templates: start from a ready-made one (Sales discovery, Customer check-in, User interview, Retrospective, Hiring debrief…) or write your own: name it, say what to focus on, and list your own sections (e.g. Budget, Decision-makers, Need, Timeline). Pick it as a meeting's type, or as your usual type; summaries fill your sections in." />
             <Row label={<Tag>Speakers & talk time</Tag>} desc="With Include my microphone on, ProdLi notes who's talking (your mic or the call) on this device. AI transcripts then label lines You and Others, and Insights shows the talk-time split, your longest stretch and how often the turn changed (Pro)." />
             <Row label={<Tag>Meeting type</Tag>} desc="Pick General, 1:1, Interview, Sales call, Stand-up or Planning next to Summarize; it shapes what the summary pulls out. Set your usual type in Setup → Meeting notes." />
             <Row label={<Tag>Word list</Tag>} desc="Setup → Meeting notes: names and terms (people, products, jargon) that summaries and audio transcripts should spell exactly." />

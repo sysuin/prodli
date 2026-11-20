@@ -28,6 +28,18 @@ export function useCustomTemplates(): CustomMeetingTemplate[] {
   return list;
 }
 
+/** Ready-made templates to start from (copied into your list, then yours to edit). */
+export const TEMPLATE_GALLERY: Omit<CustomMeetingTemplate, "id">[] = [
+  { name: "Sales discovery", instructions: "A first call with a prospect. Focus on their problem and its cost, budget, who decides and how, their timeline and what they use today. Note competitors mentioned.", sections: ["Pain points", "Budget", "Decision process", "Timeline", "Current tools", "Next steps"] },
+  { name: "Customer check-in", instructions: "A call with an existing customer. Focus on how they use the product, what's working, problems and risks to the account, and requests.", sections: ["Health", "Wins", "Issues", "Feature requests", "Renewal and expansion"] },
+  { name: "User interview", instructions: "Research with a user. Capture their goals, how they work today, pain points and quotes in their words. Don't add solutions they didn't mention.", sections: ["Background", "Goals", "Current workflow", "Pain points", "Quotes", "Ideas to test"] },
+  { name: "Retrospective", instructions: "A team retro. Group what went well, what didn't and what to change, with owners for each change.", sections: ["Went well", "Didn't go well", "Changes to try"] },
+  { name: "Hiring debrief", instructions: "Interviewers discussing a candidate. Capture each interviewer's signal and the evidence behind it, and the decision. Only what was said; no judgement beyond the transcript.", sections: ["Strengths", "Concerns", "Interviewer signals", "Decision"] },
+  { name: "Board or investor update", instructions: "An update to a board or investors. Capture metrics with numbers, progress, risks and what was asked of the team.", sections: ["Metrics", "Progress", "Risks", "Asks", "Board feedback"] },
+  { name: "Design review", instructions: "Feedback on a design. Capture what was reviewed, feedback by theme, open questions and what will change.", sections: ["What was reviewed", "Feedback", "Changes agreed", "Open questions"] },
+  { name: "1:1 coaching", instructions: "A manager and report 1:1 focused on growth. Capture how they're doing, goals, feedback both ways and commitments.", sections: ["Check-in", "Goals", "Feedback", "Commitments"] },
+];
+
 const EXAMPLE = { name: "Sales discovery", instructions: "Focus on the customer's problem, budget, who decides and their timeline. Note competitors they mention.", sections: "Budget\nDecision-makers\nNeed\nTimeline" };
 
 export function CustomTemplates() {
@@ -70,6 +82,29 @@ export function CustomTemplates() {
             </li>
           ))}
         </ul>
+      )}
+      {!editing && (
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, fontWeight: 700, marginTop: 6 }}>
+          Start from
+          <select
+            value=""
+            aria-label="Add a ready-made template"
+            onChange={(e) => {
+              const g = TEMPLATE_GALLERY.find((t) => t.name === e.target.value);
+              if (!g) return;
+              const name = templates.some((t) => t.name === g.name) ? `${g.name} (2)` : g.name;
+              save([...templates, { ...g, name, id: generateId() }]);
+            }}
+            style={{ ...field, width: "auto", fontSize: 11, padding: "2px 4px" }}
+          >
+            <option value="">a ready-made template…</option>
+            {TEMPLATE_GALLERY.map((t) => (
+              <option key={t.name} value={t.name}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       {editing ? (
         <div style={{ border: "var(--nb-border)", padding: 8, marginTop: 6, display: "grid", gap: 6 }}>

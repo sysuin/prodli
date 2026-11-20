@@ -1532,7 +1532,17 @@ const suites = {
     await sleep(500);
     const review = await p.eval(`document.querySelector('[data-testid="review-categories"]')?.innerText ?? ""`);
     check("Focus score: the weekly review shows time by category", review.includes("Work & tools") && review.includes("AI tools") && review.includes("Learning"), review);
-    await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}"])`);
+    // Focus trends (Pro, open during early access): 30 days of scores with the average.
+    const prevKey = await p.eval(`(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    await p.eval(`chrome.storage.local.set({ siteCategories: {}, "tt_${prevKey}": { "github.com": 1800, "reddit.com": 1800 } })`);
+    await p.goto("tracker");
+    await sleep(800);
+    const trends = await p.eval(`document.querySelector('[data-testid="focus-trends"]')?.innerText ?? ""`);
+    check("Focus trends: 30 days of scores with the average and the biggest distraction", /average over 30 days/.test(trends) && /Biggest distraction: .*Social media/.test(trends), trends);
+    await p.eval(`[...document.querySelectorAll('[data-testid="focus-trends"] button')].find((x) => x.textContent.includes("90 days")).click()`);
+    await sleep(300);
+    check("Focus trends: switches to 90 days", /average over 90 days/.test(await p.eval(`document.querySelector('[data-testid="focus-trends"]').innerText`)));
+    await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}", "tt_${prevKey}"])`);
     await p.close();
   },
 
@@ -1626,6 +1636,60 @@ const suites = {
     await p.close();
   },
 
+  async actionitems(b, check) {
+    // Meetings → ✅ Action items (Pro, open during early access): open items from all meetings by owner; Done, + To-do, open the meeting. Plus the template gallery.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("meetings");
+    await sleep(500);
+    const now = new Date().toISOString();
+    const mk = (id, title, items) => ({ id, platform: "zoom", title, meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 600, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: now, transcript: [{ id: "1", speaker: "You", text: "Hi", startMs: 0, endMs: 1000 }],
+      summary: { title, overview: "o", keyPoints: [], decisions: [], openQuestions: [], model: "t", generatedAt: now, actionItems: items.map(([task, owner, dueDate]) => ({ task, owner, dueDate, priority: "medium" })) } });
+    const ms = [mk("ai1", "Acme pilot review", [["Send the pilot plan", "You", "2020-01-01"], ["Book the venue", "Priya", null]]), mk("ai2", "Hiring sync", [["Write the job post", "You", null]])];
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); for (const m of ${JSON.stringify(ms)}) t.objectStore("meetings").put(m); t.oncomplete = () => resolve(true); }; })`);
+    await p.eval(`chrome.storage.local.set({ todos: [] })`);
+    await p.goto("meetings");
+    await sleep(800);
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Action items")).click()`);
+    await sleep(500);
+    const view = () => p.eval(`document.querySelector('[data-testid="action-items"]')?.innerText ?? ""`);
+    let text = await view();
+    const groups = await p.eval(`[...document.querySelectorAll('[data-testid="action-owner"] h3')].map((h) => h.innerText.replace(/\\s+\\d+$/, ""))`);
+    // (Other suites may leave meetings behind, so check order and our items rather than an exact list.)
+    check("Action items: open items from all meetings, grouped by owner (you first)", groups[0] === "YOU" && groups.includes("PRIYA") && text.includes("Send the pilot plan") && text.includes("Write the job post") && text.includes("Book the venue"), JSON.stringify({ groups, text: text.slice(0, 200) }));
+    check("Action items: overdue items say so, with the meeting they came from", /Overdue · 2020-01-01/.test(text) && text.includes("Acme pilot review"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="action-items"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Action items has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('input[aria-label="Done: Book the venue"]').click()`);
+    await sleep(600);
+    const done = await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const g = r.result.transaction("meetings").objectStore("meetings").get("ai1"); g.onsuccess = () => resolve(g.result.doneActions ?? []); }; })`);
+    check("Action items: Done marks it done on its meeting and hides it", JSON.stringify(done) === '["Book the venue"]' && !(await view()).includes("Book the venue"), JSON.stringify(done));
+    await p.eval(`document.querySelector('button[aria-label="+ To-do: Write the job post"]').click()`);
+    await sleep(600);
+    const { todos = [] } = await p.storage(["todos"]);
+    check("Action items: + To-do adds it to your to-dos", todos.some((t) => t.title === "Write the job post") && (await view()).includes("In to-dos ✓"));
+    await p.eval(`[...document.querySelectorAll('[data-testid="action-items"] button')].find((x) => x.textContent.includes("Hiring sync")).click()`);
+    await sleep(500);
+    check("Action items: the meeting link opens that meeting", !(await p.eval(`!!document.querySelector('[data-testid="action-items"]')`)) && (await p.text()).includes("Hiring sync"));
+    // Template gallery (Setup → Meeting notes).
+    await p.eval(`chrome.storage.local.set({ recorderCustomTemplates: [] })`);
+    if (!(await p.eval(`!!document.querySelector('[data-testid="custom-templates"]')`))) await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
+    await sleep(500);
+    await p.eval(`(() => { const s = document.querySelector('select[aria-label="Add a ready-made template"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "Sales discovery"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(500);
+    const { recorderCustomTemplates: tpl = [] } = await p.storage(["recorderCustomTemplates"]);
+    check("Template gallery: one click adds a ready-made template you can edit", tpl.length === 1 && tpl[0].name === "Sales discovery" && tpl[0].sections.includes("Decision process") && (await p.eval(`document.querySelector('[data-testid="custom-templates"]').innerText`)).includes("Sales discovery"), JSON.stringify(tpl));
+    await p.eval(`chrome.storage.local.set({ recorderCustomTemplates: [], todos: [] })`);
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("ai1"); t.objectStore("meetings").delete("ai2"); t.oncomplete = () => resolve(true); }; })`);
+    await p.close();
+  },
+
   async talktime(b, check) {
     // Meetings → Insights: talk time from the speaker timeline (You / Others), labelled transcript lines.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
@@ -1637,12 +1701,15 @@ const suites = {
       transcript: [{ id: "1", speaker: "You", text: "Where are we on Acme?", startMs: 0, endMs: 3000, source: "audio" }, { id: "2", speaker: "Others", text: "They signed the pilot.", startMs: 21000, endMs: 24000, source: "audio" }],
       speakerActivity: [[0, 20000, 0], [20000, 30000, 1], [30000, 45000, 0], [45000, 60000, 1]],
       summary: { title: "Pipeline review", overview: "Acme signed the pilot.", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "t", generatedAt: now } };
-    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.oncomplete = () => resolve(true); }; })`);
+    const earlier = { ...m, id: "mtg_talk_prev", startedAt: new Date(Date.now() - 7 * 86400000).toISOString(), speakerActivity: undefined, summary: { ...m.summary, title: "Pipeline review", decisions: ["Push Acme to sign"], actionItems: [{ task: "Send Acme the contract", owner: "You", dueDate: null, priority: "high" }] } };
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.objectStore("meetings").put(${JSON.stringify(earlier)}); t.oncomplete = () => resolve(true); }; })`);
     await p.goto("meetings");
     await sleep(800);
     await p.eval(`[...document.querySelectorAll("button")].find((x) => x.title === "Pipeline review")?.click()`);
     await sleep(500);
     const text = await p.eval(`document.querySelector('[data-testid="talk-time"]')?.innerText ?? ""`);
+    const series = await p.eval(`document.querySelector('[data-testid="meeting-series"]')?.innerText ?? ""`);
+    check("Series: earlier occurrences show with their decisions and open items", /Earlier in this series \(1\)/.test(series) && series.includes("Push Acme to sign") && series.includes("Send Acme the contract"), series);
     check("Talk time: shows how the talking was split, your longest stretch and turns", /You 58%/.test(text) && /Others 42%/.test(text) && /longest stretch: 20 s/.test(text) && /changed 3 times/.test(text), text);
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
@@ -1652,7 +1719,7 @@ const suites = {
       check(`A11y (${theme}): talk time has no serious problems`, v.length === 0, v.join(", "));
     }
     await p.eval(`document.documentElement.classList.remove("dark")`);
-    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.oncomplete = () => resolve(true); }; })`);
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.objectStore("meetings").delete("mtg_talk_prev"); t.oncomplete = () => resolve(true); }; })`);
     await p.close();
   },
 

@@ -5,7 +5,7 @@ import { getDayKey, getDaysBetween } from "../lib/utils";
 import type { TrackerSettings, TimeTrackingDay, FocusRule } from "../types";
 import { accountsEnabled } from "../lib/prodliAccount";
 import { ACCENT, ON_ACCENT, COLORS, DEFAULT_SETTINGS, compareToUsual, fmtSecs, isExtension, getAllTrackingData, clearAllTrackingData, clearDomainHistory, type Tab, type DaySummary } from "./tracker/data";
-import { CategorySelect, FocusScoreCard, useSiteCategories } from "./tracker/FocusScore";
+import { CategorySelect, FocusScoreCard, FocusTrends, useSiteCategories } from "./tracker/FocusScore";
 import { AllTimeTab } from "./tracker/AllTimeTab";
 
 /** `settingsOnly`: just the settings (Settings › Time Tracker). */
@@ -782,6 +782,7 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
           </div>
 
           <FocusScoreCard today={todayData} week={weekData} overrides={siteCategories} excluded={excludedSet} cardStyle={cardStyle} />
+          <FocusTrends overrides={siteCategories} excluded={excludedSet} cardStyle={cardStyle} />
 
           {todayEntries.length === 0 ? (
             <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "hsl(var(--muted-foreground))" }}>

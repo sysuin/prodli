@@ -3,7 +3,10 @@
 // lib/meetingPrep.ts. Recorded meetings are read from this device only.
 
 import { useEffect, useState, type CSSProperties } from "react";
-import { metLabel, type MeetingPrep as Prep } from "../../lib/meetingPrep";
+import { aiPrepInput, metLabel, type AiPrep, type MeetingPrep as Prep } from "../../lib/meetingPrep";
+import { accountRequest, accountsEnabled, AccountError } from "../../lib/prodliAccount";
+import { getDayKey } from "../../lib/utils";
+import { ProBadge, ProNote, useProAccess } from "../../components/Pro";
 import { addTask } from "../../lib/capture";
 import { openSource } from "../../lib/askOpen";
 import type { Meeting } from "../../recorder/types";
@@ -39,6 +42,19 @@ export function useMeetings(): Meeting[] {
 /** The card's content (Today shows the card only when `prep` isn't empty). */
 export function MeetingPrepList({ prep, onAsk }: { prep: Prep[]; onAsk?: (question?: string) => void }) {
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const access = useProAccess();
+  const [ai, setAi] = useState<Record<string, { busy?: boolean; prep?: AiPrep; error?: string }>>({});
+  const runAi = async (p: Prep) => {
+    const input = aiPrepInput(p, getDayKey());
+    if (!input) return;
+    setAi((s) => ({ ...s, [p.eventId]: { busy: true } }));
+    try {
+      const r = await accountRequest<{ prep: AiPrep }>("/api/ai/meeting-prep", { method: "POST", body: JSON.stringify(input) }, { brief_quota_exceeded: "You've used this month's AI briefs and prep." });
+      setAi((s) => ({ ...s, [p.eventId]: { prep: r.prep } }));
+    } catch (err) {
+      setAi((s) => ({ ...s, [p.eventId]: { error: err instanceof AccountError ? err.message : "Prep didn't work this time. Try again." } }));
+    }
+  };
 
   const add = async (p: Prep, task: string) => {
     await addTask({ title: task, smart: true });
@@ -126,7 +142,37 @@ export function MeetingPrepList({ prep, onAsk }: { prep: Prep[]; onAsk?: (questi
                 ✨ Ask ProdLi
               </button>
             )}
+            {accountsEnabled() && p.last && access?.allowed && !ai[p.eventId]?.prep && (
+              <button style={small} disabled={ai[p.eventId]?.busy} onClick={() => void runAi(p)} aria-label={`Prep with AI: ${p.title}`}>
+                {ai[p.eventId]?.busy ? "Preparing…" : "✨ Prep with AI"}
+                <ProBadge />
+              </button>
+            )}
           </div>
+          {accountsEnabled() && p.last && access && !access.allowed && <ProNote access={access} what="AI meeting prep" />}
+          {ai[p.eventId]?.error && (
+            <div role="alert" style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-text)", marginTop: 6 }}>
+              {ai[p.eventId]?.error}
+            </div>
+          )}
+          {ai[p.eventId]?.prep && (
+            <div data-testid="ai-prep" style={{ border: "var(--nb-border)", padding: 8, marginTop: 8, background: "hsl(var(--muted))" }}>
+              <div style={{ fontWeight: 800, fontSize: 13 }}>✨ {ai[p.eventId]!.prep!.goal}</div>
+              <p style={{ fontSize: 13, margin: "4px 0 0" }}>{ai[p.eventId]!.prep!.recap}</p>
+              {([["Follow up on", ai[p.eventId]!.prep!.followUps], ["Questions to ask", ai[p.eventId]!.prep!.questions], ["Suggested agenda", ai[p.eventId]!.prep!.agenda]] as const).map(([h, items]) =>
+                items.length ? (
+                  <div key={h}>
+                    <div style={sub}>{h}</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                      {items.map((x, j) => (
+                        <li key={j}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          )}
         </article>
       ))}
     </div>
