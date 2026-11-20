@@ -1,0 +1,34 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "base": {
+      "env": {
+        "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "PRODLI_API": "https://prodli-api-staging.sunnysinghnitb.workers.dev" },
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "env": { "PRODLI_API": "https://prodli-api-staging.sunnysinghnitb.workers.dev" },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "extends": "base",
+      "autoIncrement": true,
+      "env": { "PRODLI_API": "https://app.prodli.com" }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": { "track": "internal", "releaseStatus": "draft" }
+    }
+  }
+}
