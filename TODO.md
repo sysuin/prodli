@@ -1,6 +1,6 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-17 · Version 1.3.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
+Last updated: 2026-11-20 · Version 1.4.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 

@@ -4,7 +4,7 @@ import { accountsEnabled } from "../lib/prodliAccount";
 import { SECTIONS } from "../sections/registry";
 
 /** The extension's version (or the web app's, which ships with the same code). */
-export const version = () => (typeof chrome !== "undefined" && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : "1.3.0");
+export const version = () => (typeof chrome !== "undefined" && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : "1.4.0");
 
 interface HelpModalProps {
   /** Inside Settings: just the content, no window around it. */
