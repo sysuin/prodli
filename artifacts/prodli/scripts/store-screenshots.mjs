@@ -48,7 +48,7 @@ const DEMO = {
     note(
       "n1",
       "Product launch plan",
-      `<h1>Product launch plan</h1><p>Launching <strong>ProdLi 1.3</strong> next week. Everything we need in one place.</p><h2>Launch checklist</h2><ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Final design review</p></li><li data-type="taskItem" data-checked="true"><p>Update the privacy policy</p></li><li data-type="taskItem" data-checked="false"><p>Record a 60-second <mark>demo video</mark></p></li><li data-type="taskItem" data-checked="false"><p>Submit to the Chrome Web Store</p></li></ul><h2>Owners</h2><table><tbody><tr><th><p>Area</p></th><th><p>Owner</p></th><th><p>Status</p></th></tr><tr><td><p>Editor</p></td><td><p>Priya</p></td><td><p>✅ Done</p></td></tr><tr><td><p>Drive backup</p></td><td><p>Alex</p></td><td><p>In review</p></td></tr><tr><td><p>Store listing</p></td><td><p>Sam</p></td><td><p>This week</p></td></tr></tbody></table><blockquote><p>Type “/” anywhere for checklists, tables, headings and more.</p></blockquote>`,
+      `<h1>Product launch plan</h1><p>Launching <strong>ProdLi 1.4</strong> next week. Everything we need in one place.</p><h2>Launch checklist</h2><ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Final design review</p></li><li data-type="taskItem" data-checked="true"><p>Update the privacy policy</p></li><li data-type="taskItem" data-checked="false"><p>Record a 60-second <mark>demo video</mark></p></li><li data-type="taskItem" data-checked="false"><p>Submit to the Chrome Web Store</p></li></ul><h2>Owners</h2><table><tbody><tr><th><p>Area</p></th><th><p>Owner</p></th><th><p>Status</p></th></tr><tr><td><p>Editor</p></td><td><p>Priya</p></td><td><p>✅ Done</p></td></tr><tr><td><p>Drive backup</p></td><td><p>Alex</p></td><td><p>In review</p></td></tr><tr><td><p>Store listing</p></td><td><p>Sam</p></td><td><p>This week</p></td></tr></tbody></table><blockquote><p>Type “/” anywhere for checklists, tables, headings and more.</p></blockquote>`,
       2,
       { pinned: true },
     ),
@@ -58,17 +58,39 @@ const DEMO = {
   ],
   activeNoteId: "n1",
   todos: [
-    { id: "t1", title: "Finish onboarding emails (Priya)", completed: false, priority: "high", dueDate: day(-1), subtasks: [], createdAt: iso(3_600_000) },
-    { id: "t2", title: "Prepare release notes", completed: false, priority: "medium", dueDate: day(-3), subtasks: [{ id: "s1", title: "Editor changes", completed: true }, { id: "s2", title: "Drive backup", completed: false }], createdAt: iso(7_200_000) },
+    { id: "t1", title: "Finish onboarding emails (Priya)", completed: false, priority: "high", dueDate: day(-1), listId: "l-launch", labels: ["writing"], subtasks: [], createdAt: iso(3_600_000) },
+    { id: "t6", title: "Send the weekly team update", completed: false, dueDate: day(-1), dueTime: "09:00", repeat: { unit: "week", every: 1, weekdays: [1] }, listId: "l-launch", subtasks: [], createdAt: iso(3_700_000) },
+    { id: "t7", title: "Water the plants", completed: false, dueDate: day(0), repeat: { unit: "day", every: 3 }, listId: "l-home", labels: ["home"], subtasks: [], createdAt: iso(3_800_000) },
+    { id: "t2", title: "Prepare release notes", completed: false, priority: "medium", dueDate: day(-3), listId: "l-launch", labels: ["writing"], subtasks: [{ id: "s1", title: "Editor changes", completed: true }, { id: "s2", title: "Drive backup", completed: false }], createdAt: iso(7_200_000) },
     { id: "t3", title: "Review pull request #2", completed: true, priority: "high", subtasks: [], createdAt: iso(9_000_000) },
-    { id: "t4", title: "Book team offsite", completed: false, priority: "low", dueDate: day(-10), subtasks: [], createdAt: iso(10_000_000) },
+    { id: "t4", title: "Book team offsite", completed: false, priority: "low", dueDate: day(-10), labels: ["waiting"], subtasks: [], createdAt: iso(10_000_000) },
     { id: "t5", title: "Update store screenshots", completed: false, subtasks: [], createdAt: iso(11_000_000) },
   ],
   habits: [
     { id: "h1", name: "Read 20 pages", emoji: "📚", color: "#60a5fa", completedDays: Array.from({ length: 12 }, (_, i) => day(i)), createdAt: iso(40 * 86_400_000), archived: false },
     { id: "h2", name: "Exercise", emoji: "🏃", color: "#4ade80", completedDays: [0, 1, 2, 4, 5, 7, 8, 9, 11].map(day), createdAt: iso(40 * 86_400_000), archived: false },
     { id: "h3", name: "Meditate", emoji: "🧘", color: "#a78bfa", completedDays: [0, 1, 2, 3, 4, 5].map(day), createdAt: iso(40 * 86_400_000), archived: false },
+    { id: "h4", name: "Drink water", emoji: "💧", color: "#38bdf8", kind: "count", target: 8, unit: "glasses", completedDays: [1, 2, 3, 5, 6].map(day), log: { [day(0)]: 5, [day(1)]: 8, [day(2)]: 9, [day(3)]: 8, [day(5)]: 8, [day(6)]: 10 }, createdAt: iso(40 * 86_400_000), archived: false },
+    { id: "h5", name: "Practice guitar", emoji: "🎸", color: "#fb923c", kind: "timed", target: 20, completedDays: [1, 3, 4].map(day), log: { [day(0)]: 10, [day(1)]: 25, [day(3)]: 20, [day(4)]: 30 }, days: [1, 2, 3, 4, 5], createdAt: iso(40 * 86_400_000), archived: false },
   ],
+  lists: [
+    { id: "l-launch", kind: "list", name: "Launch", emoji: "🚀", createdAt: iso(20 * 86_400_000) },
+    { id: "l-home", kind: "list", name: "Home", emoji: "🏠", createdAt: iso(20 * 86_400_000) },
+  ],
+  quickLinks: [
+    { id: "q1", title: "GitHub", url: "https://github.com", createdAt: iso(86_400_000) },
+    { id: "q2", title: "Gmail", url: "https://mail.google.com", createdAt: iso(86_400_000) },
+    { id: "q3", title: "Calendar", url: "https://calendar.google.com", createdAt: iso(86_400_000) },
+    { id: "q4", title: "Figma", url: "https://figma.com", createdAt: iso(86_400_000) },
+    { id: "q5", title: "Linear", url: "https://linear.app", createdAt: iso(86_400_000) },
+  ],
+  tabSessions: [
+    { id: "ts1", name: "Launch research", tabs: [{ url: "https://developer.chrome.com/docs/webstore", title: "Chrome Web Store docs" }, { url: "https://github.com", title: "GitHub" }, { url: "https://figma.com", title: "Figma: store assets" }], createdAt: iso(5 * 3_600_000) },
+  ],
+  readLater: [
+    { id: "r1", url: "https://example.com/deep-work", title: "How to protect your mornings for deep work", createdAt: iso(3 * 3_600_000) },
+  ],
+  focusBlock: { enabled: true, sites: ["youtube.com", "x.com", "reddit.com"], schedules: [{ id: "fs1", days: [1, 2, 3, 4, 5], start: "09:00", end: "12:00" }], duringPomodoro: true },
 };
 for (let i = 0; i < 7; i++) {
   const f = 1 - i * 0.08;
@@ -128,6 +150,10 @@ const BRIEF = {
   ],
   watchouts: ["“Book team offsite” is due in 10 days and hasn't been started."],
   habits: ["Read 20 pages: a 12-day streak, keep it going"],
+  prep: [
+    { event: "Weekly product sync (13:00)", note: "Last met earlier today in launch planning: Priya owes the onboarding emails and Alex the Drive backup merge; ask whether you need a launch blog post." },
+    { event: "Customer call: Acme (16:00)", note: "Open from last time: refresh the store screenshots before the demo." },
+  ],
   tip: "Put your phone in another room for the first focus block.",
   model: "claude-haiku-5-5",
   generatedAt: iso(20 * 60_000),
@@ -205,15 +231,15 @@ const MEETING = {
   audioMimeType: null,
   updatedAt: iso(3_600_000),
   transcript: [
-    { id: "1", speaker: "You", text: "Let's lock the scope for the 1.3 launch.", startMs: 4000, endMs: 8000 },
+    { id: "1", speaker: "You", text: "Let's lock the scope for the 1.4 launch.", startMs: 4000, endMs: 8000 },
     { id: "2", speaker: "Priya Shah", text: "Editor is done. I'll finish the onboarding emails by Thursday.", startMs: 12000, endMs: 18000 },
     { id: "3", speaker: "Alex Kim", text: "Drive backup is in review — should merge tomorrow.", startMs: 21000, endMs: 26000 },
   ],
   summary: {
     title: "Launch planning",
-    overview: "The team confirmed the 1.3 launch scope. The editor is complete, Drive backup merges tomorrow, and the store submission goes out next week.",
+    overview: "The team confirmed the 1.4 launch scope. The editor is complete, Drive backup merges tomorrow, and the store submission goes out next week.",
     keyPoints: ["Editor v2 is complete and tested", "Drive backup is in code review", "Store screenshots need refreshing before submission"],
-    decisions: ["Launch 1.3 next Tuesday", "Keep sign-in optional"],
+    decisions: ["Launch 1.4 next Tuesday", "Keep sign-in optional"],
     actionItems: [
       { task: "Finish onboarding emails", owner: "Priya Shah", dueDate: day(-2), priority: "high" },
       { task: "Merge Drive backup", owner: "Alex Kim", dueDate: day(-1), priority: "high" },
@@ -244,6 +270,13 @@ try {
   await browser.loadExtension();
   const p = await browser.openPage();
   await p.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+  // Today's calendar (test-build stand-in for Google Calendar): the product sync shares the
+  // launch planning call's Meet link, so Today shows meeting prep for it.
+  const EVENTS = [
+    { id: "ev1", title: "Weekly product sync", start: "13:00", end: "13:30", allDay: false, meetLink: "https://meet.google.com/abc-defg-hij", attendees: [{ name: "Priya Shah" }, { name: "Alex Kim" }] },
+    { id: "ev2", title: "Customer call: Acme", start: "16:00", end: "16:40", allDay: false, attendees: [{ email: "jordan@acme.example" }] },
+  ];
+  await p.send("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__prodliCalendarStub = () => ${JSON.stringify(EVENTS)};` });
   await p.eval(`chrome.storage.local.set(${JSON.stringify(DEMO)})`);
   await p.eval(`new Promise((resolve, reject) => {
     const req = indexedDB.open("prodli-meetings", 1);
@@ -312,6 +345,11 @@ try {
   await shot(8, "files");
   await open("habits");
   await shot(9, "habits");
+  // 11. Today's Day view and meeting prep (scrolled to the Agenda).
+  await open("today");
+  await p.eval(`document.querySelector('[data-testid="agenda"]')?.scrollIntoView({ block: "start" })`);
+  await sleep(600);
+  await shot(11, "day-view");
   await open("pomodoro");
   await p.eval(`[...document.querySelectorAll("button")].find(b => /start/i.test(b.textContent))?.click()`);
   await sleep(2500);

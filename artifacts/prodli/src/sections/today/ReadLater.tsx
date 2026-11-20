@@ -42,11 +42,11 @@ export function ReadLater() {
     </li>
   );
   return (
-    <div data-testid="read-later" style={{ display: "grid", gap: 8, fontSize: 13 }}>
+    <div data-testid="read-later" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
       {unread.length === 0 ? (
         <p style={{ margin: 0, opacity: 0.75 }}>{isExtension() ? "Right-click any page or link → Read later in ProdLi, or paste a link below." : "Paste a link below to read it later."}</p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 3 }}>{unread.slice(0, 30).map(row)}</ul>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3 }}>{unread.slice(0, 30).map(row)}</ul>
       )}
       <form
         onSubmit={(e) => {
@@ -64,7 +64,7 @@ export function ReadLater() {
           <button onClick={() => setShowRead((v) => !v)} aria-expanded={showRead} style={{ ...icon, fontSize: 11, textTransform: "uppercase", padding: 0 }}>
             {showRead ? "▾" : "▸"} Read ({read.length})
           </button>
-          {showRead && <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "grid", gap: 3 }}>{read.slice(0, 30).map(row)}</ul>}
+          {showRead && <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3 }}>{read.slice(0, 30).map(row)}</ul>}
         </div>
       )}
     </div>

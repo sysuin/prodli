@@ -287,7 +287,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
         )}
 
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 16, alignItems: "start" }}>
-          <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16, minWidth: 0 }}>
             <Card
               title={brief?.source === "ai" ? "✨ Your daily brief" : "☀️ Your daily brief"}
               testId="daily-brief"
@@ -342,7 +342,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
             </Card>
           </div>
 
-          <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16, minWidth: 0 }}>
             <Card
               title="📅 Agenda"
               testId="agenda"
