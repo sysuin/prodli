@@ -93,6 +93,15 @@ try {
   const swEval = (expr) => sw.eval(expr);
   check("Test hook for the toolbar click is available", await swEval("typeof __prodliToggleRecording === 'function'"));
 
+  // In a call without recording: one "Taking notes in this call?" reminder (what the 45-second alarm runs), once a day.
+  const nudgeTab = await swEval(`chrome.tabs.query({ url: "https://meet.google.com/*" }).then(([t]) => t.id)`);
+  const nudged = await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:abc-defg-hij")`);
+  const nudgeNote = await swEval(`chrome.notifications.getAll().then((n) => Object.keys(n).find((k) => k.startsWith("recnudge_")) ?? null)`);
+  check("Joining a Meet call without recording: one reminder to press the ProdLi icon", nudged === true && nudgeNote === `recnudge_${nudgeTab}`, JSON.stringify({ nudged, nudgeNote }));
+  check("…only once a day for that meeting", (await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:abc-defg-hij")`)) === false);
+  check("…and the tab/key are checked (wrong meeting: no reminder)", (await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:zzz-yyyy-xxx")`)) === false);
+  await swEval(`chrome.notifications.clear("recnudge_${nudgeTab}").then(() => true)`);
+
   // Click (start).
   const startErr = await swEval(`(async () => { try { const [t] = await chrome.tabs.query({ url: "https://meet.google.com/*" }); await __prodliToggleRecording(t); return null; } catch (e) { return String(e); } })()`);
   await sleep(2500);
@@ -107,6 +116,12 @@ try {
   // People talk.
   await meet.eval(`__say('Priya Shah', 'Let us ship the onboarding emails on Friday.'); true`);
   await sleep(1500);
+  // ★ Mark moment (what Alt+Shift+M and the ★ buttons do); a quick second press is the same moment.
+  const mark1 = await swEval(`__prodliMarkMoment()`);
+  const flashed = await swEval("chrome.action.getBadgeText({})");
+  await swEval(`__prodliMarkMoment()`);
+  await sleep(1500);
+  check("★ Mark moment saves the moment and flashes ★ on the icon, then REC again", mark1?.ok === true && mark1?.count === 1 && flashed === "★" && (await swEval("chrome.action.getBadgeText({})")) === "REC", JSON.stringify({ mark1, flashed }));
   await meet.eval(`__say('You', 'I will prepare the release notes.'); true`);
   await sleep(3500);
 
@@ -123,6 +138,8 @@ try {
   check("…with its title from the Meet page", m?.title === "Weekly product sync" || m?.title?.includes("abc-defg-hij"), m?.title);
   check("…and the transcript from captions", JSON.stringify((m?.transcript ?? []).map((e) => `${e.speaker}: ${e.text}`)) === JSON.stringify(["Priya Shah: Let us ship the onboarding emails on Friday.", "You: I will prepare the release notes."]), JSON.stringify(m?.transcript));
   check("…and the audio recording", m?.hasAudio === true, JSON.stringify({ hasAudio: m?.hasAudio, error: m?.error, notice: m?.notice }));
+  check("…with the marked moment (one, at the time of the press)", Array.isArray(m?.marks) && m.marks.length === 1 && m.marks[0] > 0 && m.marks[0] < 15000, JSON.stringify(m?.marks));
+  check("★ with nothing recording does nothing", (await swEval(`__prodliMarkMoment()`))?.ok === false);
   check("…and it isn't left in an error state", m && m.status !== "error" && !String(m.error ?? "").startsWith("Recording couldn't start"), `${m?.status} ${m?.error}`);
 
   // Captions don't come on: warn in the call and turn the icon amber (CC); clear both once they're on.

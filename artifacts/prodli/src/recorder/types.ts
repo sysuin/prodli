@@ -34,6 +34,27 @@ export interface MeetingSummary {
   generatedAt: string;
 }
 
+/** Feedback from "🎯 Coach me" (Pro). */
+export interface MeetingCoaching {
+  verdict: string;
+  strengths: string[];
+  improvements: string[];
+  nextStepsAgreed: boolean;
+  nextStepsNote: string;
+  missedQuestions: string[];
+  focus: CoachFocus;
+  model: string;
+  generatedAt: string;
+}
+export const COACH_FOCUS = [
+  { id: "general", label: "Any meeting" },
+  { id: "sales", label: "Sales call" },
+  { id: "interview", label: "Interview I ran" },
+  { id: "one-on-one", label: "One-on-one I ran" },
+  { id: "presentation", label: "I was presenting" },
+] as const;
+export type CoachFocus = (typeof COACH_FOCUS)[number]["id"];
+
 export type MeetingStatus = "recording" | "processing" | "ready" | "error";
 
 export interface Meeting {
@@ -58,6 +79,10 @@ export interface Meeting {
   template?: MeetingTemplate | CustomTemplateRef;
   /** Who talked when (mic vs. call), to label AI transcripts "You" / "Others" (recorder/speakers.ts). */
   speakerActivity?: [number, number, 0 | 1][];
+  /** "🎯 Coach me" feedback on this meeting (Pro; prodli-api coach.ts). */
+  coaching?: MeetingCoaching;
+  /** Moments marked while recording ("★ Mark moment"), in ms since the start (lib/moments.ts). */
+  marks?: number[];
   /** Action items marked done in Meetings → Action items (their task text). */
   doneActions?: string[];
   /** The meeting's shared link, if it's shared (server: /api/shares). */
@@ -163,6 +188,7 @@ export type BackgroundMessage =
   | { target: "background"; type: "captions-ended"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "speech-update"; meetingId: string; entries: TranscriptEntry[] }
   | { target: "background"; type: "stop-recording" }
+  | { target: "background"; type: "mark-moment" }
   /** One piece of audio (WAV, base64) to transcribe with the user's account. */
   | { target: "background"; type: "transcribe-piece"; meetingId: string; wav: string; startMs: number }
   | { target: "background"; type: "summarize"; meetingId: string };

@@ -4,6 +4,7 @@
 // their own API key.
 
 import { transcriptToText } from "./format";
+import { momentsForSummary } from "../lib/moments";
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "../lib/prodliAccount";
 import { storageGet } from "../lib/storage";
 import { CUSTOM_TEMPLATES_STORAGE_KEY, isCustomRef, MEETING_TEMPLATE_STORAGE_KEY, SUMMARY_LANGUAGE_STORAGE_KEY, VOCABULARY_STORAGE_KEY, type CustomMeetingTemplate, type CustomTemplateRef, type MeetingTemplate } from "./types";
@@ -32,6 +33,8 @@ export async function summarizeMeeting(meeting: Meeting): Promise<MeetingSummary
   // Your own template (Pro), if it still exists; otherwise the general notes.
   const custom = isCustomRef(chosen) ? customs.find((c) => `custom:${c.id}` === chosen) : undefined;
   const template = isCustomRef(chosen) ? "general" : chosen;
+  // Marked moments (Pro; the server leaves them out without Pro).
+  const moments = momentsForSummary(meeting.transcript, meeting.marks);
   try {
     const r = await accountRequest<{ summary: MeetingSummary }>("/api/ai/summarize", {
       method: "POST",
@@ -43,6 +46,7 @@ export async function summarizeMeeting(meeting: Meeting): Promise<MeetingSummary
         ...(glossary.length ? { glossary } : {}),
         ...(custom ? { custom: { name: custom.name, instructions: custom.instructions, sections: custom.sections } } : {}),
         ...(language ? { language } : {}),
+        ...(moments.length ? { moments } : {}),
       }),
     });
     return r.summary;

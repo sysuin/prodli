@@ -357,7 +357,20 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
       cursor: "pointer",
     });
     stop.addEventListener("click", () => send({ target: "background", type: "stop-recording" }));
-    badge.append(logoMark(14), dot, status, stop);
+    // ★: mark this moment as important (also Alt+Shift+M).
+    const mark = document.createElement("button");
+    mark.textContent = "★";
+    mark.title = "Mark this moment as important (Alt+Shift+M)";
+    mark.setAttribute("aria-label", "Mark this moment as important");
+    mark.setAttribute("data-prodli-mark", "");
+    mark.style.cssText = stop.style.cssText;
+    mark.style.padding = "2px 6px";
+    mark.addEventListener("click", () => {
+      send({ target: "background", type: "mark-moment" });
+      mark.textContent = "★ Marked";
+      window.setTimeout(() => (mark.textContent = "★"), 1200);
+    });
+    badge.append(logoMark(14), dot, status, mark, stop);
     document.body.appendChild(badge);
     updateBadge();
   }

@@ -252,6 +252,8 @@ try {
   await w.eval(`[...document.querySelectorAll('[data-testid="share-meeting"] button')].find((x) => x.textContent.includes("Stop sharing")).click()`);
   await sleep(1200);
   check("Share: Stop sharing turns the link off", sharedUrl ? (await fetch(sharedUrl)).status === 404 : false);
+  const coach = await w.eval(`(() => { const c = document.querySelector('[data-testid="meeting-coach"]'); return c ? { text: c.innerText, upgrade: !!c.querySelector('[data-testid="pro-upgrade"]'), button: [...c.querySelectorAll("button")].some((b) => /Coach me/.test(b.textContent)) } : null; })()`);
+  check("Coach: free accounts see 🎯 Coach me is part of Pro (no button) while Pro is on sale", !!coach && coach.upgrade && !coach.button && /Coaching tips are part of ProdLi Pro/.test(coach.text), JSON.stringify(coach));
 
   // Phones: sections on their own row; the editor shows the list or the note.
   await w.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });

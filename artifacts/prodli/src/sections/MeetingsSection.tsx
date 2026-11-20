@@ -12,6 +12,12 @@ import { installSpeech, speechAvailability, type SpeechAvailability } from "../r
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
+import { KeyMoments } from "./meetings/KeyMoments";
+import { Coach } from "./meetings/Coach";
+import { meetingToMarkdown } from "../lib/meetingExport";
+import { RECORD_NUDGE_KEY } from "../lib/recordNudge";
+import { downloadText, safeFileName } from "../lib/markdownExport";
+import { MeetingInsights } from "./meetings/MeetingInsights";
 import { ActionItems } from "./meetings/ActionItems";
 import { Series } from "./meetings/Series";
 import { meetingSeries } from "../lib/meetingPrep";
@@ -233,6 +239,7 @@ function SetupPanel({
             <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Only you see it. Chrome’s red dot on the tab and REC on the ProdLi icon show recording either way.</span>
           </span>
         </label>
+        {recorderOn && <RecordNudgeSetting />}
       </div>
 
       <div>
@@ -330,6 +337,31 @@ function AutoTranscribeSetting() {
 }
 
 /** "Record any website": the ProdLi icon records any tab, for call apps ProdLi doesn't recognise. */
+function RecordNudgeSetting() {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    void storageGet<boolean>(RECORD_NUDGE_KEY, true).then(setOn);
+    return onStorageChange(RECORD_NUDGE_KEY, () => void storageGet<boolean>(RECORD_NUDGE_KEY, true).then(setOn));
+  }, []);
+  return (
+    <label data-testid="record-nudge" style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setOn(e.target.checked);
+          void storageSet(RECORD_NUDGE_KEY, e.target.checked);
+        }}
+        style={{ marginTop: 3 }}
+      />
+      <span>
+        Remind me to record when I join a call
+        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Once per meeting, about 45 seconds after you join a Meet, Zoom, Jitsi or Whereby meeting without recording.</span>
+      </span>
+    </label>
+  );
+}
+
 function AnyTabSetting() {
   const [on, setOn] = useState(false);
   useEffect(() => {
@@ -538,6 +570,16 @@ function MeetingDetail({
                   ✉️ Draft follow-up
                 </button>
               )}
+              <button
+                style={btn("plain")}
+                onClick={() => void navigator.clipboard.writeText(meetingToMarkdown(meeting)).then(() => flash("Notes copied: paste into Notion, Slack, Docs or email"), () => flash("Couldn't copy"))}
+                title="Copy the notes as Markdown (pastes cleanly into Notion, Slack, Google Docs or email)"
+              >
+                📋 Copy notes
+              </button>
+              <button style={btn("plain")} onClick={() => downloadText(safeFileName(`${s.title || meeting.title} notes`, "md"), meetingToMarkdown(meeting))} title="Download the notes as a Markdown file" aria-label="Download notes as Markdown">
+                ⬇ .md
+              </button>
               {accountsEnabled() && !shareOpen && (
                 <button style={btn("plain", busy)} disabled={busy} onClick={() => setShareOpen(true)} title="A read-only link to this summary for people who weren't there">
                   🔗 {meeting.share ? "Shared" : "Share"}
@@ -548,9 +590,12 @@ function MeetingDetail({
             {shareOpen && <ShareMeeting key={meeting.id} meeting={meeting} flash={flash} onClose={() => setShareOpen(false)} />}
           </Section>
 
-          {meeting.speakerActivity && meeting.speakerActivity.length > 0 && (
+          {((meeting.speakerActivity?.length ?? 0) > 0 || !!meeting.coaching || (accountsEnabled() && meeting.transcript.length > 0)) && (
             <Section title="Insights">
-              <TalkTime meeting={meeting} />
+              <div style={{ display: "grid", gap: 16 }}>
+                {(meeting.speakerActivity?.length ?? 0) > 0 && <TalkTime meeting={meeting} />}
+                {(!!meeting.coaching || (accountsEnabled() && meeting.transcript.length > 0)) && <Coach key={meeting.id} meeting={meeting} />}
+              </div>
             </Section>
           )}
 
@@ -608,6 +653,12 @@ function MeetingDetail({
         </>
       )}
 
+      {(meeting.marks?.length ?? 0) > 0 && (
+        <Section title="Key moments">
+          <KeyMoments meeting={meeting} />
+        </Section>
+      )}
+
       {meeting.transcript.length > 0 && (
         <Section title="Transcript">
           <button style={{ ...btn(), marginBottom: 8 }} onClick={() => setShowTranscript((v) => !v)}>
@@ -653,7 +704,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const [signedIn, setSignedIn] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"meetings" | "actions">("meetings");
+  const [view, setView] = useState<"meetings" | "actions" | "insights">("meetings");
   // Why the last click on the ProdLi icon didn't start recording (recorder/controller.ts).
   const [problem, setProblem] = useState<{ message: string; at: string } | null>(null);
   useEffect(() => {
@@ -865,16 +916,22 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
     flash("Meeting deleted");
   };
 
+  const markMoment = async () => {
+    const msg: BackgroundMessage = { target: "background", type: "mark-moment" };
+    const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean; count?: number } | undefined;
+    flash(res?.ok ? `★ Moment marked${res.count && res.count > 1 ? ` (${res.count})` : ""}` : "Couldn't mark the moment");
+  };
+
   const stopRecording = async () => {
     const msg: BackgroundMessage = { target: "background", type: "stop-recording" };
     await chrome.runtime.sendMessage(msg);
   };
 
   const header = (
-    <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+    <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
-        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle", display: "inline-block", whiteSpace: "nowrap" }}>
           AI notes · any call & in person
         </span>
       </div>
@@ -882,6 +939,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         {meetings.length > 0 && (
           <button style={btn(view === "actions" ? "primary" : "plain")} aria-pressed={view === "actions"} onClick={() => setView((v) => (v === "actions" ? "meetings" : "actions"))} title="Open action items from all your meetings">
             ✅ Action items
+          </button>
+        )}
+        {meetings.length > 0 && (
+          <button style={btn(view === "insights" ? "primary" : "plain")} aria-pressed={view === "insights"} onClick={() => setView((v) => (v === "insights" ? "meetings" : "insights"))} title="Where your meeting time goes">
+            📊 Insights
           </button>
         )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
@@ -951,6 +1013,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           Recording · {formatTimestamp(elapsed * 1000)}
           <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${recState.platform === "browser" ? "This tab" : `${PLATFORM_LABEL[recState.platform]} call`} — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
+          <button style={btn("plain")} onClick={() => void markMoment()} title="Mark this moment as important (Alt+Shift+M)">★ Mark moment</button>
           <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
         </div>
       )}
@@ -958,7 +1021,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
         {showSetup && setupPanel}
 
-        {view === "actions" && meetings.length > 0 ? (
+        {view === "insights" && meetings.length > 0 ? (
+          <MeetingInsights meetings={meetings} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
+        ) : view === "actions" && meetings.length > 0 ? (
           <ActionItems meetings={meetings} flash={flash} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
         ) : meetings.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 40 }}>

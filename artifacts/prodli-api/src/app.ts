@@ -32,7 +32,7 @@ import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAn
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
-import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, cleanMoments, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
@@ -40,6 +40,7 @@ import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
+import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -75,6 +76,7 @@ export interface Deps {
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
   prep: (input: PrepInput, apiKey: string) => Promise<Prep>;
+  coach: (input: CoachInput, apiKey: string) => Promise<Coaching>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
@@ -86,7 +88,7 @@ export interface Deps {
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -592,6 +594,37 @@ export function createApp(deps: Deps = realDeps) {
     }
   });
 
+  // POST <CoachInput> → { coaching, usage } (Pro). "🎯 Coach me" on a meeting:
+  // the transcript goes to Anthropic and isn't stored; counts as a meeting summary.
+  app.post("/api/ai/meeting-coach", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (!proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Meeting coaching is part of ProdLi Pro." }, 402);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_TRANSCRIPT_CHARS + 2000) return c.json({ error: "too_large", message: "This transcript is too long to coach." }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = CoachInputSchema.safeParse(parsed);
+    if (!input.success) return c.json({ error: "bad_request", message: "That meeting doesn't look right." }, 400);
+    const now = deps.now();
+    const limit = aiLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit);
+    if (used === null) return c.json({ error: "ai_quota_exceeded", message: "You've used this month's AI meeting summaries.", usage: { used: limit, limit } }, 429);
+    try {
+      const coaching = await deps.coach(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ coaching, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now);
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
   // POST { title, date: "YYYY-MM-DD", transcript } → { summary, usage }
   // The transcript is sent to Anthropic and not stored here (the meeting itself syncs separately).
   app.post("/api/ai/summarize", requireAuth, async (c) => {
@@ -610,6 +643,8 @@ export function createApp(deps: Deps = realDeps) {
     // Notes in a chosen language (Pro). Unknown codes are ignored.
     const language = isSummaryLanguage((body as { language?: unknown } | null)?.language) ? ((body as { language: string }).language) : undefined;
     if (language && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Notes in another language are part of ProdLi Pro." }, 402);
+    // Marked moments (Pro). Without Pro they're left out rather than refused, so the notes still come.
+    const moments = proFeatureAllowed(auth.user.plan, c.env) ? cleanMoments((body as { moments?: unknown } | null)?.moments) : [];
 
     const now = deps.now();
     const limit = aiLimit(auth.user.plan);
@@ -618,7 +653,7 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const template = isMeetingTemplate(body?.template) ? body.template : undefined;
       const glossary = cleanGlossary(body?.glossary);
-      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}), ...(custom ? { custom } : {}), ...(language ? { language } : {}) }, c.env.ANTHROPIC_API_KEY);
+      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}), ...(custom ? { custom } : {}), ...(language ? { language } : {}), ...(moments.length ? { moments } : {}) }, c.env.ANTHROPIC_API_KEY);
       return c.json({ summary, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now);

@@ -6,6 +6,8 @@ import { inPersonSupported, startInPerson, stopInPerson } from "../../recorder/i
 import { currentInPerson, onInPersonChange } from "../../recorder/inPersonState";
 import { formatTimestamp } from "../../recorder/format";
 import { copyDisclosure } from "./MeetingNotesSettings";
+import { updateMeeting } from "../../recorder/db";
+import { addMark } from "../../lib/moments";
 
 const ACCENT = "#FF4FA3";
 const btn = (primary = false, disabled = false): CSSProperties => ({
@@ -91,12 +93,21 @@ export function InPersonBar({ flash, onDone }: { flash: (msg: string) => void; o
       flash(r.summarized ? "Notes ready" : r.transcribed ? "Transcript ready" : r.problem ? r.problem : "Recording saved");
     });
   };
+  const mark = () => {
+    let count = 0;
+    void updateMeeting(rec.meetingId, (m) => {
+      const marks = addMark(m.marks, Date.now() - rec.startedAt);
+      count = marks.length;
+      return { marks };
+    }).then((m) => flash(m ? `★ Moment marked${count > 1 ? ` (${count})` : ""}` : "Couldn't mark the moment"));
+  };
   return (
     <div data-testid="in-person-bar" style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13, flexWrap: "wrap" }}>
       <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
       <span role="timer">Recording in person · {formatTimestamp(Math.max(0, now - rec.startedAt))}</span>
       <span style={{ opacity: 0.85, flex: "1 1 220px" }}>From your microphone. Keep this tab open; you can switch ProdLi sections.</span>
       <button style={btn()} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
+      <button style={btn()} onClick={mark} title="Mark this moment as important">★ Mark moment</button>
       <button style={btn(true)} onClick={stop}>■ Stop</button>
     </div>
   );
