@@ -26,6 +26,8 @@ import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
 import { DayView } from "./today/DayView";
 import { buildPrep } from "../lib/meetingPrep";
 import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
+import { schedulePrepReminders } from "../lib/prepReminders";
+import { useProAccess } from "../components/Pro";
 
 const ACCENT = "#F59E0B";
 const card: CSSProperties = { border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", padding: 16 };
@@ -90,6 +92,12 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
   };
   const meetings = useMeetings();
   const prep = useMemo(() => buildPrep(events, meetings, todos), [events, meetings, todos]);
+  const proAccess = useProAccess();
+  // Prep reminders (Pro): 10 minutes before each meeting with prep (extension).
+  useEffect(() => {
+    if (!proAccess) return;
+    void schedulePrepReminders(prep, proAccess.allowed && settings.prepReminders !== false);
+  }, [prep, proAccess, settings.prepReminders]);
 
   const record = days.find((d) => d.id === today);
   const brief = record?.brief;

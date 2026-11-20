@@ -95,6 +95,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="🗒" title="Meeting prep">
+            <Row label={<Tag>Prep reminders · Pro</Tag>} desc="10 minutes before a meeting that has prep on Today, a notification with its open items and when you last met; click it to open Today. Turn off in Settings → Today & planning (extension)." />
             <Row label={<Tag>✨ Prep with AI · Pro</Tag>} desc="On a meeting prep card: a short AI brief for that meeting (goal, where things stand, what to follow up on, questions to ask, a suggested agenda) from your earlier meetings with those people. Uses your monthly AI briefs." />
             <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
           </Section>
@@ -198,6 +199,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>AI notes</Tag>} desc="Summary, key points, decisions, action items and open questions, written by Claude Haiku through your ProdLi account (free monthly allowance)." />
             <Row label={<Tag>+ To-Do / Save as note</Tag>} desc="Send action items to your To-Do list, or save the whole summary as a note in the Editor." />
             <Row label={<Tag>🔗 Share</Tag>} desc="Under a meeting's summary: a read-only link to the summary, decisions and action items (never the transcript or audio) for people who weren't there. Choose 7 or 30 days (or no expiry with Pro); Update shared page after re-summarizing; Stop sharing turns the link off." />
+            <Row label={<Tag>Notes language · Pro</Tag>} desc="Setup → Meeting notes → Notes language: summaries are written in the language you choose, whatever was spoken (names and terms stay as said; the transcript stays as spoken)." />
             <Row label={<Tag>Series · Pro</Tag>} desc="A recurring meeting (same Meet link or title) shows Earlier in this series: past occurrences with their decisions and still-open items. Click one to open it." />
             <Row label={<Tag>✅ Action items · Pro</Tag>} desc="Meetings → ✅ Action items: every open action item from every meeting, grouped by owner (you first), overdue first. Tick one when it's done, add it to your to-dos, or open the meeting it came from." />
             <Row label={<Tag>Your templates · Pro</Tag>} desc="Setup → Meeting notes → Your meeting templates: start from a ready-made one (Sales discovery, Customer check-in, User interview, Retrospective, Hiring debrief…) or write your own: name it, say what to focus on, and list your own sections (e.g. Budget, Decision-makers, Need, Timeline). Pick it as a meeting's type, or as your usual type; summaries fill your sections in." />

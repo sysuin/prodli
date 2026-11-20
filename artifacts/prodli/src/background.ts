@@ -13,6 +13,7 @@ import { registerLocalFiles } from "./lib/localFilesBackground";
 import { checkTab, registerFocusBlock } from "./lib/focusBlockBackground";
 import { registerAskPrompts } from "./lib/askBackground";
 import { keepNotificationsInside } from "./lib/quietNotifications";
+import { registerPrepReminders } from "./lib/prepReminders";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
@@ -26,6 +27,7 @@ registerDriveBackup();
 if (accountsEnabled()) registerBackgroundSync();
 // Today: a daily "plan your day" reminder (Today → Settings).
 registerTodayReminder();
+registerPrepReminders();
 // "Add to ProdLi": right-click menus and the Quick add shortcut (Alt+Shift+A).
 registerCapture();
 // Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).
