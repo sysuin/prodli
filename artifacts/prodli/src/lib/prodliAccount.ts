@@ -29,7 +29,7 @@ export interface ProdliUser {
 
 export interface Device {
   id: string;
-  client: "extension" | "web";
+  client: "extension" | "web" | "mobile";
   device: string;
   createdAt: number;
   lastUsedAt: number;

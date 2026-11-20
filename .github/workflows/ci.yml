@@ -36,6 +36,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test
+      - name: Phone app bundles (iOS + Android JavaScript, as the store builds make them)
+        run: pnpm --filter @workspace/prodli-mobile run export:check
       - run: pnpm run build:extension
         env:
           # Optional: enables "Sign in with Google" in the built zip (see docs/GOOGLE-SIGN-IN.md)

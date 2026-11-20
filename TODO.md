@@ -16,6 +16,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] A time-block reminder going off; "Add to Google Calendar"
   - [ ] A weekly review with your real data
   - [ ] Phone: the web app (Share → Add to Home Screen)
+- [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts, then `eas build` and a TestFlight / internal-testing beta. Ask the lawyer to add the phone apps to the privacy policy and terms.
 - [x] **Cloudflare billing alerts:** budget alerts at $10 (auto-created) and $25 (added 2026-11-17), emailed to the account owner
 
 ## Next — Claude can do
@@ -41,7 +42,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 - [x] Web app (app.prodli.com), reusing the extension's screens
 - [ ] Desktop app (Mac/Windows) with native meeting recording for any app
-- [ ] Mobile app
+- [ ] Mobile app — first version built in `artifacts/prodli-mobile` ([docs/MOBILE.md](docs/MOBILE.md)); next: in-person recording on the phone, table editing, widgets
 
 ## How to test
 

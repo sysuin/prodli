@@ -2,7 +2,7 @@
 
 import type { GoogleIdentity } from "./google";
 
-export type Client = "extension" | "web";
+export type Client = "extension" | "web" | "mobile";
 
 export interface User {
   id: string;
@@ -24,7 +24,7 @@ export interface SessionInfo {
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Sessions slide: each use (at most every TOUCH_EVERY) pushes expiry out again. */
-export const SESSION_TTL: Record<Client, number> = { extension: 180 * DAY, web: 30 * DAY };
+export const SESSION_TTL: Record<Client, number> = { extension: 180 * DAY, web: 30 * DAY, mobile: 180 * DAY };
 const TOUCH_EVERY = 10 * 60 * 1000;
 
 interface UserRow {
