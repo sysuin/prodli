@@ -14,6 +14,7 @@ import { getMeeting, putMeeting, updateMeeting } from "./db";
 import { base64ToBytes, fillCaptionGaps } from "./format";
 import { anyWebsiteCall, callFromUrl, isPlaceholderTitle, notACallReason, placeholderTitle, PLATFORM_LABEL, stillInCall, titleFromTab, type CallInfo, type CallPlatform } from "./calls";
 import { sendWithRetry } from "./audioTranscribe";
+import { labelSpeakers, type SpeakerActivity } from "./speakers";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
@@ -246,10 +247,12 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
     // 2. Stop the audio recorder (it saves the audio, and returns any on-device transcript).
     let speechEntries: TranscriptEntry[] | undefined;
     let audio: { hasAudio: boolean; mimeType: string | null } = { hasAudio: false, mimeType: null };
+    let speakerActivity: SpeakerActivity | undefined;
     try {
       const stopCmd: OffscreenCommand = { target: "offscreen", type: "stop" };
-      const res = (await chrome.runtime.sendMessage(stopCmd)) as { speechEntries?: TranscriptEntry[]; hasAudio?: boolean; mimeType?: string | null } | undefined;
+      const res = (await chrome.runtime.sendMessage(stopCmd)) as { speechEntries?: TranscriptEntry[]; hasAudio?: boolean; mimeType?: string | null; speakerActivity?: SpeakerActivity } | undefined;
       speechEntries = res?.speechEntries;
+      speakerActivity = res?.speakerActivity;
       audio = { hasAudio: !!res?.hasAudio, mimeType: res?.mimeType ?? null };
     } catch {
       // Offscreen document already gone.
@@ -275,6 +278,7 @@ export async function stopRecording(reason: "user" | "tab-closed" | "left-call" 
         durationSec: Math.round((endedAt.getTime() - new Date(m.startedAt).getTime()) / 1000),
         status: "processing",
         speechTranscript: speech,
+        ...(speakerActivity?.length ? { speakerActivity } : {}),
         notice: withNote(
           platform !== "google-meet"
             ? transcribe
@@ -322,7 +326,7 @@ async function transcribeAfterCall(meetingId: string, mimeType: string | null, m
   }
   await updateMeeting(meetingId, (m) =>
     res?.ok
-      ? { transcript: res.entries, transcriptSource: "audio", audioLanguages: res.languages, notice: micNote }
+      ? { transcript: labelSpeakers(res.entries, m.speakerActivity), transcriptSource: "audio", audioLanguages: res.languages, notice: micNote }
       : { notice: withNote(`The recording couldn't be transcribed${res && !res.ok ? `: ${res.error}` : "."} Try “Transcribe audio with AI” on this meeting.${m.transcript.length ? " The on-device transcript is shown for now." : ""}`, micNote) },
   );
 }

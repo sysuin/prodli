@@ -77,7 +77,7 @@ export function pickSnippets(question: string, notes: Note[], meetings: Meeting[
   const sortedMeetings = [...meetings].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   for (const [i, m] of sortedMeetings.entries()) {
     const s = m.summary;
-    const summaryText = s ? [s.overview, ...s.keyPoints.map((k) => `- ${k}`), ...s.decisions.map((d) => `Decision: ${d}`), ...s.actionItems.map((a) => `Action: ${a.task}${a.owner ? ` (${a.owner})` : ""}`)].join("\n") : "";
+    const summaryText = s ? [s.overview, ...(s.customSections ?? []).flatMap((c) => c.points.map((p) => `${c.heading}: ${p}`)), ...s.keyPoints.map((k) => `- ${k}`), ...s.decisions.map((d) => `Decision: ${d}`), ...s.actionItems.map((a) => `Action: ${a.task}${a.owner ? ` (${a.owner})` : ""}`)].join("\n") : "";
     const transcript = m.transcript.map((e) => `${e.speaker}: ${e.text}`).join("\n");
     const title = s?.title || m.title;
     let score = count(title, ts) * 3 + count(summaryText, ts) * 2 + count(transcript, ts);

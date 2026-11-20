@@ -28,6 +28,8 @@ export interface MeetingSummary {
   decisions: string[];
   actionItems: ActionItem[];
   openQuestions: string[];
+  /** Your own template's sections, filled in (Pro: custom meeting templates). */
+  customSections?: { heading: string; points: string[] }[];
   model: string;
   generatedAt: string;
 }
@@ -52,8 +54,12 @@ export interface Meeting {
   notice: string | null;
   hasAudio: boolean;
   micIncluded: boolean;
-  /** Meeting type for its summary; missing = the default from Setup. */
-  template?: MeetingTemplate;
+  /** Meeting type for its summary (built-in, or "custom:<id>" for your own); missing = the default from Setup. */
+  template?: MeetingTemplate | CustomTemplateRef;
+  /** Who talked when (mic vs. call), to label AI transcripts "You" / "Others" (recorder/speakers.ts). */
+  speakerActivity?: [number, number, 0 | 1][];
+  /** The meeting's shared link, if it's shared (server: /api/shares). */
+  share?: { id: string; url: string; expiresAt: number | null };
   /** On-device transcript (used when Meet captions weren't available) */
   speechTranscript?: TranscriptEntry[];
   /** Where `transcript` came from. Missing means Meet's captions (with on-device gap filling). */
@@ -99,6 +105,17 @@ export const MEETING_TEMPLATES = [
   { id: "planning", label: "Planning" },
 ] as const;
 export type MeetingTemplate = (typeof MEETING_TEMPLATES)[number]["id"];
+
+/** Your own meeting template (Pro): what to focus on and your own sections (server: ai.ts cleanCustomTemplate). */
+export interface CustomMeetingTemplate {
+  id: string;
+  name: string;
+  instructions: string;
+  sections: string[];
+}
+export type CustomTemplateRef = `custom:${string}`;
+export const CUSTOM_TEMPLATES_STORAGE_KEY = "recorderCustomTemplates";
+export const isCustomRef = (t: string | undefined): t is CustomTemplateRef => !!t && t.startsWith("custom:");
 
 /** "Ghill John, Flynn\nDSR" → ["Ghill John", "Flynn", "DSR"] */
 export function parseVocabulary(text: string): string[] {

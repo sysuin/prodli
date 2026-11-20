@@ -17,6 +17,8 @@ export interface PlanLimits {
   asks: number;
   /** Writing help (✨ Improve). Optional: older servers don't send it. */
   writes?: number;
+  /** AI audio transcription, minutes a month. Optional: older servers don't send it. */
+  transcribeMinutes?: number;
 }
 
 export interface Billing {
@@ -26,9 +28,28 @@ export interface Billing {
   canManage: boolean;
   subscription: { status: string; interval: string | null; renewsAt: number | null; endsAt: number | null } | null;
   limits: { free: PlanLimits; pro: PlanLimits };
+  /** Pro-only features are open to everyone until Pro is on sale (older servers don't send it). */
+  earlyAccess?: boolean;
 }
 
 export const getBilling = () => accountRequest<Billing>("/api/billing");
+
+export interface ProAccess {
+  signedIn: boolean;
+  /** May use Pro-only features now (Pro, or early access before Pro is on sale). */
+  allowed: boolean;
+  earlyAccess: boolean;
+  pro: boolean;
+}
+
+/** Whether Pro-only features (your own meeting templates, links that never expire) are available. */
+export async function getProAccess(): Promise<ProAccess> {
+  const b = await getBilling().catch(() => null);
+  if (!b) return { signedIn: false, allowed: false, earlyAccess: false, pro: false };
+  const pro = b.plan === "pro";
+  const earlyAccess = b.earlyAccess ?? !b.onSale;
+  return { signedIn: true, allowed: pro || earlyAccess, earlyAccess: earlyAccess && !pro, pro };
+}
 
 const isExtension = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.tabs;
 

@@ -151,3 +151,13 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 
 **Added later on 20 November 2026 (more call apps):** the recorder also recognises Webex, Slack huddles, Discord voice, Jitsi and Whereby in the browser, and an optional "Record any website" setting (off by default) lets the toolbar icon record any tab. It works the same as Zoom/Teams: tab audio, automatic AI transcription after the call if signed in and the setting is on. No new permissions (tab capture follows the toolbar click). Policy wording now says "calls in your browser (Google Meet, Zoom, Microsoft Teams, Webex, Slack, Discord and others)".
 
+## 8. Pro features and shared links (20 November 2026, not yet reviewed)
+
+- **Shared meeting notes:** a user can share a meeting's summary as a read-only link (`app.prodli.com/s/<random id>`). The server stores a snapshot (title, date, length, summary, never the transcript or audio) in D1 `shares` until the link expires (7 or 30 days, or never with Pro), the user stops sharing, or the account is deleted. The view count is kept. The page is noindex, runs no scripts and has a strict CSP. Code: `prodli-api/src/shares.ts`. Policy section "Shared meeting notes"; Terms "Your content" adds that users must only share notes with people who should see them.
+- **Your own meeting templates (Pro):** the template's name, instructions and section headings go to Anthropic with the transcript. Policy updated under "Meeting summaries".
+- **Pro-only features** are free for everyone until Pro goes on sale ("early access"); the Terms say they may become Pro-only then.
+
+**Decisions to confirm:**
+1. Sharing meeting summaries publishes other participants' words to whoever has the link. Is the user-responsibility wording enough, or should the share panel also ask the user to confirm the participants agreed?
+2. Is "may make them Pro-only once it does" in the Terms enough notice for features that are free during early access?
+

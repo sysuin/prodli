@@ -10,6 +10,9 @@ import { accountsEnabled, getAiUsage, onProdliAccountChange, type AiUsage } from
 import { formatTimestamp, SUMMARY_MODEL, transcriptToText } from "../recorder/format";
 import { installSpeech, speechAvailability, type SpeechAvailability } from "../recorder/speech";
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
+import { ShareMeeting } from "./meetings/ShareMeeting";
+import { TalkTime } from "./meetings/TalkTime";
+import { useCustomTemplates } from "./meetings/CustomTemplates";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
 import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
@@ -42,6 +45,7 @@ import {
   RECORDING_STATE_KEY,
   MEETING_TEMPLATES,
   type MeetingTemplate,
+  type CustomTemplateRef,
   type ActionItem,
   type BackgroundMessage,
   type Meeting,
@@ -57,7 +61,7 @@ export function meetingMatches(m: Meeting, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const s = m.summary;
-  const hay = [m.title, s?.title, s?.overview, ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
+  const hay = [m.title, s?.title, s?.overview, ...(s?.customSections ?? []).flatMap((c) => [c.heading, ...c.points]), ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
   return hay.some((h) => h?.toLowerCase().includes(q));
 }
 
@@ -142,6 +146,7 @@ function meetingToNoteHtml(m: Meeting): string {
   let html = `<h1>${escapeHtml(s?.title || m.title)}</h1><p><em>${escapeHtml(date)} · ${formatDuration(m.durationSec)} · ${PLATFORM_LABEL[m.platform] ?? "Google Meet"}</em></p>`;
   if (s) {
     html += `<h2>Summary</h2><p>${escapeHtml(s.overview)}</p>`;
+    for (const c of s.customSections ?? []) if (c.points.length) html += `<h2>${escapeHtml(c.heading)}</h2>${list(c.points)}`;
     html += `<h2>Key points</h2>${list(s.keyPoints)}`;
     html += `<h2>Decisions</h2>${list(s.decisions)}`;
     html += `<h2>Action items</h2>${
@@ -365,6 +370,8 @@ function MeetingDetail({
   const [addedTasks, setAddedTasks] = useState<Set<string>>(new Set());
   const [showTranscript, setShowTranscript] = useState(!meeting.summary);
   const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const customTemplates = useCustomTemplates();
   const s = meeting.summary;
 
   useEffect(() => {
@@ -389,7 +396,10 @@ function MeetingDetail({
     setShowTranscript(!meeting.summary);
   }, [meeting.id, meeting.summary]);
 
-  useEffect(() => setFollowUpOpen(false), [meeting.id]);
+  useEffect(() => {
+    setFollowUpOpen(false);
+    setShareOpen(false);
+  }, [meeting.id]);
 
   const addTodos = async (items: ActionItem[]) => {
     const todos = await storageGet<Todo[]>("todos", []);
@@ -455,7 +465,7 @@ function MeetingDetail({
             value={meeting.template ?? ""}
             onChange={(e) => {
               // Read the choice now: the update runs later, after React has reset this controlled menu.
-              const template = (e.target.value || undefined) as MeetingTemplate | undefined;
+              const template = (e.target.value || undefined) as MeetingTemplate | CustomTemplateRef | undefined;
               void updateMeeting(meeting.id, () => ({ template }));
             }}
             style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "4px 6px" }}
@@ -463,6 +473,9 @@ function MeetingDetail({
             <option value="">Type: usual</option>
             {MEETING_TEMPLATES.map((t) => (
               <option key={t.id} value={t.id}>Type: {t.label}</option>
+            ))}
+            {customTemplates.map((t) => (
+              <option key={t.id} value={`custom:${t.id}`}>Type: {t.name} (yours)</option>
             ))}
           </select>
           <button style={btn("primary", !canSummarize)} disabled={!canSummarize} onClick={onSummarize} title={hasKey ? "" : NO_AI_HINT}>
@@ -503,13 +516,33 @@ function MeetingDetail({
         <>
           <Section title="Summary">
             <p style={{ fontSize: 15, lineHeight: 1.55, margin: 0 }}>{s.overview}</p>
-            {!followUpOpen && (
-              <button style={{ ...btn("plain", busy), marginTop: 10 }} disabled={busy} onClick={() => setFollowUpOpen(true)} title="Write an email to the participants from this summary">
-                ✉️ Draft follow-up
-              </button>
-            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {!followUpOpen && (
+                <button style={btn("plain", busy)} disabled={busy} onClick={() => setFollowUpOpen(true)} title="Write an email to the participants from this summary">
+                  ✉️ Draft follow-up
+                </button>
+              )}
+              {accountsEnabled() && !shareOpen && (
+                <button style={btn("plain", busy)} disabled={busy} onClick={() => setShareOpen(true)} title="A read-only link to this summary for people who weren't there">
+                  🔗 {meeting.share ? "Shared" : "Share"}
+                </button>
+              )}
+            </div>
             {followUpOpen && <FollowUpDraft key={meeting.id} summary={s} meetingTitle={meeting.title} startedAt={meeting.startedAt} onClose={() => setFollowUpOpen(false)} flash={flash} />}
+            {shareOpen && <ShareMeeting key={meeting.id} meeting={meeting} flash={flash} onClose={() => setShareOpen(false)} />}
           </Section>
+
+          {meeting.speakerActivity && meeting.speakerActivity.length > 0 && (
+            <Section title="Insights">
+              <TalkTime meeting={meeting} />
+            </Section>
+          )}
+
+          {(s.customSections ?? []).filter((c) => c.points.length).map((c, i) => (
+            <Section key={`cs-${i}`} title={c.heading}>
+              <ul data-testid="custom-section" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, fontSize: 14, listStyle: "disc" }}>{c.points.map((p, j) => <li key={j}>{p}</li>)}</ul>
+            </Section>
+          ))}
 
           {s.actionItems.length > 0 && (
             <Section title="Action items">

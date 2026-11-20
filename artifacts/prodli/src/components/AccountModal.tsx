@@ -105,7 +105,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
                   ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
                   : "Thanks for supporting ProdLi!"}
             <br />
-            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync.
+            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates, talk-time insights and shared links that never expire.
           </div>
           {billing.canManage && (
             <div>
@@ -131,9 +131,14 @@ function PlanBox({ user }: { user: ProdliUser }) {
               {row("AI daily briefs & reviews", String(L.free.briefs), String(L.pro.briefs))}
               {row("Ask ProdLi questions", String(L.free.asks), String(L.pro.asks))}
               {L.free.writes !== undefined && L.pro.writes !== undefined && row("Writing help (✨ Improve)", String(L.free.writes), String(L.pro.writes))}
+              {L.free.transcribeMinutes !== undefined && L.pro.transcribeMinutes !== undefined && row("AI audio transcription", `${L.free.transcribeMinutes} min`, `${L.pro.transcribeMinutes} min`)}
               {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
+              {row("Your own meeting templates", "—", "✓")}
+              {row("Talk-time insights", "—", "✓")}
+              {row("Shared notes links that never expire", "7 or 30 days", "✓")}
             </tbody>
           </table>
+          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, your own meeting templates, talk-time insights and links that never expire are free for everyone.</div>}
           {billing.onSale ? (
             <>
               {both && (
