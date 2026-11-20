@@ -27,13 +27,13 @@ const STEPS = [
 ];
 
 const PLANS = [
-  { name: "Free", price: "Free", note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "62 AI daily briefs & weekly reviews", "100 Ask ProdLi questions", "100 MB of synced data"], cta: true },
-  { name: "Pro", price: "Coming soon", note: "For heavy users of the AI assistant.", rows: ["300 AI meeting summaries", "200 AI daily briefs & weekly reviews", "1,000 Ask ProdLi questions", "2 GB of synced data"], cta: false },
+  { name: "Free", price: "Free", note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "62 AI daily briefs & weekly reviews", "100 Ask ProdLi questions", "300 min of AI audio transcription", "100 MB of synced data"], cta: true },
+  { name: "Pro", price: "Coming soon", note: "For heavy users of the AI assistant.", rows: ["300 AI meeting summaries", "200 AI daily briefs & weekly reviews", "1,000 Ask ProdLi questions", "1,500 min of AI audio transcription", "2 GB of synced data"], cta: false },
 ];
 
 const FAQ = [
   { q: "Do I need an account?", a: "No. ProdLi works without an account and offline. Sign in with Google only if you want sync between devices and app.prodli.com, and the AI features (daily brief, weekly review, Ask ProdLi, meeting summaries)." },
-  { q: "Does a bot join my meetings?", a: "No. ProdLi takes notes from Google Meet's own captions in your browser. Nobody else sees anything, and meeting audio never leaves your computer." },
+  { q: "Does a bot join my meetings?", a: "No. ProdLi takes notes in your browser: from Google Meet's own captions, or from the call's audio on Zoom and Teams. Nobody else sees anything. Audio leaves your computer only to be transcribed with AI: when you choose it, or after a Zoom or Teams call while you're signed in (you can turn that off)." },
   { q: "Where is my data?", a: "On your device first. If you sign in, synced data is stored in your own private space on ProdLi's servers. You can download or delete it any time. We don't sell data or show ads." },
   { q: "Does it work on my phone?", a: "Yes — open app.prodli.com and add it to your home screen. The Chrome extension adds the new tab, meeting notes, quick add from any page and time tracking." },
 ];
@@ -223,7 +223,7 @@ export function Landing() {
             Your data, your control.
           </h2>
           <p style={{ fontSize: 15, lineHeight: 1.7, color: "#3a2a00", maxWidth: 560, margin: "0 auto 36px" }}>
-            Everything is saved on your device first, and ProdLi works offline. Sign in only if you want sync: synced data goes to your own private space on ProdLi's servers, meeting audio never leaves your computer, and you can download or delete everything at any time. No ads, and we never sell your data.
+            Everything is saved on your device first, and ProdLi works offline. Sign in only if you want sync: synced data goes to your own private space on ProdLi's servers, meeting audio is never synced, and you can download or delete everything at any time. No ads, and we never sell your data.
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
             {["No account needed to start", "Works offline", "Meeting audio stays on your computer", "Download or delete anytime"].map((item) => (

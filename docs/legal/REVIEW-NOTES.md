@@ -112,3 +112,38 @@ The previous policy said ProdLi had no servers and synced only through the user'
 - the operator's identity.
 
 The terms are new.
+
+## 7. Changes since the lawyer review (20 November 2026)
+
+The policy and terms were updated for the features added on 18–20 November. Each statement was checked against the code. **These additions haven't been reviewed by the lawyer yet.**
+
+**New data on the device only:** task lists, labels, repeats and reminders; note templates; site categories; blocked sites, focus hours and daily pause counts; Ask ProdLi saved prompts, schedules and scheduled answers; the meeting type and the word list.
+
+**New synced collections** (one Durable Object per user, like the rest): `lists` (to-do lists), `tabSessions` (titles and **full web addresses** of tabs the user saves), `quickLinks` (titles and addresses), `readLater` (page titles and addresses). Code: `prodli-api/src/syncStore.ts` `COLLECTIONS`.
+
+**New AI processing:**
+| Feature | Sent | To | Stored on our servers |
+|---|---|---|---|
+| Audio transcription (🌐 on a meeting; **automatic after Zoom and Teams calls, on by default**, can be turned off) | WAV pieces of the recording (silence skipped), the word list as a hint | Cloudflare Workers AI (Whisper) | no; minutes counted in D1 `transcribe_usage` |
+| Page summaries (right-click) | page title, address, up to 24,000 characters of page text | Anthropic | no |
+| Speak tasks | the spoken text (up to 4,000 characters) and the user's list names | Anthropic | no |
+| Daily brief (meeting prep, focus score) | for matched meetings: title, time, last-met date, last summary overview, open action items, related to-do titles; yesterday's focus score | Anthropic | no (the brief is saved with the day) |
+| Weekly review (categories) | the week's focus score and minutes per site category | Anthropic | no |
+| Scheduled Ask prompts | as Ask ProdLi, sent by the extension in the background at the chosen times | Anthropic | no (answer kept on the device) |
+| Meeting summaries | adds the meeting type and the word list | Anthropic | no |
+
+**Google:**
+- Calendar: invitees' names and email addresses are now read on the device to match events with past meetings (meeting prep). They're never sent or stored.
+- Chrome's speech recognition (Speak tasks; on-device meeting transcription) runs on the device when Chrome supports it, otherwise **Chrome sends the audio to Google's speech service**. ProdLi never receives that audio. The policy says so; Google acts under its own terms there.
+
+**Permissions:** `search`, `activeTab` and `scripting` are now required (Today's search box; reading the page for "Summarize page"; Meet's caption reader). The Focus List redirect no longer requests extra permissions; focus blocking uses `tabs`. The recorder's optional `tabCapture`/`offscreen` now also cover Zoom and Teams tabs (no host access to them).
+
+**Terms:** free and Pro limits now include audio transcription (300 and 1,500 minutes a month). "Your content" and the AI disclaimer cover transcription, page summaries and suggested tasks.
+
+**Decisions to confirm:**
+1. **Automatic transcription of Zoom and Teams calls is on by default.** It sends other participants' voices to a processor without a prompt for each call. The setting explains this and can be turned off, and the user is responsible for consent. Confirm the default is acceptable, or whether it should be off by default or ask once.
+2. **Speech recognition fallback to Google.** Confirm the disclosure is enough, or whether Speak tasks should refuse to run when on-device recognition isn't available.
+3. **Full web addresses** are now synced for saved tabs, quick links and Read later. The Chrome Web Store "Privacy practices" should list "Web history" and "Website content" accordingly (page text for summaries).
+
+**Also updated to match:** the website's FAQ and pricing (prodli.com), and in the app the Meetings Setup text and the account window ("meeting audio is never synced" instead of "never uploaded").
+

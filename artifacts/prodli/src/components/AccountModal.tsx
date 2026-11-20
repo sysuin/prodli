@@ -303,7 +303,7 @@ function SyncBox({ ext }: { ext: boolean }) {
           />
           <span>
             Sync meetings recorded on this computer
-            <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Transcripts include what other people said. Audio is never uploaded.</span>
+            <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Transcripts include what other people said. Audio is never synced.</span>
           </span>
         </label>
       )}
@@ -420,7 +420,7 @@ function ProdliAccountSection() {
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, listStyle: "disc" }}>
             <li>What’s already on this device is added to your account; nothing is overwritten.</li>
             <li>Free. ProdLi keeps working without an account, and offline.</li>
-            <li>Meeting audio is never uploaded.</li>
+            <li>Meeting audio is never synced.</li>
             <li>You can download or delete your account any time.</li>
           </ul>
           <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
