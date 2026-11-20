@@ -555,7 +555,7 @@ function ProdliDevicesSection({ onSignIn }: { onSignIn: () => void }) {
           devices.map((d) => (
             <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 13 }}>
               <span>
-                <strong>{d.client === "extension" ? "Extension" : "Web"}</strong> · {d.device || "Unknown device"} · {ago(d.lastUsedAt)}
+                <strong>{d.client === "extension" ? "Extension" : d.client === "mobile" ? "Phone app" : "Web"}</strong> · {d.device || "Unknown device"} · {ago(d.lastUsedAt)}
                 {d.current && <em style={{ marginLeft: 6, opacity: 0.7 }}>(this one)</em>}
               </span>
               {!d.current && (

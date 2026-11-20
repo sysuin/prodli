@@ -48,6 +48,8 @@ export interface Env extends BillingVars {
   DB: D1Database;
   GOOGLE_EXTENSION_CLIENT_ID: string;
   GOOGLE_WEB_CLIENT_ID: string;
+  /** Optional: the iOS app's own OAuth client, accepted as an ID-token audience for phone sign-in. */
+  GOOGLE_IOS_CLIENT_ID?: string;
   AUTH_LIMITER?: RateLimit;
   SYNC_LIMITER?: RateLimit;
   AI_LIMITER?: RateLimit;
@@ -115,6 +117,9 @@ const isAllowedOrigin = (c: Ctx, origin: string | undefined) =>
   !!origin && (allowedOrigins(c.env.ENV).includes(origin) || devExtension(c.env.ENV, origin) || origin === new URL(c.req.url).origin);
 
 const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** "ProdLi app on iPhone" / "… on Android" for the sessions list (the app says which; nothing else is recorded). */
+export const mobileDeviceLabel = (platform: unknown) => `ProdLi app on ${platform === "ios" ? "iPhone" : platform === "android" ? "Android" : "a phone"}`;
 
 /** The signed-in user's own Durable Object. The id comes only from the verified session. */
 const storeFor = (env: Env, userId: string) => env.USER_STORE.get(env.USER_STORE.idFromName(userId));
@@ -199,26 +204,52 @@ export function createApp(deps: Deps = realDeps) {
     return next();
   };
 
+  /** An ID token for any of these audiences (the phone apps ask for the web client's; iOS may use its own). */
+  const verifyAny = async (idToken: string, audiences: string[]): Promise<GoogleIdentity> => {
+    let last: unknown;
+    for (const aud of audiences) {
+      try {
+        return await deps.verifyWeb(idToken, aud);
+      } catch (err) {
+        if (!(err instanceof GoogleAuthError)) throw err;
+        last = err;
+      }
+    }
+    throw last;
+  };
+
   app.get("/api/health", (c) => c.json({ ok: true, service: "prodli-api", env: c.env.ENV, time: new Date(deps.now()).toISOString() }));
 
   /** Public settings the web app needs before signing in. */
   app.get("/api/config", (c) => c.json({ env: c.env.ENV, googleWebClientId: c.env.GOOGLE_WEB_CLIENT_ID || null, ai: !!c.env.ANTHROPIC_API_KEY }));
 
   // ── Sign in ────────────────────────────────────────────────────────────────
+  //   extension: chrome.identity access token → bearer token
+  //   web:       Google Identity Services ID token → HttpOnly cookie
+  //   mobile:    the iOS / Android app's Google ID token (requested for the web
+  //              client's audience, or the iOS client's) → bearer token. Native
+  //              apps send no Origin; a browser always does, so one that sends a
+  //              foreign Origin is refused.
   app.post("/api/auth/google", rateLimitAuth, async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { kind?: unknown; accessToken?: unknown; idToken?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { kind?: unknown; accessToken?: unknown; idToken?: unknown; platform?: unknown } | null;
     const kind = body?.kind;
-    if (kind !== "extension" && kind !== "web") return c.json({ error: "bad_request" }, 400);
+    if (kind !== "extension" && kind !== "web" && kind !== "mobile") return c.json({ error: "bad_request" }, 400);
     if (kind === "web" && !isAllowedOrigin(c, c.req.header("Origin"))) return c.json({ error: "bad_origin" }, 403);
+    if (kind === "mobile" && c.req.header("Origin") !== undefined && !isAllowedOrigin(c, c.req.header("Origin"))) return c.json({ error: "bad_origin" }, 403);
 
     let identity: GoogleIdentity;
     try {
       if (kind === "extension") {
         if (typeof body?.accessToken !== "string" || !c.env.GOOGLE_EXTENSION_CLIENT_ID) return c.json({ error: "bad_request" }, 400);
         identity = useFakeGoogle(c.env) ? fakeGoogle(body.accessToken) : await deps.verifyExtension(body.accessToken, c.env.GOOGLE_EXTENSION_CLIENT_ID);
-      } else {
+      } else if (kind === "web") {
         if (typeof body?.idToken !== "string" || !c.env.GOOGLE_WEB_CLIENT_ID) return c.json({ error: "bad_request" }, 400);
         identity = useFakeGoogle(c.env) ? fakeGoogle(body.idToken) : await deps.verifyWeb(body.idToken, c.env.GOOGLE_WEB_CLIENT_ID);
+      } else {
+        if (typeof body?.idToken !== "string") return c.json({ error: "bad_request" }, 400);
+        const audiences = [c.env.GOOGLE_WEB_CLIENT_ID, c.env.GOOGLE_IOS_CLIENT_ID].filter((x): x is string => !!x);
+        if (!audiences.length) return c.json({ error: "mobile_signin_unavailable" }, 503);
+        identity = useFakeGoogle(c.env) ? fakeGoogle(body.idToken) : await verifyAny(body.idToken, audiences);
       }
     } catch (err) {
       if (err instanceof GoogleAuthError) return c.json({ error: "google_auth_failed", reason: err.message }, 401);
@@ -228,7 +259,8 @@ export function createApp(deps: Deps = realDeps) {
     const now = deps.now();
     const user = await upsertUser(c.env.DB, identity, now);
     const client: Client = kind;
-    const { token, session } = await createSession(c.env.DB, user.id, client, deviceLabel(c.req.header("User-Agent")), now);
+    const device = kind === "mobile" ? mobileDeviceLabel(body?.platform) : deviceLabel(c.req.header("User-Agent"));
+    const { token, session } = await createSession(c.env.DB, user.id, client, device, now);
     if (client === "web") {
       setCookie(c, SESSION_COOKIE, token, { path: "/", secure: true, httpOnly: true, sameSite: "Lax", maxAge: Math.floor(SESSION_TTL.web / 1000) });
       return c.json({ user, session });
