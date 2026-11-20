@@ -93,6 +93,15 @@ try {
   const swEval = (expr) => sw.eval(expr);
   check("Test hook for the toolbar click is available", await swEval("typeof __prodliToggleRecording === 'function'"));
 
+  // In a call without recording: one "Taking notes in this call?" reminder (what the 45-second alarm runs), once a day.
+  const nudgeTab = await swEval(`chrome.tabs.query({ url: "https://meet.google.com/*" }).then(([t]) => t.id)`);
+  const nudged = await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:abc-defg-hij")`);
+  const nudgeNote = await swEval(`chrome.notifications.getAll().then((n) => Object.keys(n).find((k) => k.startsWith("recnudge_")) ?? null)`);
+  check("Joining a Meet call without recording: one reminder to press the ProdLi icon", nudged === true && nudgeNote === `recnudge_${nudgeTab}`, JSON.stringify({ nudged, nudgeNote }));
+  check("…only once a day for that meeting", (await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:abc-defg-hij")`)) === false);
+  check("…and the tab/key are checked (wrong meeting: no reminder)", (await swEval(`__prodliMaybeNudge(${nudgeTab}, "google-meet:zzz-yyyy-xxx")`)) === false);
+  await swEval(`chrome.notifications.clear("recnudge_${nudgeTab}").then(() => true)`);
+
   // Click (start).
   const startErr = await swEval(`(async () => { try { const [t] = await chrome.tabs.query({ url: "https://meet.google.com/*" }); await __prodliToggleRecording(t); return null; } catch (e) { return String(e); } })()`);
   await sleep(2500);

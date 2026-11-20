@@ -14,11 +14,14 @@ import { checkTab, registerFocusBlock } from "./lib/focusBlockBackground";
 import { registerAskPrompts } from "./lib/askBackground";
 import { keepNotificationsInside } from "./lib/quietNotifications";
 import { registerPrepReminders } from "./lib/prepReminders";
+import { registerRecordNudge } from "./lib/recordNudge";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
 // Meeting recorder (toolbar icon / Alt+Shift+R on a Google Meet tab).
 registerRecorder();
+// "Taking notes in this call?": one reminder after joining a meeting without recording.
+registerRecordNudge();
 // Pomodoro: finishes phases and notifies even when no ProdLi tab is open.
 registerPomodoro();
 // Google Drive: daily backup while signed in (no-op otherwise).

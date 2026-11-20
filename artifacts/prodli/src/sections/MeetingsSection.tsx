@@ -15,6 +15,7 @@ import { TalkTime } from "./meetings/TalkTime";
 import { KeyMoments } from "./meetings/KeyMoments";
 import { Coach } from "./meetings/Coach";
 import { meetingToMarkdown } from "../lib/meetingExport";
+import { RECORD_NUDGE_KEY } from "../lib/recordNudge";
 import { downloadText, safeFileName } from "../lib/markdownExport";
 import { MeetingInsights } from "./meetings/MeetingInsights";
 import { ActionItems } from "./meetings/ActionItems";
@@ -238,6 +239,7 @@ function SetupPanel({
             <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Only you see it. Chrome’s red dot on the tab and REC on the ProdLi icon show recording either way.</span>
           </span>
         </label>
+        {recorderOn && <RecordNudgeSetting />}
       </div>
 
       <div>
@@ -335,6 +337,31 @@ function AutoTranscribeSetting() {
 }
 
 /** "Record any website": the ProdLi icon records any tab, for call apps ProdLi doesn't recognise. */
+function RecordNudgeSetting() {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    void storageGet<boolean>(RECORD_NUDGE_KEY, true).then(setOn);
+    return onStorageChange(RECORD_NUDGE_KEY, () => void storageGet<boolean>(RECORD_NUDGE_KEY, true).then(setOn));
+  }, []);
+  return (
+    <label data-testid="record-nudge" style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setOn(e.target.checked);
+          void storageSet(RECORD_NUDGE_KEY, e.target.checked);
+        }}
+        style={{ marginTop: 3 }}
+      />
+      <span>
+        Remind me to record when I join a call
+        <span style={{ display: "block", fontWeight: 400, opacity: 0.75 }}>Once per meeting, about 45 seconds after you join a Meet, Zoom, Jitsi or Whereby meeting without recording.</span>
+      </span>
+    </label>
+  );
+}
+
 function AnyTabSetting() {
   const [on, setOn] = useState(false);
   useEffect(() => {
