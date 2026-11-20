@@ -54,7 +54,7 @@ export function TabSessions() {
   };
 
   return (
-    <div data-testid="tab-sessions" style={{ display: "grid", gap: 8, fontSize: 13 }}>
+    <div data-testid="tab-sessions" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
       {ext && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button style={btn(true)} onClick={() => void saveWindow()}>Save this window</button>
@@ -67,7 +67,7 @@ export function TabSessions() {
       {sessions.length === 0 ? (
         <p style={{ margin: 0, opacity: 0.75 }}>{ext ? "Clear your tab bar now, pick up where you left off later." : "Tabs you save in the ProdLi extension show up here."}</p>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 6 }}>
           {sessions.map((s) => {
             const expanded = open === s.id;
             return (
@@ -81,7 +81,7 @@ export function TabSessions() {
                   <button style={{ ...icon, color: "var(--danger-text)" }} onClick={() => remove(s)} aria-label={`Delete ${s.name}`} title="Delete">×</button>
                 </div>
                 {expanded && (
-                  <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, display: "grid", gap: 2 }}>
+                  <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
                     {s.tabs.map((t) => (
                       <li key={t.url} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <button onClick={() => void openTab(t.url)} title={t.url} style={{ ...icon, flex: 1, textAlign: "left", fontWeight: 600, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "1px 0" }}>

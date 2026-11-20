@@ -21,14 +21,14 @@ All screenshots are 1280×800 and in `artifacts/prodli/store-assets/`. Upload 1�
 
 | Slot | File | Shows |
 |---|---|---|
-| Screenshot 1 | `screenshot-1-today.png` | Today: AI daily brief, time blocks, main focus, habits |
+| Screenshot 1 | `screenshot-1-today.png` | Today: quick links, AI daily brief, the Day view with time blocks and meetings |
 | Screenshot 2 | `screenshot-2-ask.png` | Ask ProdLi answering "What should I focus on now?" |
-| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes for Google Meet |
-| Screenshot 4 | `screenshot-4-notes.png` | Notes with checklists and tables |
-| Screenshot 5 | `screenshot-5-review.png` | Weekly review |
+| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes (Meet, Zoom and Teams) |
+| Screenshot 4 | `screenshot-6-todos.png` | To-dos with lists, labels, repeats and reminders |
+| Screenshot 5 | `screenshot-7-time-tracker.png` | Time Tracker with the focus score and site categories |
 | Small promo tile (440×280) | `promo-440x280.png` | Logo and "Your day, planned." |
 
-Extras, if you'd rather swap one in: `screenshot-6-todos.png`, `screenshot-7-time-tracker.png`, `screenshot-8-files.png`, `screenshot-9-habits.png`, `screenshot-10-pomodoro.png`.
+Extras, if you'd rather swap one in: `screenshot-11-day-view.png` (Day view and "Before your meetings"), `screenshot-4-notes.png`, `screenshot-5-review.png`, `screenshot-8-files.png`, `screenshot-9-habits.png` (count and timed habits), `screenshot-10-pomodoro.png` (with focus blocking).
 
 To regenerate them after UI changes (from `artifacts/prodli`): `node scripts/store-screenshots.mjs`. It builds its own copy with demo data and a stand-in server, so no real account is used.
 

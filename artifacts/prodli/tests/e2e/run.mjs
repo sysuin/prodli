@@ -1437,6 +1437,16 @@ const suites = {
     await p.eval(`document.querySelector('button[aria-label="Remove A great article"]').click()`);
     await sleep(400);
     check("Read later: × removes an item", !(await items()).some((i) => i.url === article));
+    // Long titles are shortened with "…": they must never make Today wider than the window.
+    const long = "A very long article title that keeps going and going so it is far wider than the right-hand column of the Today page";
+    await p.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await p.eval(`chrome.storage.local.set({ readLater: [{ id: "long1", url: "https://example.com/long", title: ${JSON.stringify(long)}, createdAt: new Date().toISOString() }], tabSessions: [{ id: "longs", name: "Research", tabs: [{ url: "https://example.com/a", title: ${JSON.stringify(long)} }], createdAt: new Date().toISOString() }] })`);
+    await p.send("Page.reload", {});
+    await sleep(1500);
+    const fit = await p.eval(`(() => { const sc = document.querySelector('.today-page').parentElement; const col = document.querySelector('[data-testid="read-later-card"]').getBoundingClientRect(); const page = document.querySelector('.today-page').getBoundingClientRect(); return { scrollW: sc.scrollWidth, clientW: sc.clientWidth, cardRight: Math.round(col.right), contentRight: Math.round(page.right - 24) }; })()`);
+    check("Read later: long titles don't make Today wider than the window", fit.scrollW <= fit.clientW && fit.cardRight <= fit.contentRight + 1, JSON.stringify(fit));
+    await p.send("Emulation.clearDeviceMetricsOverride", {});
+    await p.eval(`chrome.storage.local.set({ readLater: [], tabSessions: [] })`);
     await p.close();
     server.close();
   },
