@@ -105,6 +105,8 @@ export function parseVocabulary(text: string): string[] {
   return [...new Set(text.split(/[,\n]/).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, 60);
 }
 export const AUTO_SUMMARIZE_STORAGE_KEY = "recorderAutoSummarize";
+/** "Record any website": the ProdLi icon records any tab, not just the call apps ProdLi recognises. Off by default. */
+export const RECORD_ANY_TAB_STORAGE_KEY = "recorderAnyTab";
 /** Zoom and Teams (no captions): transcribe the recording with AI right after the call. On by default. */
 export const AUTO_TRANSCRIBE_STORAGE_KEY = "recorderAutoTranscribe";
 /** Show a small "recording" label inside the Meet call (only the recorder sees it). Off by default. */

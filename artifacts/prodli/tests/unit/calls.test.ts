@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callFromUrl, formatZoomId, isPlaceholderTitle, notACallReason, placeholderTitle, stillInCall, titleFromTab, zoomMeetingId } from "../../src/recorder/calls";
+import { anyWebsiteCall, callFromUrl, formatZoomId, isPlaceholderTitle, notACallReason, placeholderTitle, stillInCall, titleFromTab, zoomMeetingId } from "../../src/recorder/calls";
 import { base64ToBytes, bytesToBase64 } from "../../src/recorder/format";
 
 describe("calls ProdLi can record", () => {
@@ -13,6 +13,59 @@ describe("calls ProdLi can record", () => {
     ["https://teams.cloud.microsoft/", { platform: "teams", code: null }],
   ])("%s", (url, call) => {
     expect(callFromUrl(url)).toEqual(call);
+  });
+
+  it.each([
+    ["https://acme.webex.com/meet/jordan", { platform: "webex", code: null }],
+    ["https://web.webex.com/meeting/123", { platform: "webex", code: null }],
+    ["https://app.slack.com/client/T123/C456", { platform: "slack", code: null }],
+    ["https://app.slack.com/huddle/T123/C456", { platform: "slack", code: null }],
+    ["https://discord.com/channels/111/222", { platform: "discord", code: null }],
+    ["https://meet.jit.si/TeamStandup", { platform: "jitsi", code: "TeamStandup" }],
+    ["https://8x8.vc/vpaas-magic-cookie-1/Design%20Review", { platform: "jitsi", code: "Design Review" }],
+    ["https://whereby.com/acme-pilot", { platform: "whereby", code: "acme-pilot" }],
+  ])("also recognises %s", (url, call) => {
+    expect(callFromUrl(url)).toEqual(call);
+  });
+
+  it("doesn't mistake app home pages or look-alikes for calls", () => {
+    expect(callFromUrl("https://discord.com/")).toBeNull();
+    expect(callFromUrl("https://discord.com/app")).toBeNull();
+    expect(callFromUrl("https://slack.com/")).toBeNull();
+    expect(callFromUrl("https://whereby.com/")).toBeNull();
+    expect(callFromUrl("https://whereby.com/user")).toBeNull();
+    expect(callFromUrl("https://meet.jit.si/")).toBeNull();
+    expect(callFromUrl("https://notwebex.com/meet/x")).toBeNull();
+    expect(callFromUrl("https://webex.com.evil.example/meet")).toBeNull();
+  });
+
+  it("records any web page only through anyWebsiteCall (the Setup option)", () => {
+    expect(callFromUrl("https://chat.google.com/room/abc")).toBeNull();
+    expect(anyWebsiteCall("https://www.zoho.com/meeting/123")).toEqual({ platform: "browser", code: "zoho.com" });
+    expect(anyWebsiteCall("chrome://newtab/")).toBeNull();
+    expect(anyWebsiteCall("chrome-extension://abc/index.html")).toBeNull();
+    expect(notACallReason("https://example.com/")).toMatch(/Record any website/);
+    expect(notACallReason("https://discord.com/app")).toMatch(/\/channels\//);
+  });
+
+  it("names meetings from these apps' tab titles", () => {
+    expect(titleFromTab("slack", "Huddle | Acme | Slack")).toBe("Huddle | Acme");
+    expect(titleFromTab("slack", "Slack")).toBeNull();
+    expect(titleFromTab("discord", "Discord | #general | Gaming")).toBe("#general | Gaming");
+    expect(titleFromTab("webex", "Weekly sync - Webex")).toBe("Weekly sync");
+    expect(titleFromTab("jitsi", "TeamStandup | Jitsi Meet")).toBe("TeamStandup");
+    expect(titleFromTab("browser", "Zoho Meeting - Design review")).toBe("Zoho Meeting - Design review");
+    expect(placeholderTitle({ platform: "slack", code: null })).toBe("Slack · huddle");
+    expect(placeholderTitle({ platform: "whereby", code: "acme-pilot" })).toBe("Whereby · acme-pilot");
+    expect(placeholderTitle({ platform: "browser", code: "zoho.com" })).toBe("Browser call · zoho.com");
+    expect([isPlaceholderTitle("Slack · huddle"), isPlaceholderTitle("Browser call · zoho.com"), isPlaceholderTitle("Webex · meeting")]).toEqual([true, true, true]);
+  });
+
+  it("stops when you leave the app (or never, for any website)", () => {
+    expect(stillInCall("webex", "https://acme.webex.com/meet/jordan")).toBe(true);
+    expect(stillInCall("webex", "https://example.com/")).toBe(false);
+    expect(stillInCall("discord", "https://discord.com/app")).toBe(false);
+    expect(stillInCall("browser", "https://anything.example/")).toBe(true);
   });
 
   it("ignores pages that aren't calls", () => {
