@@ -3,7 +3,8 @@
 
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { storageGet, storageSet } from "../../lib/storage";
-import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
+import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, SUMMARY_LANGUAGE_STORAGE_KEY, SUMMARY_LANGUAGES, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
+import { ProBadge } from "../../components/Pro";
 import { CustomTemplates, useCustomTemplates } from "./CustomTemplates";
 
 const field: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontSize: 12, padding: "5px 6px", width: "100%", boxSizing: "border-box" };
@@ -25,6 +26,7 @@ export function MeetingNotesSettings() {
   const id = useId();
   const [template, setTemplate] = useState<MeetingTemplate | CustomTemplateRef>("general");
   const customs = useCustomTemplates();
+  const [language, setLanguage] = useState("");
   const [words, setWords] = useState("");
   const [message, setMessage] = useState(DEFAULT_DISCLOSURE);
   const [copied, setCopied] = useState(false);
@@ -32,6 +34,7 @@ export function MeetingNotesSettings() {
   useEffect(() => {
     void storageGet<MeetingTemplate | CustomTemplateRef>(MEETING_TEMPLATE_STORAGE_KEY, "general").then(setTemplate);
     void storageGet<string[]>(VOCABULARY_STORAGE_KEY, []).then((w) => setWords(w.join(", ")));
+    void storageGet<string>(SUMMARY_LANGUAGE_STORAGE_KEY, "").then(setLanguage);
     void storageGet<string>(DISCLOSURE_STORAGE_KEY, "").then((m) => setMessage(m || DEFAULT_DISCLOSURE));
   }, []);
 
@@ -68,6 +71,26 @@ export function MeetingNotesSettings() {
       </select>
       <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>Shapes what summaries pull out (e.g. Interview: strengths and concerns). Each meeting can pick its own.</div>
       <CustomTemplates />
+
+      <label style={sub} htmlFor={`${id}-lang`}>
+        Notes language
+        <ProBadge />
+      </label>
+      <select
+        id={`${id}-lang`}
+        value={language}
+        onChange={(e) => {
+          setLanguage(e.target.value);
+          void storageSet(SUMMARY_LANGUAGE_STORAGE_KEY, e.target.value);
+        }}
+        style={field}
+      >
+        <option value="">Same as the meeting</option>
+        {SUMMARY_LANGUAGES.map((l) => (
+          <option key={l.code} value={l.code}>{l.label}</option>
+        ))}
+      </select>
+      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>Summaries are written in this language whatever was spoken; names and terms stay as said. The transcript stays as spoken.</div>
 
       <label style={sub} htmlFor={`${id}-words`}>Word list: names and terms</label>
       <textarea id={`${id}-words`} value={words} onChange={(e) => setWords(e.target.value)} onBlur={saveWords} rows={2} placeholder="Priya Shah, Flynn, DSR, Kubernetes" style={{ ...field, resize: "vertical" }} />

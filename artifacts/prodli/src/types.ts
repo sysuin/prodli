@@ -182,6 +182,8 @@ export interface TodaySettings {
   autoBrief: boolean;
   /** Notify when a time block starts (extension). */
   blockReminders?: boolean;
+  /** Prep reminders 10 minutes before meetings with prep (Pro). Missing = on. */
+  prepReminders?: boolean;
   /** Notify at a task's time (to-dos with a time). Default on. */
   taskReminders?: boolean;
 }

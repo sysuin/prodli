@@ -208,3 +208,22 @@ describe("your writing style", () => {
     expect((await app.request("/api/ai/rewrite", json({ action: "shorter", text: "Text.", style: "x".repeat(600) }, auth), env)).status).toBe(400);
   });
 });
+
+describe("notes in your language", () => {
+  const meeting = { title: "Daily", date: "2026-11-20", transcript: "[00:00] Ana: Vamos a lanzar el viernes." };
+  it("sends a known language during early access; ignores unknown codes", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, language: "en" }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, language: "klingon" }, auth), env)).status).toBe(200);
+    expect(calls.filter((c) => c.kind === "summarize-language")).toEqual([{ kind: "summarize-language", clientId: "en" }]);
+  });
+  it("needs Pro once Pro is on sale", async () => {
+    const { app } = makeApp();
+    const env = selling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, language: "en" }, auth), env)).status).toBe(402);
+    expect((await app.request("/api/ai/summarize", json(meeting, auth), env)).status).toBe(200);
+  });
+});

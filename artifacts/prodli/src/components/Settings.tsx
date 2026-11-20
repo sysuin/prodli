@@ -154,6 +154,9 @@ function TodaySettingsSection() {
             <input type="checkbox" checked={s.blockReminders !== false} onChange={(e) => save({ blockReminders: e.target.checked })} /> Notify me when a time block starts
           </label>
           <label style={row}>
+            <input type="checkbox" checked={s.prepReminders !== false} onChange={(e) => save({ prepReminders: e.target.checked })} /> Remind me 10 minutes before meetings that have prep (Pro)
+          </label>
+          <label style={row}>
             <input type="checkbox" checked={s.taskReminders !== false} onChange={(e) => save({ taskReminders: e.target.checked })} /> Remind me when a task with a time is due
           </label>
         </div>

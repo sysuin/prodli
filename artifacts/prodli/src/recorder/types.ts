@@ -117,6 +117,16 @@ export interface CustomMeetingTemplate {
 }
 export type CustomTemplateRef = `custom:${string}`;
 export const CUSTOM_TEMPLATES_STORAGE_KEY = "recorderCustomTemplates";
+/** Write notes in this language whatever was spoken (Pro); "" = the meeting's own language. Server: ai.ts SUMMARY_LANGUAGES. */
+export const SUMMARY_LANGUAGE_STORAGE_KEY = "recorderSummaryLanguage";
+export const SUMMARY_LANGUAGES: { code: string; label: string }[] = [
+  { code: "en", label: "English" }, { code: "es", label: "Español" }, { code: "fr", label: "Français" }, { code: "de", label: "Deutsch" }, { code: "pt", label: "Português" },
+  { code: "it", label: "Italiano" }, { code: "nl", label: "Nederlands" }, { code: "sv", label: "Svenska" }, { code: "pl", label: "Polski" }, { code: "tr", label: "Türkçe" },
+  { code: "ru", label: "Русский" }, { code: "uk", label: "Українська" }, { code: "ar", label: "العربية" }, { code: "hi", label: "हिन्दी" }, { code: "bn", label: "বাংলা" },
+  { code: "ta", label: "தமிழ்" }, { code: "te", label: "తెలుగు" }, { code: "mr", label: "मराठी" }, { code: "ur", label: "اردو" }, { code: "id", label: "Bahasa Indonesia" },
+  { code: "ms", label: "Bahasa Melayu" }, { code: "fil", label: "Filipino" }, { code: "vi", label: "Tiếng Việt" }, { code: "th", label: "ไทย" }, { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" }, { code: "zh", label: "中文 (简体)" },
+];
 export const isCustomRef = (t: string | undefined): t is CustomTemplateRef => !!t && t.startsWith("custom:");
 
 /** "Ghill John, Flynn\nDSR" → ["Ghill John", "Flynn", "DSR"] */

@@ -81,6 +81,14 @@ export function cleanCustomTemplate(raw: unknown): CustomTemplate | null {
   return name && (instructions || sections.length) ? { name, instructions, sections } : null;
 }
 
+/** Languages notes can be written in (Pro: "Notes language"), whatever was spoken. Keep in sync with the app (recorder/types.ts). */
+export const SUMMARY_LANGUAGES: Record<string, string> = {
+  en: "English", es: "Spanish", fr: "French", de: "German", pt: "Portuguese", it: "Italian", nl: "Dutch", sv: "Swedish", pl: "Polish", tr: "Turkish",
+  ru: "Russian", uk: "Ukrainian", ar: "Arabic", hi: "Hindi", bn: "Bengali", ta: "Tamil", te: "Telugu", mr: "Marathi", ur: "Urdu", id: "Indonesian",
+  ms: "Malay", fil: "Filipino", vi: "Vietnamese", th: "Thai", ja: "Japanese", ko: "Korean", zh: "Chinese (Simplified)",
+};
+export const isSummaryLanguage = (x: unknown): x is string => typeof x === "string" && Object.hasOwn(SUMMARY_LANGUAGES, x);
+
 export interface SummarizeInput {
   title: string;
   date: string;
@@ -88,6 +96,8 @@ export interface SummarizeInput {
   template?: MeetingTemplate;
   glossary?: string[];
   custom?: CustomTemplate;
+  /** Write the notes in this language (a SUMMARY_LANGUAGES code), whatever was spoken. */
+  language?: string;
 }
 
 /** The meeting-type part of the request. A custom template replaces the built-in ones. */
@@ -119,7 +129,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
       messages: [
         {
           role: "user",
-          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
+          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.language && SUMMARY_LANGUAGES[input.language] ? `\nWrite every field in ${SUMMARY_LANGUAGES[input.language]}, whatever language was spoken (this replaces the language rule above). Translate faithfully; keep people's names, product names and quoted terms as they were said.\n` : ""}${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
         },
       ],
     });
