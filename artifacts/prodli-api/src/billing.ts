@@ -39,6 +39,15 @@ export function productsOnSale(env: BillingVars): Partial<Record<Interval, strin
   return out.monthly || out.yearly ? out : null;
 }
 
+/**
+ * Pro-only features (custom meeting templates, links that never expire). While
+ * Pro can't be bought on this server yet, they're open to everyone as early
+ * access, so nobody hits a wall they can't pay past.
+ */
+export function proFeatureAllowed(plan: string, env: BillingVars): boolean {
+  return plan === "pro" || !productsOnSale(env);
+}
+
 // ── Webhook signature (Standard Webhooks: webhook-id / -timestamp / -signature) ──
 
 const enc = new TextEncoder();

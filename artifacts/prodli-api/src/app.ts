@@ -32,13 +32,14 @@ import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAn
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
 import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Review, type ReviewContext } from "./review";
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
-import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanGlossary, isMeetingTemplate, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
+import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, isMeetingTemplate, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
-import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
+import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
+import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
 
@@ -381,6 +382,8 @@ export function createApp(deps: Deps = realDeps) {
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
       onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
+      // Pro-only features (custom meeting templates, links that never expire) are open to everyone until Pro is on sale.
+      earlyAccess: !products,
       prices,
       canManage: !!sub && !!c.env.DODO_API_KEY,
       subscription: sub ? { status: sub.status, interval: sub.billing_interval, renewsAt: sub.cancel_at ? null : sub.period_end, endsAt: sub.cancel_at } : null,
@@ -537,6 +540,9 @@ export function createApp(deps: Deps = realDeps) {
     const transcript = typeof body?.transcript === "string" ? body.transcript.trim() : "";
     if (!transcript) return c.json({ error: "bad_request", message: "There is no transcript to summarize." }, 400);
     if (transcript.length > MAX_TRANSCRIPT_CHARS) return c.json({ error: "too_large", message: "This transcript is too long to summarize." }, 413);
+    // Your own meeting template is a Pro feature (open to everyone until Pro is on sale).
+    const custom = cleanCustomTemplate(body?.custom);
+    if (custom && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Your own meeting templates are part of ProdLi Pro." }, 402);
 
     const now = deps.now();
     const limit = aiLimit(auth.user.plan);
@@ -545,7 +551,7 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const template = isMeetingTemplate(body?.template) ? body.template : undefined;
       const glossary = cleanGlossary(body?.glossary);
-      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}) }, c.env.ANTHROPIC_API_KEY);
+      const summary = await deps.summarize({ title, date, transcript, ...(template ? { template } : {}), ...(glossary.length ? { glossary } : {}), ...(custom ? { custom } : {}) }, c.env.ANTHROPIC_API_KEY);
       return c.json({ summary, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now);
@@ -751,6 +757,46 @@ export function createApp(deps: Deps = realDeps) {
     } catch (err) {
       return c.json({ error: "restore_failed", message: err instanceof Error ? err.message : String(err) }, 400);
     }
+  });
+
+  // ── Shared meeting notes (src/shares.ts) ──────────────────────────────────
+  const shareUrl = (c: Ctx, id: string) => `${appOrigin(c)}/s/${id}`;
+  const shareJson = (c: Ctx, r: ShareRow) => ({ id: r.id, url: shareUrl(c, r.id), meetingId: r.meeting_id, title: r.title, createdAt: r.created_at, updatedAt: r.updated_at, expiresAt: r.expires_at, views: r.views });
+
+  /** POST <ShareInput> → { share }. Creates the meeting's link, or updates it. */
+  app.post("/api/shares", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (c.env.SYNC_LIMITER && !(await c.env.SYNC_LIMITER.limit({ key: `share:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_SHARE_BYTES) return c.json({ error: "too_large", message: "These notes are too long to share." }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = ShareInputSchema.safeParse(parsed);
+    if (!input.success) return c.json({ error: "bad_request" }, 400);
+    // Links that never expire are a Pro feature (open to everyone until Pro is on sale).
+    if (input.data.expiresDays === null && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Links that never expire are part of ProdLi Pro. Choose 7 or 30 days." }, 402);
+    const row = await saveShare(c.env.DB, auth.user.id, input.data, deps.now());
+    return c.json({ share: shareJson(c, row) });
+  });
+
+  app.get("/api/shares", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    return c.json({ shares: (await listShares(c.env.DB, auth.user.id, deps.now())).map((r) => shareJson(c, r)) });
+  });
+
+  app.delete("/api/shares/:id", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    return (await deleteShare(c.env.DB, auth.user.id, c.req.param("id"))) ? c.json({ ok: true }) : c.json({ error: "not_found" }, 404);
+  });
+
+  /** The public, read-only page. */
+  app.get("/s/:id", async (c) => {
+    const row = await openShare(c.env.DB, c.req.param("id"), deps.now());
+    return row ? c.body(renderSharePage(row), 200, SHARE_PAGE_HEADERS) : c.body(renderShareMissing(), 404, SHARE_PAGE_HEADERS);
   });
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));

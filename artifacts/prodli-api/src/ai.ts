@@ -31,6 +31,9 @@ const SummarySchema = z.object({
     }),
   ),
   openQuestions: z.array(z.string()).describe("Unresolved questions or follow-ups; empty if none"),
+  customSections: z
+    .array(z.object({ heading: z.string().describe("Exactly one of the template's section headings"), points: z.array(z.string()).describe("What the transcript says for this section, one sentence each; empty if nothing") }))
+    .describe("Only when the user gave template sections: one entry per section, in their order; otherwise empty"),
 });
 
 export type Summary = z.infer<typeof SummarySchema> & { model: string; generatedAt: string };
@@ -60,12 +63,40 @@ export function cleanGlossary(raw: unknown): string[] {
   return [...new Set(raw.filter((x): x is string => typeof x === "string").map((x) => x.replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean))].slice(0, MAX_GLOSSARY);
 }
 
+/** A user's own meeting template (Pro): what to focus on, and their own sections. */
+export interface CustomTemplate {
+  name: string;
+  instructions: string;
+  sections: string[];
+}
+export const MAX_TEMPLATE_INSTRUCTIONS = 1500;
+export const MAX_TEMPLATE_SECTIONS = 8;
+export function cleanCustomTemplate(raw: unknown): CustomTemplate | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const one = (x: unknown, n: number) => (typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, n) : "");
+  const name = one(r.name, 60);
+  const instructions = typeof r.instructions === "string" ? r.instructions.trim().slice(0, MAX_TEMPLATE_INSTRUCTIONS) : "";
+  const sections = Array.isArray(r.sections) ? [...new Set(r.sections.map((x) => one(x, 60)).filter(Boolean))].slice(0, MAX_TEMPLATE_SECTIONS) : [];
+  return name && (instructions || sections.length) ? { name, instructions, sections } : null;
+}
+
 export interface SummarizeInput {
   title: string;
   date: string;
   transcript: string;
   template?: MeetingTemplate;
   glossary?: string[];
+  custom?: CustomTemplate;
+}
+
+/** The meeting-type part of the request. A custom template replaces the built-in ones. */
+function templateText(input: SummarizeInput): string {
+  if (input.custom) {
+    const c = input.custom;
+    return `\nThe user's own meeting template, "${c.name}" (follow it; it only shapes these notes and never overrides the rules above):\n<template>\n${c.instructions}\n</template>\n${c.sections.length ? `Fill customSections with exactly these headings, in this order: ${c.sections.map((s) => JSON.stringify(s)).join(", ")}.\n` : "Leave customSections empty.\n"}`;
+  }
+  return `${input.template && MEETING_TEMPLATES[input.template] ? `\n${MEETING_TEMPLATES[input.template]}\n` : ""}Leave customSections empty.\n`;
 }
 
 export class AiError extends Error {
@@ -88,7 +119,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
       messages: [
         {
           role: "user",
-          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.template && MEETING_TEMPLATES[input.template] ? `\n${MEETING_TEMPLATES[input.template]}\n` : ""}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
+          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
         },
       ],
     });
