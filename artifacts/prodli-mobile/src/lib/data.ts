@@ -2,7 +2,7 @@
 // which stamps `updatedAt` on whatever changed (sync's "newest edit wins" needs
 // it) and records deletions as tombstones (so other devices delete too).
 import { useMemo } from "react";
-import { generateId, getDayKey, parseTask, toggleTodo, type DayRecord, type Habit, type ListItem, type Note, type Todo } from "../shared";
+import { generateId, getDayKey, parseTask, toggleTodo, type DayRecord, type Habit, type ListItem, type Note, type ReadLaterItem, type Todo } from "../shared";
 import { read, useStored, write } from "./store";
 import { recordDeletions, type TombCollection } from "./tombstones";
 import { stable } from "../shared";
@@ -167,3 +167,32 @@ export function recordPomodoro(label: string, minutes: number, at = new Date()) 
   write("pomodoroSessions", [s, ...read<PomodoroSession[]>("pomodoroSessions", [])].slice(0, 20));
   write("completedPomodoros", read<number>("completedPomodoros", 0) + 1);
 }
+
+// ── Read later (pages saved from the extension or added here) ───────────────
+
+/** Pure: a web address from what the user typed or pasted, or null. */
+export function normalizeUrl(input: string): string | null {
+  const s = input.trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = /^https?:\/\//i.test(s) ? s : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(s) ? `https://${s}` : null;
+  if (!withScheme) return null;
+  try {
+    const u = new URL(withScheme);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function addReadLater(url: string, title?: string): ReadLaterItem | null {
+  const u = normalizeUrl(url);
+  if (!u) return null;
+  const existing = read<ReadLaterItem[]>("readLater", []).find((i) => i.url === u && !i.readAt);
+  if (existing) return existing;
+  const item: ReadLaterItem = { id: generateId(), url: u, title: title?.trim() || new URL(u).hostname.replace(/^www\./, ""), createdAt: new Date().toISOString() };
+  setList<ReadLaterItem>("readLater", (all) => [item, ...all]);
+  return item;
+}
+
+export const markRead = (id: string, read = true) => setList<ReadLaterItem>("readLater", (all) => all.map((i) => (i.id === id ? { ...i, readAt: read ? new Date().toISOString() : undefined } : i)));
+export const deleteReadLater = (id: string) => setList<ReadLaterItem>("readLater", (all) => all.filter((i) => i.id !== id));

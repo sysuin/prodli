@@ -77,3 +77,18 @@ describe("days", () => {
     expect(read<DayRecord[]>("days", [])).toEqual([expect.objectContaining({ id: "2026-11-20", focus: "Ship the app", reflection: "Went well" })]);
   });
 });
+
+describe("read later", () => {
+  it("accepts web addresses (adding https:// when missing) and skips unread duplicates", async () => {
+    const { addReadLater, markRead, normalizeUrl } = await import("../../src/lib/data");
+    expect(normalizeUrl("example.com/a")).toBe("https://example.com/a");
+    expect(normalizeUrl("http://x.org")).toBe("http://x.org/");
+    expect(normalizeUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeUrl("not a url")).toBeNull();
+    const a = addReadLater("example.com/a")!;
+    expect(a.title).toBe("example.com");
+    expect(addReadLater("https://example.com/a")!.id).toBe(a.id);
+    markRead(a.id);
+    expect(addReadLater("example.com/a")!.id).not.toBe(a.id);
+  });
+});

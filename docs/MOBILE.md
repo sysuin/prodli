@@ -14,6 +14,7 @@ Status: **first version built** (2026-11-20), not yet in the stores. One codebas
 | Ask ProdLi | ✅ | ✅ |
 | Pomodoro (history and count sync) | ✅ with a notification when a session ends | ✅ |
 | Time Tracker | ✅ view (phones don't track) | ✅ |
+| Read later | ✅ save links, read in the in-app browser, mark read | ✅ (+ page summaries) |
 | Reminders at a to-do's time | ✅ opt-in (Settings), local notifications | ✅ |
 | Account: Google sign-in, devices, sign out everywhere, delete account | ✅ | ✅ |
 | Buying ProdLi Pro | — (the plan bought on the web applies in the app) | ✅ |
