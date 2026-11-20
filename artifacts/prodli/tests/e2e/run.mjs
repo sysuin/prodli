@@ -1626,6 +1626,113 @@ const suites = {
     await p.close();
   },
 
+  async boards(b, check) {
+    // To-dos → ▦ Board and ⊞ Matrix: columns and quadrants from dates, plans, priority and done; move by menu or drag.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const [today, later] = await p.eval(`(() => { const k = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); const d = new Date(); const l = new Date(); l.setDate(l.getDate() + 10); return [k(d), k(l)]; })()`);
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, todos: [
+      { id: "b1", title: "Pick a venue", completed: false, createdAt: "${now}" },
+      { id: "b2", title: "Draft the agenda", completed: false, dueDate: "${later}", priority: "high", createdAt: "${now}" },
+      { id: "b3", title: "Send invites", completed: false, dueDate: "${today}", priority: "high", createdAt: "${now}" },
+      { id: "b4", title: "Book flights", completed: true, completedAt: "${now}", createdAt: "${now}" }
+    ] })`);
+    await p.eval(`localStorage.setItem("prodli_todo_view", "date"); localStorage.removeItem("prodli_todo_selection"); true`);
+    await p.goto("todos");
+    await sleep(600);
+    await p.eval(`[...document.querySelectorAll('[role="radio"]')].find((x) => x.textContent.includes("Board")).click()`);
+    await sleep(400);
+    const zone = (id) => p.eval(`document.querySelector('[data-testid="board-zone-${id}"]')?.innerText ?? ""`);
+    check("Board: tasks sit in No date, Upcoming, Today and Done", (await zone("nodate")).includes("Pick a venue") && (await zone("upcoming")).includes("Draft the agenda") && (await zone("today")).includes("Send invites") && (await zone("done")).includes("Book flights"));
+    const todos = async () => (await p.storage(["todos"])).todos;
+    const moveBy = async (title, value) => {
+      await p.eval(`(() => { const s = document.querySelector('select[aria-label="Move ${title} to"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "${value}"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+      await sleep(400);
+    };
+    await moveBy("Pick a venue", "today");
+    check("Board: Move to Today plans the task for today", (await todos()).find((x) => x.id === "b1")?.plannedFor === today && (await zone("today")).includes("Pick a venue"));
+    check("Board: the move is announced", (await p.eval(`document.querySelector('[data-testid="todo-board"] ~ [role="status"]').innerText`)).includes("Pick a venue: planned for today"));
+    await moveBy("Send invites", "done");
+    check("Board: Move to Done completes the task", (await todos()).find((x) => x.id === "b3")?.completed === true);
+    await moveBy("Book flights", "upcoming");
+    const flights = (await todos()).find((x) => x.id === "b4");
+    check("Board: moving out of Done reopens the task with a date", flights?.completed === false && !!flights?.dueDate && flights.dueDate > today, JSON.stringify(flights));
+    // Drag "Draft the agenda" from Upcoming to No date with the mouse.
+    const rect = (sel) => p.eval(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 60) }; })()`);
+    const from = await rect('[data-testid="board-card"][data-id="b2"] [aria-roledescription="draggable task"]');
+    const to = await rect('[data-testid="board-zone-nodate"]');
+    await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x, y: from.y });
+    await p.send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= 8; i++) await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + ((to.x - from.x) * i) / 8, y: from.y + ((to.y - from.y) * i) / 8, button: "left", buttons: 1 });
+    await sleep(150);
+    await p.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: to.x, y: to.y, button: "left", buttons: 0, clickCount: 1 });
+    await sleep(500);
+    check("Board: dragging a card to No date clears its date", !(await todos()).find((x) => x.id === "b2")?.dueDate && (await zone("nodate")).includes("Draft the agenda"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="todo-board"]').parentElement, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length + " " + v.nodes.slice(0, 2).map(n => n.html.slice(0, 80)).join(" | ")))`);
+      check(`A11y (${theme}): the Board has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Matrix.
+    await p.eval(`[...document.querySelectorAll('[role="radio"]')].find((x) => x.textContent.includes("Matrix")).click()`);
+    await sleep(400);
+    // Now: "Pick a venue" planned today (urgent), "Book flights" due tomorrow (urgent), "Draft the agenda" high with no date; "Send invites" is done (not shown).
+    check("Matrix: open tasks sit by importance and urgency", (await zone("quick")).includes("Pick a venue") && (await zone("quick")).includes("Book flights") && (await zone("schedule")).includes("Draft the agenda") && !(await zone("do")).includes("Send invites") && (await zone("later")) === (await zone("later")).split("\n").slice(0, 2).join("\n"), JSON.stringify({ do: await zone("do"), quick: await zone("quick"), schedule: await zone("schedule"), later: await zone("later") }));
+    await moveBy("Pick a venue", "do");
+    const venue = (await todos()).find((x) => x.id === "b1");
+    check("Matrix: Move to Do first makes it high priority (still planned for today)", venue?.priority === "high" && venue?.plannedFor === today && (await zone("do")).includes("Pick a venue"));
+    await p.eval(axeSource + ";true");
+    const mv = await p.eval(`axe.run(document.querySelector('[data-testid="todo-matrix"]').parentElement, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+    check("A11y: the Matrix has no serious problems", mv.length === 0, mv.join(", "));
+    check("Board/Matrix: the chosen view is remembered", (await p.eval(`localStorage.getItem("prodli_todo_view")`)) === "matrix");
+    await p.eval(`localStorage.setItem("prodli_todo_view", "date"); chrome.storage.local.set({ todos: [] })`);
+    await p.close();
+  },
+
+  async inperson(b, check) {
+    // In person: "🎙 Record in person" on Meetings records from the microphone, keeps going across
+    // sections (chip), transcribes on Stop (stubbed AI; test builds only), and keeps the audio of a
+    // recording cut short by a closed page.
+    const ip = await b.openPage();
+    const readMeetings = () => ip.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result.map((m) => ({ id: m.id, platform: m.platform, title: m.title, status: m.status, hasAudio: m.hasAudio, notice: m.notice, error: m.error, source: m.transcriptSource, transcript: m.transcript.map((e) => e.speaker + ": " + e.text) }))); }; })`);
+    await ip.goto("meetings");
+    await sleep(600);
+    // Headless Chrome gives extension pages no microphone, so stand in for one: a beeping tone (speech-like bursts and pauses).
+    const fakeMic = `(() => { navigator.mediaDevices.getUserMedia = async () => { const ctx = new AudioContext(); const o = ctx.createOscillator(); o.frequency.value = 300; const g = ctx.createGain(); g.gain.value = 0; o.connect(g); const d = ctx.createMediaStreamDestination(); g.connect(d); o.start(); let on = false; setInterval(() => { on = !on; g.gain.setValueAtTime(on ? 0.3 : 0, ctx.currentTime); }, 700); return d.stream; }; return true; })()`;
+    await ip.eval(fakeMic);
+    await ip.eval(`(() => { globalThis.__ipPieces = 0; globalThis.__prodliTranscribeStub = async () => { __ipPieces++; return { text: "Let's book the venue for the offsite.", segments: [{ start: 0, end: 2, text: "Let's book the venue for the offsite." }], language: "en" }; }; return true; })()`);
+    await ip.eval(`document.querySelector('[data-testid="record-in-person"]').click()`);
+    await sleep(1500);
+    check("In person: Record in person starts recording from the microphone", await ip.eval(`!!document.querySelector('[data-testid="in-person-bar"]')`), await ip.eval(`document.body.innerText.slice(0, 300)`));
+    await ip.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "1", ctrlKey: true, bubbles: true }))`); // Ctrl+1: Notes
+    await sleep(1200);
+    check("In person: switching sections keeps recording and shows a chip", await ip.eval(`!!document.querySelector('[data-testid="in-person-chip"]')`));
+    await sleep(9000);
+    await ip.eval(`document.querySelector('[data-testid="in-person-chip"]')?.click()`);
+    await sleep(1200);
+    await ip.eval(`[...document.querySelectorAll('[data-testid="in-person-bar"] button')].find((x) => /Stop/.test(x.textContent)).click()`);
+    let inPerson;
+    for (let i = 0; i < 40; i++) {
+      await sleep(500);
+      inPerson = (await readMeetings()).find((x) => x.platform === "in-person");
+      if (inPerson && inPerson.status === "ready") break;
+    }
+    check("In person: stopping saves the recording and transcribes it", inPerson?.status === "ready" && inPerson.hasAudio && inPerson.source === "audio" && inPerson.transcript?.[0] === "Speaker: Let's book the venue for the offsite." && /^In person · /.test(inPerson.title), JSON.stringify(inPerson));
+    check("In person: the recording bar and chip are gone", !(await ip.eval(`!!document.querySelector('[data-testid="in-person-bar"], [data-testid="in-person-chip"]')`)));
+    // A recording cut short by a closed page keeps its saved audio when Meetings opens again.
+    await ip.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const db = r.result; const t = db.transaction(["meetings", "audioChunks"], "readwrite"); const now = new Date().toISOString(); t.objectStore("meetings").put({ id: "mtg_cut", platform: "in-person", title: "In person · cut", meetingCode: null, url: "", startedAt: now, endedAt: null, durationSec: 0, status: "recording", transcript: [], summary: null, error: null, notice: null, hasAudio: false, micIncluded: true, audioMimeType: null, updatedAt: now }); t.objectStore("audioChunks").put({ meetingId: "mtg_cut", seq: 0, data: new Blob([new Uint8Array(2048)], { type: "audio/webm" }) }); t.oncomplete = () => resolve(true); }; })`);
+    await ip.goto("meetings");
+    await sleep(1500);
+    const cut = (await readMeetings()).find((x) => x.id === "mtg_cut");
+    check("In person: an interrupted recording is kept when Meetings opens again", cut?.status === "ready" && cut.hasAudio && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
+    await ip.close();
+
+  },
+
   async meetingprep(b, check) {
     // Meeting prep on Today: an upcoming calendar event (stubbed calendar; test builds only) matched to an earlier recorded meeting.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

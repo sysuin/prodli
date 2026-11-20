@@ -31,10 +31,8 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next ideas
 
-- [ ] Writing help: phase 1 (✨ Improve in Notes) is merged (sysuin/prodli#48) but not released. Phase 2 (✉️ Draft follow-up from a meeting summary) is built on branch `follow-up-email` (privacy wording approved and added). Release: deploy the production API first (migration `0008_write_usage`), then the extension, then add the writing-help uses to the website pricing. Details: [docs/PLAN-WRITING-ASSIST.md](docs/PLAN-WRITING-ASSIST.md)
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
-- [ ] Zoom / Microsoft Teams web support
-- [ ] Mobile: mic-based recording for in-person meetings
+- [ ] Real-use checks for 1.4.0: a Zoom web call and a Teams web call (with "Include my microphone" on), and 🎙 Record in person on a phone (app.prodli.com)
 - [ ] Move inline styles into shared UI components (needed before a web/desktop app)
 - [ ] Optional: publish to the Chrome Web Store from CI (the Web Store API is free)
 - [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission; free extensions already do it)
@@ -56,6 +54,9 @@ From the repo root (see README.md for all commands):
 - `node artifacts/prodli/scripts/brand-images.mjs` — regenerate the Web Store promo tile and prodli.com's link-preview image (logo + tagline, from `scripts/brand/*.html`).
 
 ## Done
+
+- [x] 2026-11-20 — 1.4.0 ready for the store: production API deployed, privacy policy and terms updated (prodli.com), store zip, kit and screenshots; in-person recording; to-do Board and Matrix views
+- [x] 2026-11-19 — Tier 1 and 2 features (sysuin/prodli#53–#69): repeating to-dos, reminders, lists and labels, quick add, focus blocking, saved tabs, quick links, Read later and page summaries, note templates, richer habits, Speak tasks, Ask sources and scheduled prompts, meeting prep, focus score, Day view, Zoom and Teams capture
 
 - [x] 2026-11-17 — Web Store listing refreshed (description, privacy answers, screenshots of Today, Ask ProdLi and the weekly review); lawyer review of the legal pages
 
