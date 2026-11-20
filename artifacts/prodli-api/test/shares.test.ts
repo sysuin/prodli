@@ -247,3 +247,33 @@ describe("marked moments in summaries (Pro)", () => {
     expect(calls.some((c) => c.kind === "summarize-moments")).toBe(false);
   });
 });
+
+describe("meeting coach (Pro)", () => {
+  const input = { title: "Acme discovery", date: "2026-11-20", transcript: "[00:00] You: What's your budget?\n[00:05] Ann: About 20k.", you: "You", talkShare: 40, focus: "sales" };
+
+  it("coaches a meeting, counted with meeting summaries", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/meeting-coach", json(input, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ coaching: { verdict: "Good meeting.", nextStepsAgreed: true }, usage: { used: 1 } });
+    expect(calls).toContainEqual({ kind: "coach", clientId: "sales|You|40" });
+    // Defaults: general focus, no speaker, no talk share.
+    expect((await app.request("/api/ai/meeting-coach", json({ title: "x", date: "2026-11-20", transcript: "[00:00] A: hi" }, auth), env)).status).toBe(200);
+    expect(calls).toContainEqual({ kind: "coach", clientId: "general||" });
+  });
+
+  it("is Pro once Pro is on sale, validates input, and refunds failures", async () => {
+    const { app } = makeApp();
+    const sale = selling();
+    const auth = await signIn(app, sale);
+    expect((await app.request("/api/ai/meeting-coach", json(input, auth), sale)).status).toBe(402);
+    const early = notSelling();
+    expect((await app.request("/api/ai/meeting-coach", json({ ...input, transcript: "" }, auth), early)).status).toBe(400);
+    expect((await app.request("/api/ai/meeting-coach", json({ ...input, focus: "poker" }, auth), early)).status).toBe(400);
+    expect((await app.request("/api/ai/meeting-coach", json({ ...input, transcript: "FAIL" }, auth), early)).status).toBe(502);
+    const usage = (await (await app.request("/api/ai/usage", { headers: auth }, early)).json()) as { used: number };
+    expect(usage.used).toBe(0);
+  });
+});

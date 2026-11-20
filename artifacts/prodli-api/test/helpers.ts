@@ -82,6 +82,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
       return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.event, note: p.openItems[0] ?? "" })), tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
+    coach: async (input) => {
+      calls.push({ kind: "coach", clientId: `${input.focus}|${input.you ?? ""}|${input.talkShare ?? ""}` });
+      if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Couldn't write the feedback. Try again.");
+      return { verdict: "Good meeting.", strengths: ["Clear agenda"], improvements: ["Ask more open questions"], nextStepsAgreed: true, nextStepsNote: "Ann sends the contract.", missedQuestions: [], model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
+    },
     prep: async (input) => {
       calls.push({ kind: "prep", clientId: input.event.title });
       if (input.event.title === "FAIL") throw new AiError("ai_failed", "Couldn't write the prep. Try again.");

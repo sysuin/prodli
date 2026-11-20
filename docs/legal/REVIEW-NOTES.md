@@ -165,4 +165,5 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 - **Your writing style (Pro):** the user's style text (up to 500 characters) is sent with writing-help and follow-up requests to Anthropic; not stored on the server. Policy updated (writing help).
 - **Marked moments (★ Mark moment):** the times the user marks while recording are kept with the meeting and synced. With Pro, the transcript lines around each mark (already part of the transcript sent for the summary) are also sent as a short list so the summary covers them. Policy updated (device data, sync, meeting summaries).
 - **Meeting insights (Pro):** worked out on the device from saved meetings; nothing new is sent or stored.
+- **Meeting coach (Pro):** on request, the meeting's transcript, name, date, the kind of meeting and the user's talk share go to Anthropic for feedback on how the user did; the feedback is saved with the meeting (synced). Not stored on the server; counted as a summary. Policy updated (AI section). Coaching judges other participants only indirectly (it's addressed to the user), but the transcript includes their words, as with summaries.
 

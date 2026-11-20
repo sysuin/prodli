@@ -13,6 +13,9 @@ import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
 import { KeyMoments } from "./meetings/KeyMoments";
+import { Coach } from "./meetings/Coach";
+import { meetingToMarkdown } from "../lib/meetingExport";
+import { downloadText, safeFileName } from "../lib/markdownExport";
 import { MeetingInsights } from "./meetings/MeetingInsights";
 import { ActionItems } from "./meetings/ActionItems";
 import { Series } from "./meetings/Series";
@@ -540,6 +543,16 @@ function MeetingDetail({
                   ✉️ Draft follow-up
                 </button>
               )}
+              <button
+                style={btn("plain")}
+                onClick={() => void navigator.clipboard.writeText(meetingToMarkdown(meeting)).then(() => flash("Notes copied: paste into Notion, Slack, Docs or email"), () => flash("Couldn't copy"))}
+                title="Copy the notes as Markdown (pastes cleanly into Notion, Slack, Google Docs or email)"
+              >
+                📋 Copy notes
+              </button>
+              <button style={btn("plain")} onClick={() => downloadText(safeFileName(`${s.title || meeting.title} notes`, "md"), meetingToMarkdown(meeting))} title="Download the notes as a Markdown file" aria-label="Download notes as Markdown">
+                ⬇ .md
+              </button>
               {accountsEnabled() && !shareOpen && (
                 <button style={btn("plain", busy)} disabled={busy} onClick={() => setShareOpen(true)} title="A read-only link to this summary for people who weren't there">
                   🔗 {meeting.share ? "Shared" : "Share"}
@@ -550,9 +563,12 @@ function MeetingDetail({
             {shareOpen && <ShareMeeting key={meeting.id} meeting={meeting} flash={flash} onClose={() => setShareOpen(false)} />}
           </Section>
 
-          {meeting.speakerActivity && meeting.speakerActivity.length > 0 && (
+          {((meeting.speakerActivity?.length ?? 0) > 0 || !!meeting.coaching || (accountsEnabled() && meeting.transcript.length > 0)) && (
             <Section title="Insights">
-              <TalkTime meeting={meeting} />
+              <div style={{ display: "grid", gap: 16 }}>
+                {(meeting.speakerActivity?.length ?? 0) > 0 && <TalkTime meeting={meeting} />}
+                {(!!meeting.coaching || (accountsEnabled() && meeting.transcript.length > 0)) && <Coach key={meeting.id} meeting={meeting} />}
+              </div>
             </Section>
           )}
 
