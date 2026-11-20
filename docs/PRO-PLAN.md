@@ -21,6 +21,8 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | Action items across all meetings | — | ✓ |
 | AI meeting prep (counts toward briefs) | — | ✓ |
 | Focus trends (30 and 90 days) | — | ✓ |
+| Your writing style (writing help and follow-ups) | — | ✓ |
+| Meeting series history | — | ✓ |
 | Shared notes links that never expire | 7 or 30 days | ✓ |
 
 **Pro-only features** are checked on the server with `proFeatureAllowed` (`artifacts/prodli-api/src/billing.ts`). Until Pro is on sale (`productsOnSale` is null), they're open to everyone as early access, and `/api/billing` says `earlyAccess: true`; they become Pro-only by themselves once the Dodo settings below are in place.

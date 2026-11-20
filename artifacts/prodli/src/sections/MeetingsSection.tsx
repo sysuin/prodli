@@ -13,6 +13,8 @@ import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
 import { ActionItems } from "./meetings/ActionItems";
+import { Series } from "./meetings/Series";
+import { meetingSeries } from "../lib/meetingPrep";
 import { useCustomTemplates } from "./meetings/CustomTemplates";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
@@ -352,6 +354,15 @@ function AnyTabSetting() {
   );
 }
 
+/** "Earlier in this series", in its own section when there's anything earlier. */
+function SeriesSection({ meeting, meetings, onOpen }: { meeting: Meeting; meetings: Meeting[]; onOpen: (id: string) => void }) {
+  return meetingSeries(meeting, meetings).length ? (
+    <Section title="Series">
+      <Series meeting={meeting} meetings={meetings} onOpen={onOpen} />
+    </Section>
+  ) : null;
+}
+
 // ── Meeting detail ────────────────────────────────────────────────────────────
 
 function MeetingDetail({
@@ -360,12 +371,16 @@ function MeetingDetail({
   onSummarize,
   onDelete,
   flash,
+  allMeetings,
+  onOpenMeeting,
 }: {
   meeting: Meeting;
   hasKey: boolean;
   onSummarize: () => void;
   onDelete: () => void;
   flash: (msg: string) => void;
+  allMeetings: Meeting[];
+  onOpenMeeting: (id: string) => void;
 }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [addedTasks, setAddedTasks] = useState<Set<string>>(new Set());
@@ -538,6 +553,8 @@ function MeetingDetail({
               <TalkTime meeting={meeting} />
             </Section>
           )}
+
+          <SeriesSection meeting={meeting} meetings={allMeetings} onOpen={onOpenMeeting} />
 
           {(s.customSections ?? []).filter((c) => c.points.length).map((c, i) => (
             <Section key={`cs-${i}`} title={c.heading}>
@@ -1001,6 +1018,8 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
                   onSummarize={() => void summarize(selected.id)}
                   onDelete={() => void remove(selected.id)}
                   flash={flash}
+                  allMeetings={meetings}
+                  onOpenMeeting={setSelectedId}
                 />
               )}
             </div>

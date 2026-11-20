@@ -5,6 +5,7 @@
 // Plan: docs/PLAN-WRITING-ASSIST.md. Server: artifacts/prodli-api/src/write.ts.
 
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "./prodliAccount";
+import { storageGet } from "./storage";
 
 export const REWRITE_ACTIONS = [
   { id: "fix", label: "Fix spelling & grammar", icon: "✓" },
@@ -43,6 +44,11 @@ const MESSAGES: Record<string, string> = {
 type Stub = (action: RewriteAction, markdown: string) => Promise<RewriteResult>;
 
 /** Rewrites Markdown through the user's ProdLi account. Throws RewriteError with a message to show. */
+/** Your writing style (Pro), applied to rewrites (not "fix") and follow-ups (server: write.ts styleText). */
+export const WRITING_STYLE_KEY = "writingStyle";
+export const MAX_STYLE_CHARS = 500;
+const writingStyle = async () => (await storageGet<string>(WRITING_STYLE_KEY, "")).trim().slice(0, MAX_STYLE_CHARS);
+
 export async function rewriteText(action: RewriteAction, markdown: string): Promise<RewriteResult> {
   const text = markdown.trim();
   if (!text) throw new RewriteError(MESSAGES.bad_request);
@@ -55,7 +61,8 @@ export async function rewriteText(action: RewriteAction, markdown: string): Prom
   if (!accountsEnabled()) throw new RewriteError("Writing help isn't available in this copy of ProdLi.");
   if (!(await getProdliAccount())) throw new RewriteError(SIGN_IN_FOR_WRITING);
   try {
-    return await accountRequest<RewriteResult>("/api/ai/rewrite", { method: "POST", body: JSON.stringify({ action, text }) }, MESSAGES);
+    const style = action === "fix" ? "" : await writingStyle();
+    return await accountRequest<RewriteResult>("/api/ai/rewrite", { method: "POST", body: JSON.stringify({ action, text, ...(style ? { style } : {}) }) }, MESSAGES);
   } catch (err) {
     throw new RewriteError(err instanceof AccountError ? err.message : MESSAGES.ai_failed);
   }
@@ -200,7 +207,8 @@ export async function draftFollowUp(tone: FollowUpTone, meeting: FollowUpMeeting
   if (!accountsEnabled()) throw new RewriteError("Writing help isn't available in this copy of ProdLi.");
   if (!(await getProdliAccount())) throw new RewriteError(SIGN_IN_FOR_WRITING);
   try {
-    return await accountRequest<FollowUpResult>("/api/ai/follow-up", { method: "POST", body: JSON.stringify({ tone, meeting }) }, FOLLOW_UP_MESSAGES);
+    const style = await writingStyle();
+    return await accountRequest<FollowUpResult>("/api/ai/follow-up", { method: "POST", body: JSON.stringify({ tone, meeting, ...(style ? { style } : {}) }) }, FOLLOW_UP_MESSAGES);
   } catch (err) {
     throw new RewriteError(err instanceof AccountError ? err.message : MESSAGES.ai_failed);
   }

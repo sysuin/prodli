@@ -182,3 +182,29 @@ describe("AI meeting prep", () => {
     expect(usage.briefs.used).toBe(0);
   });
 });
+
+describe("your writing style", () => {
+  const style = "British English, friendly, short sentences.";
+  const summary = { title: "Acme", date: "2026-11-20", overview: "Agreed on a pilot.", keyPoints: [], decisions: [], actionItems: [], openQuestions: [] };
+
+  it("goes with rewrites (not Fix) and follow-ups during early access", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/rewrite", json({ action: "shorter", text: "A long sentence here.", style }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/follow-up", json({ tone: "friendly", meeting: summary, style }, auth), env)).status).toBe(200);
+    expect(calls).toContainEqual({ kind: "rewrite-style", clientId: style });
+    expect(calls).toContainEqual({ kind: "follow-up-style", clientId: style });
+  });
+
+  it("needs Pro once Pro is on sale, without using an allowance; no style stays free", async () => {
+    const { app } = makeApp();
+    const env = selling();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/rewrite", json({ action: "shorter", text: "Text.", style }, auth), env);
+    expect(res.status).toBe(402);
+    expect((await app.request("/api/ai/follow-up", json({ tone: "formal", meeting: summary, style }, auth), env)).status).toBe(402);
+    expect((await app.request("/api/ai/rewrite", json({ action: "shorter", text: "Text." }, auth), env)).status).toBe(200);
+    expect((await app.request("/api/ai/rewrite", json({ action: "shorter", text: "Text.", style: "x".repeat(600) }, auth), env)).status).toBe(400);
+  });
+});

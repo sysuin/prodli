@@ -1700,12 +1700,15 @@ const suites = {
       transcript: [{ id: "1", speaker: "You", text: "Where are we on Acme?", startMs: 0, endMs: 3000, source: "audio" }, { id: "2", speaker: "Others", text: "They signed the pilot.", startMs: 21000, endMs: 24000, source: "audio" }],
       speakerActivity: [[0, 20000, 0], [20000, 30000, 1], [30000, 45000, 0], [45000, 60000, 1]],
       summary: { title: "Pipeline review", overview: "Acme signed the pilot.", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "t", generatedAt: now } };
-    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.oncomplete = () => resolve(true); }; })`);
+    const earlier = { ...m, id: "mtg_talk_prev", startedAt: new Date(Date.now() - 7 * 86400000).toISOString(), speakerActivity: undefined, summary: { ...m.summary, title: "Pipeline review", decisions: ["Push Acme to sign"], actionItems: [{ task: "Send Acme the contract", owner: "You", dueDate: null, priority: "high" }] } };
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.objectStore("meetings").put(${JSON.stringify(earlier)}); t.oncomplete = () => resolve(true); }; })`);
     await p.goto("meetings");
     await sleep(800);
     await p.eval(`[...document.querySelectorAll("button")].find((x) => x.title === "Pipeline review")?.click()`);
     await sleep(500);
     const text = await p.eval(`document.querySelector('[data-testid="talk-time"]')?.innerText ?? ""`);
+    const series = await p.eval(`document.querySelector('[data-testid="meeting-series"]')?.innerText ?? ""`);
+    check("Series: earlier occurrences show with their decisions and open items", /Earlier in this series \(1\)/.test(series) && series.includes("Push Acme to sign") && series.includes("Send Acme the contract"), series);
     check("Talk time: shows how the talking was split, your longest stretch and turns", /You 58%/.test(text) && /Others 42%/.test(text) && /longest stretch: 20 s/.test(text) && /changed 3 times/.test(text), text);
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
@@ -1715,7 +1718,7 @@ const suites = {
       check(`A11y (${theme}): talk time has no serious problems`, v.length === 0, v.join(", "));
     }
     await p.eval(`document.documentElement.classList.remove("dark")`);
-    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.oncomplete = () => resolve(true); }; })`);
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.objectStore("meetings").delete("mtg_talk_prev"); t.oncomplete = () => resolve(true); }; })`);
     await p.close();
   },
 

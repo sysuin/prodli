@@ -629,6 +629,7 @@ export function createApp(deps: Deps = realDeps) {
     const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
     if (typeof body?.text === "string" && body.text.length > MAX_REWRITE_CHARS) return c.json({ error: "too_large", message: "That's too much text at once. Select a shorter part." }, 413);
     const input = RewriteInputSchema.safeParse(body);
+    if (input.success && input.data.style?.trim() && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Your writing style is part of ProdLi Pro." }, 402);
     if (!input.success || !input.data.text.trim()) return c.json({ error: "bad_request" }, 400);
     const now = deps.now();
     const limit = writeLimit(auth.user.plan);
@@ -658,6 +659,7 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ error: "bad_request" }, 400);
     }
     const input = FollowUpInputSchema.safeParse(body);
+    if (input.success && input.data.style?.trim() && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Your writing style is part of ProdLi Pro." }, 402);
     if (!input.success || !input.data.meeting.overview.trim()) return c.json({ error: "bad_request" }, 400);
     const now = deps.now();
     const limit = writeLimit(auth.user.plan);

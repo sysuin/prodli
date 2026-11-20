@@ -162,4 +162,5 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 2. Is "may make them Pro-only once it does" in the Terms enough notice for features that are free during early access?
 - **AI meeting prep (Pro):** sends the upcoming meeting's title/time and, from the last meeting with those people, its summary overview, decisions, open action items with owners and open questions, plus related to-do titles, to Anthropic. Not stored; counted with briefs. Policy updated in the AI section.
 - **Talk timeline:** with the mic included, a timeline of who was talking (you vs. the call) is kept with the meeting and synced as text, to label transcripts and show talk time. Policy updated (device data and sync).
+- **Your writing style (Pro):** the user's style text (up to 500 characters) is sent with writing-help and follow-up requests to Anthropic; not stored on the server. Policy updated (writing help).
 

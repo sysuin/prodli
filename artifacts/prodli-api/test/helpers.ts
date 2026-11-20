@@ -51,12 +51,14 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
     },
     rewrite: async (input) => {
       calls.push({ kind: "rewrite", clientId: input.action });
+      if (input.style) calls.push({ kind: "rewrite-style", clientId: input.style });
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       const text = input.action === "fix" ? input.text.replace(/\bteh\b/g, "the") : `${input.action}: ${input.text}`;
       return { text, changed: text !== input.text, model: "test" };
     },
     followUp: async (input) => {
       calls.push({ kind: "follow-up", clientId: input.tone });
+      if (input.style) calls.push({ kind: "follow-up-style", clientId: input.style });
       if (input.meeting.overview === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { subject: `Follow-up: ${input.meeting.title}`, body: `${input.tone} | ${input.meeting.actionItems.map((a) => a.task).join(", ")}`, model: "test" };
     },

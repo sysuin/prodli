@@ -205,3 +205,17 @@ export interface AiPrep {
   questions: string[];
   agenda: string[];
 }
+
+/**
+ * Earlier meetings in the same series as `m` (Pro: "Earlier in this series"):
+ * the same Meet code, or a matching title. Newest first, at most `max`.
+ */
+export function meetingSeries(m: Meeting, meetings: Meeting[], max = 6): Meeting[] {
+  const code = m.meetingCode?.toLowerCase() ?? meetCode(m.url);
+  const names = [m.title, m.summary?.title].filter((x): x is string => !!x);
+  return meetings
+    .filter((o) => o.id !== m.id && o.startedAt < m.startedAt && o.status !== "recording")
+    .filter((o) => (code && (o.meetingCode?.toLowerCase() === code || meetCode(o.url) === code)) || names.some((n) => titlesMatch(n, o.title) || (!!o.summary?.title && titlesMatch(n, o.summary.title))))
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .slice(0, max);
+}

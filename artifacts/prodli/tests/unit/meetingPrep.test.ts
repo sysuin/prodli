@@ -146,3 +146,19 @@ describe("AI meeting prep: what it sends", () => {
     expect(aiPrepInput({ ...p, last: null }, "2026-11-19")).toBeNull();
   });
 });
+
+describe("meeting series", () => {
+  it("finds earlier meetings with the same Meet link or title, newest first", async () => {
+    const { meetingSeries } = await import("../../src/lib/meetingPrep");
+    const now = meeting("now", { startedAt: daysAgo(0), title: "Weekly sync · Acme", summary: summary() });
+    const all = [
+      now,
+      meeting("w1", { startedAt: daysAgo(7) }), // same Meet code (default fixture)
+      meeting("w2", { startedAt: daysAgo(14), meetingCode: null, url: "", title: "Acme pilot review" }), // title matches the summary title
+      meeting("other", { startedAt: daysAgo(3), meetingCode: "zzz-zzzz-zzz", url: "", title: "Dentist" }),
+      meeting("later", { startedAt: new Date(NOW.getTime() + 86_400_000).toISOString() }), // after this one
+    ];
+    expect(meetingSeries(now, all).map((m) => m.id)).toEqual(["w1", "w2"]);
+    expect(meetingSeries(all[3], all)).toEqual([]);
+  });
+});
