@@ -132,3 +132,17 @@ describe("meeting prep: in the daily brief", () => {
     expect(ev.attendees).toEqual([{ name: "Priya Shah", email: "priya@acme.com" }]);
   });
 });
+
+describe("AI meeting prep: what it sends", () => {
+  it("sends the last meeting, open items and related to-dos, capped", async () => {
+    const { aiPrepInput } = await import("../../src/lib/meetingPrep");
+    const e = event("Acme pilot review", { meetLink: "https://meet.google.com/aaa-bbbb-ccc", attendees: [{ name: "Priya Shah" }] });
+    const [p] = buildPrep([e], [meeting("m", { startedAt: daysAgo(7), summary: summary({ actionItems: [{ task: "Send Priya the pilot plan", owner: "You", dueDate: null, priority: "high" }] }) })], [todo("Call Priya about pricing")], NOW);
+    expect(aiPrepInput(p, "2026-11-19")).toEqual({
+      event: { title: "Acme pilot review", start: "14:00", date: "2026-11-19" },
+      history: [{ title: "Acme pilot review", date: daysAgo(7).slice(0, 10), overview: "Agreed on a two-week pilot.", decisions: ["Pilot starts Monday"], openItems: [{ task: "Send Priya the pilot plan", owner: "You" }], openQuestions: ["Who signs the contract?"] }],
+      relatedTasks: ["Call Priya about pricing"],
+    });
+    expect(aiPrepInput({ ...p, last: null }, "2026-11-19")).toBeNull();
+  });
+});

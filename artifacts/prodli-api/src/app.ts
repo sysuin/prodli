@@ -39,6 +39,7 @@ import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
+import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -71,6 +72,7 @@ export interface Deps {
   summarize: (input: SummarizeInput, apiKey: string) => Promise<Summary>;
   brief: (ctx: BriefContext, apiKey: string) => Promise<Brief>;
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
+  prep: (input: PrepInput, apiKey: string) => Promise<Prep>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
@@ -82,7 +84,7 @@ export interface Deps {
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -521,6 +523,36 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const review = await deps.review(ctx.data, c.env.ANTHROPIC_API_KEY);
       return c.json({ review, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "brief_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST <PrepInput> → { prep, usage }. AI prep for one meeting (Pro). Counted with daily briefs. Sent to Anthropic, not stored.
+  app.post("/api/ai/meeting-prep", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (!proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "AI meeting prep is part of ProdLi Pro." }, 402);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_PREP_CHARS) return c.json({ error: "too_large" }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = PrepInputSchema.safeParse(parsed);
+    if (!input.success) return c.json({ error: "bad_request", message: "That meeting doesn't look right." }, 400);
+    const now = deps.now();
+    const limit = briefLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "brief_usage");
+    if (used === null) return c.json({ error: "brief_quota_exceeded", message: "You've used this month's AI briefs and prep.", usage: { used: limit, limit } }, 429);
+    try {
+      const prep = await deps.prep(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ prep, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "brief_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);

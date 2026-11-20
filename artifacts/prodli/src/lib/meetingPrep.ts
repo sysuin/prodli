@@ -178,3 +178,30 @@ export function metLabel(iso: string, now = new Date()): string {
   if (days === 1) return "yesterday";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
+
+/** What "✨ Prep with AI" sends (server: prodli-api/src/prep.ts PrepInputSchema). Null without a past meeting. */
+export function aiPrepInput(p: MeetingPrep, today: string) {
+  if (!p.last) return null;
+  return {
+    event: { title: p.title.slice(0, 300), ...(p.start ? { start: p.start } : {}), date: today },
+    history: [
+      {
+        title: p.last.title.slice(0, 300),
+        date: p.last.date.slice(0, 10),
+        overview: p.last.overview.slice(0, 2000),
+        decisions: p.last.decisions.slice(0, 10).map((d) => d.slice(0, 400)),
+        openItems: p.openItems.slice(0, 15).map((i) => ({ task: i.task.slice(0, 300), owner: i.owner?.slice(0, 120) ?? null })),
+        openQuestions: p.last.openQuestions.slice(0, 10).map((q) => q.slice(0, 400)),
+      },
+    ],
+    relatedTasks: p.relatedTasks.slice(0, 10).map((t) => t.title.slice(0, 300)),
+  };
+}
+
+export interface AiPrep {
+  goal: string;
+  recap: string;
+  followUps: string[];
+  questions: string[];
+  agenda: string[];
+}

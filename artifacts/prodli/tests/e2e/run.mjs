@@ -1532,7 +1532,17 @@ const suites = {
     await sleep(500);
     const review = await p.eval(`document.querySelector('[data-testid="review-categories"]')?.innerText ?? ""`);
     check("Focus score: the weekly review shows time by category", review.includes("Work & tools") && review.includes("AI tools") && review.includes("Learning"), review);
-    await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}"])`);
+    // Focus trends (Pro, open during early access): 30 days of scores with the average.
+    const prevKey = await p.eval(`(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    await p.eval(`chrome.storage.local.set({ siteCategories: {}, "tt_${prevKey}": { "github.com": 1800, "reddit.com": 1800 } })`);
+    await p.goto("tracker");
+    await sleep(800);
+    const trends = await p.eval(`document.querySelector('[data-testid="focus-trends"]')?.innerText ?? ""`);
+    check("Focus trends: 30 days of scores with the average and the biggest distraction", /average over 30 days/.test(trends) && /Biggest distraction: .*Social media/.test(trends), trends);
+    await p.eval(`[...document.querySelectorAll('[data-testid="focus-trends"] button')].find((x) => x.textContent.includes("90 days")).click()`);
+    await sleep(300);
+    check("Focus trends: switches to 90 days", /average over 90 days/.test(await p.eval(`document.querySelector('[data-testid="focus-trends"]').innerText`)));
+    await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}", "tt_${prevKey}"])`);
     await p.close();
   },
 

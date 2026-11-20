@@ -74,3 +74,22 @@ describe("focus score in the brief and review", () => {
     expect(basicReview(s).patterns.join(" ")).toContain("Focus score 75 (focused); 1 h with AI tools.");
   });
 });
+
+describe("focus trends", () => {
+  it("scores each day, averages them, compares with the period before and finds the biggest distraction", async () => {
+    const { focusTrend } = await import("../../src/lib/siteCategories");
+    const days: Record<string, Record<string, number>> = {
+      "2026-11-20": { "github.com": 3600, "youtube.com": 1200 }, // 75
+      "2026-11-19": { "github.com": 1800, "reddit.com": 1800 }, // 50
+      "2026-11-17": { "github.com": 3000, "youtube.com": 600 }, // 83 (earlier period)
+    };
+    const t = focusTrend(days, "2026-11-20", 2);
+    expect(t.points).toEqual([{ date: "2026-11-19", score: 50 }, { date: "2026-11-20", score: 75 }]);
+    expect(t.average).toBe(63);
+    expect(t.previousAverage).toBe(83); // the 2 days before: 17th–18th
+    expect(focusTrend({ "2026-11-20": days["2026-11-20"] }, "2026-11-20", 2).previousAverage).toBeNull();
+    expect(t.topDistraction).toEqual({ id: "social", minutes: 30 });
+    expect(focusTrend(days, "2026-11-20", 3).previousAverage).toBe(83);
+    expect(focusTrend({}, "2026-11-20", 30).average).toBeNull();
+  });
+});

@@ -95,10 +95,12 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="🗒" title="Meeting prep">
+            <Row label={<Tag>✨ Prep with AI · Pro</Tag>} desc="On a meeting prep card: a short AI brief for that meeting (goal, where things stand, what to follow up on, questions to ask, a suggested agenda) from your earlier meetings with those people. Uses your monthly AI briefs." />
             <Row label={<Tag>Today</Tag>} desc="With Google Calendar connected, Today shows prep for your upcoming meetings: what you covered last time, open action items (+ To-do adds one) and your to-dos that mention the people. ProdLi matches earlier recorded meetings by the same Meet link, title or people, on this device. The daily brief adds a line for each." />
           </Section>
 
           <Section emoji="📊" title="Focus score & site categories">
+            <Row label={<Tag>Focus trends · Pro</Tag>} desc="Time Tracker → Today: your focus score over the last 30 or 90 days, the average, the change from the period before, and your biggest distraction." />
             <Row label={<Tag>Focus score</Tag>} desc="Time Tracker → Today: productive time out of productive + distracting browsing (0–100), once there are 10 minutes of either. Email and chat count as neutral." />
             <Row label={<Tag>Categories</Tag>} desc="Well-known sites get a category (Work & tools, Learning, AI tools, Email & chat, News, Social media, Video & games, Shopping). Change any site's category with the picker next to it. Categories stay on this device." />
             <Row label={<Tag>Brief & review</Tag>} desc="The daily brief uses yesterday's score; the weekly review shows the week's score and time per category, AI tools included." />

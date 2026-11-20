@@ -7,7 +7,7 @@ let dispose: () => Promise<void>;
 beforeAll(async () => ({ env: base, dispose } = await makeEnv()));
 afterAll(async () => dispose());
 beforeEach(async () => {
-  await base.DB.batch(["shares", "ai_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
+  await base.DB.batch(["shares", "ai_usage", "brief_usage", "sessions", "users"].map((t) => base.DB.prepare(`DELETE FROM ${t}`)));
 });
 
 const NOW = 1_800_000_000_000;
@@ -154,5 +154,31 @@ describe("your own meeting templates", () => {
     expect((await app.request("/api/ai/summarize", json({ ...meeting, custom: { name: "", sections: [] } }, auth), env)).status).toBe(200);
     expect((await app.request("/api/ai/summarize", json({ ...meeting, custom: "nope" }, auth), env)).status).toBe(200);
     expect(calls.some((c) => c.kind === "summarize-custom")).toBe(false);
+  });
+});
+
+describe("AI meeting prep", () => {
+  const input = { event: { title: "Acme pilot review", start: "14:00", date: "2026-11-20" }, history: [{ title: "Acme kickoff", date: "2026-11-13", overview: "Agreed on a two-week pilot.", decisions: ["Pilot starts Monday"], openItems: [{ task: "Send the plan", owner: "You" }], openQuestions: ["Who signs?"] }], relatedTasks: ["Call Priya"] };
+
+  it("writes a prep brief from earlier meetings, counted with briefs", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/meeting-prep", json(input, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ prep: { goal: "Move Acme pilot review forward", followUps: ["Send the plan"], questions: ["Who signs?"] }, usage: { used: 1 } });
+    expect(calls).toContainEqual({ kind: "prep", clientId: "Acme pilot review" });
+  });
+
+  it("is Pro once Pro is on sale, validates input, and refunds failures", async () => {
+    const { app } = makeApp();
+    const sale = selling();
+    const auth = await signIn(app, sale);
+    expect((await app.request("/api/ai/meeting-prep", json(input, auth), sale)).status).toBe(402);
+    const early = notSelling();
+    expect((await app.request("/api/ai/meeting-prep", json({ ...input, history: [] }, auth), early)).status).toBe(400);
+    expect((await app.request("/api/ai/meeting-prep", json({ ...input, event: { ...input.event, title: "FAIL" } }, auth), early)).status).toBe(502);
+    const usage = (await (await app.request("/api/ai/usage", { headers: auth }, early)).json()) as { briefs: { used: number } };
+    expect(usage.briefs.used).toBe(0);
   });
 });

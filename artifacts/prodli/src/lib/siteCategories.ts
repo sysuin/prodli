@@ -105,3 +105,40 @@ export function sumDays(days: (Record<string, number> | undefined)[]): Record<st
   for (const d of days) for (const [k, v] of Object.entries(d ?? {})) out[k] = (out[k] ?? 0) + (v || 0);
   return out;
 }
+
+export interface FocusTrend {
+  /** One per day, oldest first; null on days with too little to judge. */
+  points: { date: string; score: number | null }[];
+  /** Average of the scored days, or null if none. */
+  average: number | null;
+  /** The same for the period before, for the change. */
+  previousAverage: number | null;
+  /** The distracting category with the most time in the period. */
+  topDistraction: { id: CategoryId; minutes: number } | null;
+}
+
+const dayBefore = (d: string, n: number) => {
+  const t = new Date(`${d}T12:00:00`);
+  t.setDate(t.getDate() - n);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+};
+
+/** Focus score over the last `span` days ending `end` (Pro: focus trends). Pure. */
+export function focusTrend(days: Record<string, Record<string, number>>, end: string, span: number, overrides: Record<string, string> = {}, excluded: Set<string> = new Set()): FocusTrend {
+  const avg = (xs: (number | null)[]) => {
+    const v = xs.filter((x): x is number => x !== null);
+    return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+  };
+  const points: FocusTrend["points"] = [];
+  const totals: Record<string, number> = {};
+  for (let i = span - 1; i >= 0; i--) {
+    const date = dayBefore(end, i);
+    const b = breakdown(days[date], overrides, excluded);
+    points.push({ date, score: focusScore(b) });
+    for (const c of b.byCategory) if (CATEGORY[c.id].kind === "distracting") totals[c.id] = (totals[c.id] ?? 0) + c.seconds;
+  }
+  const prev: (number | null)[] = [];
+  for (let i = 2 * span - 1; i >= span; i--) prev.push(focusScore(breakdown(days[dayBefore(end, i)], overrides, excluded)));
+  const top = (Object.entries(totals) as [CategoryId, number][]).sort((a, b) => b[1] - a[1])[0];
+  return { points, average: avg(points.map((p) => p.score)), previousAverage: avg(prev), topDistraction: top ? { id: top[0], minutes: Math.round(top[1] / 60) } : null };
+}

@@ -105,7 +105,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
                   ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
                   : "Thanks for supporting ProdLi!"}
             <br />
-            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates (and a ready-made gallery), talk-time insights, action items across meetings and shared links that never expire.
+            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates (and a ready-made gallery), talk-time insights, action items across meetings, AI meeting prep, focus trends and shared links that never expire.
           </div>
           {billing.canManage && (
             <div>
@@ -136,10 +136,12 @@ function PlanBox({ user }: { user: ProdliUser }) {
               {row("Your own meeting templates", "—", "✓")}
               {row("Talk-time insights", "—", "✓")}
               {row("Action items across all meetings", "—", "✓")}
+              {row("AI meeting prep", "—", "✓")}
+              {row("Focus trends (30 and 90 days)", "—", "✓")}
               {row("Shared notes links that never expire", "7 or 30 days", "✓")}
             </tbody>
           </table>
-          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, the Pro features (your own meeting templates, talk-time insights, action items across meetings and links that never expire) are free for everyone.</div>}
+          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, the Pro features (your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends and links that never expire) are free for everyone.</div>}
           {billing.onSale ? (
             <>
               {both && (
