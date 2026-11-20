@@ -3,7 +3,8 @@
 
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { storageGet, storageSet } from "../../lib/storage";
-import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, VOCABULARY_STORAGE_KEY, type MeetingTemplate } from "../../recorder/types";
+import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
+import { CustomTemplates, useCustomTemplates } from "./CustomTemplates";
 
 const field: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontSize: 12, padding: "5px 6px", width: "100%", boxSizing: "border-box" };
 const label: CSSProperties = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7 };
@@ -22,13 +23,14 @@ export async function copyDisclosure(): Promise<boolean> {
 
 export function MeetingNotesSettings() {
   const id = useId();
-  const [template, setTemplate] = useState<MeetingTemplate>("general");
+  const [template, setTemplate] = useState<MeetingTemplate | CustomTemplateRef>("general");
+  const customs = useCustomTemplates();
   const [words, setWords] = useState("");
   const [message, setMessage] = useState(DEFAULT_DISCLOSURE);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    void storageGet<MeetingTemplate>(MEETING_TEMPLATE_STORAGE_KEY, "general").then(setTemplate);
+    void storageGet<MeetingTemplate | CustomTemplateRef>(MEETING_TEMPLATE_STORAGE_KEY, "general").then(setTemplate);
     void storageGet<string[]>(VOCABULARY_STORAGE_KEY, []).then((w) => setWords(w.join(", ")));
     void storageGet<string>(DISCLOSURE_STORAGE_KEY, "").then((m) => setMessage(m || DEFAULT_DISCLOSURE));
   }, []);
@@ -51,7 +53,7 @@ export function MeetingNotesSettings() {
         id={`${id}-type`}
         value={template}
         onChange={(e) => {
-          const t = e.target.value as MeetingTemplate;
+          const t = e.target.value as MeetingTemplate | CustomTemplateRef;
           setTemplate(t);
           void storageSet(MEETING_TEMPLATE_STORAGE_KEY, t);
         }}
@@ -60,8 +62,12 @@ export function MeetingNotesSettings() {
         {MEETING_TEMPLATES.map((t) => (
           <option key={t.id} value={t.id}>{t.label}</option>
         ))}
+        {customs.map((t) => (
+          <option key={t.id} value={`custom:${t.id}`}>{t.name} (yours)</option>
+        ))}
       </select>
       <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>Shapes what summaries pull out (e.g. Interview: strengths and concerns). Each meeting can pick its own.</div>
+      <CustomTemplates />
 
       <label style={sub} htmlFor={`${id}-words`}>Word list: names and terms</label>
       <textarea id={`${id}-words`} value={words} onChange={(e) => setWords(e.target.value)} onBlur={saveWords} rows={2} placeholder="Priya Shah, Flynn, DSR, Kubernetes" style={{ ...field, resize: "vertical" }} />

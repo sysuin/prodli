@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { getAudio, updateMeeting } from "../../recorder/db";
 import { transcribeRecording, TranscribeError, type TranscribeProgress } from "../../recorder/audioTranscribe";
+import { labelSpeakers } from "../../recorder/speakers";
 import { accountsEnabled, getAiUsage, getProdliAccount } from "../../lib/prodliAccount";
 import type { Meeting } from "../../recorder/types";
 
@@ -81,7 +82,7 @@ export function AudioTranscribe({ meeting, busy, flash, onSummarize, canSummariz
       const r = await transcribeRecording(blob, meeting.audioMimeType, { signal: controller.signal, onProgress: (progress) => setPhase({ kind: "running", progress }) });
       if (controller.signal.aborted) return;
       await updateMeeting(meeting.id, (m) => ({
-        transcript: r.entries,
+        transcript: labelSpeakers(r.entries, m.speakerActivity),
         transcriptSource: "audio",
         captionTranscript: m.transcriptSource === "audio" ? m.captionTranscript : m.transcript,
         audioLanguages: r.languages,
@@ -148,8 +149,8 @@ export function AudioTranscribe({ meeting, busy, flash, onSummarize, canSummariz
       {phase.kind !== "running" && (
         <p style={{ fontSize: 12, opacity: 0.8, margin: "6px 0 0" }}>
           {fromAudio
-            ? `The transcript below was written from the audio${meeting.audioLanguages?.length ? ` (heard: ${languageNames(meeting.audioLanguages)})` : ""}. Speakers aren't named.`
-            : "For calls in more than one language: AI listens to the recording and writes each part in the language it was spoken. Speakers aren't named."}
+            ? `The transcript below was written from the audio${meeting.audioLanguages?.length ? ` (heard: ${languageNames(meeting.audioLanguages)})` : ""}. Lines are labelled You and Others when your microphone was included; otherwise Speaker.`
+            : "For calls in more than one language: AI listens to the recording and writes each part in the language it was spoken. Lines are labelled You and Others when your microphone was included; otherwise Speaker."}
           {` Uses about ${cost} min${left !== null ? ` of your ${minutes(left)} min left this month` : ""}.`}
         </p>
       )}

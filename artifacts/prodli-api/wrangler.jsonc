@@ -27,7 +27,7 @@
   "assets": {
     "directory": "./app-dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": ["/api/*", "/s/*"],
     "not_found_handling": "single-page-application"
   },
   "vars": {

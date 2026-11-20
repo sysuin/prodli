@@ -5,6 +5,7 @@
 import { appendAudioChunk, finalizeAudio, getAudio } from "./db";
 import { TranscribeError, transcribeRecording, type PieceResult } from "./audioTranscribe";
 import { bytesToBase64 } from "./format";
+import { ActivityTracker, rmsOf, type SpeakerActivity } from "./speakers";
 import { LiveTranscriber, mergeSpeechEntries, speechAvailability } from "./speech";
 
 // Test hook: lets the end-to-end tests exercise on-device transcription here.
@@ -22,6 +23,9 @@ interface Session {
   seq: number;
   pendingWrites: Promise<void>[];
   transcribers: LiveTranscriber[];
+  /** Who's talking (mic vs. call), when the mic is included: labels AI transcripts "You" / "Others". */
+  activity: ActivityTracker | null;
+  activityTimer: ReturnType<typeof setInterval> | null;
 }
 
 let session: Session | null = null;
@@ -57,12 +61,17 @@ async function start(meetingId: string, streamId: string, withMic: boolean, spee
 
   const streams: MediaStream[] = [tabStream];
   let micIncluded = false;
+  let micAnalyser: AnalyserNode | null = null;
   if (withMic) {
     try {
       const mic = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
-      audioCtx.createMediaStreamSource(mic).connect(destination);
+      const micSource = audioCtx.createMediaStreamSource(mic);
+      micSource.connect(destination);
+      micAnalyser = audioCtx.createAnalyser();
+      micAnalyser.fftSize = 2048;
+      micSource.connect(micAnalyser);
       streams.push(mic);
       micIncluded = true;
     } catch {
@@ -87,7 +96,22 @@ async function start(meetingId: string, streamId: string, withMic: boolean, spee
     transcribers.forEach((t) => t.start());
   }
 
-  const s: Session = { meetingId, recorder, audioCtx, streams, mimeType: recorder.mimeType || mimeType || "audio/webm", seq: 0, pendingWrites: [], transcribers };
+  // Who's talking: compare the mic and the call every 100 ms (only possible with the mic).
+  let activity: ActivityTracker | null = null;
+  let activityTimer: ReturnType<typeof setInterval> | null = null;
+  if (micAnalyser) {
+    const tabAnalyser = audioCtx.createAnalyser();
+    tabAnalyser.fftSize = 2048;
+    tabSource.connect(tabAnalyser);
+    const buf = new Float32Array(2048);
+    const startedAt = Date.now();
+    const tracker = new ActivityTracker();
+    const mic = micAnalyser;
+    activity = tracker;
+    activityTimer = setInterval(() => tracker.push(Date.now() - startedAt, rmsOf(mic, buf), rmsOf(tabAnalyser, buf)), 100);
+  }
+
+  const s: Session = { meetingId, recorder, audioCtx, streams, mimeType: recorder.mimeType || mimeType || "audio/webm", seq: 0, pendingWrites: [], transcribers, activity, activityTimer };
   recorder.ondataavailable = (e) => {
     if (e.data.size === 0) return;
     s.pendingWrites.push(appendAudioChunk(meetingId, s.seq++, e.data));
@@ -113,6 +137,7 @@ interface Stopped {
   speechEntries: TranscriptEntry[];
   hasAudio: boolean;
   mimeType: string | null;
+  speakerActivity?: SpeakerActivity;
 }
 
 let stopping: Promise<Stopped> | null = null;
@@ -141,6 +166,8 @@ async function finishRecording(): Promise<Stopped> {
   session = null;
   // Collect the on-device transcript before the audio tracks are stopped.
   const speech = mergeSpeechEntries(...(await Promise.all(s.transcribers.map((t) => t.stop()))));
+  if (s.activityTimer) clearInterval(s.activityTimer);
+  const speakerActivity = s.activity?.result();
 
   if (s.recorder.state !== "inactive") {
     await new Promise<void>((resolve) => {
@@ -159,7 +186,7 @@ async function finishRecording(): Promise<Stopped> {
     hasAudio = false;
   }
   send({ target: "background", type: "offscreen-stopped", meetingId: s.meetingId, hasAudio, mimeType: hasAudio ? s.mimeType : null });
-  return { speechEntries: speech, hasAudio, mimeType: hasAudio ? s.mimeType : null };
+  return { speechEntries: speech, hasAudio, mimeType: hasAudio ? s.mimeType : null, ...(speakerActivity?.length ? { speakerActivity } : {}) };
 }
 
 /** AI transcription of a saved recording (runs here: it needs audio decoding, which the background can't do). */

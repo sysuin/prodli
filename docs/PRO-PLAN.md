@@ -14,7 +14,13 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | AI daily briefs & weekly reviews | 62 | 200 |
 | Ask ProdLi questions | 100 | 1,000 |
 | Writing help (✨ Improve in Notes) | 200 | 2,000 |
+| AI audio transcription | 300 min | 1,500 min |
 | Synced storage | 100 MB | 2 GB |
+| Your own meeting templates | — | ✓ |
+| Talk-time insights | — | ✓ |
+| Shared notes links that never expire | 7 or 30 days | ✓ |
+
+**Pro-only features** are checked on the server with `proFeatureAllowed` (`artifacts/prodli-api/src/billing.ts`). Until Pro is on sale (`productsOnSale` is null), they're open to everyone as early access, and `/api/billing` says `earlyAccess: true`; they become Pro-only by themselves once the Dodo settings below are in place.
 
 The numbers live in `artifacts/prodli-api/src/ai.ts`, `brief.ts`, `ask.ts`, `write.ts` and `syncStore.ts` (the account window reads them from the server; update the Terms text if you change them).
 

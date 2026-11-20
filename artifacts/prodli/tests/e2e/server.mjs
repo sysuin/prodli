@@ -226,6 +226,33 @@ try {
   check("Web app: searching meetings looks inside transcripts", (await w.text()).includes("Quarterly planning"));
   check("Web app: meeting audio stays on the extension's computer", !(await w.eval(`!!document.querySelector("audio")`)));
 
+  // Sharing a meeting's notes: a read-only page with the summary only; free accounts pick 7 or 30 days (Pro is on sale here).
+  await w.eval(`(async () => {
+    const db = await new Promise((res, rej) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const t = db.transaction("meetings", "readwrite");
+    const store = t.objectStore("meetings");
+    const m = await new Promise((res) => { const g = store.get("e2e-meeting"); g.onsuccess = () => res(g.result); });
+    store.put({ ...m, summary: { title: "Quarterly planning", overview: "Budget review moved; hiring plan agreed.", keyPoints: ["Two hires in Q1"], decisions: ["Budget review on Thursday"], actionItems: [{ task: "Send the hiring plan", owner: "Priya", dueDate: null, priority: "high" }], openQuestions: [], model: "t", generatedAt: new Date().toISOString() } });
+    await new Promise((r) => (t.oncomplete = r));
+    new BroadcastChannel("prodli-meetings").postMessage("changed");
+    return true;
+  })()`);
+  await w.send("Page.reload", {});
+  await sleep(1800);
+  await w.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.trim() === "🔗 Share").click()`);
+  await sleep(800);
+  check("Share: free accounts can't pick a link with no expiry while Pro is on sale", await w.eval(`document.querySelector('[data-testid="share-meeting"] option[value="never"]').disabled`));
+  await w.eval(`[...document.querySelectorAll('[data-testid="share-meeting"] button')].find((x) => x.textContent.includes("Create link")).click()`);
+  await sleep(1500);
+  const sharedUrl = await w.eval(`document.querySelector('[data-testid="share-meeting"] input[aria-label="Shared link"]')?.value ?? ""`);
+  const sharedPage = sharedUrl ? await fetch(sharedUrl) : null;
+  const sharedHtml = sharedPage ? await sharedPage.text() : "";
+  check("Share: creates a link to a read-only page with the summary", sharedPage?.status === 200 && sharedHtml.includes("Quarterly planning") && sharedHtml.includes("Send the hiring plan") && /until/.test(await w.eval(`document.querySelector('[data-testid="share-status"]').innerText`)), `${sharedUrl} ${sharedPage?.status}`);
+  check("Share: the transcript is never on the shared page", !sharedHtml.includes("moves to Thursday"));
+  await w.eval(`[...document.querySelectorAll('[data-testid="share-meeting"] button')].find((x) => x.textContent.includes("Stop sharing")).click()`);
+  await sleep(1200);
+  check("Share: Stop sharing turns the link off", sharedUrl ? (await fetch(sharedUrl)).status === 404 : false);
+
   // Phones: sections on their own row; the editor shows the list or the note.
   await w.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
   await w.eval(`localStorage.setItem("prodli_lastSection", JSON.stringify("editor"))`);
@@ -342,6 +369,12 @@ try {
   await p.click("Sign in with Google", { exact: false });
   await sleep(1500);
   console.log("pro");
+  // Your own meeting templates: Pro is on sale, so a free account sees how to get them.
+  await p.goto("meetings");
+  await sleep(800);
+  if (!(await p.eval(`!!document.querySelector('[data-testid="custom-templates"]')`))) await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
+  await sleep(800);
+  check("Pro: your own meeting templates show the upgrade note on a free account", await p.eval(`!!document.querySelector('[data-testid="custom-templates"] [data-testid="pro-upgrade"]')`), await p.eval(`document.querySelector('[data-testid="custom-templates"]')?.innerText ?? "no templates panel"`));
   await openAccount(p, "plan");
   await sleep(1200);
   t = await p.text();

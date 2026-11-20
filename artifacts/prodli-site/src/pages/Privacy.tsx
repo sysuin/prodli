@@ -36,7 +36,7 @@ Grievance officer (India): Sunny Singh, contact@prodli.com.`,
 • Time Tracker (extension): the hostname of the website in your active tab (for example "github.com") and the seconds spent per day, and the category you give each site. Never full web addresses, page titles or page content.
 • Focus blocking (extension): the sites you choose to block, your focus hours, and how many times a day you paused on a blocked site
 • Saved tabs, quick links and Read later: the titles and web addresses of the tabs, links and pages you choose to save
-• Meetings (only if you record calls in your browser (Google Meet, Zoom, Microsoft Teams, Webex, Slack, Discord and others) or meetings in person from your microphone): transcripts, summaries, audio recordings, the meeting type you pick and your word list of names and terms
+• Meetings (only if you record calls in your browser (Google Meet, Zoom, Microsoft Teams, Webex, Slack, Discord and others) or meetings in person from your microphone): transcripts, summaries, audio recordings, the meeting type you pick, your word list of names and terms, and, when your microphone is included, a timeline of when you or the others were talking (used to label transcripts and show talk time)
 • Ask ProdLi saved prompts, their schedules and the answers to scheduled prompts
 • settings such as theme and fonts
 
@@ -53,7 +53,7 @@ For each signed-in device we keep a session: a random sign-in token (we store on
     body: `With an account, the following are stored on our servers and kept the same on all your devices:
 • notes, to-dos, your to-do lists and habits
 • saved tabs, quick links and your Read later list (titles and web addresses)
-• meetings: titles, transcripts and summaries (text only; audio recordings are never synced. Audio is sent only to be transcribed, as described under "Audio transcription")
+• meetings: titles, transcripts, summaries and the talk timeline (text only; audio recordings are never synced. Audio is sent only to be transcribed, as described under "Audio transcription")
 • Pomodoro history and your completed-session count
 • Time Tracker history (hostnames and seconds per day)
 • your Today page: each day's focus, reflection and daily brief, and your weekly reviews and notes on each week
@@ -71,7 +71,7 @@ Daily brief: with an account, ProdLi can write a short plan for your day. To do 
 
 Weekly review: with an account, ProdLi can write a short review of your week. Our server sends Anthropic's Claude API a summary of that week made on your device: titles of tasks you finished and tasks that slipped (with priorities and dates), counts per day, habit names and how many days you kept them, focus-session totals, total browsing time, your top five websites, your focus score and the time spent per site category (for example "AI tools" or "Social media"), meeting titles and open action items, how many notes you created or edited, your daily focus and reflection notes, and your own notes on the week. The review is saved with that week and synced; we don't keep a separate copy of what was sent. Reviews count toward your monthly briefs. Without an account, a basic review is made on your device without AI and nothing is sent.
 
-Meeting summaries: with an account, our server sends the meeting's transcript, name and date, the meeting type you picked and your word list of names and terms to Anthropic's Claude API, and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and audio isn't part of it. We count how many summaries you use each month.
+Meeting summaries: with an account, our server sends the meeting's transcript, name and date, the meeting type you picked (or your own meeting template: its name, instructions and section headings) and your word list of names and terms to Anthropic's Claude API, and saves the summary with the meeting (a free monthly allowance). We don't keep a separate copy of what was sent, and audio isn't part of it. We count how many summaries you use each month.
 
 Audio transcription: with an account, ProdLi can turn a meeting's recording into a transcript. This happens when you choose 🌐 Transcribe audio with AI on a meeting, and automatically when a recorded call other than Google Meet, or an in-person recording, ends (you can turn the automatic part off in Meetings → Setup). Your device cuts the recording into short pieces and skips silence; each piece is sent to our server, which has it transcribed by an open speech model (Whisper) running on Cloudflare Workers AI, with your word list as a spelling hint. Neither the audio nor the text is stored on our servers; the transcript is saved with the meeting on your device and synced as text. We count how many minutes you transcribe each month. Recordings contain other participants' voices: you are responsible for telling them and getting their consent where the law requires it.
 
@@ -83,6 +83,12 @@ Writing help (✨ Improve in Notes): with an account, you can select text in a n
 
 Follow-up emails (✉️ Draft follow-up in Meetings): with an account, you can ask ProdLi to draft an email to a meeting's participants. Our server sends Anthropic's Claude API only that meeting's summary (title, date, overview, key points, decisions, action items with owners and due dates, and open questions) and the tone you picked, never the transcript or audio. Neither the summary nor the draft is stored on our servers. ProdLi doesn't send the email; you copy it or open it in your own email app. Each draft counts toward your monthly writing-help uses.
 Anthropic processes this data as our service provider under its commercial terms, which don't allow it to train its models on this data. It keeps requests only for a limited period under its data retention policy.`,
+  },
+  {
+    title: "Shared meeting notes (optional)",
+    body: `With an account, you can share a meeting's notes as a read-only link (🔗 Share in Meetings). When you do, our server stores a copy of that meeting's title, date, length and summary (overview, key points, decisions, action items with owners and due dates, open questions and your own template's sections), never the transcript or audio, and shows it to anyone who has the link. We count how many times the link is opened. The page asks search engines not to index it.
+
+The copy is deleted when the link expires (after 7 or 30 days, or never if you choose that with ProdLi Pro), when you click Stop sharing, or when you delete your account. Sharing again updates the copy. Meeting notes contain what other participants said: share them only with people who should see them, and you are responsible for having the right to share them.`,
   },
   {
     title: "Google Calendar (optional)",
@@ -102,7 +108,7 @@ ProdLi doesn't use advertising or analytics cookies. When you use the web app, G
     title: "Why we use your data (legal bases)",
     body: `• To provide ProdLi: your account, sync, backups and summaries you ask for. This is necessary to perform our contract with you.
 • To keep ProdLi secure, prevent abuse, fix problems and enforce limits. This is our legitimate interest in running a safe service.
-• To upload meeting transcripts, transcribe recordings, create AI summaries, daily briefs, weekly reviews, page summaries and task lists from what you say, and read your calendar: your choice to use these features. You can stop at any time.
+• To upload meeting transcripts, share meeting notes by link, transcribe recordings, create AI summaries, daily briefs, weekly reviews, page summaries and task lists from what you say, and read your calendar: your choice to use these features. You can stop at any time.
 • To comply with the law where required.
 Under India's Digital Personal Data Protection Act, 2023, we process your personal data on the basis of the consent you give when you sign in, and for the purposes described here.`,
   },
@@ -122,9 +128,10 @@ These providers process data only to provide their services to us, under data pr
   {
     title: "How long we keep data",
     body: `• Synced data and your account: until you delete them.
+• Shared meeting notes: until the link expires, you stop sharing, or you delete your account.
 • Request logs: up to 7 days.
 • Backups: we back up synced data nightly. Each copy is deleted automatically after 30 days. Our hosting provider's automatic recovery points also expire within 30 days.
-• "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
+• "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, shared meeting notes, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
 • Subscription records (ProdLi Pro): while you have the account. Dodo Payments keeps payment and tax records as the law requires; deleting your ProdLi account cancels your subscription.
 • Signing out keeps your data on that device. Data stored only in your browser stays until you delete it.`,
   },
@@ -195,11 +202,11 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
     title: "Your content",
     body: `Your notes, tasks, meetings and other content belong to you. You give us permission to store, copy, sync, back up and process your content only as needed to provide ProdLi to you. This includes sending meeting transcripts to our AI provider when you ask for a summary, and recordings to our transcription service when you transcribe them (automatically after calls other than Google Meet, and in-person recordings, unless you turn that off). This permission ends when you delete the content or your account, except for backup copies that expire as described in the Privacy Policy.
 
-You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it.`,
+You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it, and you must only share meeting notes by link with people who should see them.`,
   },
   {
     title: "ProdLi Pro (paid plan)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 1,000 Ask ProdLi questions, 2,000 writing-help uses and 1,500 minutes of audio transcription per month). Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 1,000 Ask ProdLi questions, 2,000 writing-help uses and 1,500 minutes of audio transcription per month) and adds features shown in the app as Pro (currently your own meeting templates, talk-time insights and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
 
 Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Dodo Payments' terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },

@@ -1626,6 +1626,36 @@ const suites = {
     await p.close();
   },
 
+  async talktime(b, check) {
+    // Meetings → Insights: talk time from the speaker timeline (You / Others), labelled transcript lines.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("meetings");
+    await sleep(500);
+    const now = new Date().toISOString();
+    const m = { id: "mtg_talk", platform: "zoom", title: "Pipeline review", meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 60, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: true, audioMimeType: null, updatedAt: now,
+      transcript: [{ id: "1", speaker: "You", text: "Where are we on Acme?", startMs: 0, endMs: 3000, source: "audio" }, { id: "2", speaker: "Others", text: "They signed the pilot.", startMs: 21000, endMs: 24000, source: "audio" }],
+      speakerActivity: [[0, 20000, 0], [20000, 30000, 1], [30000, 45000, 0], [45000, 60000, 1]],
+      summary: { title: "Pipeline review", overview: "Acme signed the pilot.", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], model: "t", generatedAt: now } };
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").put(${JSON.stringify(m)}); t.oncomplete = () => resolve(true); }; })`);
+    await p.goto("meetings");
+    await sleep(800);
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => x.title === "Pipeline review")?.click()`);
+    await sleep(500);
+    const text = await p.eval(`document.querySelector('[data-testid="talk-time"]')?.innerText ?? ""`);
+    check("Talk time: shows how the talking was split, your longest stretch and turns", /You 58%/.test(text) && /Others 42%/.test(text) && /longest stretch: 20 s/.test(text) && /changed 3 times/.test(text), text);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="talk-time"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): talk time has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.oncomplete = () => resolve(true); }; })`);
+    await p.close();
+  },
+
   async boards(b, check) {
     // To-dos → ▦ Board and ⊞ Matrix: columns and quadrants from dates, plans, priority and done; move by menu or drag.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
