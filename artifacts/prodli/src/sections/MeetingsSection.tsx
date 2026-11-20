@@ -13,6 +13,8 @@ import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
 import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
+import { InPersonBar, InPersonButton } from "./meetings/InPerson";
+import { recoverInPerson } from "../recorder/inPerson";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -627,9 +629,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   }, [refresh]);
 
   // Web app: meetings arrive through sync; IndexedDB has no change events, so poll.
+  // (Both here and in the extension's first load: recoverInPerson keeps the audio of
+  // in-person recordings cut short by a closed page.)
   useEffect(() => {
     if (ext) return;
-    void refresh().then(() => setLoaded(true));
+    void recoverInPerson().catch(() => 0).then(() => refresh()).then(() => setLoaded(true));
     const poll = setInterval(() => void refresh(), 3000);
     return () => clearInterval(poll);
   }, [ext, refresh]);
@@ -652,6 +656,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       setRecorderOn(granted);
       setRecState((session[RECORDING_STATE_KEY] as RecordingState | undefined) ?? null);
       setShowSetup(!granted);
+      await recoverInPerson().catch(() => 0);
       await refresh();
       setLoaded(true);
     })();
@@ -791,14 +796,17 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ fontSize: 22, fontWeight: 800, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
         Meetings
         <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 12, background: "#000", color: ACCENT, padding: "2px 8px", verticalAlign: "middle" }}>
-          AI notes · Meet, Zoom & Teams
+          AI notes · Meet, Zoom, Teams & in person
         </span>
       </div>
-      {ext && (
-        <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
-          ⚙ Setup
-        </button>
-      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
+        {ext && (
+          <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
+            ⚙ Setup
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -822,10 +830,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
     return (
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         {header}
+        <InPersonBar flash={flash} onDone={(id) => void refresh().then(() => setSelectedId(id))} />
         <div style={{ padding: 24 }}>
           <div style={card}>
-            <strong>Meeting notes work in the ProdLi Chrome extension.</strong>
-            <p style={{ fontSize: 14 }}>Install ProdLi, join a Google Meet, Zoom or Teams call in your browser, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
+            <strong>Record a meeting in the room with 🎙 Record in person above</strong>, or get notes from calls with the ProdLi Chrome extension.
+            <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a Google Meet, Zoom or Teams call in your browser, and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
             {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
           </div>
         </div>
@@ -850,6 +859,8 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         </div>
       )}
 
+      <InPersonBar flash={flash} onDone={(id) => void refresh().then(() => setSelectedId(id))} />
+
       {recState && (
         <div style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13 }}>
           <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
@@ -868,7 +879,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>
             <p style={{ fontSize: 14, opacity: 0.8 }}>
-              {ext ? "Join a Google Meet, Zoom or Teams call in your browser and click the ProdLi icon (or press Alt+Shift+R) to start taking notes." : "Meetings you record with the ProdLi extension appear here."}
+              {ext ? "Join a Google Meet, Zoom or Teams call in your browser and click the ProdLi icon (or press Alt+Shift+R) to start taking notes. For a meeting in the room, press 🎙 Record in person." : "Press 🎙 Record in person for a meeting in the room. Calls you record with the ProdLi extension appear here too."}
             </p>
           </div>
         ) : (

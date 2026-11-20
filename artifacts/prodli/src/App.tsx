@@ -19,6 +19,7 @@ import { saveAndCloseWindow } from "./lib/tabSessions";
 import { requestDailyNote } from "./lib/noteTemplates";
 import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
 import { VoiceTasksModal } from "./components/VoiceTasks";
+import { InPersonChip } from "./components/InPersonChip";
 import { INBOX_KEY, OPEN_INBOX_KEY, type InboxAnswer } from "./lib/askPrompts";
 import type { ChatTurn } from "./lib/ask";
 import { ASK_EVENT } from "./lib/ask";
@@ -497,6 +498,7 @@ export default function App() {
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} initialTurns={ask.turns} />}
       {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} />}
+      {section !== "meetings" && <InPersonChip onOpen={() => void handleSectionChange("meetings")} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {settingsTab && <SettingsModal tab={settingsTab} onTab={setSettingsTab} onClose={closeSettings} isDark={isDark} setDark={(d) => void setTheme(d)} pomodoro={{ settings: pomodoroTimer.settings, save: pomodoroTimer.saveSettings }} />}

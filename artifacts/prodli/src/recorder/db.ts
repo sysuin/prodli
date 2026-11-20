@@ -132,7 +132,8 @@ export async function finalizeAudio(meetingId: string, mimeType: string): Promis
   );
   if (chunks.length === 0) return false;
   chunks.sort((a, b) => a.seq - b.seq);
-  const blob = new Blob(chunks.map((c) => c.data), { type: mimeType });
+  // No type given (recovering an interrupted recording): use the chunks' own (WebM, or MP4 on iPhone).
+  const blob = new Blob(chunks.map((c) => c.data), { type: mimeType || chunks[0].data.type || "audio/webm" });
   await tx(AUDIO, "readwrite", (t) => reqToPromise(t.objectStore(AUDIO).put(blob, meetingId)));
   await deleteChunks(meetingId);
   return blob.size > 0;
