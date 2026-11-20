@@ -58,6 +58,8 @@ export interface Meeting {
   template?: MeetingTemplate | CustomTemplateRef;
   /** Who talked when (mic vs. call), to label AI transcripts "You" / "Others" (recorder/speakers.ts). */
   speakerActivity?: [number, number, 0 | 1][];
+  /** Action items marked done in Meetings → Action items (their task text). */
+  doneActions?: string[];
   /** The meeting's shared link, if it's shared (server: /api/shares). */
   share?: { id: string; url: string; expiresAt: number | null };
   /** On-device transcript (used when Meet captions weren't available) */

@@ -76,7 +76,7 @@ Right-click any page or selection, or press Alt+Shift+A, to save it as a to-do o
 ProdLi works without an account; everything stays in your browser. Sign in with Google (free) to sync between computers and the web app at app.prodli.com (works on your phone too), with nightly backups. The account also turns on the AI features.
 
 FREE
-The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses and 300 minutes of AI audio transcription a month, plus 100 MB of synced data. ProdLi Pro raises these limits and adds your own meeting templates and shared links that never expire.
+The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses and 300 minutes of AI audio transcription a month, plus 100 MB of synced data. ProdLi Pro raises these limits and adds your own meeting templates, talk-time insights, action items across all your meetings and shared links that never expire.
 
 PRIVACY
 No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude (which doesn't train on it) or, for audio transcription, to an open speech model on Cloudflare. Google Calendar access is read-only and optional. Full policy: https://prodli.com/privacy

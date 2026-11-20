@@ -12,6 +12,7 @@ import { installSpeech, speechAvailability, type SpeechAvailability } from "../r
 import { FollowUpDraft } from "./meetings/FollowUpDraft";
 import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
+import { ActionItems } from "./meetings/ActionItems";
 import { useCustomTemplates } from "./meetings/CustomTemplates";
 import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
@@ -635,6 +636,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const [signedIn, setSignedIn] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<"meetings" | "actions">("meetings");
   // Why the last click on the ProdLi icon didn't start recording (recorder/controller.ts).
   const [problem, setProblem] = useState<{ message: string; at: string } | null>(null);
   useEffect(() => {
@@ -860,6 +862,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         </span>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {meetings.length > 0 && (
+          <button style={btn(view === "actions" ? "primary" : "plain")} aria-pressed={view === "actions"} onClick={() => setView((v) => (v === "actions" ? "meetings" : "actions"))} title="Open action items from all your meetings">
+            ✅ Action items
+          </button>
+        )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
         {ext && (
           <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
@@ -934,7 +941,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
         {showSetup && setupPanel}
 
-        {meetings.length === 0 ? (
+        {view === "actions" && meetings.length > 0 ? (
+          <ActionItems meetings={meetings} flash={flash} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
+        ) : meetings.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>

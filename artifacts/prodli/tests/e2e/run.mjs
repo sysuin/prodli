@@ -1626,6 +1626,59 @@ const suites = {
     await p.close();
   },
 
+  async actionitems(b, check) {
+    // Meetings → ✅ Action items (Pro, open during early access): open items from all meetings by owner; Done, + To-do, open the meeting. Plus the template gallery.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    await p.goto("meetings");
+    await sleep(500);
+    const now = new Date().toISOString();
+    const mk = (id, title, items) => ({ id, platform: "zoom", title, meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 600, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: now, transcript: [{ id: "1", speaker: "You", text: "Hi", startMs: 0, endMs: 1000 }],
+      summary: { title, overview: "o", keyPoints: [], decisions: [], openQuestions: [], model: "t", generatedAt: now, actionItems: items.map(([task, owner, dueDate]) => ({ task, owner, dueDate, priority: "medium" })) } });
+    const ms = [mk("ai1", "Acme pilot review", [["Send the pilot plan", "You", "2020-01-01"], ["Book the venue", "Priya", null]]), mk("ai2", "Hiring sync", [["Write the job post", "You", null]])];
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); for (const m of ${JSON.stringify(ms)}) t.objectStore("meetings").put(m); t.oncomplete = () => resolve(true); }; })`);
+    await p.eval(`chrome.storage.local.set({ todos: [] })`);
+    await p.goto("meetings");
+    await sleep(800);
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Action items")).click()`);
+    await sleep(500);
+    const view = () => p.eval(`document.querySelector('[data-testid="action-items"]')?.innerText ?? ""`);
+    let text = await view();
+    const groups = await p.eval(`[...document.querySelectorAll('[data-testid="action-owner"] h3')].map((h) => h.innerText.replace(/\\s+\\d+$/, ""))`);
+    check("Action items: open items from all meetings, grouped by owner (you first)", JSON.stringify(groups) === '["YOU","PRIYA"]' && text.includes("Send the pilot plan") && text.includes("Write the job post") && text.includes("Book the venue"), JSON.stringify({ groups, text: text.slice(0, 200) }));
+    check("Action items: overdue items say so, with the meeting they came from", /Overdue · 2020-01-01/.test(text) && text.includes("Acme pilot review"));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="action-items"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Action items has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('input[aria-label="Done: Book the venue"]').click()`);
+    await sleep(600);
+    const done = await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const g = r.result.transaction("meetings").objectStore("meetings").get("ai1"); g.onsuccess = () => resolve(g.result.doneActions ?? []); }; })`);
+    check("Action items: Done marks it done on its meeting and hides it", JSON.stringify(done) === '["Book the venue"]' && !(await view()).includes("Book the venue"), JSON.stringify(done));
+    await p.eval(`document.querySelector('button[aria-label="+ To-do: Write the job post"]').click()`);
+    await sleep(600);
+    const { todos = [] } = await p.storage(["todos"]);
+    check("Action items: + To-do adds it to your to-dos", todos.some((t) => t.title === "Write the job post") && (await view()).includes("In to-dos ✓"));
+    await p.eval(`[...document.querySelectorAll('[data-testid="action-items"] button')].find((x) => x.textContent.includes("Hiring sync")).click()`);
+    await sleep(500);
+    check("Action items: the meeting link opens that meeting", !(await p.eval(`!!document.querySelector('[data-testid="action-items"]')`)) && (await p.text()).includes("Hiring sync"));
+    // Template gallery (Setup → Meeting notes).
+    await p.eval(`chrome.storage.local.set({ recorderCustomTemplates: [] })`);
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
+    await sleep(500);
+    await p.eval(`(() => { const s = document.querySelector('select[aria-label="Add a ready-made template"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "Sales discovery"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(500);
+    const { recorderCustomTemplates: tpl = [] } = await p.storage(["recorderCustomTemplates"]);
+    check("Template gallery: one click adds a ready-made template you can edit", tpl.length === 1 && tpl[0].name === "Sales discovery" && tpl[0].sections.includes("Decision process") && (await p.eval(`document.querySelector('[data-testid="custom-templates"]').innerText`)).includes("Sales discovery"), JSON.stringify(tpl));
+    await p.eval(`chrome.storage.local.set({ recorderCustomTemplates: [], todos: [] })`);
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("ai1"); t.objectStore("meetings").delete("ai2"); t.oncomplete = () => resolve(true); }; })`);
+    await p.close();
+  },
+
   async talktime(b, check) {
     // Meetings → Insights: talk time from the speaker timeline (You / Others), labelled transcript lines.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
