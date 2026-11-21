@@ -217,3 +217,31 @@ describe("noticing calls in other apps", async () => {
     expect(reminderText(["your browser"]).title).toBe("In a call in your browser?");
   });
 });
+
+describe("time in apps", async () => {
+  const { addSample, cleanAppName, encodePowerShell, windowsForegroundScript } = await import("../src/core/appUsage");
+  const { appsDayKey, sumDays, topApps } = await import("../../prodli/src/lib/appUsage");
+  it("tidies names and skips system bits", () => {
+    expect(cleanAppName("Slack\n")).toBe("Slack");
+    expect(cleanAppName("Microsoft® Teams.exe")).toBe("Teams");
+    expect(cleanAppName("loginwindow")).toBeNull();
+    expect(cleanAppName("explorer")).toBeNull();
+    expect(cleanAppName("  ")).toBeNull();
+  });
+  it("adds samples, capped (a long gap after sleep isn't counted as use)", () => {
+    let day = addSample(undefined, "Slack", 10);
+    day = addSample(day, "Slack", 9.6);
+    day = addSample(day, "Zoom", 3600);
+    expect(day).toEqual({ Slack: 20, Zoom: 60 });
+  });
+  it("sorts and sums", () => {
+    expect(topApps({ A: 30, B: 90, C: 0 })).toEqual([{ app: "B", seconds: 90, share: 0.75 }, { app: "A", seconds: 30, share: 0.25 }]);
+    expect(sumDays([{ A: 1 }, { A: 2, B: 3 }, undefined])).toEqual({ A: 3, B: 3 });
+    expect(appsDayKey(new Date(2026, 0, 5))).toBe("apps_2026-01-05");
+  });
+  it("the Windows script is valid UTF-16 for -EncodedCommand and samples on an interval", () => {
+    const script = windowsForegroundScript(5);
+    expect(script).toContain("Start-Sleep -Seconds 5");
+    expect(Buffer.from(encodePowerShell(script), "base64").toString("utf16le")).toBe(script);
+  });
+});

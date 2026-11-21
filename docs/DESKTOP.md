@@ -13,7 +13,7 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Quick add from anywhere (**Alt/Option+Shift+A**), menu bar / tray icon, dock menu | ✅ | Alt+Shift+A in Chrome | — |
 | Keeps running when the window is closed (timers, reminders, sync, recordings) | ✅ | ✅ (background) | — |
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
-| Time Tracker | view synced history | ✅ tracks | view |
+| Time Tracker | time in apps on this computer (opt-in, not synced) + synced browsing history | ✅ tracks sites | view |
 | Open files: File → Open (⌘/Ctrl+O), Open With → ProdLi, drop on the dock icon | ✅ | drop on Chrome | drop / Open with (installed) |
 | "In a call? Record it" reminder (Windows: any call app using the mic; Mac: Zoom, Webex) | ✅ | Meet, Zoom, Teams in Chrome | — |
 | Automatic updates (once a download location is set up) | ✅ | Web Store | always latest |
@@ -90,4 +90,4 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 ## Not yet (next steps)
 
 - Google Calendar on Today (needs a Google "Desktop app" OAuth client and the same browser hand-off).
-- Native Time Tracker (which app / site you use); call reminders for more Mac apps (Teams, Slack huddles).
+- Syncing app time between devices; call reminders for more Mac apps (Teams, Slack huddles).

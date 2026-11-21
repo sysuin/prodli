@@ -93,6 +93,9 @@ jobs:
       - name: Smoke-test the packaged app
         working-directory: artifacts/prodli-desktop
         run: node tests/smoke.mjs ${{ matrix.app }}
+      - name: "Time in apps: the foreground-app query works here"
+        working-directory: artifacts/prodli-desktop
+        run: node tests/foreground.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: prodli-desktop-${{ matrix.name }}
