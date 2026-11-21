@@ -4,7 +4,7 @@ import { Text } from "react-native";
 import { ACCOUNT_KEY, type ProdliUser } from "@/lib/api";
 import { durationLabel, useMeetings } from "@/lib/meetings";
 import { useStored } from "@/lib/store";
-import { Card, Empty, Input, P, Screen } from "@/ui/kit";
+import { Button, Card, Empty, Input, P, Screen } from "@/ui/kit";
 import { font, useTheme } from "@/ui/theme";
 
 export default function MeetingsScreen() {
@@ -19,6 +19,7 @@ export default function MeetingsScreen() {
   }, [meetings, q]);
   return (
     <Screen edges={[]}>
+      <Button title="Record in person" icon="mic" onPress={() => router.push("/record")} />
       <Input placeholder="Search titles, summaries and transcripts" value={q} onChangeText={setQ} returnKeyType="search" />
       {shown.length ? (
         shown.map((m) => (
@@ -35,7 +36,7 @@ export default function MeetingsScreen() {
           </Card>
         ))
       ) : (
-        <Empty icon="people-outline" title={q ? "No matching meetings" : "No meetings yet"} hint={user ? "Record Google Meet, Zoom or Teams calls with the ProdLi extension on your computer; they show up here." : "Sign in (More → Sign in) to see meetings recorded with the ProdLi extension."} />
+        <Empty icon="people-outline" title={q ? "No matching meetings" : "No meetings yet"} hint={user ? "Tap Record in person, or record Google Meet, Zoom or Teams calls with the ProdLi extension on your computer; they show up here." : "Sign in (More → Sign in) to record in person and to see meetings recorded with the ProdLi extension."} />
       )}
     </Screen>
   );

@@ -114,6 +114,7 @@ export default function AccountScreen() {
             {usage ? <P>Meeting summaries: {usage.used} of {usage.limit}</P> : null}
             {usage?.briefs ? <P>Daily briefs: {usage.briefs.used} of {usage.briefs.limit}</P> : null}
             {usage?.asks ? <P>Ask ProdLi: {usage.asks.used} of {usage.asks.limit}</P> : null}
+            {usage?.transcribeSeconds ? <P>Transcription: {Math.round(usage.transcribeSeconds.used / 60)} of {Math.round(usage.transcribeSeconds.limit / 60)} minutes</P> : null}
             <P muted style={{ fontSize: font.small }}>Allowances reset on the 1st.{billing?.subscription?.renewsAt ? ` Pro renews ${new Date(billing.subscription.renewsAt).toLocaleDateString()}.` : ""}</P>
           </Card>
         </>

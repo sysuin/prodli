@@ -90,6 +90,8 @@ export interface AiUsage {
   briefs?: { used: number; limit: number };
   asks?: { used: number; limit: number };
   writes?: { used: number; limit: number };
+  /** Seconds of audio transcribed this month (in-person recording). */
+  transcribeSeconds?: { used: number; limit: number; available: boolean };
 }
 
 export const getAiUsage = () => request<AiUsage>("/api/ai/usage");

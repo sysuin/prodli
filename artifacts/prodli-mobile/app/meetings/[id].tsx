@@ -2,6 +2,8 @@
 import { goBack } from "@/lib/nav";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
+import { SUMMARIZING_KEY } from "@/lib/inPerson";
+import { useStored } from "@/lib/store";
 import { Alert, Share, Text, View } from "react-native";
 import { summarizeMeeting } from "@/lib/ai";
 import { errorText } from "@/lib/api";
@@ -18,7 +20,9 @@ export default function MeetingScreen() {
   const m = useMeeting(id);
   const todos = useList<Todo>("todos");
   const [tab, setTab] = useState<"summary" | "transcript">("summary");
-  const [busy, setBusy] = useState(false);
+  const [busyHere, setBusy] = useState(false);
+  const summarizing = useStored<string[]>(SUMMARIZING_KEY, []);
+  const busy = busyHere || summarizing.includes(id);
   const [err, setErr] = useState<string | null>(null);
   if (!m) return <Screen edges={[]}><Empty icon="people-outline" title="This meeting is gone" hint="It may have been deleted on another device." /></Screen>;
 
@@ -103,7 +107,7 @@ export default function MeetingScreen() {
           </>
         ) : m.transcript?.length ? (
           <Card>
-            <P>This meeting hasn't been summarized yet.</P>
+            <P>{busy ? "Writing the summary…" : m.error ? `Summarizing didn't work: ${m.error}` : "This meeting hasn't been summarized yet."}</P>
             <Button variant="ask" icon="sparkles" title="Summarize with AI" busy={busy} onPress={summarize} />
           </Card>
         ) : (

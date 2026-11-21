@@ -2,7 +2,7 @@
 // monthly allowances on the server): the daily brief, Ask ProdLi and meeting
 // summaries. The context is built on the phone from the user's data, the same
 // way the extension builds it (artifacts/prodli/src/lib/today.ts, ask.ts).
-import { currentStreak, getDayKey, isDone, type DailyBrief, type DayRecord, type Habit, type Note, type Todo } from "../shared";
+import { currentStreak, getDayKey, isDone, type DailyBrief, type DayRecord, type Habit, type Note, type PieceResult, type Todo } from "../shared";
 import { AccountError, getAccount, request } from "./api";
 import { htmlToText } from "./html";
 import { transcriptToText, type Meeting, type MeetingSummary } from "./meetings";
@@ -188,6 +188,17 @@ export async function ask(question: string, history: AskTurn[], context: BriefCo
     }),
   });
 }
+
+// ── Transcription (in-person recording) ─────────────────────────────────────
+
+/** One 16 kHz WAV piece → Whisper's text (ProdLi's AI; counts toward the monthly minutes). */
+export function transcribePiece(wav: Uint8Array): Promise<PieceResult> {
+  const body = wav.buffer.slice(wav.byteOffset, wav.byteOffset + wav.byteLength) as ArrayBuffer;
+  return request<PieceResult>("/api/ai/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body });
+}
+
+/** Network trouble or a busy server: worth trying again. */
+export const retryable = (err: unknown) => err instanceof AccountError && (err.status === 0 || err.status === 502 || err.status === 503);
 
 // ── Meeting summaries ────────────────────────────────────────────────────────
 

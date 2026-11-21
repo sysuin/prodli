@@ -92,3 +92,17 @@ describe("read later", () => {
     expect(addReadLater("example.com/a")!.id).not.toBe(a.id);
   });
 });
+
+describe("lists", () => {
+  it("renames, and deleting a list moves its to-dos to the Inbox", async () => {
+    const { addTodoFromText, deleteList, findOrCreateList, renameList } = await import("../../src/lib/data");
+    const id = findOrCreateList("Work");
+    const t = addTodoFromText("Ship it", { listId: id })!;
+    renameList(id, "Job");
+    expect(read<{ id: string; name: string }[]>("lists", []).find((l) => l.id === id)?.name).toBe("Job");
+    deleteList(id);
+    expect(read<{ id: string }[]>("lists", []).some((l) => l.id === id)).toBe(false);
+    expect(read<Todo[]>("todos", []).find((x) => x.id === t.id)?.listId).toBeUndefined();
+    expect(getTombstones().lists?.[id]).toBeDefined();
+  });
+});

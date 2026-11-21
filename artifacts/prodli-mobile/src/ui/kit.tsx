@@ -147,10 +147,10 @@ export function Checkbox({ checked, onPress, label, color }: { checked: boolean;
   );
 }
 
-export function Chip({ label, active, onPress, color }: { label: string; active?: boolean; onPress?: () => void; color?: string }) {
+export function Chip({ label, active, onPress, onLongPress, color }: { label: string; active?: boolean; onPress?: () => void; onLongPress?: () => void; color?: string }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? "button" : "text"} accessibilityState={{ selected: !!active }} style={{ borderWidth: 2, borderColor: t.border, backgroundColor: active ? (color ?? t.primary) : "transparent", paddingHorizontal: 10, paddingVertical: 4 }}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} disabled={!onPress && !onLongPress} accessibilityRole={onPress ? "button" : "text"} accessibilityState={{ selected: !!active }} style={{ borderWidth: 2, borderColor: t.border, backgroundColor: active ? (color ?? t.primary) : "transparent", paddingHorizontal: 10, paddingVertical: 4 }}>
       <Text style={{ fontWeight: "800", fontSize: font.small, color: active ? "#000" : t.fg }}>{label}</Text>
     </Pressable>
   );

@@ -2,23 +2,52 @@
 import { useMemo, useState } from "react";
 import { Alert, ScrollView, View } from "react-native";
 import { getDayKey, parseTask, type ListItem, type Todo } from "@/shared";
-import { addTodoFromText, clearCompletedTodos, todosFor, useList, type TodoView } from "@/lib/data";
+import { addTodoFromText, clearCompletedTodos, deleteList, findOrCreateList, renameList, todosFor, useList, type TodoView } from "@/lib/data";
 import { haptic } from "@/lib/haptics";
 import { Button, Chip, Empty, Input, P, Row, Screen, Title } from "@/ui/kit";
 import { SyncPill } from "@/ui/SyncPill";
 import { TodoRow, dueLabel } from "@/ui/TodoRow";
+import { BoardView, MatrixView } from "@/ui/TodoBoards";
+import { useStored, write } from "@/lib/store";
 import { font } from "@/ui/theme";
 
 export default function TodosScreen() {
   const todos = useList<Todo>("todos");
   const lists = useList<ListItem>("lists");
   const [view, setView] = useState<TodoView>("today");
+  const layout = useStored<"list" | "board" | "matrix">("mobileTodoLayout", "list");
   const [text, setText] = useState("");
+  /** Naming a new list (id "new") or renaming one. */
+  const [naming, setNaming] = useState<{ id: string; name: string } | null>(null);
   const today = getDayKey();
   const shown = useMemo(() => todosFor(todos, view, today), [todos, view, today]);
   const projectLists = lists.filter((l): l is Extract<ListItem, { kind: "list" }> => l.kind === "list");
   const parsed = text.trim() ? parseTask(text) : null;
   const hint = parsed ? [parsed.dueDate || parsed.dueTime ? `📅 ${dueLabel({ dueDate: parsed.dueDate ?? today, dueTime: parsed.dueTime }, today)}` : "", parsed.priority ? `❗ ${parsed.priority}` : "", parsed.listName ? `# ${parsed.listName}` : "", parsed.labels?.length ? parsed.labels.map((l) => `@${l}`).join(" ") : "", parsed.repeat ? "↻ repeats" : ""].filter(Boolean).join("  ") : "";
+
+  const saveName = () => {
+    if (!naming?.name.trim()) return setNaming(null);
+    if (naming.id === "new") setView(`list:${findOrCreateList(naming.name)}`);
+    else renameList(naming.id, naming.name);
+    setNaming(null);
+  };
+  const listMenu = (id: string) => {
+    const l = projectLists.find((x) => x.id === id);
+    if (!l) return;
+    Alert.alert(l.name, "Long-press a list to rename or delete it.", [
+      { text: "Rename", onPress: () => setNaming({ id, name: l.name }) },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          Alert.alert(`Delete “${l.name}”?`, "Its to-dos move to the Inbox. The list is deleted on all your devices.", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => (deleteList(id), view === `list:${id}` && setView("all")) },
+          ]),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   const add = () => {
     const listId = view.startsWith("list:") && view !== "list:inbox" ? view.slice(5) : undefined;
@@ -42,11 +71,39 @@ export default function TodosScreen() {
       <Title right={<SyncPill />}>To-dos</Title>
       <Input placeholder="Add a to-do… “Pay rent tomorrow !high #Home”" value={text} onChangeText={setText} onSubmitEditing={add} returnKeyType="done" submitBehavior="submit" />
       {hint ? <P muted style={{ fontSize: font.small }}>{hint}</P> : null}
+      <Row>
+        {(["list", "board", "matrix"] as const).map((l) => (
+          <Chip key={l} label={l === "list" ? "☰ List" : l === "board" ? "▥ Board" : "⊞ Matrix"} active={layout === l} onPress={() => write("mobileTodoLayout", l)} />
+        ))}
+      </Row>
+      {layout === "board" ? (
+        <>
+          <P muted style={{ fontSize: font.small }}>Long-press a card to move it.</P>
+          <BoardView todos={todos} today={today} />
+        </>
+      ) : layout === "matrix" ? (
+        <>
+          <P muted style={{ fontSize: font.small }}>Important = high priority; urgent = planned for today or due by tomorrow. Long-press a card to move it.</P>
+          <MatrixView todos={todos} today={today} />
+        </>
+      ) : null}
+      {layout === "list" ? (
+      <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
         {views.map((v) => (
-          <Chip key={v.id} label={v.label} active={view === v.id} onPress={() => setView(v.id)} />
+          <Chip key={v.id} label={v.label} active={view === v.id} onPress={() => setView(v.id)} onLongPress={v.id.startsWith("list:") && v.id !== "list:inbox" ? () => listMenu(v.id.slice(5)) : undefined} />
         ))}
+        <Chip label="+ List" onPress={() => setNaming({ id: "new", name: "" })} />
       </ScrollView>
+      {naming ? (
+        <Row>
+          <View style={{ flex: 1 }}>
+            <Input autoFocus placeholder={naming.id === "new" ? "New list name" : "List name"} value={naming.name} onChangeText={(name) => setNaming({ ...naming, name })} returnKeyType="done" onSubmitEditing={saveName} maxLength={60} />
+          </View>
+          <Button small title="Save" onPress={saveName} />
+          <Button small variant="ghost" title="Cancel" onPress={() => setNaming(null)} />
+        </Row>
+      ) : null}
       {shown.length ? (
         <View>{shown.map((x) => <TodoRow key={x.id} todo={x} today={today} />)}</View>
       ) : (
@@ -67,6 +124,8 @@ export default function TodosScreen() {
             }
           />
         </Row>
+      ) : null}
+      </>
       ) : null}
     </Screen>
   );

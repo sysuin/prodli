@@ -7,10 +7,10 @@ Status: **first version built** (2026-11-20), not yet in the stores. One codebas
 | | Phone app | Extension / web app |
 |---|---|---|
 | Today: focus, today's to-dos, habits, daily brief, evening reflection | ✅ | ✅ |
-| To-dos: smart add, Today / Upcoming / lists / Done, subtasks, repeats, labels | ✅ | ✅ (+ Board, Matrix, time blocks) |
+| To-dos: smart add, Today / Upcoming / lists / Done, subtasks, repeats, labels, Board and Matrix views, lists (new, rename, delete) | ✅ | ✅ (+ time blocks, saved filters) |
 | Notes: list, search, pin, rich editing (same editor engine) | ✅ (notes with tables are read-only) | ✅ |
 | Habits: check, count, minutes, quit; streaks; scheduled days | ✅ | ✅ |
-| Meetings: transcripts, summaries, action items → to-dos, summarize, share | ✅ view (recording stays on the computer) | ✅ record + view |
+| Meetings: transcripts, summaries, action items → to-dos, summarize, share | ✅ view + record in person (live AI transcript) | ✅ record calls + in person, view |
 | Ask ProdLi | ✅ | ✅ |
 | Pomodoro (history and count sync) | ✅ with a notification when a session ends | ✅ |
 | Time Tracker | ✅ view (phones don't track) | ✅ |
@@ -39,6 +39,7 @@ artifacts/prodli-mobile/
 - **Sync** (`src/lib/sync.ts`) is the extension's protocol: push what changed since the last sync (fingerprints), pull everything after the last sequence number, newest edit wins, deletions carry tombstones, a meeting merely missing on the phone is fetched again (never deleted everywhere). `tests/unit/sync.test.ts` runs it against the server's own `syncStore.ts`.
 - **Notes** are TipTap HTML. The phone edits them with TenTap (TipTap inside a WebView), so the HTML stays the same on every device. TenTap has no tables, so a note with a table (or anything unknown) opens read-only — the phone can never drop content. Opening a note never rewrites it: the editor only saves when the content differs from what it loaded.
 - **Sign-in:** native Google sign-in (`@react-native-google-signin/google-signin`) asks Google for an ID token for ProdLi's **web** client; the server verifies it like the web app's and returns a bearer token (`POST /api/auth/google` with `kind: "mobile"`, session type `mobile`, 180 days, shown as "ProdLi app on iPhone/Android" in the devices list). Server change: migration `0011_mobile_sessions.sql`.
+- **In-person recording** (`app/record.tsx`, `src/lib/liveTranscriber.ts`): expo-audio streams 16-bit PCM from the microphone (also with the screen locked); the extension's own `Resampler` and pause-based `Segmenter` (`artifacts/prodli/src/recorder/audioPieces.ts`) cut it into 16 kHz WAV pieces, which go to `/api/ai/transcribe` while you talk (silence is never sent). Stopping saves a synced meeting (platform "in-person") and summarizes it. The audio isn't kept. The transcript so far is saved on the phone during recording, so if the app is closed mid-meeting the next launch turns it into a meeting.
 - **AI** uses the account's allowances (brief, Ask, summaries) through the same endpoints as the extension. Without an account or offline, Today shows the basic (non-AI) brief.
 
 ## Run it
@@ -86,7 +87,7 @@ cd artifacts/prodli-mobile && pnpm dlx eas-cli@latest build --profile developmen
 3. **Apple Developer Program** ($99/year) and **Google Play Console** ($25 once).
 4. **Builds and submission:** `eas build --profile production --platform all`, then `eas submit -p ios` / `eas submit -p android` (the Android submit profile uploads a draft to the internal testing track).
 5. **Store listings:**
-   - Privacy: the same data as the web app (account: Google ID, email, name, picture; user content you sync; no tracking, no ads). Apple's privacy labels: *Contact info (email, name)* and *User content*, linked to the user, not used for tracking. Google's data safety form: the same, encrypted in transit, deletable in the app.
+   - Privacy: the same data as the web app (account: Google ID, email, name, picture; user content you sync; no tracking, no ads). Apple's privacy labels: *Contact info (email, name)*, *User content* and *Audio data* (in-person recordings, sent in pieces for transcription and not kept), linked to the user, not used for tracking. Google's data safety form: the same, encrypted in transit, deletable in the app.
    - Account deletion is in the app (Account → Delete account), as both stores require.
    - ProdLi Pro is not sold in the app and the app doesn't point to the web checkout (store rules); a Pro plan bought on the web simply applies.
    - Ask the lawyer to add the phone apps to the privacy policy and terms (they describe the extension and web app today).
@@ -102,7 +103,6 @@ cd artifacts/prodli-mobile && pnpm dlx eas-cli@latest build --profile developmen
 
 ## Not yet (next steps)
 
-- Record in-person meetings on the phone (needs WAV recording on Android; the transcribe endpoint expects 16 kHz WAV pieces).
 - Table editing in notes (a custom TenTap editor build with TipTap's table extension).
-- To-do Board / Matrix views, time blocks, note templates and saved filters on the phone.
+- Time blocks, note templates and saved filters on the phone.
 - Home-screen widgets (today's to-dos) and share-to-ProdLi (save a link to Read later from any app).
