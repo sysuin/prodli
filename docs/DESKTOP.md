@@ -60,7 +60,7 @@ Against a local server (`wrangler dev` with fake Google, see docs/MOBILE.md → 
 PRODLI_API=http://localhost:8787 pnpm --filter @workspace/prodli-desktop dev
 ```
 
-End-to-end (starts the local server itself; plays the browser's part of sign-in; checks sync, CORS, encryption at rest):
+End-to-end (starts the local server itself; records a call with Chromium's fake microphone and fake computer sound; plays the browser's part of sign-in; checks sync, CORS, encryption at rest):
 
 ```bash
 pnpm --filter @workspace/prodli-desktop run test:e2e
@@ -85,7 +85,7 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
    - prodli.com/download/mac and /download/windows point to the new version.
    - Installed apps update from `https://prodli.com/download/desktop` (checked every 6 hours; Mac updates need signing).
    - Unsigned installers aren't published unless the repository variable `ALLOW_UNSIGNED_RELEASE` is `true` (for a test release).
-5. **Lawyer**: add the desktop apps to the privacy policy and terms (same data as the extension; call recordings include other people's voices — the same disclosure as in-person recording).
+5. **Lawyer**: proposed wording is drafted in [docs/legal/DESKTOP-ADDITIONS.md](legal/DESKTOP-ADDITIONS.md) — add the desktop apps to the privacy policy and terms (same data as the extension; call recordings include other people's voices — the same disclosure as in-person recording).
 
 ## Not yet (next steps)
 

@@ -99,7 +99,8 @@ async function connect() {
 
 const electron = path.join(pkg, "node_modules", ".bin", process.platform === "win32" ? "electron.cmd" : "electron");
 const launch = () =>
-  spawn(electron, [".", `--remote-debugging-port=${DEBUG_PORT}`], {
+  // Fake microphone (a tone) instead of a real one; no permission prompts (see main/media.ts).
+  spawn(electron, [".", `--remote-debugging-port=${DEBUG_PORT}`, "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"], {
     cwd: pkg,
     stdio: ["ignore", "inherit", "inherit"],
     env: { ...process.env, PRODLI_USER_DATA: userData, PRODLI_E2E_URL_FILE: urlFile },
@@ -116,6 +117,39 @@ try {
 
   await page.eval(`window.prodliDesktop.storage.set("e2eProbe", { n: 1 })`);
   check("saves to the app's data file", existsSync(path.join(userData, "ProdLi Data", "store.json")) || (await sleep(500), existsSync(path.join(userData, "ProdLi Data", "store.json"))));
+
+  // Chromium's fake devices give a tone for the microphone, and its fake capture
+  // UI hands getDisplayMedia a fake screen with a fake audio track: so this runs
+  // the full "computer's sound + microphone" mix.
+  console.log("record a call (fake microphone + fake computer sound)");
+  await page.eval(`window.dispatchEvent(new CustomEvent("prodli-go", { detail: { section: "meetings" } })); new Promise((r) => { const t = setInterval(() => document.querySelector("[data-testid=record-call]") && (clearInterval(t), r(true)), 100); })`);
+  await page.eval(`document.querySelector("[data-testid=record-call]").click(); true`);
+  const recording = await page.eval(`new Promise((r) => { let n = 0; const t = setInterval(() => { const bar = document.querySelector("[data-testid=in-person-bar]"); if (bar || ++n > 100) { clearInterval(t); r(bar?.innerText ?? null); } }, 100); })`);
+  check("Record a call starts (recording bar)", /Recording a call/.test(recording ?? ""), String(recording));
+  await sleep(11_500); // more than one 10-second audio chunk
+  await page.eval(`[...document.querySelectorAll("[data-testid=in-person-bar] button")].find((b) => /Stop/.test(b.textContent)).click(); true`);
+  const meeting = await page.eval(`new Promise((resolve) => {
+    let n = 0;
+    const look = () => {
+      const req = indexedDB.open("prodli-meetings");
+      req.onsuccess = () => {
+        const db = req.result;
+        const all = db.transaction("meetings").objectStore("meetings").getAll();
+        all.onsuccess = () => {
+          const m = all.result.find((x) => x.platform === "desktop");
+          db.close();
+          if (m && m.status === "ready") resolve({ title: m.title, hasAudio: m.hasAudio, durationSec: m.durationSec, notice: m.notice, mime: m.audioMimeType });
+          else if (++n > 60) resolve(m ?? null);
+          else setTimeout(look, 250);
+        };
+      };
+    };
+    look();
+  })`);
+  check("saved as a desktop call with its audio", meeting?.hasAudio === true && /^Call · /.test(meeting.title) && meeting.durationSec >= 10, JSON.stringify(meeting));
+  check("recorded the computer's sound too (no microphone-only warning)", !!meeting && !/Only your microphone/.test(meeting.notice ?? ""), JSON.stringify(meeting?.notice));
+  const recState = await page.eval(`!document.querySelector("[data-testid=in-person-bar]")`);
+  check("recording bar gone after stopping", recState === true);
 
   console.log("sign in through the browser");
   await page.eval(`window.__signIn = window.prodliDesktop.account.signIn(); true`);
@@ -167,6 +201,7 @@ try {
   console.log("relaunch");
   app = launch();
   page = await connect();
+  await page.eval(`new Promise((r) => { const t = setInterval(() => window.prodliDesktop && (clearInterval(t), r(true)), 100); })`);
   const again = await page.eval(`window.prodliDesktop.storage.get("prodliSession").then((s) => !!s?.token)`);
   check("stays signed in after a restart (token decrypted)", again === true);
   page.close();

@@ -223,7 +223,8 @@ export async function stopInPerson(onPhase?: (phase: "saving" | "transcribing" |
     await updateMeeting(s.meetingId, () => ({ status: "ready" }));
   }
   if (s.kind === "call" && !s.systemAudio && hasAudio) {
-    await updateMeeting(s.meetingId, (m) => ({ notice: m.notice ?? MIC_ONLY_NOTICE }));
+    // Always say it, alongside any other notice (e.g. "sign in to transcribe").
+    await updateMeeting(s.meetingId, (m) => ({ notice: m.notice ? `${MIC_ONLY_NOTICE} ${m.notice}` : MIC_ONLY_NOTICE }));
   }
   return result;
 }
