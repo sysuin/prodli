@@ -6,6 +6,7 @@ import { storageGet, storageSet } from "../../lib/storage";
 import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, SUMMARY_LANGUAGE_STORAGE_KEY, SUMMARY_LANGUAGES, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
 import { ProBadge } from "../../components/Pro";
 import { CustomTemplates, useCustomTemplates } from "./CustomTemplates";
+import { TemplateRules } from "./TemplateRules";
 
 const field: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontSize: 12, padding: "5px 6px", width: "100%", boxSizing: "border-box" };
 const label: CSSProperties = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7 };
@@ -71,6 +72,7 @@ export function MeetingNotesSettings() {
       </select>
       <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>Shapes what summaries pull out (e.g. Interview: strengths and concerns). Each meeting can pick its own.</div>
       <CustomTemplates />
+      <TemplateRules />
 
       <label style={sub} htmlFor={`${id}-lang`}>
         Notes language

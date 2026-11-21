@@ -14,10 +14,12 @@ import { ShareMeeting } from "./meetings/ShareMeeting";
 import { TalkTime } from "./meetings/TalkTime";
 import { KeyMoments } from "./meetings/KeyMoments";
 import { Coach } from "./meetings/Coach";
+import { YourNotes } from "./meetings/YourNotes";
 import { meetingToMarkdown } from "../lib/meetingExport";
 import { RECORD_NUDGE_KEY } from "../lib/recordNudge";
 import { downloadText, safeFileName } from "../lib/markdownExport";
 import { MeetingInsights } from "./meetings/MeetingInsights";
+import { Decisions } from "./meetings/Decisions";
 import { ActionItems } from "./meetings/ActionItems";
 import { Series } from "./meetings/Series";
 import { meetingSeries } from "../lib/meetingPrep";
@@ -70,7 +72,7 @@ export function meetingMatches(m: Meeting, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const s = m.summary;
-  const hay = [m.title, s?.title, s?.overview, ...(s?.customSections ?? []).flatMap((c) => [c.heading, ...c.points]), ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
+  const hay = [m.title, s?.title, s?.overview, ...(s?.customSections ?? []).flatMap((c) => [c.heading, ...c.points]), ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), m.userNotes, ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
   return hay.some((h) => h?.toLowerCase().includes(q));
 }
 
@@ -659,6 +661,13 @@ function MeetingDetail({
         </Section>
       )}
 
+      {/* While it records, the notepad is under the recording bar instead. */}
+      {meeting.status !== "recording" && (
+        <Section title="Your notes">
+          <YourNotes key={meeting.id} meetingId={meeting.id} />
+        </Section>
+      )}
+
       {meeting.transcript.length > 0 && (
         <Section title="Transcript">
           <button style={{ ...btn(), marginBottom: 8 }} onClick={() => setShowTranscript((v) => !v)}>
@@ -701,10 +710,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const [speechStatus, setSpeechStatus] = useState<SpeechAvailability | "checking" | "installing">("checking");
   const [autoSummarize, setAutoSummarize] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"meetings" | "actions" | "insights">("meetings");
+  const [view, setView] = useState<"meetings" | "actions" | "insights" | "decisions">("meetings");
   // Why the last click on the ProdLi icon didn't start recording (recorder/controller.ts).
   const [problem, setProblem] = useState<{ message: string; at: string } | null>(null);
   useEffect(() => {
@@ -946,6 +956,11 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             📊 Insights
           </button>
         )}
+        {meetings.length > 0 && (
+          <button style={btn(view === "decisions" ? "primary" : "plain")} aria-pressed={view === "decisions"} onClick={() => setView((v) => (v === "decisions" ? "meetings" : "decisions"))} title="Every decision from your meetings">
+            🧭 Decisions
+          </button>
+        )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
         {ext && (
           <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
@@ -1013,15 +1028,23 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           Recording · {formatTimestamp(elapsed * 1000)}
           <span style={{ opacity: 0.85 }}>{recState.platform && recState.platform !== "google-meet" ? `${recState.platform === "browser" ? "This tab" : `${PLATFORM_LABEL[recState.platform]} call`} — recording audio; the transcript is made after the call` : recState.captionsOn ? "Captions on — transcript is being captured" : "Captions are off — only audio is being recorded. Turn on CC in Meet for a transcript."}</span>
           <button style={{ ...btn("plain"), marginLeft: "auto" }} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied: paste it in the meeting chat" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
+          <button style={btn(notesOpen ? "primary" : "plain")} aria-pressed={notesOpen} onClick={() => setNotesOpen((v) => !v)} title="Your notes for this meeting">📝 Notes</button>
           <button style={btn("plain")} onClick={() => void markMoment()} title="Mark this moment as important (Alt+Shift+M)">★ Mark moment</button>
           <button style={btn("primary")} onClick={() => void stopRecording()}>■ Stop</button>
+        </div>
+      )}
+      {recState && notesOpen && (
+        <div style={{ borderBottom: "var(--nb-border)", background: "hsl(var(--muted))", padding: "10px 24px" }}>
+          <YourNotes meetingId={recState.meetingId} live compact />
         </div>
       )}
 
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
         {showSetup && setupPanel}
 
-        {view === "insights" && meetings.length > 0 ? (
+        {view === "decisions" && meetings.length > 0 ? (
+          <Decisions meetings={meetings} flash={flash} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
+        ) : view === "insights" && meetings.length > 0 ? (
           <MeetingInsights meetings={meetings} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />
         ) : view === "actions" && meetings.length > 0 ? (
           <ActionItems meetings={meetings} flash={flash} onOpenMeeting={(id) => { setSelectedId(id); setView("meetings"); }} />

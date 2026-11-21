@@ -100,6 +100,15 @@ export interface SummarizeInput {
   language?: string;
   /** Moments the user marked during the meeting (Pro: "★ Mark moment"), as "[mm:ss] what was said". */
   moments?: string[];
+  /** The user's own notes typed during the meeting (Pro: "Your notes"). */
+  notes?: string;
+}
+
+export const MAX_USER_NOTES = 8000;
+/** The user's notes from the app: trimmed, blank lines squeezed, at most MAX_USER_NOTES characters. */
+export function cleanUserNotes(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_USER_NOTES);
 }
 
 export const MAX_MOMENTS = 30;
@@ -138,7 +147,7 @@ export async function summarizeWithClaude(input: SummarizeInput, apiKey: string)
       messages: [
         {
           role: "user",
-          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.language && SUMMARY_LANGUAGES[input.language] ? `\nWrite every field in ${SUMMARY_LANGUAGES[input.language]}, whatever language was spoken (this replaces the language rule above). Translate faithfully; keep people's names, product names and quoted terms as they were said.\n` : ""}${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}${input.moments?.length ? `\nDuring the meeting the user marked these moments as important (time and what was being said). Make sure the notes cover each of them, in whichever section fits:\n<moments>\n${input.moments.join("\n")}\n</moments>\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
+          content: `Meeting date: ${input.date}\nMeeting name: ${input.title}\n${input.language && SUMMARY_LANGUAGES[input.language] ? `\nWrite every field in ${SUMMARY_LANGUAGES[input.language]}, whatever language was spoken (this replaces the language rule above). Translate faithfully; keep people's names, product names and quoted terms as they were said.\n` : ""}${templateText(input)}${input.glossary?.length ? `\nNames and terms to spell exactly as written here (captions often mishear them): ${input.glossary.join(", ")}\n` : ""}${input.notes ? `\nThe user's own notes, typed during the meeting. They show what mattered to the user: make sure the summary reflects them, keep the user's wording for decisions and action items they wrote down, and add facts from the notes only if the transcript doesn't contradict them:\n<user_notes>\n${input.notes}\n</user_notes>\n` : ""}${input.moments?.length ? `\nDuring the meeting the user marked these moments as important (time and what was being said). Make sure the notes cover each of them, in whichever section fits:\n<moments>\n${input.moments.join("\n")}\n</moments>\n` : ""}\n<transcript>\n${input.transcript}\n</transcript>\n\nWrite the meeting notes.`,
         },
       ],
     });

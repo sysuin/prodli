@@ -8,6 +8,7 @@ const meeting = {
   transcript: [{ id: "1", speaker: "Ann", text: "We ship Friday.", startMs: 60000, endMs: 63000 }],
   marks: [64000],
   doneActions: ["Book the room"],
+  userNotes: "Budget is 20k\nAnn owns QA",
   summary: {
     title: "Launch sync", overview: "We're on track.", keyPoints: ["Docs are ready"], decisions: ["Ship Friday"],
     actionItems: [{ task: "Send the notes", owner: "Ann", dueDate: "2026-11-21", priority: "high" }, { task: "Book the room", owner: null, dueDate: null, priority: "low" }],
@@ -28,6 +29,9 @@ describe("meetingToMarkdown", () => {
     expect(md).toContain("- [ ] Send the notes (Ann, due 2026-11-21)");
     expect(md).toContain("- [x] Book the room");
     expect(md).not.toContain("Open questions");
+  });
+  it("adds your notes", () => {
+    expect(md).toContain("## My notes\nBudget is 20k\nAnn owns QA");
   });
   it("adds key moments but never the transcript itself", () => {
     expect(md).toContain("## Key moments\n- **01:04** Ann: We ship Friday.");

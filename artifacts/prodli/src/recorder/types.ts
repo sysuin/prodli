@@ -79,6 +79,8 @@ export interface Meeting {
   template?: MeetingTemplate | CustomTemplateRef;
   /** Who talked when (mic vs. call), to label AI transcripts "You" / "Others" (recorder/speakers.ts). */
   speakerActivity?: [number, number, 0 | 1][];
+  /** Your own notes, typed during or after the meeting ("📝 Your notes"; Pro summaries build on them). */
+  userNotes?: string;
   /** "🎯 Coach me" feedback on this meeting (Pro; prodli-api coach.ts). */
   coaching?: MeetingCoaching;
   /** Moments marked while recording ("★ Mark moment"), in ms since the start (lib/moments.ts). */

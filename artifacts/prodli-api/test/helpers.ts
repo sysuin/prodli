@@ -103,6 +103,7 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.custom) calls.push({ kind: "summarize-custom", clientId: `${input.custom.name}|${input.custom.sections.join(",")}` });
       if (input.language) calls.push({ kind: "summarize-language", clientId: input.language });
       if (input.moments) calls.push({ kind: "summarize-moments", clientId: input.moments.join("|") });
+      if (input.notes) calls.push({ kind: "summarize-notes", clientId: input.notes });
       if (input.transcript.includes("FAIL")) throw new AiError("ai_failed", "Summarizing failed. Try again.");
       return { title: `Notes: ${input.title}`, overview: "o", keyPoints: [], decisions: [], actionItems: [], openQuestions: [], customSections: (input.custom?.sections ?? []).map((heading) => ({ heading, points: [`About ${heading}`] })), model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },

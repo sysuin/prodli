@@ -277,3 +277,23 @@ describe("meeting coach (Pro)", () => {
     expect(usage.used).toBe(0);
   });
 });
+
+describe("your notes in summaries (Pro)", () => {
+  const meeting = { title: "M", date: "2026-11-21", transcript: "[00:00] A: hi" };
+  it("passes cleaned notes to the summary during early access", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, notes: "  Budget 20k\r\n\n\n\nAnn owns pricing  " }, auth), env)).status).toBe(200);
+    expect(calls.find((c) => c.kind === "summarize-notes")?.clientId).toBe("Budget 20k\n\nAnn owns pricing");
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, notes: "x".repeat(9000) }, auth), env)).status).toBe(200);
+    expect(calls.filter((c) => c.kind === "summarize-notes")[1].clientId).toHaveLength(8000);
+  });
+  it("leaves notes out (but still summarizes) without Pro once Pro is on sale", async () => {
+    const { app, calls } = makeApp();
+    const env = selling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/summarize", json({ ...meeting, notes: "Budget 20k" }, auth), env)).status).toBe(200);
+    expect(calls.some((c) => c.kind === "summarize-notes")).toBe(false);
+  });
+});

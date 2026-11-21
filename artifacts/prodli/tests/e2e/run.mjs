@@ -1754,6 +1754,38 @@ const suites = {
     await p.eval(`[...document.querySelectorAll('[data-testid="insight-series"] button')].find((x) => x.textContent.includes("Pipeline review"))?.click()`);
     await sleep(400);
     check("Insights: a recurring meeting opens its latest one", (await p.eval(`!!document.querySelector('[data-testid="key-moments"]')`)) === true);
+    check("Your notes: a finished meeting has its notepad", await p.eval(`!!document.querySelector('[data-testid="your-notes"] textarea')`));
+    // 🧭 Decisions: every decision from every meeting, searchable.
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => /Decisions/.test(x.textContent) && x.getAttribute("aria-pressed") !== null)?.click()`);
+    await sleep(500);
+    const log = await p.eval(`document.querySelector('[data-testid="decision-log"]')?.innerText ?? ""`);
+    check("Decisions: the log lists decisions with their meeting", log.includes("Push Acme to sign") && log.includes("Pipeline review"), log.slice(0, 400));
+    await p.eval(`(() => { const i = document.querySelector('input[aria-label="Search decisions"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "acme to sign"); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(300);
+    const filtered = await p.eval(`[...document.querySelectorAll('[data-testid="decision-group"] li')].map((x) => x.textContent)`);
+    check("Decisions: searching keeps only matching decisions", filtered.length === 1 && filtered[0] === "Push Acme to sign", JSON.stringify(filtered));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      const dv = await p.eval(`axe.run(document.querySelector('[data-testid="decision-log"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): decision log has no serious problems`, dv.length === 0, dv.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Setup → Meeting notes → rules that pick the type from the meeting's name.
+    await p.eval(`[...document.querySelectorAll("button")].find((x) => /Decisions/.test(x.textContent) && x.getAttribute("aria-pressed") === "true")?.click()`);
+    await p.eval(`(() => { if (!document.querySelector('[data-testid="template-rules"]')) [...document.querySelectorAll("button")].find((x) => /Setup/.test(x.textContent))?.click(); return true; })()`);
+    await sleep(500);
+    await p.eval(`(() => { const i = document.querySelector('input[aria-label^="Words in the meeting"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Pipeline, deal review"); i.dispatchEvent(new Event("input", { bubbles: true })); const s = document.querySelector('select[aria-label="Meeting type for this rule"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "sales"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="template-rules"] button')].find((x) => /Add rule/.test(x.textContent))?.click()`);
+    await sleep(400);
+    const rulesText = await p.eval(`document.querySelector('[data-testid="template-rules"]')?.innerText ?? ""`);
+    const storedRules = await p.eval(`chrome.storage.local.get("meetingTemplateRules").then((r) => r.meetingTemplateRules ?? [])`);
+    check("Type rules: a rule is added and saved", /Name has pipeline, deal review → Sales \/ customer call/i.test(rulesText) && storedRules.length === 1 && storedRules[0].template === "sales", `${rulesText} ${JSON.stringify(storedRules)}`);
+    await p.eval(`document.querySelector('[aria-label="Remove the rule for pipeline, deal review"]')?.click()`);
+    await sleep(300);
+    check("Type rules: × removes it", (await p.eval(`chrome.storage.local.get("meetingTemplateRules").then((r) => (r.meetingTemplateRules ?? []).length)`)) === 0);
+    await p.eval(`(() => { if (document.querySelector('[data-testid="template-rules"]')) [...document.querySelectorAll("button")].find((x) => /Setup/.test(x.textContent))?.click(); return true; })()`);
     await p.eval(`document.documentElement.classList.remove("dark")`);
     await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings", 1); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); t.objectStore("meetings").delete("mtg_talk"); t.objectStore("meetings").delete("mtg_talk_prev"); t.oncomplete = () => resolve(true); }; })`);
     await p.close();
@@ -1847,6 +1879,10 @@ const suites = {
     await sleep(9000);
     await ip.eval(`document.querySelector('[data-testid="in-person-chip"]')?.click()`);
     await sleep(1200);
+    // 📝 Your notes: open under the recording bar, saved on the meeting as you type.
+    const typed = await ip.eval(`(() => { const t = document.querySelector('[data-testid="your-notes"] textarea'); if (!t) return false; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(t, "Venue budget 5k\\nPriya books it"); t.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    await sleep(1200);
+    check("In person: 📝 Your notes is open under the recording bar and saves as you type", typed && (await ip.eval(`document.querySelector('[data-testid="your-notes"]').innerText`)).includes("Saved"));
     await ip.eval(`[...document.querySelectorAll('[data-testid="in-person-bar"] button')].find((x) => /Stop/.test(x.textContent)).click()`);
     let inPerson;
     for (let i = 0; i < 40; i++) {
@@ -1855,6 +1891,8 @@ const suites = {
       if (inPerson && inPerson.status === "ready") break;
     }
     check("In person: stopping saves the recording and transcribes it", inPerson?.status === "ready" && inPerson.hasAudio && inPerson.source === "audio" && inPerson.transcript?.[0] === "Speaker: Let's book the venue for the offsite." && /^In person · /.test(inPerson.title), JSON.stringify(inPerson));
+    const rawNotes = await ip.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => resolve(q.result.find((x) => x.platform === "in-person" && x.status === "ready")?.userNotes ?? null); }; })`);
+    check("In person: your notes are kept with the saved meeting", rawNotes === "Venue budget 5k\nPriya books it", JSON.stringify(rawNotes));
     check("In person: the recording bar and chip are gone", !(await ip.eval(`!!document.querySelector('[data-testid="in-person-bar"], [data-testid="in-person-chip"]')`)));
     // A recording cut short by a closed page keeps its saved audio when Meetings opens again.
     await ip.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const db = r.result; const t = db.transaction(["meetings", "audioChunks"], "readwrite"); const now = new Date().toISOString(); t.objectStore("meetings").put({ id: "mtg_cut", platform: "in-person", title: "In person · cut", meetingCode: null, url: "", startedAt: now, endedAt: null, durationSec: 0, status: "recording", transcript: [], summary: null, error: null, notice: null, hasAudio: false, micIncluded: true, audioMimeType: null, updatedAt: now }); t.objectStore("audioChunks").put({ meetingId: "mtg_cut", seq: 0, data: new Blob([new Uint8Array(2048)], { type: "audio/webm" }) }); t.oncomplete = () => resolve(true); }; })`);
