@@ -3,6 +3,7 @@
 
 import { getDayKey, getDaysBetween } from "../../lib/utils";
 import type { TrackerSettings, TimeTrackingDay } from "../../types";
+import { onAnyStorageChange, storageGetAll, storageRemove, storageSet } from "../../lib/storage";
 
 /** Theme-aware purple with WCAG AA contrast (deeper in light mode, lighter in dark). */
 export const ACCENT = "var(--tracker-accent)";
@@ -42,14 +43,10 @@ export async function getAllTrackingData(): Promise<Record<string, TimeTrackingD
       });
     });
   }
+  // Web app and desktop app: history synced from the extension, through the storage helpers.
   const out: Record<string, TimeTrackingDay> = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && /^prodli_tt_\d{4}-\d{2}-\d{2}$/.test(key)) {
-      try {
-        out[key.slice("prodli_tt_".length)] = JSON.parse(localStorage.getItem(key)!);
-      } catch { /* skip */ }
-    }
+  for (const [k, v] of Object.entries(await storageGetAll())) {
+    if (/^tt_\d{4}-\d{2}-\d{2}$/.test(k)) out[k.slice(3)] = v as TimeTrackingDay;
   }
   return out;
 }
@@ -64,6 +61,8 @@ if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && Object.keys(changes).some((k) => /^tt_\d{4}-\d{2}-\d{2}$/.test(k))) _rangeCache.clear();
   });
+} else if (typeof window !== "undefined") {
+  onAnyStorageChange((keys) => keys.some((k) => /^tt_\d{4}-\d{2}-\d{2}$/.test(k)) && _rangeCache.clear());
 }
 /** Forget cached ranges (e.g. when a view is opened, to show fresh data). */
 export function invalidateRangeCache(): void {
@@ -93,12 +92,8 @@ export async function clearAllTrackingData(): Promise<void> {
     if (keys.length) await new Promise<void>((resolve) => chrome.storage.local.remove(keys, resolve));
     return;
   }
-  const toRemove: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith("prodli_") && HISTORY_KEY.test(k.slice(7))) toRemove.push(k);
-  }
-  toRemove.forEach((k) => localStorage.removeItem(k));
+  const keys = Object.keys(await storageGetAll()).filter((k) => HISTORY_KEY.test(k));
+  await Promise.all(keys.map((k) => storageRemove(k)));
 }
 
 export async function clearDomainHistory(domain: string): Promise<void> {
@@ -118,16 +113,12 @@ export async function clearDomainHistory(domain: string): Promise<void> {
     }
     return;
   }
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && /^prodli_tt_\d{4}-\d{2}-\d{2}$/.test(k)) {
-      try {
-        const day: Record<string, number> = JSON.parse(localStorage.getItem(k)!);
-        if (domain in day) {
-          delete day[domain];
-          localStorage.setItem(k, JSON.stringify(day));
-        }
-      } catch { /* skip */ }
+  for (const [k, v] of Object.entries(await storageGetAll())) {
+    const day = v as Record<string, number> | undefined;
+    if (/^tt_\d{4}-\d{2}-\d{2}$/.test(k) && day && typeof day === "object" && domain in day) {
+      const updated = { ...day };
+      delete updated[domain];
+      await storageSet(k, updated);
     }
   }
 }

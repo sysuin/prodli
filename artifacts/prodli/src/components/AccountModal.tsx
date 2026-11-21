@@ -24,6 +24,7 @@ import {
   onProdliAccountChange,
   refreshAccount,
   renderGoogleButton,
+  signInFromDesktop,
   signInFromExtension,
   signOutDevice,
   signOutEverywhere,
@@ -34,6 +35,7 @@ import {
   type ProdliUser,
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
+import { desktop } from "../lib/desktop";
 import { checkout, formatBytes, formatPrice, getBilling, openPortal, type Billing, type Interval } from "../lib/billing";
 
 function PlanBox({ user }: { user: ProdliUser }) {
@@ -400,6 +402,7 @@ function SignInFirst({ what, onSignIn }: { what: string; onSignIn: () => void })
 /** Settings › Account: profile, sign in / out, delete account. */
 function ProdliAccountSection() {
   const ext = isExtensionBuild();
+  const app = desktop();
   const [user, setUser] = useProdliUser();
   const { busy, act, setMessage, status } = useAction();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -408,7 +411,7 @@ function ProdliAccountSection() {
   const [buttonError, setButtonError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ext || user !== null || !googleBtn.current) return;
+    if (ext || app || user !== null || !googleBtn.current) return;
     // Google's script rewrites the element it's given, so give it one React
     // doesn't manage (React would crash removing nodes Google replaced).
     const host = document.createElement("div");
@@ -426,7 +429,7 @@ function ProdliAccountSection() {
       cancelled = true;
       host.remove();
     };
-  }, [ext, user, setUser, setMessage]);
+  }, [ext, app, user, setUser, setMessage]);
 
   if (user === undefined) return <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
 
@@ -446,7 +449,32 @@ function ProdliAccountSection() {
             <a href="https://prodli.com/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Privacy Policy</a>, and confirm you’re 18 or older.
           </div>
         </div>
-        {ext ? (
+        {app ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            <button
+              onClick={() => void act("signin", async () => {
+                const u = await signInFromDesktop();
+                setUser(u);
+                setMessage({ tone: "ok", text: `Signed in as ${u.email}. Syncing your data…` });
+              })}
+              disabled={!!busy}
+              data-testid="desktop-signin"
+              style={{ ...btn(false, !!busy), display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", color: "#1f1f1f", textTransform: "none", fontSize: 14, padding: "10px 16px" }}
+            >
+              <GoogleG /> {busy === "signin" ? "Waiting for your browser…" : "Sign in with Google"}
+            </button>
+            {busy === "signin" ? (
+              <div style={{ fontSize: 12, textAlign: "center", lineHeight: 1.5 }}>
+                Finish signing in in the browser window that just opened, then come back here.{" "}
+                <button onClick={() => void app.account.cancelSignIn()} style={{ border: "none", background: "none", padding: 0, color: "inherit", textDecoration: "underline", cursor: "pointer", fontSize: 12 }}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.75, textAlign: "center" }}>Opens app.prodli.com in your browser to sign in safely.</div>
+            )}
+          </div>
+        ) : ext ? (
           <button
             onClick={() => void act("signin", async () => {
               const u = await signInFromExtension(true);
@@ -568,7 +596,7 @@ function ProdliDevicesSection({ onSignIn }: { onSignIn: () => void }) {
           devices.map((d) => (
             <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 13 }}>
               <span>
-                <strong>{d.client === "extension" ? "Extension" : d.client === "mobile" ? "Phone app" : "Web"}</strong> · {d.device || "Unknown device"} · {ago(d.lastUsedAt)}
+                <strong>{d.client === "extension" ? "Extension" : d.client === "mobile" ? "Phone app" : d.client === "desktop" ? "Desktop app" : "Web"}</strong> · {d.device || "Unknown device"} · {ago(d.lastUsedAt)}
                 {d.current && <em style={{ marginLeft: 6, opacity: 0.7 }}>(this one)</em>}
               </span>
               {!d.current && (

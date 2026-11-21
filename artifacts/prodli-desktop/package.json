@@ -1,0 +1,30 @@
+{
+  "name": "@workspace/prodli-desktop",
+  "productName": "ProdLi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ProdLi for Mac and Windows: notes, to-dos, habits, focus and AI meeting notes for any call.",
+  "author": "ProdLi <support@prodli.com>",
+  "homepage": "https://prodli.com",
+  "main": "dist/main/index.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/build.mjs && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "icons": "node scripts/make-icons.mjs",
+    "dist:mac": "node scripts/build.mjs && electron-builder --mac --publish never",
+    "dist:win": "node scripts/build.mjs && electron-builder --win --publish never",
+    "dist:dir": "node scripts/build.mjs && electron-builder --dir --publish never",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "electron": "45.4.1",
+    "electron-builder": "^26.18.0",
+    "esbuild": "0.27.3",
+    "typescript": "~5.9.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -27,6 +27,7 @@ import {
   type Authenticated,
   type Client,
 } from "./accounts";
+import { CHALLENGE, createDesktopCode, desktopDeviceLabel, redeemDesktopCode, VERIFIER } from "./desktopAuth";
 import { GoogleAuthError, verifyExtensionAccessToken, verifyWebIdToken, type GoogleIdentity } from "./google";
 import { ASK_MONTHLY_LIMIT, AskInputSchema, askClaude, MAX_ASK_CHARS, type AskAnswer, type AskInput } from "./ask";
 import { BRIEF_MONTHLY_LIMIT, BriefContextSchema, generateBrief, MAX_BRIEF_CONTEXT_CHARS, type Brief, type BriefContext } from "./brief";
@@ -101,10 +102,12 @@ const useFakeGoogle = (env: Env) => env.ENV === "development" && env.DEV_FAKE_GO
 /** The Chrome Web Store build (and unpacked builds with the store key) share this ID. */
 export const EXTENSION_ORIGIN = "chrome-extension://gjgknflakhglanjaeenkmciohimnbkdp";
 export const SESSION_COOKIE = "__Host-prodli_session";
+/** The desktop apps (artifacts/prodli-desktop) serve their pages from this origin. */
+export const DESKTOP_ORIGIN = "app://prodli";
 
 /** Browser origins allowed to call the API with the user's session. */
 export function allowedOrigins(env: Environment): string[] {
-  const production = ["https://app.prodli.com", "https://prodli.com", EXTENSION_ORIGIN];
+  const production = ["https://app.prodli.com", "https://prodli.com", EXTENSION_ORIGIN, DESKTOP_ORIGIN];
   if (env === "production") return production;
   const local = ["http://localhost:5173", "http://localhost:8787", "http://127.0.0.1:5173"];
   if (env === "staging") return [...production, "https://staging.prodli.com", ...local];
@@ -270,6 +273,31 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ user, session });
     }
     return c.json({ user, session, token });
+  });
+
+  // ── Desktop app sign-in (src/desktopAuth.ts) ──────────────────────────────
+  // Step 2: the signed-in web app asks for a one-time code for the app's challenge.
+  app.post("/api/auth/desktop/code", rateLimitAuth, requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { challenge?: unknown } | null;
+    if (typeof body?.challenge !== "string" || !CHALLENGE.test(body.challenge)) return c.json({ error: "bad_request" }, 400);
+    const code = await createDesktopCode(c.env.DB, c.get("auth").user.id, body.challenge, deps.now());
+    return c.json({ code });
+  });
+
+  // Step 3: the app trades the code and its verifier for a bearer session. The
+  // app's main process sends no Origin; a browser always does, so a foreign one is refused.
+  app.post("/api/auth/desktop/token", rateLimitAuth, async (c) => {
+    const origin = c.req.header("Origin");
+    if (origin !== undefined && !isAllowedOrigin(c, origin)) return c.json({ error: "bad_origin" }, 403);
+    const body = (await c.req.json().catch(() => null)) as { code?: unknown; verifier?: unknown; platform?: unknown } | null;
+    if (typeof body?.code !== "string" || typeof body.verifier !== "string" || !VERIFIER.test(body.verifier)) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const redeemed = await redeemDesktopCode(c.env.DB, body.code, body.verifier, now);
+    if (!redeemed.ok) return c.json({ error: redeemed.error }, 400);
+    const { token, session } = await createSession(c.env.DB, redeemed.userId, "desktop", desktopDeviceLabel(body.platform), now);
+    const auth = await authenticate(c.env.DB, token, now);
+    if (!auth) return c.json({ error: "unauthorized" }, 401);
+    return c.json({ user: auth.user, session, token });
   });
 
   // ── Account ────────────────────────────────────────────────────────────────

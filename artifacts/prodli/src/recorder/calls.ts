@@ -11,7 +11,7 @@
 // transcribed after the call (AI transcription when signed in, or on-device).
 
 /** "in-person": recorded from the microphone on the Meetings page (recorder/inPerson.ts), not a call tab. */
-export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person";
+export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person" | "desktop";
 
 export interface CallInfo {
   platform: CallPlatform;
@@ -30,6 +30,7 @@ export const PLATFORM_LABEL: Record<CallPlatform, string> = {
   whereby: "Whereby",
   browser: "Browser call",
   "in-person": "In person",
+  desktop: "Call",
 };
 
 const parse = (url: string | undefined): URL | null => {
@@ -145,7 +146,7 @@ export function placeholderTitle(call: CallInfo): string {
 
 /** Still the starting title (so a page or summary title may replace it)? */
 export function isPlaceholderTitle(title: string): boolean {
-  return /^(Google Meet|Zoom|Teams|Webex|Slack|Discord|Jitsi Meet|Whereby|Browser call|In person) · /.test(title);
+  return /^(Google Meet|Zoom|Teams|Webex|Slack|Discord|Jitsi Meet|Whereby|Browser call|In person|Call) · /.test(title);
 }
 
 /** App names that tab titles add around the meeting's name. */

@@ -1,0 +1,95 @@
+# Builds the desktop app installers on real Mac and Windows machines, smoke-tests
+# each package, and attaches them to the run (Actions → run → Artifacts).
+#
+#   Manual run (Actions → Desktop → Run workflow), a tag "desktop-v1.0.0", or a
+#   pull request that changes the desktop app's packaging.
+#
+# Minutes: macOS runners count 10× and Windows 2× against a private repo's free
+# 2,000 minutes, so this doesn't run on every push (CI checks a Linux package
+# instead). A run takes about 10 minutes per platform.
+#
+# Signing (optional; without these the installers are unsigned — see docs/DESKTOP.md):
+#   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD (Developer ID Application),
+#            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (notarization)
+#   Windows: WIN_CERT_P12_BASE64, WIN_CERT_PASSWORD
+name: Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["desktop-v*"]
+  pull_request:
+    paths:
+      - "artifacts/prodli-desktop/electron-builder.yml"
+      - "artifacts/prodli-desktop/build/**"
+      - "artifacts/prodli-desktop/package.json"
+      - ".github/workflows/desktop.yml"
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+            args: --mac
+            app: release/mac-universal/ProdLi.app/Contents/MacOS/ProdLi
+          - os: windows-latest
+            name: windows
+            args: --win
+            app: release/win-unpacked/ProdLi.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/prodli-desktop run typecheck
+      - run: pnpm --filter @workspace/prodli-desktop run test
+      - run: pnpm --filter @workspace/prodli-desktop run build
+      - name: Package
+        shell: bash
+        working-directory: artifacts/prodli-desktop
+        env:
+          MAC_CERT: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          WIN_CERT: ${{ secrets.WIN_CERT_P12_BASE64 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          extra=()
+          if [ "${{ matrix.name }}" = mac ] && [ -n "$MAC_CERT" ]; then
+            export CSC_LINK="$MAC_CERT" CSC_KEY_PASSWORD="$MAC_CERT_PASSWORD"
+            [ -n "$APPLE_ID" ] && extra+=(-c.mac.notarize=true)
+          elif [ "${{ matrix.name }}" = windows ] && [ -n "$WIN_CERT" ]; then
+            export CSC_LINK="$WIN_CERT" CSC_KEY_PASSWORD="$WIN_CERT_PASSWORD"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "::notice::${{ matrix.name }}: no signing certificate — the installer is unsigned."
+          fi
+          pnpm exec electron-builder ${{ matrix.args }} --publish never "${extra[@]}"
+      - name: Smoke-test the packaged app
+        working-directory: artifacts/prodli-desktop
+        run: node tests/smoke.mjs ${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prodli-desktop-${{ matrix.name }}
+          path: |
+            artifacts/prodli-desktop/release/*.dmg
+            artifacts/prodli-desktop/release/*.zip
+            artifacts/prodli-desktop/release/*.exe
+            artifacts/prodli-desktop/release/*.blockmap
+            artifacts/prodli-desktop/release/latest*.yml
+          if-no-files-found: error
+          retention-days: 30

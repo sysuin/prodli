@@ -6,9 +6,11 @@
 //   https://…      an extension build talking to that server
 //   (unset)        no ProdLi account in this build; everything works as before
 //
-// The extension keeps a bearer token in chrome.storage.local. The web app never
-// sees its token: the server sets an HttpOnly cookie.
+// The extension keeps a bearer token in chrome.storage.local; the desktop app
+// keeps it in its own store, encrypted with the OS keychain (desktop.ts). The
+// web app never sees its token: the server sets an HttpOnly cookie.
 
+import { desktop } from "./desktop";
 import { getToken, PROFILE_SCOPES } from "./google";
 import { onStorageChange, storageGet, storageRemove, storageSet } from "./storage";
 
@@ -29,7 +31,7 @@ export interface ProdliUser {
 
 export interface Device {
   id: string;
-  client: "extension" | "web" | "mobile";
+  client: "extension" | "web" | "mobile" | "desktop";
   device: string;
   createdAt: number;
   lastUsedAt: number;
@@ -63,6 +65,8 @@ export function apiBase(): string {
 }
 
 const isExtension = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.storage?.local;
+/** The extension and the desktop app send `Authorization: Bearer`; the web app uses its cookie. */
+const usesBearer = () => isExtension() || desktop() !== null;
 
 const friendly: Record<string, string> = {
   unauthorized: "You've been signed out. Sign in again.",
@@ -94,13 +98,13 @@ const friendly: Record<string, string> = {
 export async function accountRequest<T>(path: string, init: RequestInit = {}, messages: Record<string, string> = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  if (isExtension()) {
+  if (usesBearer()) {
     const session = await storageGet<StoredSession | null>(PRODLI_SESSION_KEY, null);
     if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
   }
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}${path}`, { ...init, headers, credentials: isExtension() ? "omit" : "include" });
+    res = await fetch(`${apiBase()}${path}`, { ...init, headers, credentials: usesBearer() ? "omit" : "include" });
   } catch {
     throw new AccountError("Can't reach ProdLi. Check your connection and try again.");
   }
@@ -137,6 +141,21 @@ export async function signInFromExtension(interactive = true): Promise<ProdliUse
   await storageSet<StoredSession>(PRODLI_SESSION_KEY, { token: r.token, expiresAt: r.session.expiresAt });
   await storageSet(PRODLI_ACCOUNT_KEY, r.user);
   return r.user;
+}
+
+/**
+ * Desktop app: sign in through the system browser (app.prodli.com), which hands
+ * the app a one-time code. The app's main process stores the session and the
+ * profile under the usual keys, so this page hears about it like any change.
+ */
+export async function signInFromDesktop(): Promise<ProdliUser> {
+  const d = desktop();
+  if (!d) throw new AccountError("This only works in the ProdLi desktop app.");
+  const r = await d.account.signIn();
+  if (!r.ok) throw new AccountError(r.cancelled ? "Sign-in was cancelled." : r.error);
+  const user = await getProdliAccount();
+  if (!user) throw new AccountError("Signed in, but your profile didn't arrive. Try again.");
+  return user;
 }
 
 /** Web: a Google Identity Services ID token → ProdLi session (HttpOnly cookie). */

@@ -15,7 +15,9 @@ import { LiveTranscriber, speechAvailability } from "./speech";
 import { transcribeRecording } from "./audioTranscribe";
 import { canUseProdliAi, summarizeMeeting } from "./summarize";
 import { isPlaceholderTitle } from "./calls";
-import { setCurrentInPerson } from "./inPersonState";
+import { setCurrentInPerson, type RecordingKind } from "./inPersonState";
+import { callTitle, captureCall } from "./desktopCall";
+import { desktop } from "../lib/desktop";
 import { storageGet } from "../lib/storage";
 import { AUTO_SUMMARIZE_STORAGE_KEY, AUTO_TRANSCRIBE_STORAGE_KEY, SPEECH_ENABLED_STORAGE_KEY, SPEECH_LANG_STORAGE_KEY, type Meeting, type TranscriptEntry } from "./types";
 
@@ -31,10 +33,17 @@ interface Session {
   writes: Promise<void>[];
   speech: LiveTranscriber | null;
   wakeLock: { release(): Promise<void> } | null;
+  kind: RecordingKind;
+  /** Calls: whether the other people's audio was recorded directly (else the microphone only). */
+  systemAudio: boolean;
+  release: () => void;
 }
 
 let session: Session | null = null;
-const changed = () => setCurrentInPerson(session ? { meetingId: session.meetingId, startedAt: session.startedAt } : null);
+const changed = () => {
+  setCurrentInPerson(session ? { meetingId: session.meetingId, startedAt: session.startedAt, kind: session.kind } : null);
+  desktop()?.setRecording(!!session);
+};
 export { currentInPerson, onInPersonChange } from "./inPersonState";
 
 export function inPersonSupported(): boolean {
@@ -48,23 +57,47 @@ export function inPersonTitle(d = new Date()): string {
 
 const pickMime = () => ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((t) => MediaRecorder.isTypeSupported?.(t)) ?? "";
 
-/** Starts recording from the microphone. Throws an Error with a message to show (e.g. microphone blocked). */
-export async function startInPerson(): Promise<string> {
-  if (session) return session.meetingId;
+/** Desktop app only: a call in any app can be recorded (recorder/desktopCall.ts). */
+export function callRecordingSupported(): boolean {
+  return !!desktop() && inPersonSupported() && !!navigator.mediaDevices?.getDisplayMedia;
+}
+
+/**
+ * Starts recording: from the microphone ("room"), or a call in any app ("call",
+ * desktop app). Throws an Error with a message to show (e.g. microphone blocked).
+ */
+export function startInPerson(kind: RecordingKind = "room"): Promise<string> {
+  if (session) return Promise.resolve(session.meetingId);
+  // One start at a time (a tray "Record" and a button click can arrive together).
+  starting ??= begin(kind).finally(() => (starting = null));
+  return starting;
+}
+let starting: Promise<string> | null = null;
+
+async function begin(kind: RecordingKind): Promise<string> {
   let stream: MediaStream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-  } catch (err) {
-    const name = err instanceof DOMException ? err.name : "";
-    throw new Error(name === "NotAllowedError" ? "Microphone access was blocked. Allow the microphone for ProdLi (the icon in the address bar) and try again." : name === "NotFoundError" ? "No microphone was found." : "The microphone couldn't be started.");
+  let systemAudio = false;
+  let release = () => stream.getTracks().forEach((t) => t.stop());
+  if (kind === "call") {
+    const c = await captureCall();
+    stream = c.stream;
+    systemAudio = c.systemAudio;
+    release = c.stop;
+  } else {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      throw new Error(name === "NotAllowedError" ? (desktop() ? "ProdLi isn't allowed to use the microphone. Allow it in your computer's privacy settings, then try again." : "Microphone access was blocked. Allow the microphone for ProdLi (the icon in the address bar) and try again.") : name === "NotFoundError" ? "No microphone was found." : "The microphone couldn't be started.");
+    }
   }
   const startedAt = Date.now();
   const meetingId = `mtg_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
   const iso = new Date(startedAt).toISOString();
   const meeting: Meeting = {
     id: meetingId,
-    platform: "in-person",
-    title: inPersonTitle(new Date(startedAt)),
+    platform: kind === "call" ? "desktop" : "in-person",
+    title: kind === "call" ? callTitle(new Date(startedAt)) : inPersonTitle(new Date(startedAt)),
     meetingCode: null,
     url: "",
     startedAt: iso,
@@ -84,7 +117,7 @@ export async function startInPerson(): Promise<string> {
 
   const mime = pickMime();
   const recorder = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 32_000 });
-  const s: Session = { meetingId, startedAt, recorder, stream, mimeType: recorder.mimeType || mime || "audio/webm", seq: 0, writes: [], speech: null, wakeLock: null };
+  const s: Session = { meetingId, startedAt, recorder, stream, mimeType: recorder.mimeType || mime || "audio/webm", seq: 0, writes: [], speech: null, wakeLock: null, kind, systemAudio, release };
   recorder.ondataavailable = (e) => {
     if (e.data.size) s.writes.push(appendAudioChunk(meetingId, s.seq++, e.data));
   };
@@ -131,6 +164,7 @@ export async function stopInPerson(onPhase?: (phase: "saving" | "transcribing" |
       s.recorder.stop();
     });
   }
+  s.release();
   s.stream.getTracks().forEach((t) => t.stop());
   await s.wakeLock?.release().catch(() => {});
   await Promise.all(s.writes).catch(() => {});
@@ -188,15 +222,21 @@ export async function stopInPerson(onPhase?: (phase: "saving" | "transcribing" |
   } else {
     await updateMeeting(s.meetingId, () => ({ status: "ready" }));
   }
+  if (s.kind === "call" && !s.systemAudio && hasAudio) {
+    await updateMeeting(s.meetingId, (m) => ({ notice: m.notice ?? MIC_ONLY_NOTICE }));
+  }
   return result;
 }
+
+export const MIC_ONLY_NOTICE =
+  "Only your microphone was recorded: ProdLi couldn't capture the computer's sound. On a Mac (macOS 13 or later), allow ProdLi in System Settings → Privacy & Security → Screen & System Audio Recording.";
 
 /**
  * In-person recordings left "recording" when their page closed: keep the audio
  * that was saved and mark them done. Call when Meetings opens.
  */
 export async function recoverInPerson(): Promise<number> {
-  const stale = (await listMeetings()).filter((m) => m.platform === "in-person" && m.status === "recording" && m.id !== session?.meetingId);
+  const stale = (await listMeetings()).filter((m) => (m.platform === "in-person" || m.platform === "desktop") && m.status === "recording" && m.id !== session?.meetingId);
   for (const m of stale) {
     const hasAudio = await finalizeAudio(m.id, "").catch(() => false);
     const mime = hasAudio ? ((await getAudio(m.id))?.type || "audio/webm") : null;
