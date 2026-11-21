@@ -78,7 +78,7 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 
 ## Before shipping (needs you)
 
-1. **Deploy the API to production** (Actions → Deploy → `production-api`): the desktop sign-in endpoints, migration 0012 and the `app://prodli` origin must be live on app.prodli.com, or sign-in and sync won't work in the app.
+1. ~~**Deploy the API to production**~~ — done 2026-11-21: the desktop sign-in endpoints, migration 0012 and the `app://prodli` origin are live on app.prodli.com.
 2. **Mac signing + notarization** (otherwise macOS says the app "can't be opened"): Apple Developer Program ($99/year, the same account as the iPhone app). Create a *Developer ID Application* certificate, export it as .p12, and add GitHub secrets `MAC_CERT_P12_BASE64` (`base64 -i cert.p12`), `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` (appleid.apple.com → App-Specific Passwords), `APPLE_TEAM_ID`.
 3. **Windows signing** (otherwise SmartScreen warns "Windows protected your PC"): an OV/EV code-signing certificate (~$200–400/year) or Azure Trusted Signing (~$10/month). For a .p12 certificate add `WIN_CERT_P12_BASE64` and `WIN_CERT_PASSWORD`.
 4. **Where people download it**: a "Download for Mac / Windows" page on prodli.com, with the installers on Cloudflare R2 (free egress). Automatic updates are built in (electron-updater, "generic" feed): set the repository variable `PRODLI_UPDATE_URL` to the public folder the installers and `latest*.yml` are uploaded to, and builds check it every 6 hours (Mac updates need signing).
