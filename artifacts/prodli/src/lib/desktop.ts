@@ -17,6 +17,8 @@ export interface StorageChange {
 export interface DesktopPrefs {
   openAtLogin: boolean;
   keepRunning: boolean;
+  /** Remind me to record when a call starts in another app. */
+  callNudge: boolean;
 }
 
 /** A local file opened with the app (File → Open, Open With, dropped on the dock icon). */

@@ -56,6 +56,15 @@ export function DesktopSettingsSection() {
         <div style={{ fontSize: 13, lineHeight: 1.6 }}>
           🖥 <strong>Record a call</strong> (Meetings, or the {mac ? "menu bar" : "tray"} icon) records your computer's sound and your microphone, so it works with Zoom, Teams, Slack, Google Meet, FaceTime and any other app — no bot joins.
         </div>
+        {prefs && (
+          <label style={row}>
+            <input type="checkbox" checked={prefs.callNudge} onChange={(e) => save({ callNudge: e.target.checked })} />
+            <span>
+              Remind me to record when a call starts
+              <div style={note}>{mac ? "Notices Zoom and Webex meetings." : "Notices any call app using your microphone (Zoom, Teams, Slack, a browser…)."} Click the reminder to start recording.</div>
+            </span>
+          </label>
+        )}
         {audio && !audio.supported && <div style={{ fontSize: 13 }}>This {desktopPlatformName(app.platform)} can't record the computer's sound (macOS 13 or later is needed); calls are recorded from your microphone.</div>}
         {audio?.supported && mac && audio.permission !== "granted" && (
           <div style={{ fontSize: 13 }}>

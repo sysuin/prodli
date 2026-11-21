@@ -15,6 +15,7 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
 | Time Tracker | view synced history | ✅ tracks | view |
 | Open files: File → Open (⌘/Ctrl+O), Open With → ProdLi, drop on the dock icon | ✅ | drop on Chrome | drop / Open with (installed) |
+| "In a call? Record it" reminder (Windows: any call app using the mic; Mac: Zoom, Webex) | ✅ | Meet, Zoom, Teams in Chrome | — |
 | Automatic updates (once a download location is set up) | ✅ | Web Store | always latest |
 | Settings › Desktop app: open at login, keep running when closed, recording permission | ✅ | — | — |
 | Buying Pro | in the browser (Account → Plan opens checkout) | ✅ | ✅ |
@@ -87,4 +88,4 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 
 - Google Calendar on Today (needs a Google "Desktop app" OAuth client and the same browser hand-off).
 - The download page and uploading builds to R2 (after signing).
-- Native Time Tracker (which app / site you use), and "you're in a Zoom call — record it?" detection.
+- Native Time Tracker (which app / site you use); call reminders for more Mac apps (Teams, Slack huddles).

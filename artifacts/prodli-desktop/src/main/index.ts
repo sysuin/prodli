@@ -15,6 +15,8 @@ import { IS_DEV } from "./config";
 import { enableSystemAudioSwitches, setUpMedia } from "./media";
 import { isRecording, refreshMenus, setRecording, setUpMenus, tearDownMenus } from "./menu";
 import { startUpdates } from "./updates";
+import { startCallNudges } from "./callNudge";
+import { sendCommand } from "./windows";
 import { registerAppScheme, serveApp } from "./protocol";
 import { closeStore, openStore } from "./store";
 import { closeSenderWindow, createMainWindow, isQuitting, setQuitting, showMainWindow } from "./windows";
@@ -57,6 +59,7 @@ if (!app.requestSingleInstanceLock()) {
     createMainWindow();
     setUpMenus();
     startUpdates(refreshMenus);
+    startCallNudges({ isRecording, record: () => sendCommand("record-call") });
 
     const store = await opening;
     if (store.recovered) {

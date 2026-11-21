@@ -4,9 +4,11 @@
 export interface Prefs {
   openAtLogin: boolean;
   keepRunning: boolean;
+  /** Remind me to record when a call starts in another app. */
+  callNudge: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { openAtLogin: false, keepRunning: true };
+export const DEFAULT_PREFS: Prefs = { openAtLogin: false, keepRunning: true, callNudge: true };
 
 /** Only known keys with boolean values get through (from disk or from the page). */
 export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
@@ -14,5 +16,6 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
   return {
     openAtLogin: typeof r.openAtLogin === "boolean" ? r.openAtLogin : base.openAtLogin,
     keepRunning: typeof r.keepRunning === "boolean" ? r.keepRunning : base.keepRunning,
+    callNudge: typeof r.callNudge === "boolean" ? r.callNudge : base.callNudge,
   };
 }

@@ -141,8 +141,8 @@ describe("desktop preferences", async () => {
   const { cleanPrefs, DEFAULT_PREFS } = await import("../src/core/prefs");
   it("keeps known boolean settings only", () => {
     expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
-    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true });
-    expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true })).toEqual({ openAtLogin: true, keepRunning: false });
+    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true });
+    expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true, callNudge: false })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false });
   });
 });
 
@@ -176,5 +176,44 @@ describe("update menu items", () => {
     const ready = { ...base, checkForUpdates: () => {}, restartToUpdate: { version: "1.2.0", run: () => {} } };
     expect(labels(appMenuTemplate("darwin", ready))).toContain("Restart to Update (1.2.0)");
     expect(labels(trayMenuTemplate(ready, { recording: false }))[0]).toBe("Restart to Update (1.2.0)");
+  });
+});
+
+describe("noticing calls in other apps", async () => {
+  const { callAppName, newCalls, parseMacInCall, parseWindowsMicInUse, reminderText } = await import("../src/core/callDetect");
+  const reg = [
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\MSTeams_8wekyb3d8bbwe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Users#a#AppData#Roaming#Zoom#bin#Zoom.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x1db3c4f5a6b7c8d",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Program Files#ProdLi#ProdLi.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Windows#System32#SoundRecorder.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+  ].join("\r\n");
+  it("Windows: call apps using the microphone now (not ProdLi, not other apps, not finished ones)", () => {
+    expect(parseWindowsMicInUse(reg)).toEqual(["Microsoft Teams"]);
+    expect(parseWindowsMicInUse("")).toEqual([]);
+  });
+  it("names apps, including browsers", () => {
+    expect(callAppName("C:#Program Files#Google#Chrome#Application#chrome.exe")).toBe("your browser");
+    expect(callAppName("C:#Program Files#ProdLi#ProdLi.exe")).toBeNull();
+    expect(callAppName("C:#Tools#notepad.exe")).toBeNull();
+    expect(callAppName("Microsoft.Windows.Search_cw5n1h2txyewy#SearchApp.exe")).toBeNull();
+    expect(callAppName("C:#Users#a#AppData#Local#Arc#arc.exe")).toBe("your browser");
+  });
+  it("macOS: Zoom's in-meeting helper", () => {
+    expect(parseMacInCall("launchd\nzoom.us\nCptHost\nFinder\n")).toEqual(["Zoom"]);
+    expect(parseMacInCall("launchd\nzoom.us\n")).toEqual([]);
+  });
+  it("reminds once per call", () => {
+    expect(newCalls([], ["Zoom"])).toEqual(["Zoom"]);
+    expect(newCalls(["Zoom"], ["Zoom"])).toEqual([]);
+    expect(reminderText(["Zoom"]).title).toBe("In a Zoom call?");
+    expect(reminderText(["your browser"]).title).toBe("In a call in your browser?");
   });
 });
