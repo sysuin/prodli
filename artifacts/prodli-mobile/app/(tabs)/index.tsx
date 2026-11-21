@@ -2,12 +2,12 @@
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { getDayKey, isDone, isScheduled, progressLabel, toggleCheck, addAmount, kindOf, type DayRecord, type Habit, type Todo } from "@/shared";
+import { reviewDue, weekLabel, getDayKey, isDone, isScheduled, progressLabel, toggleCheck, addAmount, kindOf, type DayRecord, type Habit, type Todo } from "@/shared";
 import { addTodoFromText, replaceHabit, updateDay, useDay, useList } from "@/lib/data";
 import { briefContext, greeting, isForToday, writeBrief } from "@/lib/ai";
 import { useMeetings } from "@/lib/meetings";
 import { haptic } from "@/lib/haptics";
-import { Banner, Button, Card, H2, Input, LogoMark, P, Row, Screen } from "@/ui/kit";
+import { Banner, Button, Card, H2, IconButton, Input, LogoMark, P, Row, Screen } from "@/ui/kit";
 import { SyncPill } from "@/ui/SyncPill";
 import { TodoRow } from "@/ui/TodoRow";
 import { font, useTheme } from "@/ui/theme";
@@ -61,6 +61,7 @@ export default function TodayScreen() {
   };
 
   const brief = day?.brief;
+  const reviewWeek = reviewDue(days);
   return (
     <Screen>
       <Row style={{ justifyContent: "space-between" }}>
@@ -68,7 +69,10 @@ export default function TodayScreen() {
           <LogoMark size={26} />
           <Text style={{ backgroundColor: t.primary, color: "#000", fontWeight: "900", fontSize: 16, paddingHorizontal: 8, paddingVertical: 2 }}>ProdLi</Text>
         </Row>
-        <SyncPill />
+        <Row gap={4}>
+          <IconButton icon="search" label="Search" onPress={() => router.push("/search")} />
+          <SyncPill />
+        </Row>
       </Row>
       <View>
         <Text accessibilityRole="header" style={{ fontSize: font.title, fontWeight: "900", color: t.fg, letterSpacing: -0.5 }}>
@@ -76,6 +80,13 @@ export default function TodayScreen() {
         </Text>
         <P muted>{date}</P>
       </View>
+
+      {reviewWeek ? (
+        <Card color={t.ask} onPress={() => router.push("/review")} accessibilityLabel={`Weekly review for ${weekLabel(reviewWeek)}`}>
+          <Text style={{ fontWeight: "900", color: "#000" }}>🗓 Your weekly review is ready ({weekLabel(reviewWeek)})</Text>
+          <Text style={{ color: "#000", fontSize: font.small }}>What got done, what slipped, and next week's top three.</Text>
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={{ fontWeight: "900", color: t.fg }}>🎯 Today's focus</Text>

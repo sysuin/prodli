@@ -2,7 +2,7 @@
 // monthly allowances on the server): the daily brief, Ask ProdLi and meeting
 // summaries. The context is built on the phone from the user's data, the same
 // way the extension builds it (artifacts/prodli/src/lib/today.ts, ask.ts).
-import { currentStreak, getDayKey, isDone, type DailyBrief, type DayRecord, type Habit, type Note, type PieceResult, type Todo } from "../shared";
+import { basicReview, currentStreak, getDayKey, isDone, reviewContext, type DailyBrief, type DayRecord, type Habit, type Note, type PieceResult, type Todo, type WeekStats, type WeeklyReview } from "../shared";
 import { AccountError, getAccount, request } from "./api";
 import { htmlToText } from "./html";
 import { transcriptToText, type Meeting, type MeetingSummary } from "./meetings";
@@ -187,6 +187,32 @@ export async function ask(question: string, history: AskTurn[], context: BriefCo
       snippets: snippets.map(({ kind, title, date, text }) => ({ kind, title, ...(date ? { date } : {}), text })),
     }),
   });
+}
+
+// ── Weekly review ────────────────────────────────────────────────────────────
+
+export interface ReviewResult {
+  review: WeeklyReview;
+  fallbackReason?: string;
+}
+
+/** The AI review when signed in (counted with briefs); otherwise, or if that fails, the basic one. */
+export async function writeReview(stats: WeekStats, userNote?: string): Promise<ReviewResult> {
+  if (!getAccount()) return { review: basicReview(stats), fallbackReason: "Sign in for an AI-written review — here's a basic one from what's on this phone." };
+  try {
+    const r = await request<{ review: WeeklyReview }>("/api/ai/review", { method: "POST", body: JSON.stringify(reviewContext(stats, userNote)) });
+    return { review: { ...r.review, source: "ai" } };
+  } catch (err) {
+    const reason =
+      err instanceof AccountError && err.status === 503
+        ? "ProdLi's AI isn't available right now — here's a basic review."
+        : err instanceof AccountError && err.status === 0
+          ? "You're offline — here's a basic review from what's on this phone."
+          : err instanceof Error
+            ? err.message
+            : "Couldn't reach ProdLi.";
+    return { review: basicReview(stats), fallbackReason: reason };
+  }
 }
 
 // ── Transcription (in-person recording) ─────────────────────────────────────

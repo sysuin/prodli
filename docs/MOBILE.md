@@ -15,6 +15,8 @@ Status: **first version built** (2026-11-20), not yet in the stores. One codebas
 | Pomodoro (history and count sync) | ✅ with a notification when a session ends | ✅ |
 | Time Tracker | ✅ view (phones don't track) | ✅ |
 | Read later | ✅ save links, read in the in-app browser, mark read | ✅ (+ page summaries) |
+| Weekly review: the week in numbers, AI (or basic) review, next week's priorities → to-dos | ✅ | ✅ |
+| Search across notes, to-dos, meetings and Read later | ✅ | ✅ (command palette) |
 | Reminders at a to-do's time | ✅ opt-in (Settings), local notifications | ✅ |
 | Account: Google sign-in, devices, sign out everywhere, delete account | ✅ | ✅ |
 | Buying ProdLi Pro | — (the plan bought on the web applies in the app) | ✅ |
@@ -34,7 +36,7 @@ artifacts/prodli-mobile/
   eas.json             cloud build profiles (development / preview / production)
 ```
 
-- **Shared logic, not copies.** The sync rules (`syncCore`), repeating to-dos (`recurrence`), habit streaks (`habits`), smart add (`taskParse`) and the data types come straight from `artifacts/prodli/src` through `src/shared/index.ts`. Change them there and both apps follow (the phone's typecheck and tests cover them).
+- **Shared logic, not copies.** The sync rules (`syncCore`), repeating to-dos (`recurrence`), habit streaks (`habits`), smart add (`taskParse`), Board/Matrix rules (`todoBoards`), the weekly review (`reviewCore`), audio transcription helpers (`recorder/audioPieces`) and the data types come straight from `artifacts/prodli/src` through `src/shared/index.ts`. Change them there and both apps follow (the phone's typecheck and tests cover them).
 - **Same data, same keys.** The phone stores `notes`, `todos`, `habits`, `days`, `lists`, `meetings`, `pomodoroSessions`, … under the extension's keys, in SQLite (`expo-sqlite/kv-store`). The session token is in the Keychain / Keystore (`expo-secure-store`), never in regular storage.
 - **Sync** (`src/lib/sync.ts`) is the extension's protocol: push what changed since the last sync (fingerprints), pull everything after the last sequence number, newest edit wins, deletions carry tombstones, a meeting merely missing on the phone is fetched again (never deleted everywhere). `tests/unit/sync.test.ts` runs it against the server's own `syncStore.ts`.
 - **Notes** are TipTap HTML. The phone edits them with TenTap (TipTap inside a WebView), so the HTML stays the same on every device. TenTap has no tables, so a note with a table (or anything unknown) opens read-only — the phone can never drop content. Opening a note never rewrites it: the editor only saves when the content differs from what it loaded.

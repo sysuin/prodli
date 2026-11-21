@@ -11,6 +11,8 @@ export default function MoreScreen() {
       <Title>More</Title>
       <Card style={{ padding: 0, gap: 0 }}>
         <ListRow icon="chatbubble-ellipses-outline" title="Ask ProdLi" subtitle="Questions about your day, notes and meetings" onPress={() => router.push("/ask")} />
+        <ListRow icon="search-outline" title="Search" subtitle="Notes, to-dos, meetings, Read later" onPress={() => router.push("/search")} />
+        <ListRow icon="calendar-outline" title="Weekly review" subtitle="Your week in numbers and next week's priorities" onPress={() => router.push("/review")} />
         <ListRow icon="people-outline" title="Meetings" subtitle="Transcripts, summaries and action items" onPress={() => router.push("/meetings")} />
         <ListRow icon="bookmark-outline" title="Read later" subtitle="Pages saved on any device" onPress={() => router.push("/read-later")} />
         <ListRow icon="timer-outline" title="Pomodoro" subtitle="Focus sessions" onPress={() => router.push("/pomodoro")} />
