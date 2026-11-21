@@ -1,6 +1,18 @@
 # ProdLi for iOS and Android
 
-Status: **first version built** (2026-11-20), not yet in the stores. One codebase (`artifacts/prodli-mobile`, Expo + React Native + TypeScript) builds both apps.
+Status: **built and tested in the browser** (2026-11-21), not yet on a real phone or in the stores. Store kit: [MOBILE-STORE.md](MOBILE-STORE.md).
+
+### Ready for the stores?
+
+| | Status |
+|---|---|
+| Features, sync, AI, recording, reminders | ✅ built; unit tests, iOS/Android bundles and browser tests (`test:e2e`) pass in CI |
+| Store screenshots, feature graphic, listing text, privacy answers | ✅ `store-assets/` and [MOBILE-STORE.md](MOBILE-STORE.md) |
+| Tested on a real iPhone / Android phone | ❌ needs an EAS build (needs your Expo account) |
+| Google sign-in on phones | ❌ needs the iOS and Android OAuth clients (you, in Google Cloud) |
+| Production API with phone sign-in | ❌ deploy `prodli-api` to production (your go-ahead) |
+| Privacy policy covers the phone apps | ❌ lawyer review: `docs/legal/REVIEW-NOTES.md` §9 |
+| Apple Developer / Google Play accounts | ❌ you ($99/year, $25 once) | One codebase (`artifacts/prodli-mobile`, Expo + React Native + TypeScript) builds both apps.
 
 ## What's in the app
 
@@ -53,7 +65,10 @@ pnpm install
 pnpm --filter @workspace/prodli-mobile run typecheck
 pnpm --filter @workspace/prodli-mobile run test
 pnpm --filter @workspace/prodli-mobile run export:check   # bundles the iOS + Android JavaScript (what CI checks)
+pnpm --filter @workspace/prodli-mobile run test:e2e       # the main screens and flows in headless Chrome, against a stand-in server
 ```
+
+`test:e2e` builds the app's web version (the same screens and logic as the phone apps), serves it with a small stand-in for ProdLi's server (`tests/e2e/server.mjs`: developer sign-in, sync, canned AI answers) and drives it at phone size: first launch, smart add, repeating to-dos, Board/Matrix, lists, habits, the daily note, search, Pomodoro, the weekly review, sign-in and sync both ways, the AI brief, Ask ProdLi and the account page. `node scripts/store-screenshots.mjs` uses the same pieces to make the store screenshots.
 
 **Quick look in a browser** (layout and logic only; notes are read-only there and Google sign-in is phone-only):
 

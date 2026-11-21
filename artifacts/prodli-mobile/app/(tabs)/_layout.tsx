@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { useStored } from "@/lib/store";
+import { WELCOMED_KEY } from "@/lib/welcome";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { IconName } from "@/ui/kit";
 import { useTheme } from "@/ui/theme";
@@ -11,6 +13,10 @@ const icon =
 export default function TabsLayout() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const welcomed = useStored<boolean>(WELCOMED_KEY, false);
+  const signedIn = useStored<unknown>("prodliAccount", null);
+  // First launch: say hello first (someone already signed in has clearly been here).
+  if (!welcomed && !signedIn) return <Redirect href="/welcome" />;
   return (
     <Tabs
       screenOptions={{

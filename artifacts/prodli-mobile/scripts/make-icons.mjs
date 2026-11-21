@@ -4,7 +4,8 @@
 //   assets/adaptive-icon.png  1024×1024, transparent, mark inside Android's safe zone
 //   assets/splash-icon.png    512×512, transparent
 //   assets/favicon.png        48×48 (web preview)
-import { writeFileSync } from "node:fs";
+//   store-assets/icon-512.png 512×512 (Google Play listing)
+import { mkdirSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,4 +61,7 @@ writeFileSync(path.join(out, "icon.png"), draw(1024, 1024, COLORS.frame));
 writeFileSync(path.join(out, "adaptive-icon.png"), draw(1024, 600, null));
 writeFileSync(path.join(out, "splash-icon.png"), draw(512, 512, null));
 writeFileSync(path.join(out, "favicon.png"), draw(48, 48, null));
+// Google Play listing icon (512×512, opaque).
+mkdirSync(path.join(out, "..", "store-assets"), { recursive: true });
+writeFileSync(path.join(out, "..", "store-assets", "icon-512.png"), draw(512, 512, COLORS.frame));
 console.log("Icons written to", out);
