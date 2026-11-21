@@ -74,6 +74,8 @@ In the Dodo dashboard, switch to **Test Mode** (bottom left), then:
 
 ## 2. Live
 
+**Done (21 Nov 2026):** live products imported from Test mode (brand ProdLi): ProdLi Pro (Monthly) `pdt_0NsQmaoynGpbLkII9UlW0`, $5 a month, and ProdLi Pro (Yearly) `pdt_0NsQmag3mV5vpOWnPiT6N`, $48 a year, in `env.production.vars`. Live webhook endpoint `ep_3MQ0xGOC13zRK280G6NwhGawHZs` → `https://app.prodli.com/api/billing/webhook`, all `subscription.*` events. Selling starts once the two production secrets are set and this config is deployed; from then on the Pro features need Pro (early access ends).
+
 1. Switch the dashboard to **Live Mode** and repeat steps 1–3 with the webhook URL `https://app.prodli.com/api/billing/webhook`. (Dodo may review the new products and the brand's website, so have prodli.com with the final Privacy Policy and Terms live first.)
 2. Fill `env.production.vars` in `wrangler.jsonc` (`DODO_ENV: "live"`, live product IDs), then:
    ```bash
