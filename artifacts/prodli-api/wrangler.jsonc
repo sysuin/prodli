@@ -86,8 +86,8 @@
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo live mode. Empty = Pro not on sale yet.
         "DODO_ENV": "live",
-        "DODO_PRODUCT_MONTHLY": "",
-        "DODO_PRODUCT_YEARLY": ""
+        "DODO_PRODUCT_MONTHLY": "pdt_0NsQmaoynGpbLkII9UlW0",
+        "DODO_PRODUCT_YEARLY": "pdt_0NsQmag3mV5vpOWnPiT6N"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core", "database_id": "58116cae-079a-4a3f-aeeb-20f905a37cd1", "migrations_dir": "migrations" }
