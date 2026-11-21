@@ -1,4 +1,5 @@
 import { isDesktop } from "../lib/desktop";
+import { DesktopApps } from "./tracker/DesktopApps";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line } from "recharts";
 import { storageGet, storageSet } from "../lib/storage";
@@ -742,6 +743,7 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
       {/* ── TODAY ──────────────────────────────────────────────────────────── */}
       {activeTab === "today" && (
         <>
+          {isDesktop() && <DesktopApps cardStyle={cardStyle} label={label} />}
           <div style={{ ...cardStyle, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={label}>Total today</div>

@@ -16,6 +16,7 @@ import { enableSystemAudioSwitches, setUpMedia } from "./media";
 import { isRecording, refreshMenus, setRecording, setUpMenus, tearDownMenus } from "./menu";
 import { startUpdates } from "./updates";
 import { startCallNudges } from "./callNudge";
+import { startAppTracking, stopAppTracking } from "./appTracker";
 import { sendCommand } from "./windows";
 import { registerAppScheme, serveApp } from "./protocol";
 import { closeStore, openStore } from "./store";
@@ -62,6 +63,7 @@ if (!app.requestSingleInstanceLock()) {
     startCallNudges({ isRecording, record: () => sendCommand("record-call") });
 
     const store = await opening;
+    startAppTracking(store);
     if (store.recovered) {
       void dialog.showMessageBox({
         type: "warning",
@@ -99,6 +101,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("will-quit", () => {
+    stopAppTracking();
     tearDownMenus();
     closeStore();
   });

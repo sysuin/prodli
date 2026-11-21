@@ -13,6 +13,14 @@
 import { app, desktopCapturer, ipcMain, session, shell, systemPreferences } from "electron";
 import { IPC } from "../core/ipc";
 import { isAppUrl } from "../core/links";
+import { IS_DEV } from "./config";
+
+/**
+ * Development builds started with Chromium's fake media devices (tests/e2e.mjs):
+ * no macOS permission prompts and no screen capture, so the microphone-only
+ * path of "Record a call" runs unattended.
+ */
+const fakeMedia = () => IS_DEV && app.commandLine.hasSwitch("use-fake-device-for-media-stream");
 
 /** Must run before the app is ready. */
 export function enableSystemAudioSwitches(): void {
@@ -37,7 +45,7 @@ export function setUpMedia(): void {
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
     const ok = ALLOWED.has(permission) && isAppUrl(details.requestingUrl || wc.getURL());
-    if (ok && permission === "media" && process.platform === "darwin") {
+    if (ok && permission === "media" && process.platform === "darwin" && !fakeMedia()) {
       const wantsMic = !("mediaTypes" in details) || (details.mediaTypes ?? []).includes("audio");
       if (wantsMic && systemPreferences.getMediaAccessStatus("microphone") !== "granted") {
         void systemPreferences.askForMediaAccess("microphone").then(callback, () => callback(false));
@@ -50,7 +58,7 @@ export function setUpMedia(): void {
 
   ses.setDisplayMediaRequestHandler(
     (request, callback) => {
-      if (!isAppUrl(request.securityOrigin || request.frame?.url || "")) return callback(null);
+      if (!isAppUrl(request.securityOrigin || request.frame?.url || "") || fakeMedia()) return callback(null);
       desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } }).then(
         (sources) => {
           const screen = sources[0];
