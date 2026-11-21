@@ -23,6 +23,7 @@ export function meetingToMarkdown(m: Meeting): string {
     }
     if (s.openQuestions.length) parts.push(`## Open questions\n${list(s.openQuestions)}`);
   }
+  if (m.userNotes?.trim()) parts.push(`## My notes\n${m.userNotes.trim()}`);
   const moments = momentExcerpts(m.transcript, m.marks).filter((x) => x.text);
   if (moments.length) parts.push(`## Key moments\n${list(moments.map((x) => `**${clock(x.atMs)}** ${x.text}`))}`);
   return `${parts.join("\n\n")}\n`;
