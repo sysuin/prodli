@@ -3,6 +3,8 @@
 // Today. Opened from the profile menu, the command palette, "?" (Help), or
 // anywhere in the app with openSettings(tab).
 
+import { DesktopSettingsSection } from "./DesktopSettings";
+import { isDesktop } from "../lib/desktop";
 import { lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { PomodoroSettings } from "../lib/usePomodoroTimer";
 import { accountsEnabled } from "../lib/prodliAccount";
@@ -15,7 +17,7 @@ import { HelpModal, version } from "./HelpModal";
 import { Logo } from "./Logo";
 import { WritingStyleSection } from "./WritingStyle";
 
-export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "writing" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "desktop" | "writing" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
@@ -35,6 +37,7 @@ interface TabDef {
   icon: string;
   group: string;
   serverOnly?: boolean;
+  desktopOnly?: boolean;
 }
 
 const TABS: TabDef[] = [
@@ -43,6 +46,7 @@ const TABS: TabDef[] = [
   { id: "devices", label: "Sync & devices", icon: "🔄", group: "Account", serverOnly: true },
   { id: "data", label: "Backup & data", icon: "💾", group: "Account" },
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
+  { id: "desktop", label: "Desktop app", icon: "🖥", group: "Preferences", desktopOnly: true },
   { id: "writing", label: "Writing style", icon: "✍️", group: "Preferences", serverOnly: true },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
   { id: "pomodoro", label: "Pomodoro", icon: "🍅", group: "Sections" },
@@ -242,7 +246,7 @@ export function SettingsModal({
   setDark: (dark: boolean) => void;
   pomodoro: { settings: PomodoroSettings; save: (s: PomodoroSettings) => Promise<void> };
 }) {
-  const tabs = TABS.filter((t) => !t.serverOnly || accountsEnabled());
+  const tabs = TABS.filter((t) => (!t.serverOnly || accountsEnabled()) && (!t.desktopOnly || isDesktop()));
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
   useEffect(() => {
@@ -296,6 +300,14 @@ export function SettingsModal({
         <>
           <Heading>Appearance</Heading>
           <AppearanceSection isDark={isDark} setDark={setDark} />
+        </>
+      );
+      break;
+    case "desktop":
+      body = (
+        <>
+          <Heading sub="How ProdLi runs on this computer.">Desktop app</Heading>
+          <DesktopSettingsSection />
         </>
       );
       break;

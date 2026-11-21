@@ -14,6 +14,7 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Keeps running when the window is closed (timers, reminders, sync, recordings) | ✅ | ✅ (background) | — |
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
 | Time Tracker | view synced history | ✅ tracks | view |
+| Settings › Desktop app: open at login, keep running when closed, recording permission | ✅ | — | — |
 | Buying Pro | in the browser (Account → Plan opens checkout) | ✅ | ✅ |
 
 ## How it's built
@@ -85,4 +86,3 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 - Google Calendar on Today (needs a Google "Desktop app" OAuth client and the same browser hand-off).
 - Auto-updates and the download page (after signing).
 - Native Time Tracker (which app / site you use), and "you're in a Zoom call — record it?" detection.
-- Start at login (setting).

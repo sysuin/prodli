@@ -29,6 +29,7 @@ function fakeBridge(): DesktopBridge & { data: Map<string, unknown> } {
       onChanged: (cb) => (listeners.add(cb), () => listeners.delete(cb)),
     },
     account: { signIn: async () => ({ ok: true }), cancelSignIn: async () => {} },
+    prefs: { get: async () => ({ openAtLogin: false, keepRunning: true }), set: async (p) => ({ openAtLogin: false, keepRunning: true, ...p }) },
     openExternal: async () => {},
     systemAudio: async () => ({ supported: true, permission: "granted" }),
     openSystemAudioSettings: async () => {},

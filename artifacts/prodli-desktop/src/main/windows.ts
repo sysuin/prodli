@@ -12,6 +12,7 @@ import { isAppUrl, isExternalLink } from "../core/links";
 import { MIN_SIZE, restoreBounds, type WindowState } from "../core/windowState";
 import { IS_DEV, preloadPath, resourcePath } from "./config";
 import { getStore, storeIfReady } from "./store";
+import { getPrefs, startedHidden } from "./prefs";
 
 let main: BrowserWindow | null = null;
 let quick: BrowserWindow | null = null;
@@ -97,7 +98,7 @@ export function createMainWindow(): BrowserWindow {
   lockDown(w);
   if (saved?.maximized) w.maximize();
   w.once("ready-to-show", () => {
-    if (!process.argv.includes("--hidden")) w.show();
+    if (!startedHidden()) w.show();
   });
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,6 +111,12 @@ export function createMainWindow(): BrowserWindow {
   w.on("close", (e) => {
     saveState(w);
     if (quitting) return;
+    if (!getPrefs().keepRunning) {
+      // Settings › Desktop app: closing the window quits (index.ts asks first during a recording).
+      e.preventDefault();
+      app.quit();
+      return;
+    }
     // Keep running in the background (menu bar / tray): timers, reminders, sync, recordings.
     e.preventDefault();
     if (w.isFullScreen()) {

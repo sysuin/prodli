@@ -13,6 +13,12 @@ export interface StorageChange {
   newValue: unknown;
 }
 
+/** App preferences kept by the app itself (not synced). */
+export interface DesktopPrefs {
+  openAtLogin: boolean;
+  keepRunning: boolean;
+}
+
 export type DesktopSignInResult = { ok: true } | { ok: false; error: string; cancelled?: boolean };
 
 export interface DesktopBridge {
@@ -33,6 +39,10 @@ export interface DesktopBridge {
     /** Opens app.prodli.com in the system browser and waits for the hand-off back (see prodli-api/src/desktopAuth.ts). */
     signIn(): Promise<DesktopSignInResult>;
     cancelSignIn(): Promise<void>;
+  };
+  prefs: {
+    get(): Promise<DesktopPrefs>;
+    set(patch: Partial<DesktopPrefs>): Promise<DesktopPrefs>;
   };
   /** Opens an http(s) or mailto link in the default browser / mail app. */
   openExternal(url: string): Promise<void>;

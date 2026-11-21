@@ -7,7 +7,7 @@ import type { SettingsTab } from "../components/Settings";
 import type { Section } from "../types";
 
 const SECTIONS: readonly Section[] = ["today", "review", "todos", "habits", "editor", "meetings", "files", "pomodoro", "tracker"];
-const TABS: readonly SettingsTab[] = ["account", "plan", "devices", "data", "appearance", "writing", "today", "pomodoro", "tracker", "meetings", "files", "help", "about"];
+const TABS: readonly SettingsTab[] = ["account", "plan", "devices", "data", "appearance", "desktop", "writing", "today", "pomodoro", "tracker", "meetings", "files", "help", "about"];
 
 export type DesktopCommand =
   | { kind: "go"; section: Section }

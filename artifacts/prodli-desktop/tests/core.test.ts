@@ -136,3 +136,12 @@ describe("menus", () => {
     expect(calls.at(-1)).toBe("go:meetings");
   });
 });
+
+describe("desktop preferences", async () => {
+  const { cleanPrefs, DEFAULT_PREFS } = await import("../src/core/prefs");
+  it("keeps known boolean settings only", () => {
+    expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
+    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true });
+    expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true })).toEqual({ openAtLogin: true, keepRunning: false });
+  });
+});

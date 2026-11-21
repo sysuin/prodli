@@ -14,6 +14,8 @@ export const IPC = {
   command: "prodli:command",
   setBadge: "prodli:setBadge",
   recordingState: "prodli:recordingState",
+  prefsGet: "prodli:prefs:get",
+  prefsSet: "prodli:prefs:set",
 } as const;
 
 /** Keys the store keeps encrypted with the OS keychain. */

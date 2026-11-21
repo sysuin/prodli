@@ -9,6 +9,7 @@ import { app, dialog, ipcMain, shell } from "electron";
 import { IPC } from "../core/ipc";
 import { isAppUrl, isExternalLink } from "../core/links";
 import { registerAuthIpc } from "./auth";
+import { registerPrefsIpc } from "./prefs";
 import { IS_DEV } from "./config";
 import { enableSystemAudioSwitches, setUpMedia } from "./media";
 import { isRecording, setRecording, setUpMenus, tearDownMenus } from "./menu";
@@ -35,6 +36,7 @@ if (!app.requestSingleInstanceLock()) {
     serveApp();
     setUpMedia();
     registerAuthIpc();
+    registerPrefsIpc();
 
     ipcMain.handle(IPC.openExternal, (_e, url: unknown) => (typeof url === "string" && isExternalLink(url) ? shell.openExternal(url) : undefined));
     ipcMain.on(IPC.closeWindow, (e) => isAppUrl(e.senderFrame?.url ?? "") && closeSenderWindow(e.sender));
