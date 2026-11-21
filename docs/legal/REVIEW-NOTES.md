@@ -169,3 +169,21 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 - **Your notes (📝):** the user's own notes for a meeting are kept with it and synced. With Pro, they're sent with the transcript for the summary (Anthropic). Policy updated (device data, sync, meeting summaries).
 - **Decision log and meeting type rules (Pro):** worked out on the device from saved summaries and settings; nothing new is sent or stored.
 
+
+## 9. Phone apps for iOS and Android (21 November 2026, not yet reviewed)
+
+The phone apps (`artifacts/prodli-mobile`, see `docs/MOBILE.md`) use the same account, server, sync and AI as the extension and web app, so most of the policy already applies. What's different, and proposed wording (the live policy at prodli.com has not been changed):
+
+- **Where data lives on the phone.** Notes, to-dos and the rest are kept in the app's own storage on the phone (SQLite); the session token is in the iOS Keychain / Android Keystore. Uninstalling the app deletes them. *Proposed, in "Data on your device":* "In the ProdLi phone apps, your data is kept in the app's storage on your phone, and your sign-in in the phone's secure key storage. Deleting the app deletes them."
+- **In-person recording on the phone keeps no audio.** Unlike the extension (which saves the recording on the computer), the phone streams the microphone, sends speech in short pieces to be transcribed while recording, and keeps only the text; silence is never sent. Recording needs an account and continues with the screen locked (iOS shows the recording indicator; Android shows a notification). *Proposed, in "Audio transcription":* "In the phone apps, in-person recordings are transcribed while you record: speech is sent in short pieces and the audio is not kept on your phone or our servers; only the transcript is saved."
+- **Permissions.** Microphone (only when you tap Record) and notifications (Pomodoro, and to-do reminders if you turn them on; scheduled on the phone, nothing goes through a server). *Proposed: a "Phone app permissions" paragraph next to the Chrome permissions section.*
+- **Sign-in.** Native "Sign in with Google" (Google's sign-in SDK) gives the app a Google ID token, which the server verifies as for the web app; sessions are listed as "ProdLi app on iPhone/Android" and last 180 days. No new data.
+- **App stores.** Apple and Google distribute the apps and may collect their own data (downloads, crash reports the user opted into) under their own policies; ProdLi doesn't receive personal data from them. *Proposed: one sentence in "Processors" or a new "App stores" paragraph.*
+- **Purchases.** The apps sell nothing; ProdLi Pro bought on the web applies in the app.
+- **Children.** Not directed at children (store target audience 18+).
+
+The store privacy answers (Apple's privacy labels, Google's data safety form) are in `docs/MOBILE-STORE.md` and must match the policy.
+
+**Decisions to confirm:**
+1. Is a short "Phone apps" section enough, or should the policy name the iOS/Android apps in each relevant section?
+2. Google Play requires a web page where users can request account deletion without the app; app.prodli.com → Account → Delete account is proposed. Is that acceptable, or should prodli.com have a dedicated page?

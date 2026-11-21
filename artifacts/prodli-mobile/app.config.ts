@@ -34,7 +34,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   userInterfaceStyle: "automatic",
   ios: {
     bundleIdentifier: "com.prodli.app",
-    supportsTablet: true,
+    // iPhone only for the first release (on iPad it runs in iPhone mode); turn on once tablet layouts are checked.
+    supportsTablet: false,
     buildNumber: "1",
     config: { usesNonExemptEncryption: false },
     infoPlist: {

@@ -23,6 +23,7 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
   const t = useTheme();
   const kind = kindOf(h);
   const done = isDone(h, today);
+  const restDay = !isScheduled(h, today) && !done;
   const streak = currentStreak(h, today);
   const days = lastDays(7, today);
   const log = () => {
@@ -37,7 +38,7 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
             {h.emoji} {h.name}
           </Text>
           <P muted style={{ fontSize: font.small }}>
-            {progressLabel(h, today)}
+            {restDay ? "not scheduled today" : progressLabel(h, today)}
             {streak ? ` · 🔥 ${streak} day${streak > 1 ? "s" : ""}` : ""}
             {` · best ${bestStreak(h, today)}`}
           </P>
