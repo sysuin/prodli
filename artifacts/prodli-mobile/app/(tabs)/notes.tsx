@@ -2,9 +2,10 @@
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
-import { newNote, useNotes } from "@/lib/data";
+import { newNote, noteFromTemplate, openDailyNote, useList, useNotes } from "@/lib/data";
+import { BUILTIN_TEMPLATES, type Note } from "@/shared";
 import { htmlToText, preview } from "@/lib/html";
-import { Button, Card, Empty, Input, P, Row, Screen, Title } from "@/ui/kit";
+import { Button, Card, Chip, Empty, Input, ListRow, P, Row, Screen, Title } from "@/ui/kit";
 import { SyncPill } from "@/ui/SyncPill";
 import { font, useTheme } from "@/ui/theme";
 
@@ -18,6 +19,9 @@ export default function NotesScreen() {
   const t = useTheme();
   const notes = useNotes();
   const [q, setQ] = useState("");
+  const [showTemplates, setShowTemplates] = useState(false);
+  const mine = useList<Note>("notes").filter((n) => n.template);
+  const open = (id: string, fresh = false) => router.push({ pathname: "/note/[id]", params: fresh ? { id, fresh: "1" } : { id } });
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
     return s ? notes.filter((n) => n.title.toLowerCase().includes(s) || htmlToText(n.content).toLowerCase().includes(s)) : notes;
@@ -32,6 +36,17 @@ export default function NotesScreen() {
         </View>
         <Button title="New" icon="add" onPress={() => router.push({ pathname: "/note/[id]", params: { id: newNote().id, fresh: "1" } })} />
       </Row>
+      <Row style={{ flexWrap: "wrap" }}>
+        <Chip label="📅 Today's note" onPress={() => open(openDailyNote())} />
+        <Chip label={showTemplates ? "Templates ▴" : "Templates ▾"} active={showTemplates} onPress={() => setShowTemplates(!showTemplates)} />
+      </Row>
+      {showTemplates ? (
+        <Card style={{ padding: 0, gap: 0 }}>
+          {[...mine.map((n) => ({ key: n.id, label: `⭐ ${n.title}`, run: () => open(noteFromTemplate(n.content, n.title).id) })), ...BUILTIN_TEMPLATES.map((tpl) => ({ key: tpl.id, label: `${tpl.emoji} ${tpl.name}`, run: () => open(noteFromTemplate(tpl.html, tpl.name).id) }))].map((x) => (
+            <ListRow key={x.key} title={x.label} onPress={() => (setShowTemplates(false), x.run())} />
+          ))}
+        </Card>
+      ) : null}
       {shown.length ? (
         shown.map((n) => (
           <Card

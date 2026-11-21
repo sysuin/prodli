@@ -10,4 +10,5 @@ export { boardColumn, quadrant, isImportant, isUrgent, moveToColumn, moveToQuadr
 export { getDayKey, generateId } from "../../../prodli/src/lib/utils";
 export { RATE, AUDIO_SPEAKER, Resampler, Segmenter, encodeWav, toEntries, type Piece, type PieceResult, type AudioEntry } from "../../../prodli/src/recorder/audioPieces";
 export { addDays, weekStart, defaultReviewWeek, weekDays, weekLabel, weekStats, reviewContext, basicReview, reviewDue, type WeekStats, type ReviewContext, type ReviewMeeting } from "../../../prodli/src/lib/reviewCore";
+export { BUILTIN_TEMPLATES, fillTemplate, newNoteFromTemplate, buildDailyNote, type BuiltinTemplate } from "../../../prodli/src/lib/noteTemplatesCore";
 export type { Note, Todo, Subtask, Repeat, Habit, DayRecord, DailyBrief, WeeklyReview, ListItem, TaskQuery, QuickLink, ReadLaterItem, TabSession, TimeTrackingDay } from "../../../prodli/src/types";

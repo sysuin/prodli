@@ -106,3 +106,21 @@ describe("lists", () => {
     expect(getTombstones().lists?.[id]).toBeDefined();
   });
 });
+
+describe("daily note and templates", () => {
+  it("creates today's note once (with today's focus and planned to-dos), then reopens it", async () => {
+    const { addTodoFromText, openDailyNote, updateDay, noteFromTemplate } = await import("../../src/lib/data");
+    const { getDayKey } = await import("../../src/shared");
+    updateDay(getDayKey(), { focus: "Ship the beta" });
+    addTodoFromText("Call Sam", { planToday: true });
+    const id = openDailyNote();
+    const note = read<{ id: string; content: string; dailyFor?: string }[]>("notes", []).find((n) => n.id === id)!;
+    expect(note.dailyFor).toBe(getDayKey());
+    expect(note.content).toContain("Ship the beta");
+    expect(note.content).toContain("Call Sam");
+    expect(openDailyNote()).toBe(id);
+    const m = noteFromTemplate("<h1>Meeting: </h1><p>{{weekday}}</p>", "Meeting notes");
+    expect(m.title).toBe("Meeting");
+    expect(m.content).not.toContain("{{");
+  });
+});

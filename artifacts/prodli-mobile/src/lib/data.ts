@@ -2,7 +2,7 @@
 // which stamps `updatedAt` on whatever changed (sync's "newest edit wins" needs
 // it) and records deletions as tombstones (so other devices delete too).
 import { useMemo } from "react";
-import { generateId, getDayKey, parseTask, toggleTodo, type DayRecord, type Habit, type ListItem, type Note, type ReadLaterItem, type Todo } from "../shared";
+import { buildDailyNote, generateId, getDayKey, newNoteFromTemplate, parseTask, toggleTodo, type DayRecord, type Habit, type ListItem, type Note, type ReadLaterItem, type Todo } from "../shared";
 import { read, useStored, write } from "./store";
 import { recordDeletions, type TombCollection } from "./tombstones";
 import { stable } from "../shared";
@@ -119,6 +119,20 @@ export function newNote(partial: Partial<Note> = {}): Note {
 export const saveNote = (id: string, patch: Partial<Note>) => setList<Note>("notes", (all) => all.map((n) => (n.id === id ? { ...n, ...patch } : n)));
 export const deleteNote = (id: string) => setList<Note>("notes", (all) => all.filter((n) => n.id !== id));
 export const togglePin = (id: string) => setList<Note>("notes", (all) => all.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n)));
+
+/** A note from a template (built-in or your own), with {{date}} etc. filled in. */
+export function noteFromTemplate(html: string, name: string): Note {
+  const note = newNoteFromTemplate(html, name);
+  setList<Note>("notes", (all) => [note, ...all]);
+  return note;
+}
+
+/** Today's daily note: opens the existing one or creates it (focus and planned to-dos filled in). */
+export function openDailyNote(): string {
+  const r = buildDailyNote(read<Note[]>("notes", []), read<Todo[]>("todos", []), read<DayRecord[]>("days", []));
+  if (r.note) setList<Note>("notes", (all) => [r.note!, ...all]);
+  return r.id;
+}
 
 /** The notes list: templates hidden, pinned first, then most recently edited. */
 export function useNotes(): Note[] {
