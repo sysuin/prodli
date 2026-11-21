@@ -37,6 +37,8 @@ export default function RootLayout() {
         <Stack.Screen name="record" options={{ title: "Record in person" }} />
         <Stack.Screen name="pomodoro" options={{ title: "Pomodoro" }} />
         <Stack.Screen name="read-later" options={{ title: "Read later" }} />
+        <Stack.Screen name="review" options={{ title: "Weekly review" }} />
+        <Stack.Screen name="search" options={{ title: "Search" }} />
         <Stack.Screen name="tracker" options={{ title: "Time Tracker" }} />
         <Stack.Screen name="account" options={{ title: "Account" }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
