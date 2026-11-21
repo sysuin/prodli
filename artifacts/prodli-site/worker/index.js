@@ -4,7 +4,10 @@
 //   - sends the old web preview (/extension…) to the app at app.prodli.com
 //   - serves index.html for the site's routes (/privacy, /terms)
 //   - adds security and caching headers
+//   - serves desktop app downloads and updates from R2 (worker/downloads.js)
 // Everything else is a plain static file.
+
+import { handleDownload } from "./downloads.js";
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -25,7 +28,7 @@ function withHeaders(res, url) {
 }
 
 export default {
-  /** @param {Request} request @param {{ ASSETS: { fetch: typeof fetch } }} env */
+  /** @param {Request} request @param {{ ASSETS: { fetch: typeof fetch }, DOWNLOADS?: R2Bucket }} env */
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -37,6 +40,12 @@ export default {
     // The old web preview lived here; the app is at app.prodli.com now.
     if (url.pathname === "/extension" || url.pathname.startsWith("/extension/")) {
       return Response.redirect("https://app.prodli.com/", 301);
+    }
+
+    const download = await handleDownload(request, env);
+    if (download) {
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!download.headers.has(k) && download.status !== 302) download.headers.set(k, v);
+      return download;
     }
 
     let res = await env.ASSETS.fetch(request);

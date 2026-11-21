@@ -12,8 +12,12 @@
 #   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD (Developer ID Application),
 #            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (notarization)
 #   Windows: WIN_CERT_P12_BASE64, WIN_CERT_PASSWORD
-# Automatic updates (optional): repository variable PRODLI_UPDATE_URL, the public
-# folder where the installers and latest*.yml will be uploaded (e.g. on R2).
+# Releasing: push a tag desktop-v<version> (the version in
+# artifacts/prodli-desktop/package.json). After both packages pass, the
+# "publish" job uploads them to R2 (bucket prodli-downloads), served at
+# prodli.com/download (worker/downloads.js); installed apps update from
+# https://prodli.com/download/desktop. Unsigned builds aren't published unless
+# the repository variable ALLOW_UNSIGNED_RELEASE is "true".
 name: Desktop
 
 on:
@@ -59,7 +63,7 @@ jobs:
       - run: pnpm --filter @workspace/prodli-desktop run test
       - run: pnpm --filter @workspace/prodli-desktop run build
         env:
-          PRODLI_UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL }}
+          PRODLI_UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL || 'https://prodli.com/download/desktop' }}
       - name: Package
         shell: bash
         working-directory: artifacts/prodli-desktop
@@ -71,7 +75,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL }}
+          UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL || 'https://prodli.com/download/desktop' }}
         run: |
           extra=()
           # With an update feed, also write latest.yml / latest-mac.yml for electron-updater.
@@ -100,3 +104,52 @@ jobs:
             artifacts/prodli-desktop/release/latest*.yml
           if-no-files-found: error
           retention-days: 30
+
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prodli-desktop-*
+          path: release
+          merge-multiple: true
+      - name: Upload to prodli.com/download
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SIGNED: ${{ secrets.MAC_CERT_P12_BASE64 != '' && secrets.WIN_CERT_P12_BASE64 != '' }}
+          ALLOW_UNSIGNED: ${{ vars.ALLOW_UNSIGNED_RELEASE }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('../prodli-desktop/package.json').version")"
+          [ "${GITHUB_REF_NAME}" = "desktop-v${version}" ] || { echo "::error::Tag ${GITHUB_REF_NAME} doesn't match package.json version ${version}"; exit 1; }
+          if [ "$SIGNED" != "true" ] && [ "$ALLOW_UNSIGNED" != "true" ]; then
+            echo "::error::Not publishing unsigned installers (set signing secrets, or the variable ALLOW_UNSIGNED_RELEASE=true for a test release)."; exit 1
+          fi
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN is missing"; exit 1; }
+          dir="$GITHUB_WORKSPACE/release"
+          ls -la "$dir"
+          put() { pnpm exec wrangler r2 object put "prodli-downloads/desktop/$(basename "$1")" --file "$1" --remote --content-type "$2" >/dev/null; echo "uploaded $(basename "$1")"; }
+          # Installers and blockmaps first, the update feeds after, so an app never sees a feed whose files aren't there yet.
+          for f in "$dir"/*.dmg; do put "$f" application/x-apple-diskimage; done
+          for f in "$dir"/*.zip; do put "$f" application/zip; done
+          for f in "$dir"/*.exe; do put "$f" application/vnd.microsoft.portable-executable; done
+          for f in "$dir"/*.blockmap; do put "$f" application/octet-stream; done
+          for f in "$dir"/latest*.yml; do put "$f" text/yaml; done
+          mac="ProdLi-${version}-mac.dmg"; x64="ProdLi-Setup-${version}-x64.exe"; arm="ProdLi-Setup-${version}-arm64.exe"
+          for f in "$mac" "$x64" "$arm"; do [ -f "$dir/$f" ] || { echo "::error::$f is missing"; exit 1; }; done
+          printf '{"version":"%s","mac":"%s","windowsX64":"%s","windowsArm64":"%s","signed":%s,"publishedAt":"%s"}\n' "$version" "$mac" "$x64" "$arm" "$SIGNED" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$dir/latest.json"
+          put "$dir/latest.json" application/json
+          echo "::notice::ProdLi ${version} is live at https://prodli.com/download"
