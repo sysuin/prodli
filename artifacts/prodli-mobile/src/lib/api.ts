@@ -55,6 +55,7 @@ const friendly: Record<string, string> = {
   write_quota_exceeded: "You've used this month's AI writing help. It resets on the 1st.",
   ai_refused: "Claude declined to do that.",
   ai_truncated: "The answer was cut off. Try again.",
+  transcribe_quota_exceeded: "You've used this month's AI transcription minutes. They reset on the 1st.",
   mobile_signin_unavailable: "Phone sign-in isn't set up on this server yet.",
 };
 

@@ -50,7 +50,8 @@ export default function NoteScreen() {
     const options = [note.pinned ? "Unpin" : "Pin to top", "Share as text", "Delete", "Cancel"];
     const run = (i: number) => (i === 0 ? togglePin(note.id) : i === 1 ? share() : i === 2 ? del() : undefined);
     if (Platform.OS === "ios") ActionSheetIOS.showActionSheetWithOptions({ options, destructiveButtonIndex: 2, cancelButtonIndex: 3 }, run);
-    else Alert.alert(note.title || "Note", undefined, [{ text: options[0], onPress: () => run(0) }, { text: options[1], onPress: () => run(1) }, { text: options[2], style: "destructive", onPress: () => run(2) }, { text: "Cancel", style: "cancel" }]);
+    // Android dialogs show at most three buttons; tapping outside cancels.
+    else Alert.alert(note.title || "Note", undefined, [{ text: options[0], onPress: () => run(0) }, { text: options[1], onPress: () => run(1) }, { text: options[2], style: "destructive", onPress: () => run(2) }], { cancelable: true });
   };
 
   return (

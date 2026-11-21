@@ -196,3 +196,16 @@ export function addReadLater(url: string, title?: string): ReadLaterItem | null 
 
 export const markRead = (id: string, read = true) => setList<ReadLaterItem>("readLater", (all) => all.map((i) => (i.id === id ? { ...i, readAt: read ? new Date().toISOString() : undefined } : i)));
 export const deleteReadLater = (id: string) => setList<ReadLaterItem>("readLater", (all) => all.filter((i) => i.id !== id));
+
+// ── Lists ────────────────────────────────────────────────────────────────────
+
+export function renameList(id: string, name: string) {
+  const n = name.trim().slice(0, 60);
+  if (n) setList<ListItem>("lists", (all) => all.map((l) => (l.id === id ? { ...l, name: n } : l)));
+}
+
+/** Deletes the list; its to-dos move to the Inbox (as in the extension). */
+export function deleteList(id: string) {
+  setList<Todo>("todos", (all) => all.map((t) => (t.listId === id ? { ...t, listId: undefined } : t)));
+  setList<ListItem>("lists", (all) => all.filter((l) => l.id !== id));
+}

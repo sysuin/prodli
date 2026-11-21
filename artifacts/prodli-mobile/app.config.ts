@@ -47,7 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundColor: "#000000" },
     // Only what the app uses. (Expo adds INTERNET itself.)
     permissions: ["android.permission.VIBRATE"],
-    blockedPermissions: ["android.permission.RECORD_AUDIO", "android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+    blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
   },
   web: { bundler: "metro", output: "single", favicon: "./assets/favicon.png" },
   plugins: [
@@ -56,6 +56,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-sqlite",
     "expo-web-browser",
     ["expo-notifications", { color: "#FFD700" }],
+    // In-person meetings: the microphone, also while the screen is locked (iOS background audio; Android foreground service).
+    ["expo-audio", { microphonePermission: "ProdLi uses the microphone to record and transcribe in-person meetings when you tap Record.", recordAudioAndroid: true, enableBackgroundRecording: true, enableBackgroundPlayback: false }],
     ["expo-splash-screen", { image: "./assets/splash-icon.png", imageWidth: 160, resizeMode: "contain", backgroundColor: "#EDE1CF", dark: { image: "./assets/splash-icon.png", backgroundColor: "#171A21" } }],
     ...(IOS_CLIENT_ID ? [["@react-native-google-signin/google-signin", { iosUrlScheme: reversed(IOS_CLIENT_ID) }] as [string, unknown]] : []),
   ],

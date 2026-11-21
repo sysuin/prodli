@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { applyConfig } from "@/lib/config";
+import { recoverInterruptedRecording } from "@/lib/inPerson";
 import { startReminders } from "@/lib/reminders";
 import { startSync } from "@/lib/syncRunner";
 import { useTheme } from "@/ui/theme";
@@ -9,6 +10,7 @@ import { useTheme } from "@/ui/theme";
 applyConfig();
 startSync();
 startReminders();
+recoverInterruptedRecording();
 
 export default function RootLayout() {
   const t = useTheme();
@@ -32,6 +34,7 @@ export default function RootLayout() {
         <Stack.Screen name="meetings/index" options={{ title: "Meetings" }} />
         <Stack.Screen name="meetings/[id]" options={{ title: "Meeting" }} />
         <Stack.Screen name="ask" options={{ title: "Ask ProdLi" }} />
+        <Stack.Screen name="record" options={{ title: "Record in person" }} />
         <Stack.Screen name="pomodoro" options={{ title: "Pomodoro" }} />
         <Stack.Screen name="read-later" options={{ title: "Read later" }} />
         <Stack.Screen name="tracker" options={{ title: "Time Tracker" }} />
