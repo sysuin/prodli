@@ -38,6 +38,10 @@ jobs:
       - run: pnpm test
       - name: Phone app bundles (iOS + Android JavaScript, as the store builds make them)
         run: pnpm --filter @workspace/prodli-mobile run export:check
+      - name: Phone app screens (web build at phone size, headless Chrome, stand-in server)
+        run: pnpm --filter @workspace/prodli-mobile run test:e2e
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
       - name: Desktop app (build, package for Linux, smoke-test the package)
         run: |
           pnpm --filter @workspace/prodli-desktop run build
