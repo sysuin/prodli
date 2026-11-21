@@ -14,6 +14,8 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Keeps running when the window is closed (timers, reminders, sync, recordings) | ✅ | ✅ (background) | — |
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
 | Time Tracker | view synced history | ✅ tracks | view |
+| Open files: File → Open (⌘/Ctrl+O), Open With → ProdLi, drop on the dock icon | ✅ | drop on Chrome | drop / Open with (installed) |
+| Automatic updates (once a download location is set up) | ✅ | Web Store | always latest |
 | Settings › Desktop app: open at login, keep running when closed, recording permission | ✅ | — | — |
 | Buying Pro | in the browser (Account → Plan opens checkout) | ✅ | ✅ |
 
@@ -78,11 +80,11 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 1. **Deploy the API to production** (Actions → Deploy → `production-api`): the desktop sign-in endpoints, migration 0012 and the `app://prodli` origin must be live on app.prodli.com, or sign-in and sync won't work in the app.
 2. **Mac signing + notarization** (otherwise macOS says the app "can't be opened"): Apple Developer Program ($99/year, the same account as the iPhone app). Create a *Developer ID Application* certificate, export it as .p12, and add GitHub secrets `MAC_CERT_P12_BASE64` (`base64 -i cert.p12`), `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` (appleid.apple.com → App-Specific Passwords), `APPLE_TEAM_ID`.
 3. **Windows signing** (otherwise SmartScreen warns "Windows protected your PC"): an OV/EV code-signing certificate (~$200–400/year) or Azure Trusted Signing (~$10/month). For a .p12 certificate add `WIN_CERT_P12_BASE64` and `WIN_CERT_PASSWORD`.
-4. **Where people download it**: a "Download for Mac / Windows" page on prodli.com, with the installers on Cloudflare R2 (free egress). Auto-updates (electron-updater, generic feed on R2) come with that.
+4. **Where people download it**: a "Download for Mac / Windows" page on prodli.com, with the installers on Cloudflare R2 (free egress). Automatic updates are built in (electron-updater, "generic" feed): set the repository variable `PRODLI_UPDATE_URL` to the public folder the installers and `latest*.yml` are uploaded to, and builds check it every 6 hours (Mac updates need signing).
 5. **Lawyer**: add the desktop apps to the privacy policy and terms (same data as the extension; call recordings include other people's voices — the same disclosure as in-person recording).
 
 ## Not yet (next steps)
 
 - Google Calendar on Today (needs a Google "Desktop app" OAuth client and the same browser hand-off).
-- Auto-updates and the download page (after signing).
+- The download page and uploading builds to R2 (after signing).
 - Native Time Tracker (which app / site you use), and "you're in a Zoom call — record it?" detection.

@@ -365,7 +365,7 @@ export function SettingsModal({
       body = (
         <>
           <Heading sub="Open Markdown, CSV, JSON and text files in ProdLi.">Files</Heading>
-          {isExtensionPage() ? (
+          {isExtensionPage() || isDesktop() ? (
             <Suspense fallback={loadingNote}>
               <FilesOpenAnywhere />
             </Suspense>

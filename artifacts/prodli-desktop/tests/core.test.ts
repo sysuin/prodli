@@ -105,7 +105,7 @@ describe("window bounds", () => {
 
 describe("menus", () => {
   const calls: string[] = [];
-  const a: MenuActions = { command: (c) => calls.push(c), quickAdd: () => calls.push("quick"), recordCall: () => calls.push("record"), openWindow: () => calls.push("open"), openExternal: (u) => calls.push(u), quit: () => calls.push("quit") };
+  const a: MenuActions = { command: (c) => calls.push(c), quickAdd: () => calls.push("quick"), recordCall: () => calls.push("record"), openFile: () => calls.push("open-file"), openWindow: () => calls.push("open"), openExternal: (u) => calls.push(u), quit: () => calls.push("quit") };
   const flat = (items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] => items.flatMap((i) => [i, ...(Array.isArray(i.submenu) ? flat(i.submenu) : [])]);
   const byLabel = (items: MenuItemConstructorOptions[], label: string) => flat(items).find((i) => i.label === label)!;
 
@@ -143,5 +143,38 @@ describe("desktop preferences", async () => {
     expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
     expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true });
     expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true })).toEqual({ openAtLogin: true, keepRunning: false });
+  });
+});
+
+describe("opening files", async () => {
+  const { filesFromArgv, isOpenablePath, mimeFor } = await import("../src/core/files");
+  it("knows which files the viewer opens", () => {
+    expect(isOpenablePath("/Users/a/Notes/plan.MD")).toBe(true);
+    expect(isOpenablePath("C:\\data\\sales.csv")).toBe(true);
+    expect(isOpenablePath("/Applications/Evil.app")).toBe(false);
+    expect(isOpenablePath("/tmp/photo.png")).toBe(false);
+    expect(isOpenablePath("/tmp/README")).toBe(false);
+  });
+  it("finds files in a Windows 'Open With' command line, ignoring switches", () => {
+    expect(filesFromArgv(["C:\\ProdLi\\ProdLi.exe", "--hidden", "C:\\Users\\a\\todo.md", "C:\\x.exe"])).toEqual(["C:\\Users\\a\\todo.md"]);
+    expect(filesFromArgv(["ProdLi"])).toEqual([]);
+  });
+  it("types", () => {
+    expect(mimeFor("a.csv")).toBe("text/csv");
+    expect(mimeFor("a.py")).toBe("text/plain");
+  });
+});
+
+describe("update menu items", () => {
+  const base: MenuActions = { command: () => {}, quickAdd: () => {}, recordCall: () => {}, openFile: () => {}, openWindow: () => {}, openExternal: () => {}, quit: () => {} };
+  const labels = (items: MenuItemConstructorOptions[]): string[] => items.flatMap((i) => [String(i.label ?? ""), ...(Array.isArray(i.submenu) ? labels(i.submenu) : [])]);
+  it("no update items without an update feed", () => {
+    expect(labels(appMenuTemplate("darwin", base)).some((l) => /Update/.test(l))).toBe(false);
+  });
+  it("Check for Updates when enabled; Restart to Update once downloaded (also in the tray)", () => {
+    expect(labels(appMenuTemplate("win32", { ...base, checkForUpdates: () => {} }))).toContain("Check for Updates…");
+    const ready = { ...base, checkForUpdates: () => {}, restartToUpdate: { version: "1.2.0", run: () => {} } };
+    expect(labels(appMenuTemplate("darwin", ready))).toContain("Restart to Update (1.2.0)");
+    expect(labels(trayMenuTemplate(ready, { recording: false }))[0]).toBe("Restart to Update (1.2.0)");
   });
 });

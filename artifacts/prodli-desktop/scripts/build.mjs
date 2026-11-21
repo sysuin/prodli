@@ -7,6 +7,7 @@
 // Environment:
 //   PRODLI_API   account server (default https://app.prodli.com; http://localhost:8787 for a local one)
 //   PRODLI_DEV=1 development build (dev tools, Reload in the View menu)
+//   PRODLI_UPDATE_URL  where updates are published (latest.yml etc.); unset = no automatic updates
 //   SKIP_RENDERER=1  rebuild only main + preload (quick, when only they changed)
 
 import { execSync } from "node:child_process";
@@ -41,7 +42,7 @@ const common = {
   sourcemap: dev ? "inline" : false,
   minify: !dev,
   logLevel: "warning",
-  define: { __PRODLI_API__: JSON.stringify(api), __PRODLI_DEV__: JSON.stringify(dev) },
+  define: { __PRODLI_API__: JSON.stringify(api), __PRODLI_DEV__: JSON.stringify(dev), __PRODLI_UPDATE_URL__: JSON.stringify((process.env.PRODLI_UPDATE_URL ?? "").replace(/\/+$/, "")) },
 };
 await Promise.all([
   build({ ...common, entryPoints: [path.join(pkg, "src/main/index.ts")], outfile: path.join(pkg, "dist/main/index.cjs") }),

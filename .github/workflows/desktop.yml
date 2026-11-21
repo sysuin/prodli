@@ -12,6 +12,8 @@
 #   Mac:     MAC_CERT_P12_BASE64, MAC_CERT_PASSWORD (Developer ID Application),
 #            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (notarization)
 #   Windows: WIN_CERT_P12_BASE64, WIN_CERT_PASSWORD
+# Automatic updates (optional): repository variable PRODLI_UPDATE_URL, the public
+# folder where the installers and latest*.yml will be uploaded (e.g. on R2).
 name: Desktop
 
 on:
@@ -56,6 +58,8 @@ jobs:
       - run: pnpm --filter @workspace/prodli-desktop run typecheck
       - run: pnpm --filter @workspace/prodli-desktop run test
       - run: pnpm --filter @workspace/prodli-desktop run build
+        env:
+          PRODLI_UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL }}
       - name: Package
         shell: bash
         working-directory: artifacts/prodli-desktop
@@ -67,8 +71,11 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          UPDATE_URL: ${{ vars.PRODLI_UPDATE_URL }}
         run: |
           extra=()
+          # With an update feed, also write latest.yml / latest-mac.yml for electron-updater.
+          [ -n "$UPDATE_URL" ] && extra+=(-c.publish.provider=generic "-c.publish.url=$UPDATE_URL")
           if [ "${{ matrix.name }}" = mac ] && [ -n "$MAC_CERT" ]; then
             export CSC_LINK="$MAC_CERT" CSC_KEY_PASSWORD="$MAC_CERT_PASSWORD"
             [ -n "$APPLE_ID" ] && extra+=(-c.mac.notarize=true)

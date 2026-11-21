@@ -34,6 +34,11 @@ const bridge: DesktopBridge = {
     get: () => ipcRenderer.invoke(IPC.prefsGet),
     set: (patch) => ipcRenderer.invoke(IPC.prefsSet, patch),
   },
+  files: {
+    take: () => ipcRenderer.invoke(IPC.filesTake),
+    onAvailable: (cb) => listen<void>(IPC.filesAvailable, () => cb()),
+    openDialog: () => ipcRenderer.invoke(IPC.filesOpenDialog),
+  },
   openExternal: (url) => ipcRenderer.invoke(IPC.openExternal, url),
   systemAudio: () => ipcRenderer.invoke(IPC.systemAudio),
   openSystemAudioSettings: () => ipcRenderer.invoke(IPC.openSystemAudioSettings),

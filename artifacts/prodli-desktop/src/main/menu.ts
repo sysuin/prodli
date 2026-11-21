@@ -5,6 +5,8 @@ import { appMenuTemplate, dockMenuTemplate, QUICK_ADD_SHORTCUT, trayMenuTemplate
 import { isExternalLink } from "../core/links";
 import { IS_DEV, resourcePath } from "./config";
 import { sendCommand, showMainWindow, showQuickAdd } from "./windows";
+import { openFileDialog } from "./files";
+import { checkForUpdatesNow, restartToUpdate, updatesEnabled, updateState } from "./updates";
 
 let tray: Tray | null = null;
 let recording = false;
@@ -13,6 +15,7 @@ export const actions: MenuActions = {
   command: sendCommand,
   quickAdd: showQuickAdd,
   recordCall: () => sendCommand("record-call"),
+  openFile: () => void openFileDialog(),
   openWindow: () => void showMainWindow(),
   openExternal: (url) => void (isExternalLink(url) && shell.openExternal(url)),
   quit: () => app.quit(), // before-quit (index.ts) asks first if a recording is running
@@ -28,14 +31,29 @@ function trayIcon(): Electron.NativeImage {
   return nativeImage.createFromPath(resourcePath(process.platform === "win32" ? "tray.ico" : "tray.png"));
 }
 
+/** Menus show "Check for Updates…" / "Restart to Update" (main/updates.ts). */
+function withUpdates(): MenuActions {
+  const st = updateState();
+  return {
+    ...actions,
+    checkForUpdates: updatesEnabled() ? checkForUpdatesNow : undefined,
+    restartToUpdate: st.kind === "ready" ? { version: st.version, run: restartToUpdate } : undefined,
+  };
+}
+
+export function refreshMenus(): void {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, withUpdates(), { dev: IS_DEV })));
+  refreshTray();
+}
+
 function refreshTray(): void {
   if (!tray) return;
-  tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate(actions, { recording })));
+  tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate(withUpdates(), { recording })));
   tray.setToolTip(recording ? "ProdLi — recording" : "ProdLi");
 }
 
 export function setUpMenus(): void {
-  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, actions, { dev: IS_DEV })));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, withUpdates(), { dev: IS_DEV })));
   if (process.platform === "darwin") app.dock?.setMenu(Menu.buildFromTemplate(dockMenuTemplate(actions)));
 
   tray = new Tray(trayIcon());
