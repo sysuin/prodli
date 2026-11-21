@@ -1,3 +1,4 @@
+import { desktop, isDesktop } from "../lib/desktop";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { storageGet, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
@@ -336,7 +337,30 @@ const KIND_LABEL: Record<OpenedFile["kind"], string> = {
  * Extension only: set up "open local files in ProdLi" (needs a permission and
  * Chrome's "Allow access to file URLs" switch for ProdLi).
  */
+/** Desktop app: files open with File → Open or "Open With → ProdLi". */
+function DesktopOpenCard() {
+  const app = desktop()!;
+  const mac = app.platform === "mac";
+  return (
+    <div data-testid="open-anywhere-desktop" style={{ ...card, marginTop: 20, display: "grid", gap: 8, fontSize: 13, lineHeight: 1.5 }}>
+      <strong style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Open files from anywhere</strong>
+      <span>
+        Use <strong>File → Open</strong> ({mac ? "⌘O" : "Ctrl+O"}), drop a file on this window or on ProdLi's {mac ? "dock" : "taskbar"} icon, or right-click a Markdown, CSV, JSON, text or code file in {mac ? "Finder" : "File Explorer"} → <strong>Open With → ProdLi</strong>. Files stay on your computer.
+      </span>
+      <div>
+        <button style={{ ...btn(), padding: "4px 10px", fontSize: 11 }} onClick={() => void app.files.openDialog()}>
+          Open a file…
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function OpenAnywhereCard() {
+  return isDesktop() ? <DesktopOpenCard /> : <ChromeOpenAnywhereCard />;
+}
+
+function ChromeOpenAnywhereCard() {
   const [access, setAccess] = useState<LocalFileAccess | null>(null);
   const [enabled, setEnabled] = useState(true);
   const refresh = () => void localFileAccess().then(setAccess);
@@ -517,7 +541,7 @@ export function FilesSection({ incomingFile, onIncomingHandled, incomingError }:
             <div style={{ fontSize: 14, marginTop: 6, opacity: 0.8 }}>or click to choose one — Markdown, JSON, JSON Lines, CSV/TSV, text, logs and code files up to 10 MB</div>
             <div style={{ fontSize: 12, marginTop: 14, fontWeight: 700, opacity: 0.7 }}>🔒 Files are read on your device and never uploaded.</div>
           </button>
-          {isExtensionPage() && <OpenAnywhereCard />}
+          {(isExtensionPage() || isDesktop()) && <OpenAnywhereCard />}
           {recent.length > 0 && (
             <div style={{ marginTop: 20 }} aria-label="Recent files">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>

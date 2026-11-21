@@ -64,6 +64,15 @@ jobs:
       - name: Build website
         if: github.event.inputs.target != 'production-api'
         run: pnpm run build:web
+      - name: Desktop downloads bucket (created once; private, served by the website's Worker)
+        if: steps.creds.outputs.present == 'true' && steps.legal.outputs.ready == 'true' && github.event.inputs.target != 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          buckets="$(pnpm exec wrangler r2 bucket list)"
+          case "$buckets" in *prodli-downloads*) echo "prodli-downloads exists" ;; *) pnpm exec wrangler r2 bucket create prodli-downloads ;; esac
       - name: Deploy website (prodli.com)
         if: steps.creds.outputs.present == 'true' && steps.legal.outputs.ready == 'true' && github.event.inputs.target != 'production-api'
         working-directory: artifacts/prodli-api

@@ -1,3 +1,4 @@
+import { isDesktop } from "../lib/desktop";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line } from "recharts";
 import { storageGet, storageSet } from "../lib/storage";
@@ -791,7 +792,9 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
               <div style={{ fontSize: 12 }}>
                 {isExtension()
                   ? "Browse some websites and come back — data updates every 5 seconds."
-                  : "Install the ProdLi extension and it will track time automatically."}
+                  : isDesktop()
+                    ? "Browsing time is tracked by the ProdLi Chrome extension; sign in on both and it shows up here."
+                    : "Install the ProdLi extension and it will track time automatically."}
               </div>
             </div>
           ) : (

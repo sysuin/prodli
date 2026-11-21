@@ -9,9 +9,14 @@ import { app, dialog, ipcMain, shell } from "electron";
 import { IPC } from "../core/ipc";
 import { isAppUrl, isExternalLink } from "../core/links";
 import { registerAuthIpc } from "./auth";
+import { registerPrefsIpc } from "./prefs";
+import { filesFromArgv, listenForOpenedFiles, openFiles, registerFilesIpc } from "./files";
 import { IS_DEV } from "./config";
 import { enableSystemAudioSwitches, setUpMedia } from "./media";
-import { isRecording, setRecording, setUpMenus, tearDownMenus } from "./menu";
+import { isRecording, refreshMenus, setRecording, setUpMenus, tearDownMenus } from "./menu";
+import { startUpdates } from "./updates";
+import { startCallNudges } from "./callNudge";
+import { sendCommand } from "./windows";
 import { registerAppScheme, serveApp } from "./protocol";
 import { closeStore, openStore } from "./store";
 import { closeSenderWindow, createMainWindow, isQuitting, setQuitting, showMainWindow } from "./windows";
@@ -25,7 +30,12 @@ if (process.platform === "win32") app.setAppUserModelId("com.prodli.desktop");
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => void showMainWindow());
+  // A second launch (e.g. "Open With → ProdLi" on Windows) brings this one forward with its files.
+  app.on("second-instance", (_e, argv) => {
+    showMainWindow();
+    openFiles(filesFromArgv(argv));
+  });
+  listenForOpenedFiles();
 
   registerAppScheme();
   enableSystemAudioSwitches();
@@ -35,6 +45,8 @@ if (!app.requestSingleInstanceLock()) {
     serveApp();
     setUpMedia();
     registerAuthIpc();
+    registerPrefsIpc();
+    registerFilesIpc((msg) => void dialog.showMessageBox({ type: "info", message: msg }));
 
     ipcMain.handle(IPC.openExternal, (_e, url: unknown) => (typeof url === "string" && isExternalLink(url) ? shell.openExternal(url) : undefined));
     ipcMain.on(IPC.closeWindow, (e) => isAppUrl(e.senderFrame?.url ?? "") && closeSenderWindow(e.sender));
@@ -46,6 +58,8 @@ if (!app.requestSingleInstanceLock()) {
 
     createMainWindow();
     setUpMenus();
+    startUpdates(refreshMenus);
+    startCallNudges({ isRecording, record: () => sendCommand("record-call") });
 
     const store = await opening;
     if (store.recovered) {

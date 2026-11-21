@@ -19,6 +19,9 @@
     "not_found_handling": "none"
   },
   "observability": { "enabled": true },
+  // Desktop app installers and update feed (worker/downloads.js). Private bucket,
+  // served only through this Worker. deploy.yml creates it if it's missing.
+  "r2_buckets": [{ "binding": "DOWNLOADS", "bucket_name": "prodli-downloads" }],
   "workers_dev": false,
   "routes": [
     { "pattern": "prodli.com/*", "zone_name": "prodli.com" },
@@ -28,7 +31,8 @@
     "preview": {
       "name": "prodli-site-preview",
       "workers_dev": true,
-      "routes": []
+      "routes": [],
+      "r2_buckets": [{ "binding": "DOWNLOADS", "bucket_name": "prodli-downloads" }]
     }
   }
 }

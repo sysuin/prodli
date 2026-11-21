@@ -13,6 +13,21 @@ export interface StorageChange {
   newValue: unknown;
 }
 
+/** App preferences kept by the app itself (not synced). */
+export interface DesktopPrefs {
+  openAtLogin: boolean;
+  keepRunning: boolean;
+  /** Remind me to record when a call starts in another app. */
+  callNudge: boolean;
+}
+
+/** A local file opened with the app (File → Open, Open With, dropped on the dock icon). */
+export interface OpenedFile {
+  name: string;
+  type: string;
+  bytes: Uint8Array;
+}
+
 export type DesktopSignInResult = { ok: true } | { ok: false; error: string; cancelled?: boolean };
 
 export interface DesktopBridge {
@@ -33,6 +48,17 @@ export interface DesktopBridge {
     /** Opens app.prodli.com in the system browser and waits for the hand-off back (see prodli-api/src/desktopAuth.ts). */
     signIn(): Promise<DesktopSignInResult>;
     cancelSignIn(): Promise<void>;
+  };
+  prefs: {
+    get(): Promise<DesktopPrefs>;
+    set(patch: Partial<DesktopPrefs>): Promise<DesktopPrefs>;
+  };
+  files: {
+    /** Files waiting for the Files viewer (taken once). */
+    take(): Promise<OpenedFile[]>;
+    /** New files are waiting: call take(). */
+    onAvailable(cb: () => void): () => void;
+    openDialog(): Promise<void>;
   };
   /** Opens an http(s) or mailto link in the default browser / mail app. */
   openExternal(url: string): Promise<void>;

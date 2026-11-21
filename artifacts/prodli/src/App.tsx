@@ -217,6 +217,21 @@ export default function App() {
     return () => window.removeEventListener(GO_EVENT, onGo);
   }, []);
 
+  // Desktop app: files opened with ProdLi (File → Open, Open With, the dock icon) go to Files.
+  useEffect(() => {
+    const app = desktop();
+    if (!app) return;
+    const take = () =>
+      void app.files.take().then((files) => {
+        const f = files.at(-1);
+        if (!f) return;
+        setDroppedFile(new File([f.bytes as BlobPart], f.name, { type: f.type }));
+        goRef.current("files");
+      });
+    take();
+    return app.files.onAvailable(take);
+  }, []);
+
   // Desktop app: the menu bar, tray / dock menu and global shortcuts send commands (lib/desktopCommands.ts).
   useEffect(
     () =>

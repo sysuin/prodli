@@ -105,7 +105,7 @@ describe("window bounds", () => {
 
 describe("menus", () => {
   const calls: string[] = [];
-  const a: MenuActions = { command: (c) => calls.push(c), quickAdd: () => calls.push("quick"), recordCall: () => calls.push("record"), openWindow: () => calls.push("open"), openExternal: (u) => calls.push(u), quit: () => calls.push("quit") };
+  const a: MenuActions = { command: (c) => calls.push(c), quickAdd: () => calls.push("quick"), recordCall: () => calls.push("record"), openFile: () => calls.push("open-file"), openWindow: () => calls.push("open"), openExternal: (u) => calls.push(u), quit: () => calls.push("quit") };
   const flat = (items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] => items.flatMap((i) => [i, ...(Array.isArray(i.submenu) ? flat(i.submenu) : [])]);
   const byLabel = (items: MenuItemConstructorOptions[], label: string) => flat(items).find((i) => i.label === label)!;
 
@@ -134,5 +134,86 @@ describe("menus", () => {
     const rec = byLabel(trayMenuTemplate(a, { recording: true }), "Recording… (open Meetings)");
     (rec.click as () => void)();
     expect(calls.at(-1)).toBe("go:meetings");
+  });
+});
+
+describe("desktop preferences", async () => {
+  const { cleanPrefs, DEFAULT_PREFS } = await import("../src/core/prefs");
+  it("keeps known boolean settings only", () => {
+    expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
+    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true });
+    expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true, callNudge: false })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false });
+  });
+});
+
+describe("opening files", async () => {
+  const { filesFromArgv, isOpenablePath, mimeFor } = await import("../src/core/files");
+  it("knows which files the viewer opens", () => {
+    expect(isOpenablePath("/Users/a/Notes/plan.MD")).toBe(true);
+    expect(isOpenablePath("C:\\data\\sales.csv")).toBe(true);
+    expect(isOpenablePath("/Applications/Evil.app")).toBe(false);
+    expect(isOpenablePath("/tmp/photo.png")).toBe(false);
+    expect(isOpenablePath("/tmp/README")).toBe(false);
+  });
+  it("finds files in a Windows 'Open With' command line, ignoring switches", () => {
+    expect(filesFromArgv(["C:\\ProdLi\\ProdLi.exe", "--hidden", "C:\\Users\\a\\todo.md", "C:\\x.exe"])).toEqual(["C:\\Users\\a\\todo.md"]);
+    expect(filesFromArgv(["ProdLi"])).toEqual([]);
+  });
+  it("types", () => {
+    expect(mimeFor("a.csv")).toBe("text/csv");
+    expect(mimeFor("a.py")).toBe("text/plain");
+  });
+});
+
+describe("update menu items", () => {
+  const base: MenuActions = { command: () => {}, quickAdd: () => {}, recordCall: () => {}, openFile: () => {}, openWindow: () => {}, openExternal: () => {}, quit: () => {} };
+  const labels = (items: MenuItemConstructorOptions[]): string[] => items.flatMap((i) => [String(i.label ?? ""), ...(Array.isArray(i.submenu) ? labels(i.submenu) : [])]);
+  it("no update items without an update feed", () => {
+    expect(labels(appMenuTemplate("darwin", base)).some((l) => /Update/.test(l))).toBe(false);
+  });
+  it("Check for Updates when enabled; Restart to Update once downloaded (also in the tray)", () => {
+    expect(labels(appMenuTemplate("win32", { ...base, checkForUpdates: () => {} }))).toContain("Check for Updates…");
+    const ready = { ...base, checkForUpdates: () => {}, restartToUpdate: { version: "1.2.0", run: () => {} } };
+    expect(labels(appMenuTemplate("darwin", ready))).toContain("Restart to Update (1.2.0)");
+    expect(labels(trayMenuTemplate(ready, { recording: false }))[0]).toBe("Restart to Update (1.2.0)");
+  });
+});
+
+describe("noticing calls in other apps", async () => {
+  const { callAppName, newCalls, parseMacInCall, parseWindowsMicInUse, reminderText } = await import("../src/core/callDetect");
+  const reg = [
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\MSTeams_8wekyb3d8bbwe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Users#a#AppData#Roaming#Zoom#bin#Zoom.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x1db3c4f5a6b7c8d",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Program Files#ProdLi#ProdLi.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+    "",
+    "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged\\C:#Windows#System32#SoundRecorder.exe",
+    "    LastUsedTimeStop    REG_QWORD    0x0",
+  ].join("\r\n");
+  it("Windows: call apps using the microphone now (not ProdLi, not other apps, not finished ones)", () => {
+    expect(parseWindowsMicInUse(reg)).toEqual(["Microsoft Teams"]);
+    expect(parseWindowsMicInUse("")).toEqual([]);
+  });
+  it("names apps, including browsers", () => {
+    expect(callAppName("C:#Program Files#Google#Chrome#Application#chrome.exe")).toBe("your browser");
+    expect(callAppName("C:#Program Files#ProdLi#ProdLi.exe")).toBeNull();
+    expect(callAppName("C:#Tools#notepad.exe")).toBeNull();
+    expect(callAppName("Microsoft.Windows.Search_cw5n1h2txyewy#SearchApp.exe")).toBeNull();
+    expect(callAppName("C:#Users#a#AppData#Local#Arc#arc.exe")).toBe("your browser");
+  });
+  it("macOS: Zoom's in-meeting helper", () => {
+    expect(parseMacInCall("launchd\nzoom.us\nCptHost\nFinder\n")).toEqual(["Zoom"]);
+    expect(parseMacInCall("launchd\nzoom.us\n")).toEqual([]);
+  });
+  it("reminds once per call", () => {
+    expect(newCalls([], ["Zoom"])).toEqual(["Zoom"]);
+    expect(newCalls(["Zoom"], ["Zoom"])).toEqual([]);
+    expect(reminderText(["Zoom"]).title).toBe("In a Zoom call?");
+    expect(reminderText(["your browser"]).title).toBe("In a call in your browser?");
   });
 });

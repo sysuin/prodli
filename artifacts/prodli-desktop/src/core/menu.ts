@@ -12,9 +12,12 @@ export interface MenuActions {
   command(cmd: string): void;
   quickAdd(): void;
   recordCall(): void;
+  openFile(): void;
   openWindow(): void;
   openExternal(url: string): void;
   checkForUpdates?(): void;
+  /** Set when an update has downloaded: "Restart to Update (1.2.0)". */
+  restartToUpdate?: { version: string; run(): void };
   quit(): void;
 }
 
@@ -39,7 +42,11 @@ export function appMenuTemplate(platform: NodeJS.Platform, a: MenuActions, opts:
   const go = (cmd: string) => () => a.command(cmd);
 
   const settings: MenuItemConstructorOptions = { label: mac ? "Settings…" : "Settings", accelerator: "CmdOrCtrl+,", click: go("settings") };
-  const updates: MenuItemConstructorOptions[] = a.checkForUpdates ? [{ label: "Check for Updates…", click: () => a.checkForUpdates!() }] : [];
+  const updates: MenuItemConstructorOptions[] = a.restartToUpdate
+    ? [{ label: `Restart to Update (${a.restartToUpdate.version})`, click: () => a.restartToUpdate!.run() }]
+    : a.checkForUpdates
+      ? [{ label: "Check for Updates…", click: () => a.checkForUpdates!() }]
+      : [];
 
   const appMenu: MenuItemConstructorOptions[] = mac
     ? [
@@ -69,6 +76,7 @@ export function appMenuTemplate(platform: NodeJS.Platform, a: MenuActions, opts:
       { label: "Quick Add…", accelerator: QUICK_ADD_SHORTCUT, click: () => a.quickAdd() },
       { label: "Today's Daily Note", click: go("daily-note") },
       { label: "Record a Call or Meeting", click: () => a.recordCall() },
+      { label: "Open File…", accelerator: "CmdOrCtrl+O", click: () => a.openFile() },
       { type: "separator" },
       { label: "Search and Commands…", ...shown("CmdOrCtrl+K"), click: go("search") },
       { label: "Ask ProdLi…", click: go("ask") },
@@ -132,6 +140,7 @@ export function appMenuTemplate(platform: NodeJS.Platform, a: MenuActions, opts:
 /** The tray (Windows) / menu bar icon (Mac) menu, and the Mac dock menu. */
 export function trayMenuTemplate(a: MenuActions, state: { recording: boolean }): MenuItemConstructorOptions[] {
   return [
+    ...(a.restartToUpdate ? ([{ label: `Restart to Update (${a.restartToUpdate.version})`, click: () => a.restartToUpdate!.run() }, { type: "separator" }] as MenuItemConstructorOptions[]) : []),
     { label: "Open ProdLi", click: () => a.openWindow() },
     { label: "Quick Add…", accelerator: QUICK_ADD_SHORTCUT, click: () => a.quickAdd() },
     { label: state.recording ? "Recording… (open Meetings)" : "Record a Call or Meeting", click: () => (state.recording ? a.command("go:meetings") : a.recordCall()) },

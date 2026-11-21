@@ -14,6 +14,10 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Keeps running when the window is closed (timers, reminders, sync, recordings) | ✅ | ✅ (background) | — |
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
 | Time Tracker | view synced history | ✅ tracks | view |
+| Open files: File → Open (⌘/Ctrl+O), Open With → ProdLi, drop on the dock icon | ✅ | drop on Chrome | drop / Open with (installed) |
+| "In a call? Record it" reminder (Windows: any call app using the mic; Mac: Zoom, Webex) | ✅ | Meet, Zoom, Teams in Chrome | — |
+| Automatic updates (once a download location is set up) | ✅ | Web Store | always latest |
+| Settings › Desktop app: open at login, keep running when closed, recording permission | ✅ | — | — |
 | Buying Pro | in the browser (Account → Plan opens checkout) | ✅ | ✅ |
 
 ## How it's built
@@ -74,15 +78,16 @@ CI: every pull request builds a Linux package and smoke-tests it (`ci.yml`). Rea
 
 ## Before shipping (needs you)
 
-1. **Deploy the API to production** (Actions → Deploy → `production-api`): the desktop sign-in endpoints, migration 0012 and the `app://prodli` origin must be live on app.prodli.com, or sign-in and sync won't work in the app.
+1. ~~**Deploy the API to production**~~ — done 2026-11-21: the desktop sign-in endpoints, migration 0012 and the `app://prodli` origin are live on app.prodli.com.
 2. **Mac signing + notarization** (otherwise macOS says the app "can't be opened"): Apple Developer Program ($99/year, the same account as the iPhone app). Create a *Developer ID Application* certificate, export it as .p12, and add GitHub secrets `MAC_CERT_P12_BASE64` (`base64 -i cert.p12`), `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` (appleid.apple.com → App-Specific Passwords), `APPLE_TEAM_ID`.
 3. **Windows signing** (otherwise SmartScreen warns "Windows protected your PC"): an OV/EV code-signing certificate (~$200–400/year) or Azure Trusted Signing (~$10/month). For a .p12 certificate add `WIN_CERT_P12_BASE64` and `WIN_CERT_PASSWORD`.
-4. **Where people download it**: a "Download for Mac / Windows" page on prodli.com, with the installers on Cloudflare R2 (free egress). Auto-updates (electron-updater, generic feed on R2) come with that.
+4. **Releasing** (built, waiting for signing): prodli.com/download is live and says "coming soon" until the first release. To release, set `version` in `artifacts/prodli-desktop/package.json`, then push a tag `desktop-v<version>`. `desktop.yml` builds and smoke-tests both installers, then its **publish** job uploads them to the private R2 bucket `prodli-downloads` (created by `deploy.yml`, served by prodli.com's Worker, `artifacts/prodli-site/worker/downloads.js`). After that:
+   - prodli.com/download/mac and /download/windows point to the new version.
+   - Installed apps update from `https://prodli.com/download/desktop` (checked every 6 hours; Mac updates need signing).
+   - Unsigned installers aren't published unless the repository variable `ALLOW_UNSIGNED_RELEASE` is `true` (for a test release).
 5. **Lawyer**: add the desktop apps to the privacy policy and terms (same data as the extension; call recordings include other people's voices — the same disclosure as in-person recording).
 
 ## Not yet (next steps)
 
 - Google Calendar on Today (needs a Google "Desktop app" OAuth client and the same browser hand-off).
-- Auto-updates and the download page (after signing).
-- Native Time Tracker (which app / site you use), and "you're in a Zoom call — record it?" detection.
-- Start at login (setting).
+- Native Time Tracker (which app / site you use); call reminders for more Mac apps (Teams, Slack huddles).

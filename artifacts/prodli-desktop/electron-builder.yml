@@ -44,6 +44,24 @@ electronFuses:
   # fuses, or Apple Silicon Macs refuse to start the app. Signed builds are
   # signed properly afterwards anyway.
   resetAdHocDarwinSignature: true
+# "Open With → ProdLi" in Finder / Explorer (never the default app for these types).
+fileAssociations:
+  - ext: [md, markdown]
+    name: Markdown document
+    role: Viewer
+    rank: Alternate
+  - ext: [csv, tsv]
+    name: Spreadsheet data
+    role: Viewer
+    rank: Alternate
+  - ext: [json, jsonl, ndjson]
+    name: JSON data
+    role: Viewer
+    rank: Alternate
+  - ext: [txt, log]
+    name: Text document
+    role: Viewer
+    rank: Alternate
 npmRebuild: false
 nodeGypRebuild: false
 electronLanguages: [en, en-GB, en-US]
