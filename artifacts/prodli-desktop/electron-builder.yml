@@ -1,0 +1,108 @@
+# Packaging ProdLi for Mac and Windows (electron-builder).
+#   pnpm --filter @workspace/prodli-desktop run dist:mac   → release/ProdLi-<version>-mac-<arch>.dmg (+ .zip)
+#   pnpm --filter @workspace/prodli-desktop run dist:win   → release/ProdLi-Setup-<version>-<arch>.exe
+# CI builds both on GitHub's Mac and Windows machines (.github/workflows/desktop.yml).
+# Signing / notarizing happen only when their secrets are set (docs/DESKTOP.md).
+
+appId: com.prodli.desktop
+productName: ProdLi
+copyright: Copyright © 2026 ProdLi
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
+directories:
+  output: release
+  buildResources: build
+
+# Only the built app goes in: the main process and pages are bundled, so no
+# node_modules are needed at run time.
+files:
+  - dist/**/*
+  - package.json
+  - "!**/*.map"
+extraResources:
+  - from: build/trayTemplate.png
+    to: trayTemplate.png
+  - from: build/trayTemplate@2x.png
+    to: trayTemplate@2x.png
+  - from: build/tray.ico
+    to: tray.ico
+  - from: build/tray.png
+    to: tray.png
+  - from: build/icon.png
+    to: icon.png
+asar: true
+# Lock the packaged app down: it can't be run as plain Node, ignores NODE_OPTIONS
+# and --inspect, and only loads its own (integrity-checked) app.asar.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+  # Unsigned builds (no Apple certificate yet): re-sign ad hoc after flipping the
+  # fuses, or Apple Silicon Macs refuse to start the app. Signed builds are
+  # signed properly afterwards anyway.
+  resetAdHocDarwinSignature: true
+npmRebuild: false
+nodeGypRebuild: false
+electronLanguages: [en, en-GB, en-US]
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  minimumSystemVersion: "12.0"
+  extendInfo:
+    NSMicrophoneUsageDescription: ProdLi records your microphone when you record a meeting or a call, to make a transcript and notes.
+    NSAudioCaptureUsageDescription: ProdLi records your computer's sound when you record a call, so the other people's voices are in the transcript.
+    NSScreenCaptureUsageDescription: ProdLi uses screen and system audio recording only to capture a call's sound; the picture is never recorded.
+    LSUIElement: false
+  # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are set.
+  notarize: false
+
+dmg:
+  title: "${productName} ${version}"
+  artifactName: "${productName}-${version}-mac.${ext}"
+  contents:
+    - x: 140
+      y: 190
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  # Code signing (Azure Trusted Signing or a certificate) only when configured in CI.
+  signAndEditExecutable: true
+  legalTrademarks: ProdLi
+
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: "${productName}-Setup-${version}-${arch}.${ext}"
+  shortcutName: ProdLi
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+
+linux:
+  executableName: prodli
+  icon: build/icon.png
+  category: Office
+  target: [AppImage]
+
+publish: null

@@ -13,6 +13,7 @@ All-in-one productivity workspace that lives in your Chrome new tab: a rich note
 | `artifacts/prodli-site` | Marketing website and privacy policy | `prodli.com` |
 | `artifacts/prodli-api` | Accounts, sync and AI (Cloudflare Worker) | app.prodli.com/api |
 | `artifacts/prodli-mobile` | iOS and Android app (Expo / React Native), see [docs/MOBILE.md](docs/MOBILE.md) | App Store, Google Play (not yet submitted) |
+| `artifacts/prodli-desktop` | Mac and Windows app (Electron, the same React screens), see [docs/DESKTOP.md](docs/DESKTOP.md) | Installers from CI (not yet distributed) |
 | `scripts/build-web.mjs` | Builds the website + preview into `site-dist/` | — |
 | `.github/workflows` | CI (tests on every push) and website deploy | GitHub Actions |
 | `TODO.md` | What's next | — |

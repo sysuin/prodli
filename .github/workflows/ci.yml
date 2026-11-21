@@ -38,6 +38,12 @@ jobs:
       - run: pnpm test
       - name: Phone app bundles (iOS + Android JavaScript, as the store builds make them)
         run: pnpm --filter @workspace/prodli-mobile run export:check
+      - name: Desktop app (build, package for Linux, smoke-test the package)
+        run: |
+          pnpm --filter @workspace/prodli-desktop run build
+          cd artifacts/prodli-desktop
+          CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --linux dir --publish never
+          xvfb-run --auto-servernum node tests/smoke.mjs release/linux-unpacked/prodli
       - run: pnpm run build:extension
         env:
           # Optional: enables "Sign in with Google" in the built zip (see docs/GOOGLE-SIGN-IN.md)

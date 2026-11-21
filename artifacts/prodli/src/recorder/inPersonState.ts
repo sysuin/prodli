@@ -2,13 +2,21 @@
 // Kept apart from recorder/inPerson.ts so the floating chip (App) can show it
 // without loading the recorder, transcription and summary code.
 
-let current: { meetingId: string; startedAt: number } | null = null;
+/** "room": the microphone (in person). "call": a call in any app (desktop app: computer's sound + microphone). */
+export type RecordingKind = "room" | "call";
+export interface CurrentRecording {
+  meetingId: string;
+  startedAt: number;
+  kind: RecordingKind;
+}
+
+let current: CurrentRecording | null = null;
 const listeners = new Set<() => void>();
 
-export function currentInPerson(): { meetingId: string; startedAt: number } | null {
+export function currentInPerson(): CurrentRecording | null {
   return current;
 }
-export function setCurrentInPerson(v: { meetingId: string; startedAt: number } | null): void {
+export function setCurrentInPerson(v: CurrentRecording | null): void {
   current = v;
   listeners.forEach((f) => f());
 }

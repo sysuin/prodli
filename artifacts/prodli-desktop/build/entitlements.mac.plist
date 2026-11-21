@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements for the Mac app (needed for notarization). -->
+<plist version="1.0">
+  <dict>
+    <!-- Electron's JavaScript engine needs these under the hardened runtime. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Recording meetings and calls. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- Talking to ProdLi's server, and the sign-in hand-off on 127.0.0.1. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+  </dict>
+</plist>

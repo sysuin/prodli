@@ -24,6 +24,8 @@ import { INBOX_KEY, OPEN_INBOX_KEY, type InboxAnswer } from "./lib/askPrompts";
 import type { ChatTurn } from "./lib/ask";
 import { ASK_EVENT } from "./lib/ask";
 import { fileNameOf, readLocalFile } from "./lib/localFiles";
+import { desktop } from "./lib/desktop";
+import { parseDesktopCommand } from "./lib/desktopCommands";
 
 // Each section's code loads on demand. To make a new tab appear fast, the
 // section the user had open last starts loading immediately (from a tiny
@@ -214,6 +216,28 @@ export default function App() {
     window.addEventListener(GO_EVENT, onGo);
     return () => window.removeEventListener(GO_EVENT, onGo);
   }, []);
+
+  // Desktop app: the menu bar, tray / dock menu and global shortcuts send commands (lib/desktopCommands.ts).
+  useEffect(
+    () =>
+      desktop()?.onCommand((raw) => {
+        const cmd = parseDesktopCommand(raw);
+        if (!cmd) return;
+        if (cmd.kind === "go") goRef.current(cmd.section);
+        else if (cmd.kind === "settings") setSettingsTab(cmd.tab);
+        else if (cmd.kind === "search") setShowPalette(true);
+        else if (cmd.kind === "ask") setAsk({ open: true });
+        else if (cmd.kind === "quick-add") setQuickAdd({ open: true });
+        else if (cmd.kind === "daily-note") void requestDailyNote().then(() => goRef.current("editor"));
+        else if (cmd.kind === "record-call") {
+          goRef.current("meetings");
+          void import("./recorder/inPerson")
+            .then((m) => m.startInPerson(m.callRecordingSupported() ? "call" : "room"))
+            .catch((err: unknown) => flash(err instanceof Error ? err.message : "Recording couldn't start."));
+        }
+      }),
+    [],
+  );
 
   // Shared from another app (phone share sheet → web app share target).
   useEffect(() => {

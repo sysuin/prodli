@@ -17,6 +17,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] A weekly review with your real data
   - [ ] Phone: the web app (Share → Add to Home Screen)
 - [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts, then `eas build` and a TestFlight / internal-testing beta. Ask the lawyer to add the phone apps to the privacy policy and terms.
+- [ ] **Desktop app (Mac + Windows):** deploy the production API (desktop sign-in), then signing certificates and a download page — [docs/DESKTOP.md](docs/DESKTOP.md) → "Before shipping".
 - [x] **Cloudflare billing alerts:** budget alerts at $10 (auto-created) and $25 (added 2026-11-17), emailed to the account owner
 
 ## Next — Claude can do
@@ -41,7 +42,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 ## Roadmap
 
 - [x] Web app (app.prodli.com), reusing the extension's screens
-- [ ] Desktop app (Mac/Windows) with native meeting recording for any app
+- [ ] Desktop app (Mac/Windows) — first version built in `artifacts/prodli-desktop` ([docs/DESKTOP.md](docs/DESKTOP.md)): every section, record a call in any app, Quick add shortcut, tray; next: signing, download page + auto-updates, Calendar, native time tracking
 - [ ] Mobile app — first version built in `artifacts/prodli-mobile` ([docs/MOBILE.md](docs/MOBILE.md)); next: in-person recording on the phone, table editing, widgets
 
 ## How to test

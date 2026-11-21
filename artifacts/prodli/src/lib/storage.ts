@@ -1,4 +1,7 @@
-// Key/value storage: chrome.storage in the extension, localStorage in the web preview.
+// Key/value storage: chrome.storage in the extension, a file on disk in the
+// desktop app (through its bridge, see desktop.ts), localStorage on the web.
+
+import { desktop } from "./desktop";
 
 type StorageArea = "local" | "sync";
 
@@ -22,6 +25,11 @@ function announce(key: string, newValue: unknown): void {
 export class StorageWriteError extends Error {}
 
 export async function storageGet<T>(key: string, defaultValue: T, area: StorageArea = "local"): Promise<T> {
+  const d = desktop();
+  if (d) {
+    const v = await d.storage.get(key);
+    return v !== undefined ? (v as T) : defaultValue;
+  }
   if (isChromeExtension()) {
     return new Promise((resolve) => {
       chrome.storage[area].get([key], (result) => {
@@ -38,6 +46,14 @@ export async function storageGet<T>(key: string, defaultValue: T, area: StorageA
 }
 
 export async function storageSet<T>(key: string, value: T, area: StorageArea = "local"): Promise<void> {
+  const d = desktop();
+  if (d) {
+    try {
+      return await d.storage.set(key, value);
+    } catch (err) {
+      throw new StorageWriteError(err instanceof Error ? err.message : "Couldn't save");
+    }
+  }
   if (isChromeExtension()) {
     return new Promise((resolve, reject) => {
       chrome.storage[area].set({ [key]: value }, () => {
@@ -56,6 +72,8 @@ export async function storageSet<T>(key: string, value: T, area: StorageArea = "
 }
 
 export async function storageRemove(key: string, area: StorageArea = "local"): Promise<void> {
+  const d = desktop();
+  if (d) return d.storage.remove(key);
   if (isChromeExtension()) {
     return new Promise((resolve) => {
       chrome.storage[area].remove([key], () => resolve());
@@ -71,6 +89,8 @@ export async function storageRemove(key: string, area: StorageArea = "local"): P
  * (the "storage" event). Returns an unsubscribe function.
  */
 export function onStorageChange<T>(key: string, cb: (value: T | undefined) => void): () => void {
+  const d = desktop();
+  if (d) return d.storage.onChanged((changes) => changes.forEach((c) => c.key === key && cb(c.newValue as T | undefined)));
   if (isChromeExtension()) {
     const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === "local" && key in changes) cb(changes[key].newValue as T | undefined);
@@ -100,6 +120,8 @@ export function onStorageChange<T>(key: string, cb: (value: T | undefined) => vo
 
 /** Calls `cb` with the names of keys that changed (any tab, including this one). */
 export function onAnyStorageChange(cb: (keys: string[]) => void): () => void {
+  const d = desktop();
+  if (d) return d.storage.onChanged((changes) => cb(changes.map((c) => c.key)));
   if (isChromeExtension()) {
     const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === "local") cb(Object.keys(changes));
@@ -122,6 +144,8 @@ export function onAnyStorageChange(cb: (keys: string[]) => void): () => void {
 
 /** Every stored key/value (used to find per-day Time Tracker keys). */
 export async function storageGetAll(): Promise<Record<string, unknown>> {
+  const d = desktop();
+  if (d) return d.storage.getAll();
   if (isChromeExtension()) return new Promise((resolve) => chrome.storage.local.get(null, (all) => resolve(all as Record<string, unknown>)));
   const out: Record<string, unknown> = {};
   for (let i = 0; i < localStorage.length; i++) {

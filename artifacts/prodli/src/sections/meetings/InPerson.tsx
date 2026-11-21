@@ -2,13 +2,17 @@
 // Logic (and why the recording lives in this page): recorder/inPerson.ts.
 
 import { useEffect, useState, type CSSProperties } from "react";
-import { inPersonSupported, startInPerson, stopInPerson } from "../../recorder/inPerson";
+import { callRecordingSupported, inPersonSupported, startInPerson, stopInPerson } from "../../recorder/inPerson";
+import type { RecordingKind } from "../../recorder/inPersonState";
 import { currentInPerson, onInPersonChange } from "../../recorder/inPersonState";
 import { formatTimestamp } from "../../recorder/format";
 import { copyDisclosure } from "./MeetingNotesSettings";
 import { updateMeeting } from "../../recorder/db";
 import { addMark } from "../../lib/moments";
 import { YourNotes } from "./YourNotes";
+import { isDesktop } from "../../lib/desktop";
+
+const desktopApp = isDesktop();
 
 const ACCENT = "#FF4FA3";
 const btn = (primary = false, disabled = false): CSSProperties => ({
@@ -48,24 +52,38 @@ function useInPerson() {
 
 export function InPersonButton({ disabled, flash, onStarted }: { disabled?: boolean; flash: (msg: string) => void; onStarted?: (meetingId: string) => void }) {
   const rec = useInPerson();
-  const [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState<RecordingKind | null>(null);
   if (!inPersonSupported() || rec) return null;
+  const start = (kind: RecordingKind) => {
+    setStarting(kind);
+    startInPerson(kind)
+      .then((id) => onStarted?.(id))
+      .catch((err: unknown) => flash(err instanceof Error ? err.message : "Recording couldn't start."))
+      .finally(() => setStarting(null));
+  };
   return (
-    <button
-      data-testid="record-in-person"
-      style={btn(false, disabled || starting)}
-      disabled={disabled || starting}
-      title="Record a meeting in the room (or a voice note) from your microphone"
-      onClick={() => {
-        setStarting(true);
-        startInPerson()
-          .then((id) => onStarted?.(id))
-          .catch((err: unknown) => flash(err instanceof Error ? err.message : "Recording couldn't start."))
-          .finally(() => setStarting(false));
-      }}
-    >
-      {starting ? "Starting…" : "🎙 Record in person"}
-    </button>
+    <>
+      {callRecordingSupported() && (
+        <button
+          data-testid="record-call"
+          style={btn(true, disabled || !!starting)}
+          disabled={disabled || !!starting}
+          title="Record a call in any app (Zoom, Teams, Slack, FaceTime, a browser…): the computer's sound and your microphone. No bot joins."
+          onClick={() => start("call")}
+        >
+          {starting === "call" ? "Starting…" : "🖥 Record a call"}
+        </button>
+      )}
+      <button
+        data-testid="record-in-person"
+        style={btn(false, disabled || !!starting)}
+        disabled={disabled || !!starting}
+        title="Record a meeting in the room (or a voice note) from your microphone"
+        onClick={() => start("room")}
+      >
+        {starting === "room" ? "Starting…" : "🎙 Record in person"}
+      </button>
+    </>
   );
 }
 
@@ -107,8 +125,14 @@ export function InPersonBar({ flash, onDone }: { flash: (msg: string) => void; o
     <>
       <div data-testid="in-person-bar" style={{ borderBottom: "var(--nb-border)", background: "#000", color: "#fff", padding: "8px 24px", display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 13, flexWrap: "wrap" }}>
       <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
-      <span role="timer">Recording in person · {formatTimestamp(Math.max(0, now - rec.startedAt))}</span>
-      <span style={{ opacity: 0.85, flex: "1 1 220px" }}>From your microphone. Keep this tab open; you can switch ProdLi sections.</span>
+      <span role="timer">{rec.kind === "call" ? "Recording a call" : "Recording in person"} · {formatTimestamp(Math.max(0, now - rec.startedAt))}</span>
+      <span style={{ opacity: 0.85, flex: "1 1 220px" }}>
+        {rec.kind === "call"
+          ? "Your computer's sound and your microphone, from any app. You can close this window; ProdLi keeps recording in the menu bar / tray."
+          : desktopApp
+            ? "From your microphone. You can close this window; ProdLi keeps recording in the menu bar / tray."
+            : "From your microphone. Keep this tab open; you can switch ProdLi sections."}
+      </span>
       <button style={btn()} onClick={() => void copyDisclosure().then((ok) => flash(ok ? "Heads-up copied" : "Couldn't copy"))} title="Copy your “I'm taking AI notes” message">📋 Copy heads-up</button>
       <button style={btn(notesOpen)} aria-pressed={notesOpen} onClick={() => setNotesOpen((v) => !v)} title="Your notes for this meeting">📝 Notes</button>
       <button style={btn()} onClick={mark} title="Mark this moment as important">★ Mark moment</button>

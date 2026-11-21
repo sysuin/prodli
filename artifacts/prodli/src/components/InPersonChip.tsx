@@ -29,7 +29,7 @@ export function InPersonChip({ onOpen }: { onOpen: () => void }) {
       style={{ position: "fixed", right: 16, bottom: 16, zIndex: 1500, display: "flex", alignItems: "center", gap: 8, border: "2px solid #000", background: "#000", color: "#fff", padding: "8px 12px", fontFamily: "inherit", fontWeight: 800, fontSize: 12, cursor: "pointer", boxShadow: "3px 3px 0 #FF4FA3" }}
     >
       <span className="timer-pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: "#E53935", display: "inline-block" }} />
-      Recording in person · {clock(Math.max(0, now - rec.startedAt))}
+      {rec.kind === "call" ? "Recording a call" : "Recording in person"} · {clock(Math.max(0, now - rec.startedAt))}
     </button>
   );
 }

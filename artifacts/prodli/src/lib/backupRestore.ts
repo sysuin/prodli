@@ -1,4 +1,4 @@
-import { storageGet, storageSet } from "./storage";
+import { storageGet, storageGetAll, storageRemove, storageSet } from "./storage";
 import { DEFAULT_POMODORO_SETTINGS } from "./pomodoroCore";
 import { deleteMeeting, listMeetings, putMeeting } from "../recorder/db";
 import type { Meeting } from "../recorder/types";
@@ -79,16 +79,8 @@ async function readTrackingDays(): Promise<Record<string, Record<string, number>
     for (const [k, v] of Object.entries(all)) if (TRACKING_DAY_KEY.test(k)) out[k.slice(3)] = v as Record<string, number>;
     return out;
   }
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k?.startsWith("prodli_") && TRACKING_DAY_KEY.test(k.slice(7))) {
-      try {
-        out[k.slice(10)] = JSON.parse(localStorage.getItem(k)!);
-      } catch {
-        // skip unreadable day
-      }
-    }
-  }
+  // Web and desktop apps: through the storage helpers.
+  for (const [k, v] of Object.entries(await storageGetAll())) if (TRACKING_DAY_KEY.test(k)) out[k.slice(3)] = v as Record<string, number>;
   return out;
 }
 
@@ -103,8 +95,8 @@ async function replaceTrackingDays(days: Record<string, Record<string, number>>)
     await new Promise<void>((resolve) => chrome.storage!.local.set(next, resolve));
     return;
   }
-  existing.forEach((k) => localStorage.removeItem(`prodli_${k}`));
-  for (const [k, v] of Object.entries(next)) localStorage.setItem(`prodli_${k}`, JSON.stringify(v));
+  await Promise.all(existing.map((k) => storageRemove(k)));
+  for (const [k, v] of Object.entries(next)) await storageSet(k, v);
 }
 
 // ── Build / restore ───────────────────────────────────────────────────────────

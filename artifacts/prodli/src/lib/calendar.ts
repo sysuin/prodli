@@ -4,8 +4,11 @@
 //
 // Extension: chrome.identity with the calendar.readonly scope.
 // Web app:   Google Identity Services token client (a popup the first time).
+// Desktop app: not yet (Google's web sign-in doesn't run inside apps; it needs
+//             its own "Desktop" OAuth client and a browser hand-off).
 
 import { googleConfigured, getToken, PROFILE_SCOPES } from "./google";
+import { isDesktop } from "./desktop";
 import { accountRequest } from "./prodliAccount";
 import { storageGet, storageSet } from "./storage";
 
@@ -33,6 +36,7 @@ const calendarStub = (): (() => CalendarEvent[]) | undefined => (import.meta.env
 /** Can this build connect a calendar at all? */
 export function calendarAvailable(): boolean {
   if (calendarStub()) return true;
+  if (isDesktop()) return false;
   return isExtension() ? googleConfigured() : typeof window !== "undefined";
 }
 

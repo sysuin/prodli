@@ -2,7 +2,7 @@
 
 import type { GoogleIdentity } from "./google";
 
-export type Client = "extension" | "web" | "mobile";
+export type Client = "extension" | "web" | "mobile" | "desktop";
 
 export interface User {
   id: string;
@@ -24,7 +24,7 @@ export interface SessionInfo {
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Sessions slide: each use (at most every TOUCH_EVERY) pushes expiry out again. */
-export const SESSION_TTL: Record<Client, number> = { extension: 180 * DAY, web: 30 * DAY, mobile: 180 * DAY };
+export const SESSION_TTL: Record<Client, number> = { extension: 180 * DAY, web: 30 * DAY, mobile: 180 * DAY, desktop: 180 * DAY };
 const TOUCH_EVERY = 10 * 60 * 1000;
 
 interface UserRow {
@@ -139,6 +139,7 @@ export async function deleteAllSessions(db: D1Database, userId: string): Promise
 export async function deleteUser(db: D1Database, userId: string): Promise<void> {
   await db.batch([
     db.prepare(`DELETE FROM sessions WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM desktop_codes WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM ai_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM brief_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM ask_usage WHERE user_id = ?1`).bind(userId),

@@ -28,7 +28,7 @@ import { AudioTranscribe } from "./meetings/AudioTranscribe";
 import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSettings";
 import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
 import { InPersonBar, InPersonButton } from "./meetings/InPerson";
-import { recoverInPerson } from "../recorder/inPerson";
+import { callRecordingSupported, recoverInPerson } from "../recorder/inPerson";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -993,11 +993,19 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         {header}
         <InPersonBar flash={flash} onDone={(id) => void refresh().then(() => setSelectedId(id))} />
         <div style={{ padding: 24 }}>
-          <div style={card}>
-            <strong>Record a meeting in the room with 🎙 Record in person above</strong>, or get notes from calls with the ProdLi Chrome extension.
-            <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…), and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
-            {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
-          </div>
+          {callRecordingSupported() ? (
+            <div style={card} data-testid="desktop-meetings-empty">
+              <strong>Get AI notes from any call with 🖥 Record a call above</strong> — Zoom, Teams, Slack, Google Meet, FaceTime or anything else on this computer. No bot joins the call.
+              <p style={{ fontSize: 14 }}>ProdLi records your computer's sound and your microphone, then writes a transcript, summary and action items. For a meeting in the room, use 🎙 Record in person. You can also start a recording from the ProdLi icon in the menu bar (Mac) or the tray (Windows).</p>
+              {accountsEnabled() && <p style={{ fontSize: 14 }}>Transcripts and summaries need a free ProdLi account: sign in (👤 at the bottom left). Meetings from the extension and the phone app show up here too.</p>}
+            </div>
+          ) : (
+            <div style={card}>
+              <strong>Record a meeting in the room with 🎙 Record in person above</strong>, or get notes from calls with the ProdLi Chrome extension.
+              <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…), and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
+              {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
+            </div>
+          )}
         </div>
       </div>
     );
