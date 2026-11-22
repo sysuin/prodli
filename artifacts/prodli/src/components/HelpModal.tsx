@@ -121,6 +121,14 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Save this window</Tag>} desc="On Today: saves this window's web pages (and closes them if you like). Open all brings them back in a new window; ▸ lists them to open one. Also in ⌘K: “Save open tabs and close them”. Synced and backed up with your account." />
           </Section>
 
+          <Section emoji="🎙" title="Voice dictation">
+            <Row label={<Tag>Alt+Shift+D</Tag>} desc="In any text box on any website (or in ProdLi): hold the shortcut and talk, then let go — or tap it to start and tap again (or ✓) to finish. Esc cancels. ProdLi writes what you said where your cursor is, cleaned up: no “um”s or false starts, your corrections applied (“Tuesday — no, Wednesday”), punctuation and lists added. Turn it on in Settings → Dictation." />
+            <Row label={<Tag>Styles</Tag>} desc="Each kind of website gets its own tone: formal for email, casual for work chat, very casual for personal messages (Settings → Dictation)." />
+            <Row label={<Tag>Command Mode · Pro</Tag>} desc="Select text, press the shortcut and say what to do: “make this more formal”, “turn this into bullet points”, “translate to Spanish”. ProdLi replaces the selection." />
+            <Row label={<Tag>Dictionary & snippets</Tag>} desc="Names and terms are spelled as in your word list (shared with meeting notes). Snippets: say a cue like “my calendar link” to type saved text." />
+            <Row label={<Tag>History</Tag>} desc="Settings → Dictation keeps your last 50 dictations on this device (copy any of them) and shows words this week, your speaking speed and time saved." />
+          </Section>
+
           <Section emoji="✍️" title="Editor">
             <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block: + adds a block below (with the / menu), ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block, Ctrl/⌘+D duplicates it." />
             <Row label={<Tag>Callouts & toggles</Tag>} desc="/ → Callout for a tinted box with an icon (click the icon to change it and its colour). / → Toggle list hides details under a line; click ▸ to open or close it." />

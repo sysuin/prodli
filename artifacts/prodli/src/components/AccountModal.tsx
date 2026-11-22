@@ -107,7 +107,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
                   ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
                   : "Thanks for supporting ProdLi!"}
             <br />
-            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates (and a ready-made gallery), talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules and shared links that never expire.
+            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates (and a ready-made gallery), talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules, dictation Command Mode and shared links that never expire.
           </div>
           {billing.canManage && (
             <div>
@@ -134,6 +134,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
               {row("Ask ProdLi questions", String(L.free.asks), String(L.pro.asks))}
               {L.free.writes !== undefined && L.pro.writes !== undefined && row("Writing help (✨ Improve)", String(L.free.writes), String(L.pro.writes))}
               {L.free.transcribeMinutes !== undefined && L.pro.transcribeMinutes !== undefined && row("AI audio transcription", `${L.free.transcribeMinutes} min`, `${L.pro.transcribeMinutes} min`)}
+              {L.free.dictations !== undefined && L.pro.dictations !== undefined && row("Voice dictation AI clean-ups", L.free.dictations.toLocaleString(), L.pro.dictations.toLocaleString())}
               {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
               {row("Your own meeting templates", "—", "✓")}
               {row("Talk-time insights", "—", "✓")}
@@ -147,13 +148,14 @@ function PlanBox({ user }: { user: ProdliUser }) {
               {row("Key moments in summaries", "—", "✓")}
               {row("Meeting insights", "—", "✓")}
               {row("Meeting coach (AI feedback)", "—", "✓")}
+              {row("Dictation Command Mode (edit by voice)", "—", "✓")}
               {row("Summaries that build on your notes", "—", "✓")}
               {row("Decision log", "—", "✓")}
               {row("Meeting type rules", "—", "✓")}
               {row("Shared notes links that never expire", "7 or 30 days", "✓")}
             </tbody>
           </table>
-          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, the Pro features (your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules and links that never expire) are free for everyone.</div>}
+          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, the Pro features (your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules, dictation Command Mode and links that never expire) are free for everyone.</div>}
           {billing.onSale ? (
             <>
               {both && (

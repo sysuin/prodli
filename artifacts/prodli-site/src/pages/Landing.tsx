@@ -27,8 +27,8 @@ const STEPS = [
 ];
 
 const PLANS = [
-  { name: "Free", price: "Free", note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "62 AI daily briefs & weekly reviews", "100 Ask ProdLi questions", "300 min of AI audio transcription", "100 MB of synced data", "Share meeting notes by link (7 or 30 days)"], cta: true },
-  { name: "Pro", price: "$5 / month", note: "Or $48 a year. For people with lots of meetings.", rows: ["300 AI meeting summaries", "200 AI daily briefs & weekly reviews", "1,000 Ask ProdLi questions", "1,500 min of AI audio transcription", "2 GB of synced data", "Your own meeting templates", "Talk-time insights", "Action items across meetings", "AI meeting prep", "Focus trends", "Your writing style", "Meeting series history", "Notes in your language", "Prep reminders", "Key moments in summaries", "Meeting insights", "AI meeting coach", "Summaries from your notes", "Decision log", "Meeting type rules", "Shared links that never expire"], cta: false },
+  { name: "Free", price: "Free", note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "62 AI daily briefs & weekly reviews", "100 Ask ProdLi questions", "300 min of AI audio transcription", "Voice dictation in any text box (1,000 AI clean-ups)", "100 MB of synced data", "Share meeting notes by link (7 or 30 days)"], cta: true },
+  { name: "Pro", price: "$5 / month", note: "Or $48 a year. For people with lots of meetings.", rows: ["300 AI meeting summaries", "200 AI daily briefs & weekly reviews", "1,000 Ask ProdLi questions", "1,500 min of AI audio transcription", "2 GB of synced data", "Your own meeting templates", "Talk-time insights", "Action items across meetings", "AI meeting prep", "Focus trends", "Your writing style", "Meeting series history", "Notes in your language", "Prep reminders", "Key moments in summaries", "Meeting insights", "AI meeting coach", "Summaries from your notes", "Decision log", "Meeting type rules", "Dictation Command Mode", "Shared links that never expire"], cta: false },
 ];
 
 const FAQ = [

@@ -40,6 +40,12 @@
       },
       "description": "Start or stop recording the current call (Meet, Zoom, Teams, Webex, Slack, Discord…)"
     },
+    "dictate": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Dictate: talk instead of typing in any text box (press again, or release after holding, to finish)"
+    },
     "mark-moment": {
       "suggested_key": {
         "default": "Alt+Shift+M"

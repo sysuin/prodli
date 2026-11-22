@@ -36,7 +36,7 @@ describe("AI summaries", () => {
     expect(await res.json()).toMatchObject({ summary: { title: "Notes: Standup" }, usage: { used: 1, limit: AI_MONTHLY_LIMIT.free } });
     expect(calls.filter((c) => c.kind === "summarize")).toHaveLength(1);
     const usage = await (await app.request("/api/ai/usage", { headers: auth }, env)).json();
-    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free }, writes: { used: 0, limit: WRITE_MONTHLY_LIMIT.free }, transcribeSeconds: { used: 0, limit: TRANSCRIBE_MONTHLY_MINUTES.free * 60, available: false } });
+    expect(usage).toEqual({ used: 1, limit: AI_MONTHLY_LIMIT.free, available: true, briefs: { used: 0, limit: BRIEF_MONTHLY_LIMIT.free }, asks: { used: 0, limit: ASK_MONTHLY_LIMIT.free }, writes: { used: 0, limit: WRITE_MONTHLY_LIMIT.free }, dictations: { used: 0, limit: 1000 }, transcribeSeconds: { used: 0, limit: TRANSCRIBE_MONTHLY_MINUTES.free * 60, available: false } });
   });
 
   it("stops at the monthly limit, and the allowance resets next month", async () => {

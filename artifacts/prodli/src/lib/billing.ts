@@ -19,6 +19,8 @@ export interface PlanLimits {
   writes?: number;
   /** AI audio transcription, minutes a month. Optional: older servers don't send it. */
   transcribeMinutes?: number;
+  /** AI clean-ups of voice dictation a month. */
+  dictations?: number;
 }
 
 export interface Billing {

@@ -24,6 +24,8 @@ export default defineConfig({
         // Injected into meet.google.com with chrome.scripting — must stay
         // self-contained (type-only imports), since content scripts can't use ES imports.
         "meet-captions": path.resolve(import.meta.dirname, "src/recorder/meetCaptions.ts"),
+        // Voice dictation's pill, injected into the page the user is typing in (same rule).
+        "dictate-pill": path.resolve(import.meta.dirname, "src/dictation/pill.ts"),
       },
       output: {
         entryFileNames: (chunk) =>
@@ -31,7 +33,9 @@ export default defineConfig({
             ? "background.js"
             : chunk.name === "meet-captions"
               ? "meet-captions.js"
-              : "assets/[name]-[hash].js",
+              : chunk.name === "dictate-pill"
+                ? "dictate-pill.js"
+                : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },

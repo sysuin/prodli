@@ -183,6 +183,12 @@ export default function App() {
     const onSettings = (e: Event) => setSettingsTab((e as CustomEvent<{ tab?: SettingsTab }>).detail?.tab ?? "account");
     window.addEventListener(UPGRADE_EVENT, open);
     window.addEventListener(SETTINGS_EVENT, onSettings);
+    // index.html#settings=dictation (opened by the background when something needs setting up).
+    const hashTab = /^#settings=([a-z]+)$/.exec(window.location.hash)?.[1];
+    if (hashTab) {
+      setSettingsTab(hashTab as SettingsTab);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
     // Dodo replaces our return URL's query with its own (subscription_id, payment_id,
     // status, email): show the plan, and take those (incl. the email) out of the address bar.
     const params = new URLSearchParams(window.location.search);
