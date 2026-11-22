@@ -4,6 +4,14 @@
 import type { ReactNode } from "react";
 import { Logo } from "./Logo";
 
+// Comparison pages (src/pages/Compare.tsx). Listed here, not imported, so the
+// footer doesn't pull the comparison data into every page.
+export const COMPARE_LINKS: [string, string][] = [
+  ["/compare/granola", "ProdLi vs Granola"],
+  ["/compare/otter", "ProdLi vs Otter"],
+  ["/compare/tactiq", "ProdLi vs Tactiq"],
+];
+
 export const CHROME_STORE_URL = "https://chromewebstore.google.com/detail/prodli/gjgknflakhglanjaeenkmciohimnbkdp";
 
 export const MEETING_LINKS: [string, string][] = [
@@ -28,6 +36,11 @@ export function SiteFooter() {
         <a href="/download" style={footLink}>
           Mac &amp; Windows
         </a>
+        {COMPARE_LINKS.map(([href, label]) => (
+          <a key={href} href={href} style={footLink}>
+            {label}
+          </a>
+        ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
