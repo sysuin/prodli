@@ -49,6 +49,27 @@ export const PAGES: PageMeta[] = [
     inSitemap: true,
   },
   {
+    path: "/compare/granola",
+    title: "ProdLi vs Granola: a Granola alternative that works in Chrome | ProdLi",
+    description:
+      "ProdLi and Granola both take AI meeting notes without a bot. Compare price, free plan, platforms, privacy and features side by side, including where Granola is stronger.",
+    inSitemap: true,
+  },
+  {
+    path: "/compare/otter",
+    title: "ProdLi vs Otter: an Otter alternative with no bot | ProdLi",
+    description:
+      "Compare ProdLi and Otter.ai: bot or no bot, price, free plan limits, platforms and integrations, side by side, including where Otter is stronger.",
+    inSitemap: true,
+  },
+  {
+    path: "/compare/tactiq",
+    title: "ProdLi vs Tactiq: compare two no-bot Chrome meeting notes extensions | ProdLi",
+    description:
+      "ProdLi and Tactiq are both Chrome extensions that take meeting notes without a bot. Compare free AI limits, price, in-person meetings, privacy and integrations.",
+    inSitemap: true,
+  },
+  {
     path: "/download",
     title: "ProdLi for Mac and Windows",
     description: "ProdLi's desktop app: AI notes for calls in any app (Zoom, Teams, Slack, FaceTime) without a bot, quick add from anywhere, and your daily brief in the menu bar or tray.",

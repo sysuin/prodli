@@ -4,6 +4,7 @@ import { Privacy, Terms } from "@/pages/Privacy";
 import { Download } from "@/pages/Download";
 import { Goodbye } from "@/pages/Goodbye";
 import { MeetingNotesHub, MeetingNotesTopic } from "@/pages/MeetingNotes";
+import { ComparePage } from "@/pages/Compare";
 
 export function NotFound() {
   return (
@@ -26,6 +27,9 @@ function Routes() {
       <Route path="/ai-meeting-notes/zoom">{() => <MeetingNotesTopic kind="zoom" />}</Route>
       <Route path="/ai-meeting-notes/teams">{() => <MeetingNotesTopic kind="teams" />}</Route>
       <Route path="/ai-meeting-notes/in-person">{() => <MeetingNotesTopic kind="in-person" />}</Route>
+      <Route path="/compare/granola">{() => <ComparePage competitor="granola" />}</Route>
+      <Route path="/compare/otter">{() => <ComparePage competitor="otter" />}</Route>
+      <Route path="/compare/tactiq">{() => <ComparePage competitor="tactiq" />}</Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/download" component={Download} />
