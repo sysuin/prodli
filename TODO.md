@@ -9,7 +9,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [x] **Google consent screen:** published (In production) on 2026-11-17; sign-in works for everyone. prodli.com verified in Search Console (TXT record in Cloudflare; keep it).
 - [ ] **Calendar verification:** branding re-verification is scheduled for 2026-11-18 (Google asks for a 24-hour wait after domain verification). After branding passes, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit.
-- [ ] **ProdLi Pro (when ready to sell):** in Dodo Payments (ProdLi brand created), live mode: products, API key and webhook (test mode is done) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Left for you: one real purchase to confirm the live flow — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [ ] **Real-use checks:**
   - [ ] A real Google Meet call with captions on (full transcript, summary)
   - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
@@ -33,6 +33,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Next ideas
 
+- [ ] **Mail section (later):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
 - [ ] Real-use checks for 1.4.0: a Zoom web call and a Teams web call (with "Include my microphone" on), and 🎙 Record in person on a phone (app.prodli.com)
 - [ ] Move inline styles into shared UI components (needed before a web/desktop app)
