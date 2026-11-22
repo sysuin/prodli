@@ -60,7 +60,27 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **17.** Note properties and a table view, a light Notion database (4–6 weeks).
 - [ ] **18.** Blocking whole apps on desktop and phone (2–4 weeks per platform).
 
-**Decided not to build** (reasons in the report): a Gmail client or full Gmail dashboard (at most right-click "email to task"), AI that rearranges the calendar by itself, autonomous agents, scheduling links, team spaces, screen recall / always-on recording / wearables, focus soundscapes, whiteboards and graph views, a generic "chat with this page" sidebar.
+**Additions from the install research** (2026-11-23; ranked, best first; why: [docs/research/2026-11-most-installed-apps-and-extensions.md](docs/research/2026-11-most-installed-apps-and-extensions.md))
+- [ ] **A1. Desktop menu-bar timer** (2–4 days, desktop): Pomodoro countdown, next meeting and top task in the tray; keep-awake toggle, and automatic keep-awake while recording or focusing.
+- [ ] **A2. Habit streak freeze and milestone moments** (2–3 days, web + phone).
+- [ ] **A3. Screenshot to note or task** (5–8 days, +3–4 for full-page; extension, then paste in the web app): visible area or region, annotate, AI pulls out the text. No new permission.
+- [ ] **A4. One palette with prefixes** (4–6 days, desktop + extension): "t" to-do, "n" note, "h" habit, "p 25" Pomodoro, "?" Ask — shared by Quick add and Cmd+K.
+- [ ] **A5. Phone widgets** (2–3 weeks): habit check-off with streak, today's to-dos, next meeting (replaces part of Tier 3 #16).
+- [ ] **A6. Phone share sheet** (1–2 weeks): link, text or image to a note, task or Read later.
+- [ ] **A7. Read aloud** (2–3 days, all): Read later items, summaries and notes (`tts` permission, no warning).
+- [ ] **A8. Block Shorts and Reels** (1–2 days, extension): path-level blocks like youtube.com/shorts, instagram.com/reels in focus blocking.
+- [ ] **A9. Morning brief and scheduled-prompt answers as phone notifications** (2–4 days).
+- [ ] **A10. System-wide dictation into any app** (3–5 weeks, desktop): moved up from Tier 3 #14 to the first desktop feature once the app is signed.
+- [ ] **A11. Document scan to a note with OCR**, searchable in Ask (1–2 weeks, phone).
+- [ ] **A12. Hindi and other Indian languages** for dictation, Speak tasks and the daily brief (3–7 days).
+- [ ] **A13. Snippet picker** (3–5 days, extension): a shortcut or palette opens saved snippets and inserts into the focused field (no all-sites permission). All four Chrome shortcut slots are used, so it goes in the palette.
+- [ ] **A14. Clipboard history** (2–3 weeks, desktop): send to note or task, AI transforms, skips password-manager copies.
+- [ ] **A15. Follow-ons** (desktop + phone): desktop region screenshot with OCR (reuses A3), Pomodoro on the phone lock screen (Live Activity).
+- [ ] *Cheap extra:* list ProdLi on Edge Add-ons with the same package (~1 day).
+- Phone items (A5, A6, A9, A11, A15) need native device builds, which can't be tested in the current setup; treat them as riskier than their effort.
+- **Rule:** no feature may add a required all-websites permission. Anything that needs one ships as an optional permission asked for on first use, or doesn't ship.
+
+**Decided not to build** (reasons in the report): a Gmail client or full Gmail dashboard (at most right-click "email to task"), AI that rearranges the calendar by itself, autonomous agents, scheduling links, team spaces, screen recall / always-on recording / wearables, focus soundscapes, whiteboards and graph views, a generic "chat with this page" sidebar. From the install research: ad blocking, coupons, password managers; dark mode for sites, video speed, volume boost, grammar underlines, inline translation bubbles (all need every-site access); PDF editing, an office suite, an authenticator, a QR scanner; a full launcher (app/file search), window management, system monitor, menu-bar organiser, keyboard remapping; system-wide text expansion; a tab suspender; a bookmarks manager; hosted screen-recording links; a multi-model chat picker; pet/companion gamification; a watch app; a Firefox port (for now).
 
 **Positioning:** lead with meetings, not "15 apps in one": "No bot joins your call. Your action items land in tomorrow's plan, and Ask finds anything you said. $5."
 
