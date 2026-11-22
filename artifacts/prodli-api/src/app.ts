@@ -44,6 +44,7 @@ import type { SyncOutcome, UserStore } from "./userStore";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
 import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
 import { DICTATE_MONTHLY_LIMIT, DictateInputSchema, dictateWithClaude, MAX_DICTATION_CHARS, type DictateInput } from "./dictate";
+import { DODO_RETURN_PARAMS, renderProPage, type ProPageFrom } from "./proPage";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -474,7 +475,7 @@ export function createApp(deps: Deps = realDeps) {
         customerId = await client.createCustomer({ email: auth.user.email, name: auth.user.name, userId: auth.user.id });
         await saveCustomerId(c.env.DB, auth.user.id, customerId, deps.now());
       }
-      return c.json({ url: await client.checkoutUrl({ productId: products[interval]!, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/?pro=thanks` }) });
+      return c.json({ url: await client.checkoutUrl({ productId: products[interval]!, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/pro/done?from=checkout` }) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the checkout. Try again." }, 502);
       throw err;
@@ -488,7 +489,7 @@ export function createApp(deps: Deps = realDeps) {
     if (!sub) return c.json({ error: "no_subscription" }, 404);
     if (!c.env.DODO_API_KEY) return c.json({ error: "billing_unavailable" }, 503);
     try {
-      return c.json({ url: await dodo(c).portalUrl(sub.customer_id, `${appOrigin(c)}/`) });
+      return c.json({ url: await dodo(c).portalUrl(sub.customer_id, `${appOrigin(c)}/pro/done?from=portal`) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the subscription page. Try again." }, 502);
       throw err;
@@ -981,6 +982,20 @@ export function createApp(deps: Deps = realDeps) {
   app.get("/s/:id", async (c) => {
     const row = await openShare(c.env.DB, c.req.param("id"), deps.now());
     return row ? c.body(renderSharePage(row), 200, SHARE_PAGE_HEADERS) : c.body(renderShareMissing(), 404, SHARE_PAGE_HEADERS);
+  });
+
+  /** Where Dodo returns people after checkout or the portal (src/proPage.ts). */
+  app.get("/pro/done", (c) => {
+    const url = new URL(c.req.url);
+    const from: ProPageFrom = url.searchParams.get("from") === "portal" ? "portal" : "checkout";
+    if (DODO_RETURN_PARAMS.some((k) => url.searchParams.has(k))) {
+      const clean = new URL("/pro/done", url.origin);
+      clean.searchParams.set("from", from);
+      const status = url.searchParams.get("status");
+      if (status && /^[a-z_]{1,40}$/i.test(status)) clean.searchParams.set("status", status);
+      return c.redirect(clean.pathname + clean.search, 303);
+    }
+    return c.body(renderProPage(from, url.searchParams.get("status")), 200, SHARE_PAGE_HEADERS);
   });
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));

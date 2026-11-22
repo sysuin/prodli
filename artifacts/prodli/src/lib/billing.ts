@@ -3,7 +3,7 @@
 //
 // Checkout is Dodo's hosted page: the server creates a checkout session for the
 // signed-in user and returns its URL. It opens in a new tab from both the
-// extension and the web app; after paying, Dodo returns to app.prodli.com/?pro=thanks
+// extension and the web app; after paying, Dodo returns to app.prodli.com/pro/done
 // and the webhook switches the account to Pro (every device picks it up).
 
 import { accountRequest, refreshAccount } from "./prodliAccount";

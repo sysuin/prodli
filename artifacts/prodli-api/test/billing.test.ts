@@ -90,7 +90,7 @@ describe("ProdLi Pro", () => {
     expect(await r1.json()).toEqual({ url: "https://checkout.dodopayments.com/session/pdt_year" });
     await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), env);
     expect(calls.filter((c) => c.kind === "dodo-customer")).toEqual([{ kind: "dodo-customer", clientId: `test:a@example.com:${userId}` }]);
-    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/?pro=thanks`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/?pro=thanks`]);
+    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`]);
     expect((await app.request("/api/billing/checkout", json({ interval: "weekly" }, headers), env)).status).toBe(400);
     expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), { ...env, DODO_API_KEY: "FAIL" } as Env)).status).toBe(502);
   });
@@ -142,6 +142,23 @@ describe("ProdLi Pro", () => {
     // Another brand's product in the same Dodo business (e.g. JobScanner) never touches ProdLi.
     expect(await (await deliver(app, env, subEvent("subscription.cancelled", "cus_other", { status: "cancelled", product_id: "pdt_jobscanner" }, "2027-01-15T10:06:00.000Z"), clock.now)).json()).toEqual({ ok: true, applied: false });
     expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ plan: "pro" });
+  });
+
+  it("after checkout, Dodo returns to a thank-you page with the email taken out of the URL", async () => {
+    const { app } = makeApp();
+    const back = await app.request("/pro/done?from=checkout&subscription_id=sub_1&status=active&email=a%40example.com", {}, selling());
+    expect(back.status).toBe(303);
+    expect(back.headers.get("location")).toBe("/pro/done?from=checkout&status=active");
+    const page = await app.request("/pro/done?from=checkout&status=active", {}, selling());
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toContain("default-src 'none'");
+    const html = await page.text();
+    expect(html).toContain("You're on ProdLi Pro");
+    expect(html).not.toContain("<script");
+    expect(await (await app.request("/pro/done?from=checkout&status=failed", {}, selling())).text()).toContain("didn't go through");
+    expect(await (await app.request("/pro/done?from=portal", {}, selling())).text()).toContain("You're all set");
+    const odd = await app.request("/pro/done?from=checkout&payment_id=p&status=%3Cb%3E", {}, selling());
+    expect(odd.headers.get("location")).toBe("/pro/done?from=checkout");
   });
 
   it("opens Dodo's customer portal for subscribers", async () => {
