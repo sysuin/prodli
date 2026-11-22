@@ -381,6 +381,14 @@ async function init(): Promise<void> {
   await refreshSession(state !== "active");
 }
 
+// After someone removes ProdLi, Chrome opens a short anonymous "why?" page
+// (prodli.com/goodbye). Only the version goes along; answers carry no user id.
+try {
+  chrome.runtime.setUninstallURL(`https://prodli.com/goodbye?v=${encodeURIComponent(chrome.runtime.getManifest().version)}`);
+} catch {
+  // Not available in tests' simulated chrome.
+}
+
 chrome.runtime.onInstalled.addListener(() => { init(); });
 chrome.runtime.onStartup.addListener(() => { init(); });
 

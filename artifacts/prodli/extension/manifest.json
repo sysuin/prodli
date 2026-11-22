@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ProdLi",
+  "name": "ProdLi: AI Meeting Notes & Daily Planner",
   "version": "1.4.0",
-  "description": "Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for any meeting.",
+  "description": "AI meeting notes with no bot for Meet, Zoom and Teams, and a new tab that plans your day: brief, to-dos, notes, habits, focus.",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },

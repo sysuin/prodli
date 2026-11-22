@@ -39,9 +39,11 @@ const FEATURES = [
 
 export function Download() {
   const [latest, setLatest] = useState<Latest | null | undefined>(undefined);
-  const os = typeof navigator === "undefined" ? "other" : detectOs(navigator.userAgent, (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform);
+  // Detected after the first render, so the pre-rendered HTML (scripts/prerender.mjs) matches.
+  const [os, setOs] = useState<Os>("other");
 
   useEffect(() => {
+    setOs(detectOs(navigator.userAgent, (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform));
     document.title = "ProdLi for Mac and Windows";
     fetch("/download/desktop/latest.json", { cache: "no-cache" })
       .then((r) => (r.ok ? (r.json() as Promise<Latest>) : null))

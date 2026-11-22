@@ -29,6 +29,7 @@ import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSet
 import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
 import { InPersonBar, InPersonButton } from "./meetings/InPerson";
 import { callRecordingSupported, recoverInPerson } from "../recorder/inPerson";
+import { answerReviewAsk, CHROME_STORE_REVIEWS_URL, NO_REVIEW_ASK, REVIEW_ASK_KEY, shouldAskForReview, type ReviewAskState } from "../lib/reviewAsk";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
   { code: "en-US", label: "English (US)" },
@@ -74,6 +75,31 @@ export function meetingMatches(m: Meeting, query: string): boolean {
   const s = m.summary;
   const hay = [m.title, s?.title, s?.overview, ...(s?.customSections ?? []).flatMap((c) => [c.heading, ...c.points]), ...(s?.keyPoints ?? []), ...(s?.decisions ?? []), ...(s?.actionItems ?? []).map((a) => a.task), m.userNotes, ...m.transcript.map((e) => `${e.speaker} ${e.text}`)];
   return hay.some((h) => h?.toLowerCase().includes(q));
+}
+
+/** A one-line ask for a Chrome Web Store review, after a few summarized meetings (lib/reviewAsk.ts). */
+function ReviewAsk({ summarized }: { summarized: number }) {
+  const [state, setState] = useState<ReviewAskState | null | undefined>(undefined);
+  useEffect(() => {
+    void storageGet<ReviewAskState>(REVIEW_ASK_KEY, NO_REVIEW_ASK).then(setState);
+  }, []);
+  if (state === undefined || !shouldAskForReview(summarized, state, Date.now())) return null;
+  const answer = (a: "review" | "later" | "never") => {
+    const next = answerReviewAsk(state, a, Date.now());
+    setState(next);
+    void storageSet(REVIEW_ASK_KEY, next);
+    if (a === "review") void chrome.tabs.create({ url: CHROME_STORE_REVIEWS_URL });
+  };
+  return (
+    <div role="status" data-testid="review-ask" style={{ borderBottom: "var(--nb-border)", background: "hsl(var(--muted))", padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, fontWeight: 600 }}>
+      <span style={{ flex: 1, minWidth: 220 }}>
+        <strong>Are ProdLi's meeting notes useful?</strong> A short review on the Chrome Web Store helps other people find it.
+      </span>
+      <button style={btn("primary")} onClick={() => answer("review")}>★ Leave a review</button>
+      <button style={btn("plain")} onClick={() => answer("later")}>Not now</button>
+      <button style={btn("plain")} onClick={() => answer("never")}>Don't ask again</button>
+    </div>
+  );
 }
 
 function isExtension(): boolean {
@@ -1027,6 +1053,8 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           <button style={btn("plain")} onClick={() => void storageRemove("recorderLastProblem").then(() => setProblem(null))}>Dismiss</button>
         </div>
       )}
+
+      {ext && !recState && <ReviewAsk summarized={meetings.filter((m) => m.summary).length} />}
 
       <InPersonBar flash={flash} onDone={(id) => void refresh().then(() => setSelectedId(id))} />
 

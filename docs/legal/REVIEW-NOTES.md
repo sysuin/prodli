@@ -187,3 +187,17 @@ The store privacy answers (Apple's privacy labels, Google's data safety form) ar
 **Decisions to confirm:**
 1. Is a short "Phone apps" section enough, or should the policy name the iOS/Android apps in each relevant section?
 2. Google Play requires a web page where users can request account deletion without the app; app.prodli.com → Account → Delete account is proposed. Is that acceptable, or should prodli.com have a dedicated page?
+
+## 10. Uninstall survey and the founder's growth report (22 November 2026, not yet reviewed)
+
+**Uninstall survey.** From extension 1.4.0, Chrome opens `prodli.com/goodbye?v=<version>` after someone removes ProdLi (`chrome.runtime.setUninstallURL`). The page asks why, with one optional text box ("Please don't include personal details"). Answers go to `POST app.prodli.com/api/feedback/uninstall` and are stored in D1 `uninstall_feedback` with only the reason, the text (max 500 characters) and the extension version, plus the time. No user id, email, IP address or browser details are stored with an answer (the IP is used only in memory by the rate limiter, as for sign-in). The page itself says what's kept and links to the policy. It cannot be linked to an account, so it isn't covered by "Download my data" or "Delete account".
+*Proposed, in "Technical data and logs" (or a new "Feedback" paragraph):* "If you remove the extension, Chrome opens a page asking why. Answering is optional and anonymous: we keep only the reason you pick, any words you add and the ProdLi version, not your name, email or IP address. Please don't include personal details. We keep answers for up to 2 years to improve ProdLi."
+*Proposed, in "How long we keep data":* "• Uninstall survey answers: up to 2 years (they aren't linked to an account)."
+
+**Growth report.** `GET /api/admin/funnel` (only with the `ADMIN_TOKEN`, like backup/restore) returns counts computed from data the service already keeps: accounts created and active, which apps are signed in, how many accounts used AI meeting summaries this month and last, share links and views, Pro subscriptions, and uninstall reasons. It returns no names, emails, user ids or content (a test checks this). No new data is collected for it, and there is still no third-party analytics.
+*Proposed, in "Why we use your data":* "We count, in total, how many accounts use each part of ProdLi (for example how many used meeting summaries this month) to understand what's working. These counts come from the data needed to run the service and never include the content of your notes, tasks or meetings."
+
+**Decisions to confirm:**
+1. Is the in-page notice enough to start collecting answers before the policy wording above goes live?
+2. Is a 2-year retention reasonable for anonymous answers (the nightly job deletes older answers: `pruneUninstallFeedback`)?
+3. Does the store listing's "No ads, no analytics, no tracking" line stay accurate with the aggregate growth report? (Proposed: yes, since nothing new is collected and nothing is shared.)
