@@ -297,3 +297,43 @@ describe("your notes in summaries (Pro)", () => {
     expect(calls.some((c) => c.kind === "summarize-notes")).toBe(false);
   });
 });
+
+describe("voice dictation", () => {
+  it("cleans up dictation with style, field and dictionary, counted in its own allowance", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/dictate", json({ text: "um, let's meet at three", style: "casual", field: "chat", dictionary: ["ProdLi"] }, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ text: "let's meet at three", usage: { used: 1, limit: 1000 } });
+    expect(calls).toContainEqual({ kind: "dictate-polish", clientId: "casual|chat|ProdLi|" });
+    const usage = (await (await app.request("/api/ai/usage", { headers: auth }, env)).json()) as { dictations: { used: number; limit: number } };
+    expect(usage.dictations).toEqual({ used: 1, limit: 1000 });
+  });
+  it("Command Mode applies a spoken edit to the selection, during early access", async () => {
+    const { app, calls } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/dictate", json({ mode: "command", text: "make it formal", selection: "hey whats up" }, auth), env);
+    expect(await res.json()).toMatchObject({ text: "[make it formal] hey whats up" });
+    expect(calls.some((c) => c.kind === "dictate-command")).toBe(true);
+    expect((await app.request("/api/ai/dictate", json({ mode: "command", text: "x" }, auth), env)).status).toBe(400);
+  });
+  it("Command Mode needs Pro once Pro is on sale; plain dictation doesn't", async () => {
+    const { app } = makeApp();
+    const env = selling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/dictate", json({ mode: "command", text: "shorter", selection: "a b c" }, auth), env)).status).toBe(402);
+    expect((await app.request("/api/ai/dictate", json({ text: "hello there" }, auth), env)).status).toBe(200);
+  });
+  it("validates input and refunds failures", async () => {
+    const { app } = makeApp();
+    const env = notSelling();
+    const auth = await signIn(app, env);
+    expect((await app.request("/api/ai/dictate", json({ text: "" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/dictate", json({ text: "hi", style: "pirate" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/dictate", json({ text: "FAIL" }, auth), env)).status).toBe(502);
+    const usage = (await (await app.request("/api/ai/usage", { headers: auth }, env)).json()) as { dictations: { used: number } };
+    expect(usage.dictations.used).toBe(0);
+  });
+});

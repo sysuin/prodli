@@ -16,8 +16,9 @@ import { BackupModal } from "./BackupModal";
 import { HelpModal, version } from "./HelpModal";
 import { Logo } from "./Logo";
 import { WritingStyleSection } from "./WritingStyle";
+const DictationSettings = lazy(() => import("./DictationSettings").then((m) => ({ default: m.DictationSettings })));
 
-export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "desktop" | "writing" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "desktop" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
@@ -38,6 +39,8 @@ interface TabDef {
   group: string;
   serverOnly?: boolean;
   desktopOnly?: boolean;
+  /** Only in the Chrome extension (needs its background and shortcuts). */
+  extensionOnly?: boolean;
 }
 
 const TABS: TabDef[] = [
@@ -48,6 +51,7 @@ const TABS: TabDef[] = [
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
   { id: "desktop", label: "Desktop app", icon: "🖥", group: "Preferences", desktopOnly: true },
   { id: "writing", label: "Writing style", icon: "✍️", group: "Preferences", serverOnly: true },
+  { id: "dictation", label: "Dictation", icon: "🎙", group: "Preferences", extensionOnly: true },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
   { id: "pomodoro", label: "Pomodoro", icon: "🍅", group: "Sections" },
   { id: "tracker", label: "Time Tracker", icon: "⏱", group: "Sections" },
@@ -246,7 +250,7 @@ export function SettingsModal({
   setDark: (dark: boolean) => void;
   pomodoro: { settings: PomodoroSettings; save: (s: PomodoroSettings) => Promise<void> };
 }) {
-  const tabs = TABS.filter((t) => (!t.serverOnly || accountsEnabled()) && (!t.desktopOnly || isDesktop()));
+  const tabs = TABS.filter((t) => (!t.serverOnly || accountsEnabled()) && (!t.desktopOnly || isDesktop()) && (!t.extensionOnly || (isExtensionPage() && !!chrome.commands)));
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
   useEffect(() => {
@@ -317,6 +321,13 @@ export function SettingsModal({
           <Heading sub="How ✨ Improve and follow-up emails should sound.">Writing style</Heading>
           <WritingStyleSection />
         </>
+      );
+      break;
+    case "dictation":
+      body = (
+        <Suspense fallback={<div style={{ fontWeight: 700 }}>Loading…</div>}>
+          <DictationSettings />
+        </Suspense>
       );
       break;
     case "today":

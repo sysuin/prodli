@@ -43,6 +43,7 @@ import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerI
 import type { SyncOutcome, UserStore } from "./userStore";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
 import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
+import { DICTATE_MONTHLY_LIMIT, DictateInputSchema, dictateWithClaude, MAX_DICTATION_CHARS, type DictateInput } from "./dictate";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -79,6 +80,7 @@ export interface Deps {
   review: (ctx: ReviewContext, apiKey: string) => Promise<Review>;
   prep: (input: PrepInput, apiKey: string) => Promise<Prep>;
   coach: (input: CoachInput, apiKey: string) => Promise<Coaching>;
+  dictate: (input: DictateInput, apiKey: string) => Promise<{ text: string }>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
@@ -90,7 +92,7 @@ export interface Deps {
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -443,7 +445,7 @@ export function createApp(deps: Deps = realDeps) {
     const products = productsOnSale(c.env);
     const prices: Partial<Record<Interval, Price | null>> = {};
     if (products) for (const i of ["monthly", "yearly"] as const) if (products[i]) prices[i] = await priceOf(c, products[i]!);
-    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan] });
+    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan] });
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
       onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
@@ -515,6 +517,7 @@ export function createApp(deps: Deps = realDeps) {
 
   // ── AI summaries ───────────────────────────────────────────────────────────
   const aiLimit = (plan: string) => AI_MONTHLY_LIMIT[plan as keyof typeof AI_MONTHLY_LIMIT] ?? AI_MONTHLY_LIMIT.free;
+  const dictateLimit = (plan: string) => DICTATE_MONTHLY_LIMIT[plan as keyof typeof DICTATE_MONTHLY_LIMIT] ?? DICTATE_MONTHLY_LIMIT.free;
 
   const askLimit = (plan: string) => ASK_MONTHLY_LIMIT[plan as keyof typeof ASK_MONTHLY_LIMIT] ?? ASK_MONTHLY_LIMIT.free;
   const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
@@ -531,6 +534,7 @@ export function createApp(deps: Deps = realDeps) {
       briefs: { used: await aiUsage(c.env.DB, auth.user.id, now, "brief_usage"), limit: briefLimit(auth.user.plan) },
       asks: { used: await aiUsage(c.env.DB, auth.user.id, now, "ask_usage"), limit: askLimit(auth.user.plan) },
       writes: { used: await aiUsage(c.env.DB, auth.user.id, now, "write_usage"), limit: writeLimit(auth.user.plan) },
+      dictations: { used: await aiUsage(c.env.DB, auth.user.id, now, "dictate_usage"), limit: dictateLimit(auth.user.plan) },
       transcribeSeconds: { used: await transcribeUsage(c.env.DB, auth.user.id, now), limit: transcribeLimitSeconds(auth.user.plan), available: !!c.env.AI },
     });
   });
@@ -618,6 +622,37 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ prep, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "brief_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST <DictateInput> → { text, usage }. Voice dictation: cleans up what Whisper heard
+  // (polish), or applies a spoken instruction to selected text (command, Pro). Not stored.
+  app.post("/api/ai/dictate", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const raw = await c.req.text();
+    if (raw.length > MAX_DICTATION_CHARS * 2 + 4000) return c.json({ error: "too_large", message: "That's too much text at once." }, 413);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    const input = DictateInputSchema.safeParse(parsed);
+    if (!input.success || !input.data.text.trim() || (input.data.mode === "command" && !input.data.selection?.trim())) return c.json({ error: "bad_request" }, 400);
+    if (input.data.mode === "command" && !proFeatureAllowed(auth.user.plan, c.env)) return c.json({ error: "pro_required", message: "Command Mode (editing selected text by voice) is part of ProdLi Pro." }, 402);
+    const now = deps.now();
+    const limit = dictateLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "dictate_usage");
+    if (used === null) return c.json({ error: "dictate_quota_exceeded", message: "You've used this month's AI dictation clean-ups.", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.dictate(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ text: r.text, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "dictate_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
       throw err;
     }

@@ -15,6 +15,7 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | Ask ProdLi questions | 100 | 1,000 |
 | Writing help (✨ Improve in Notes) | 200 | 2,000 |
 | AI audio transcription | 300 min | 1,500 min |
+| Voice dictation AI clean-ups (the audio counts as transcription) | 1,000 | 10,000 |
 | Synced storage | 100 MB | 2 GB |
 | Your own meeting templates | — | ✓ |
 | Talk-time insights | — | ✓ |
@@ -31,6 +32,7 @@ Until the settings below are filled in, the app shows "ProdLi Pro is coming soon
 | Summaries that build on your own notes (📝 Your notes) | — | ✓ |
 | Decision log (🧭 every decision from every meeting) | — | ✓ |
 | Meeting type rules (pick the type from the meeting's name) | — | ✓ |
+| Dictation Command Mode (select text, say how to change it) | — | ✓ |
 | Shared notes links that never expire | 7 or 30 days | ✓ |
 
 **Pro-only features** are checked on the server with `proFeatureAllowed` (`artifacts/prodli-api/src/billing.ts`). Until Pro is on sale (`productsOnSale` is null), they're open to everyone as early access, and `/api/billing` says `earlyAccess: true`; they become Pro-only by themselves once the Dodo settings below are in place.

@@ -67,7 +67,7 @@ async function getLocal<T>(key: string, fallback: T): Promise<T> {
   return (r[key] as T | undefined) ?? fallback;
 }
 
-async function hasOffscreenDocument(): Promise<boolean> {
+export async function hasOffscreenDocument(): Promise<boolean> {
   if (!chrome.offscreen) return false;
   const contexts = await chrome.runtime.getContexts({
     contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
@@ -76,18 +76,23 @@ async function hasOffscreenDocument(): Promise<boolean> {
   return contexts.length > 0;
 }
 
-async function ensureOffscreenDocument(): Promise<void> {
+export async function ensureOffscreenDocument(): Promise<void> {
   if (await hasOffscreenDocument()) return;
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
     reasons: [chrome.offscreen.Reason.USER_MEDIA],
-    justification: "Record the call's audio for ProdLi meeting notes",
+    justification: "Record the call's audio for ProdLi meeting notes, or the microphone for voice dictation",
   });
 }
 
 async function closeOffscreenDocument(): Promise<void> {
+  // Voice dictation may be using it (dictation/background.ts closes it when done).
+  if ((await chrome.storage.session.get(DICTATING_KEY))[DICTATING_KEY]) return;
   if (await hasOffscreenDocument()) await chrome.offscreen.closeDocument().catch(() => {});
 }
+
+/** Set while voice dictation is recording (so stopping a meeting recording keeps the offscreen document). */
+export const DICTATING_KEY = "dictating";
 
 function notify(title: string, message: string, id = `rec_${Date.now()}`): void {
   chrome.notifications.create(id, {

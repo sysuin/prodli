@@ -15,6 +15,10 @@ import { parsePausePage } from "./lib/focusBlock";
 import { PausePage } from "./components/PausePage";
 import "./index.css";
 
+// Voice dictation (Alt+Shift+D) types into ProdLi's own pages too: load its pill here
+// (websites get it injected by the background).
+void import(/* @vite-ignore */ chrome.runtime.getURL("dictate-pill.js")).catch(() => {});
+
 // index.html#quick-add?title=…&url=… is the Quick add window (Alt+Shift+A).
 const quickAdd = location.hash.startsWith("#quick-add");
 // index.html#blocked?u=…&r=… is the focus-blocking pause page.

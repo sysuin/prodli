@@ -11,6 +11,10 @@ import { LiveTranscriber, mergeSpeechEntries, speechAvailability } from "./speec
 // Test hook: lets the end-to-end tests exercise on-device transcription here.
 (globalThis as unknown as { __prodliSpeech?: unknown }).__prodliSpeech = { LiveTranscriber, mergeSpeechEntries, speechAvailability };
 import type { BackgroundMessage, OffscreenCommand, TranscriptEntry } from "./types";
+import { registerOffscreenDictation } from "../dictation/offscreenDictation";
+
+// Voice dictation (Alt+Shift+D) records here too.
+registerOffscreenDictation();
 
 const CHUNK_MS = 10_000;
 

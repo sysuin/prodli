@@ -144,6 +144,7 @@ export async function deleteUser(db: D1Database, userId: string): Promise<void> 
     db.prepare(`DELETE FROM brief_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM ask_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM write_usage WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM dictate_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM transcribe_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM shares WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM subscriptions WHERE user_id = ?1`).bind(userId),
