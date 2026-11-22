@@ -35,6 +35,7 @@ import { generateReview, MAX_REVIEW_CONTEXT_CHARS, ReviewContextSchema, type Rev
 import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, cleanMoments, cleanUserNotes, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
+import { funnelReport, parseUninstallFeedback, saveUninstallFeedback } from "./insights";
 import { ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
@@ -891,6 +892,20 @@ export function createApp(deps: Deps = realDeps) {
     } catch (err) {
       return c.json({ error: "restore_failed", message: err instanceof Error ? err.message : String(err) }, 400);
     }
+  });
+
+  /** GET → the founder's growth report: counts only, no content or personal data (src/insights.ts). */
+  app.get("/api/admin/funnel", requireAdmin, async (c) => c.json(await funnelReport(c.env.DB, deps.now())));
+
+  // ── Uninstall survey (prodli.com/goodbye, opened by Chrome after removal) ──
+  // Anonymous: only the reason, optional words and the extension version are kept.
+  app.post("/api/feedback/uninstall", async (c) => {
+    if (!isAllowedOrigin(c, c.req.header("Origin"))) return c.json({ error: "forbidden" }, 403);
+    if (c.env.AUTH_LIMITER && !(await c.env.AUTH_LIMITER.limit({ key: `feedback:${c.req.header("CF-Connecting-IP") ?? "unknown"}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const feedback = parseUninstallFeedback(await c.req.json().catch(() => null));
+    if (!feedback) return c.json({ error: "bad_request" }, 400);
+    await saveUninstallFeedback(c.env.DB, feedback, deps.now());
+    return c.json({ ok: true });
   });
 
   // ── Shared meeting notes (src/shares.ts) ──────────────────────────────────

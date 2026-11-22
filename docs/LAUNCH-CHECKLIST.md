@@ -55,6 +55,11 @@
 
 ## Monitoring and alerts
 - ✅ Worker logs and metrics: Cloudflare dashboard → Workers → prodli-api → Observability
+- ✅ Growth report: counts only (accounts, signed-in apps, meeting-summary users this month, share links, Pro, uninstall reasons), never names or content:
+  ```bash
+  curl -s -H "Authorization: Bearer $ADMIN_TOKEN" https://app.prodli.com/api/admin/funnel | jq
+  ```
+  Installs, uninstalls and weekly users come from the Chrome Web Store dashboard (Analytics). Uninstall answers come from prodli.com/goodbye, which Chrome opens after removal.
 - ✅ Uptime check every 15 minutes (`.github/workflows/uptime.yml`): production, staging and prodli.com. A failure emails you.
 - ✅ Anthropic monthly spend limits
 - ✅ Cloudflare billing budget alerts at $10 and $25 a month (Notifications; they warn but don't stop spending)

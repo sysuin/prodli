@@ -13,7 +13,7 @@ Everything to paste into the [Developer Dashboard](https://chrome.google.com/web
   This writes `prodli-extension-store.zip`. It always talks to https://app.prodli.com, includes Google sign-in from `.env.local`, and leaves out the `key` field (the store rejects it). It never touches the `dist-extension` folder your Chrome loads.
 - Version: **1.4.0** in `artifacts/prodli/extension/manifest.json`. Raise it for every upload after this one.
 - The production API must be deployed first (done 20 Nov 2026): 1.4.0 syncs new lists (to-do lists, saved tabs, quick links, Read later) and uses new AI endpoints.
-- The store's name and summary come from the manifest: **ProdLi** and the summary in section 3.
+- The store's name and summary come from the manifest: **ProdLi: AI Meeting Notes & Daily Planner** and the summary in section 3. The name leads with what people search the store for ("meeting notes", "planner"); keep it short and descriptive, since the store rejects keyword stuffing.
 
 ## 2. Store listing → Graphics
 
@@ -21,9 +21,9 @@ All screenshots are 1280×800 and in `artifacts/prodli/store-assets/`. Upload 1�
 
 | Slot | File | Shows |
 |---|---|---|
-| Screenshot 1 | `screenshot-1-today.png` | Today: quick links, AI daily brief, the Day view with time blocks and meetings |
-| Screenshot 2 | `screenshot-2-ask.png` | Ask ProdLi answering "What should I focus on now?" |
-| Screenshot 3 | `screenshot-3-meetings.png` | AI meeting notes (any call, and in person) |
+| Screenshot 1 | `screenshot-3-meetings.png` | AI meeting notes (any call, and in person): lead with this, it's what people search for and pay for |
+| Screenshot 2 | `screenshot-1-today.png` | Today: quick links, AI daily brief, the Day view with time blocks and meetings |
+| Screenshot 3 | `screenshot-2-ask.png` | Ask ProdLi answering "What should I focus on now?" |
 | Screenshot 4 | `screenshot-6-todos.png` | To-dos with lists, labels, repeats and reminders |
 | Screenshot 5 | `screenshot-7-time-tracker.png` | Time Tracker with the focus score and site categories |
 | Small promo tile (440×280) | `promo-440x280.png` | Logo and "Your day, planned." |
@@ -34,25 +34,25 @@ To regenerate them after UI changes (from `artifacts/prodli`): `node scripts/sto
 
 ## 3. Store listing → Text
 
-**Summary** (from the manifest, 124 of 132 characters):
+**Summary** (from the manifest, 126 of 132 characters):
 
 ```
-Plan your day in every new tab: AI daily brief, Ask ProdLi, notes, to-dos, habits, focus tools and AI notes for any meeting.
+AI meeting notes with no bot for Meet, Zoom and Teams, and a new tab that plans your day: brief, to-dos, notes, habits, focus.
 ```
 
 **Description:**
 
 ```
-ProdLi is a personal assistant in every new tab. It plans your day around your tasks and calendar, answers questions about your work, and keeps your notes, to-dos, habits, focus tools and meeting notes in one place.
+AI notes for every meeting, with no bot in the call. ProdLi writes the transcript, summary, decisions and action items for Google Meet, Zoom, Teams and in-person meetings, then turns them into your plan for the day in every new tab: a daily brief, to-dos, notes, habits and focus tools in one place.
+
+🎙️ AI MEETING NOTES FOR GOOGLE MEET, ZOOM AND TEAMS, NO BOT
+Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom, Microsoft Teams, Webex, Slack huddles, Discord, Jitsi and Whereby in the browser (or any website, if you turn that on), it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…, or your own template with your own sections), with names spelled from your own word list. Send action items to your to-dos in one click, draft a follow-up email, or share the notes as a read-only link. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
 
 ☀️ TODAY: YOUR DAY, PLANNED
 Each morning ProdLi writes a short daily brief: your top priorities and why, a suggested schedule around your meetings, what to watch out for, and prep for meetings you've had before (what you covered last time and what's still open). Plan tasks for today and drag them onto the Day view to block time, or let ProdLi fit them into the free time between meetings. Search the web, open your quick links and saved tabs, and keep a Read later list, all from the same page. In the evening, wrap up the day; tomorrow's brief reads it.
 
 ✨ ASK PRODLI
 Ask anything about your day, notes and meetings: "What should I focus on now?", "What's overdue?", "Summarize my last meeting". Answers come from your own data and show the notes and meetings they used, so you can open them. Save questions you ask often, or schedule them ("every weekday at 8:30") and get the answer as a notification.
-
-🎙️ AI MEETING NOTES FOR GOOGLE MEET, ZOOM AND TEAMS, NO BOT
-Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom, Microsoft Teams, Webex, Slack huddles, Discord, Jitsi and Whereby in the browser (or any website, if you turn that on), it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…, or your own template with your own sections), with names spelled from your own word list. Send action items to your to-dos in one click, draft a follow-up email, or share the notes as a read-only link. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
 
 ✅ TO-DOS THAT KEEP UP
 Type naturally: "call mom every Monday at 5pm #family" sets the date, time, repeat and list. Repeating tasks, reminders with snooze, lists, labels and subtasks, in a list, a Board or an Eisenhower matrix. Or press 🎙 Speak tasks, say everything on your mind, and review the tasks before they're added.

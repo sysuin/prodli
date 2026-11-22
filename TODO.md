@@ -57,6 +57,7 @@ From the repo root (see README.md for all commands):
 
 ## Done
 
+- [x] 2026-11-22 — Go-to-market groundwork: store listing led by meeting notes (name, summary, description, screenshot order), Chrome Web Store review ask after 3 summarized meetings, anonymous uninstall survey (prodli.com/goodbye) and admin growth report, prodli.com pre-rendered for search engines with real 404s, meeting notes landing pages (Meet, Zoom, Teams, in person) and a meetings-first homepage. Policy wording for the survey awaits the lawyer: `docs/legal/REVIEW-NOTES.md` §10
 - [x] 2026-11-20 — 1.4.0 ready for the store: production API deployed, privacy policy and terms updated (prodli.com), store zip, kit and screenshots; in-person recording; to-do Board and Matrix views
 - [x] 2026-11-19 — Tier 1 and 2 features (sysuin/prodli#53–#69): repeating to-dos, reminders, lists and labels, quick add, focus blocking, saved tabs, quick links, Read later and page summaries, note templates, richer habits, Speak tasks, Ask sources and scheduled prompts, meeting prep, focus score, Day view, Zoom and Teams capture
 

@@ -2,7 +2,8 @@
 // `pnpm run build:web`). This small script only:
 //   - redirects www.prodli.com and http:// → https://prodli.com
 //   - sends the old web preview (/extension…) to the app at app.prodli.com
-//   - serves index.html for the site's routes (/privacy, /terms)
+//   - serves the pre-rendered page for each route (/privacy → privacy.html) and
+//     404.html with status 404 for anything else
 //   - adds security and caching headers
 //   - serves desktop app downloads and updates from R2 (worker/downloads.js)
 // Everything else is a plain static file.
@@ -50,10 +51,10 @@ export default {
 
     let res = await env.ASSETS.fetch(request);
     if (res.status === 404 && (request.method === "GET" || request.method === "HEAD")) {
-      // Client-side routes of the marketing site (/privacy, /terms; unknown pages
-      // show its "not found" screen).
-      const fallback = await env.ASSETS.fetch(new Request(new URL("/", url), request));
-      res = new Response(fallback.body, { status: 200, headers: fallback.headers });
+      // Every page is a pre-rendered .html file (artifacts/prodli-site/scripts/prerender.mjs),
+      // so anything else is a real "not found", sent with status 404 for search engines.
+      const notFound = await env.ASSETS.fetch(new Request(new URL("/404", url), request));
+      res = new Response(notFound.body, { status: 404, headers: notFound.headers });
     }
     return withHeaders(res, url);
   },
