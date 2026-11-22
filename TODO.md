@@ -31,10 +31,43 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   2. Notify quickly: affected users and India's Data Protection Board without delay, with a detailed report within 72 hours; the EU authority within 72 hours if EU users are at risk.
   3. Ask the lawyer who must be told (also whether CERT-In's 6-hour reporting applies), and keep a written log of what happened and what you did.
 
+## Feature plan (from research, 2026-11-23)
+
+Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature-plan.md](docs/research/2026-11-productivity-apps-feature-plan.md). Effort is for one developer; add a 30–50% buffer.
+
+**Tier 1: next 2–4 weeks** (ship 1, 2 and 5 first if time is short)
+- [ ] **1. Meeting trust pack** (3–4 days): one-click notice to participants (chat line or spoken intro), visible recording indicator, auto-delete for audio and transcripts, one-page "export everything", and a written promise to keep export working if ProdLi ever shuts down.
+- [ ] **2. Voice brain-dump to tasks and plan** (4–6 days): hold the shortcut, talk, get dated tasks with lists, labels and subtasks, optionally dropped straight into Plan your day.
+- [ ] **3. Recipes and citations in Ask** (5–7 days): saved prompt templates over meetings and notes ("1:1 recap", "what did I promise this week?") and answers that link to the exact source.
+- [ ] **4. Focus friction** (4–5 days): block lists with active hours, automatic blocking while a Pomodoro runs, and a pause screen with a big "close tab" button.
+- [ ] **5. Conversion mechanics** (3–5 days): 14–30-day reverse trial (full Pro, then free), free plan limits history and AI volume rather than features, monthly "value recap", annual plan (about two months free), India price (try ₹199/month or ₹1,499/year; check UPI AutoPay in Dodo), fair-use allowance for AI transcription.
+- [ ] **Start Google verification for a Calendar write scope now** (1 day of paperwork; it takes weeks and gates item 6).
+
+**Tier 2: next quarter** (6–8 first; 13 can slip)
+- [ ] **6. Two-way Google Calendar** (2–3 weeks + verification): put time blocks and tasks on the real calendar, move them, keep both sides in step.
+- [ ] **7. Meetings tied to calendar events** (1–2 weeks): "starts in 2 minutes, take notes?", notes filed under the event, prep card with past notes and open action items for the same people.
+- [ ] **8. Basic importer** (1–1.5 weeks): Todoist (API token), TickTick and Google Tasks files, generic CSV — the first part of the import plan below, brought forward because switching is when people pay.
+- [ ] **9. Gentle day mode** (2–3 weeks): vertical visual timeline, big countdown for the current block, one-tap AI "break this down", reminders that repeat until done or snoozed (ADHD-friendly).
+- [ ] **10. Read-only MCP server and personal API** (1–2 weeks) over tasks, notes, meetings and time, so Claude and ChatGPT can read ProdLi.
+- [ ] **11. Scheduled prompts** (1 week): e.g. "every Friday, summarise my meetings and open loops", by notification or email.
+- [ ] **12. Upload any recording for notes** (2–4 days): phone memos, Plaud exports, in-person meetings.
+- [ ] **13. Web clipper and read-later** (2–3 weeks): save, highlight, AI summary into notes, link to a task, listen with the browser's text-to-speech.
+
+**Tier 3: later / needs the native apps**
+- [ ] **14.** System-wide dictation in the desktop app, later a phone keyboard (3–5 weeks for desktop).
+- [ ] **15.** Capture audio from the Zoom and Teams desktop apps (3–4 weeks, plus OS permission and consent).
+- [ ] **16.** Phone quick capture: widget, voice memo to tasks, reliable reminders, offline queue (4–8 weeks).
+- [ ] **17.** Note properties and a table view, a light Notion database (4–6 weeks).
+- [ ] **18.** Blocking whole apps on desktop and phone (2–4 weeks per platform).
+
+**Decided not to build** (reasons in the report): a Gmail client or full Gmail dashboard (at most right-click "email to task"), AI that rearranges the calendar by itself, autonomous agents, scheduling links, team spaces, screen recall / always-on recording / wearables, focus soundscapes, whiteboards and graph views, a generic "chat with this page" sidebar.
+
+**Positioning:** lead with meetings, not "15 apps in one": "No bot joins your call. Your action items land in tomorrow's plan, and Ask finds anything you said. $5."
+
 ## Next ideas
 
-- [ ] **Import from other apps (later):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
-- [ ] **Mail section (later):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
+- [ ] **Import from other apps (first part is Feature plan item 8):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
+- [ ] **Mail section (later; the 2026-11-23 research says don't build the full dashboard, see Feature plan):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
 - [ ] **Phone app keeps Notion-style blocks:** the phone app's note editor flattens callouts, toggles and text/background colours made in the extension (they come back as plain text). Render them, or at least keep them intact when a note is edited on the phone.
 - [ ] **Dictation outside the extension:** voice dictation (Alt+Shift+D) works only in the Chrome extension. Add it to the web app, and system-wide dictation (any app) through the desktop app.
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
