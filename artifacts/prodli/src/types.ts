@@ -11,6 +11,10 @@ export interface Note {
   template?: boolean;
   /** The day (YYYY-MM-DD) this is the daily note for. */
   dailyFor?: string;
+  /** Page icon (an emoji), shown above the note and in the list. */
+  icon?: string;
+  /** Cover colour band at the top of the note (a NOTE_COVERS id). */
+  cover?: string;
 }
 
 export interface Subtask {

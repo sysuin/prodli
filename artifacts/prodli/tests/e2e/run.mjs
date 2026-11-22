@@ -635,6 +635,157 @@ const suites = {
     await p.close();
   },
 
+  async notion(b, check) {
+    // Editor, Notion-style: callouts, toggles, [[note links]], block handle (move / turn into / duplicate), colours, page icon and cover.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "nb1", title: "Plan", content: "<h1>Plan</h1><p>First line</p><p>Second line</p>", createdAt: "${now}", updatedAt: "${now}" },
+      { id: "nb2", title: "Copy deck", content: "<h1>Copy deck</h1><p>Words</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "nb1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const saved = async (id = "nb1") => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === id);
+    const html = () => p.editorHtml();
+
+    // / → Callout and / → Toggle list.
+    await p.focusEditor();
+    await p.key("Enter");
+    await p.type("/callout");
+    await sleep(200);
+    await p.key("Enter");
+    await p.type("Remember the deadline");
+    await sleep(200);
+    check("Notion: / → Callout makes a callout with an icon", /data-type="callout"/.test(await html()) && (await html()).includes("Remember the deadline"), (await html()).slice(0, 400));
+    await p.focusEditor();
+    await p.key("Enter");
+    await p.type("/toggle");
+    await sleep(200);
+    await p.key("Enter");
+    await p.type("Details");
+    await sleep(900);
+    const afterBlocks = await saved();
+    check("Notion: / → Toggle list makes a toggle, and both save", /<details/.test(afterBlocks?.content ?? "") && /data-type="callout"/.test(afterBlocks?.content ?? ""), afterBlocks?.content);
+
+    // [[ → link to another note; clicking it opens that note.
+    await p.focusEditor();
+    await p.key("Enter");
+    await p.type("See [[Cop");
+    await sleep(250);
+    const picker = await p.eval(`document.querySelector('[data-note-picker]')?.innerText ?? ""`);
+    check("Notion: [[ shows matching notes to link", picker.includes("Copy deck") && !picker.includes("Plan"), picker);
+    await p.eval(axeSource + ";true");
+    const pv = await p.eval(`axe.run(document.querySelector('[data-note-picker]'), { runOnly: ["wcag2a", "wcag2aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id))`);
+    check("A11y: note link picker has no serious problems", pv.length === 0, pv.join(", "));
+    await p.key("Enter");
+    await sleep(900);
+    const linked = await saved();
+    check("Notion: picking a note inserts a link to it", /data-type="note-link"[^>]*data-note-id="nb2"|data-note-id="nb2"[^>]*data-type="note-link"/.test(linked?.content ?? "") && !(linked?.content ?? "").includes("[[Cop"), linked?.content);
+    await p.eval(`document.querySelector('.tiptap .note-link a')?.click()`);
+    await sleep(500);
+    check("Notion: clicking a note link opens that note", (await html()).includes("Words") && !(await html()).includes("Remember the deadline"));
+    await p.eval(`document.querySelector('[data-note-id="nb1"]').click()`);
+    await sleep(600);
+
+    // Block handle: hover a block → ⋮⋮ → Move down / Turn into / Duplicate.
+    const hoverText = async (text) => {
+      const r = await p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > *")].find((x) => x.textContent.trim() === ${JSON.stringify(text)}); if (!el) return null; const b = el.getBoundingClientRect(); return { x: b.left + 20, y: b.top + 6 }; })()`);
+      if (r) await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x, y: r.y });
+      await sleep(250);
+      return !!r;
+    };
+    const order = () => p.eval(`[...document.querySelectorAll(".tiptap > p")].map((x) => x.textContent.trim()).filter(Boolean)`);
+    await hoverText("First line");
+    check("Notion: hovering a block shows + and ⋮⋮", await p.eval(`!!document.querySelector('[data-testid="block-handle"] [aria-label="Add a block below"]')`));
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-haspopup="menu"]').click()`);
+    await sleep(250);
+    const menuText = await p.eval(`document.querySelector('[data-testid="block-menu"]')?.innerText ?? ""`);
+    check("Notion: ⋮⋮ opens the block menu", /Turn into/.test(menuText) && /Duplicate/.test(menuText) && /Move down/.test(menuText) && /Delete/.test(menuText), menuText);
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(120);
+      const mv = await p.eval(`axe.run(document.querySelector('[data-testid="block-menu"]'), { runOnly: ["wcag2a", "wcag2aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): block menu has no serious problems`, mv.length === 0, mv.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => /Move down/.test(x.textContent)).click()`);
+    await sleep(300);
+    const moved = await order();
+    check("Notion: Move down swaps the block with the next one", moved.indexOf("Second line") >= 0 && moved.indexOf("Second line") < moved.indexOf("First line"), JSON.stringify(moved));
+    // Keyboard: Alt+Shift+↑ moves it back.
+    await p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > p")].find((x) => x.textContent.trim() === "First line"); const r = document.createRange(); r.setStart(el.firstChild, 2); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector(".ProseMirror").focus(); return true; })()`);
+    await sleep(150);
+    await p.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1 | 8 });
+    await p.send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1 | 8 });
+    await sleep(250);
+    const back = await order();
+    check("Notion: Alt+Shift+↑ moves the block back up", back.indexOf("First line") < back.indexOf("Second line"), JSON.stringify(back));
+    await hoverText("First line");
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-haspopup="menu"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => /Turn into/.test(x.textContent)).click()`);
+    await sleep(150);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => x.textContent.trim().endsWith("Heading 2")).click()`);
+    await sleep(250);
+    check("Notion: Turn into → Heading 2 changes the block", /<h2[^>]*>First line<\/h2>/.test(await html()), (await html()).slice(0, 300));
+    await hoverText("Second line");
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-haspopup="menu"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => /Duplicate/.test(x.textContent)).click()`);
+    await sleep(250);
+    check("Notion: Duplicate copies the block", (await order()).filter((x) => x === "Second line").length === 2, JSON.stringify(await order()));
+
+    // Drag ⋮⋮: move "First line" (now a heading) below the last paragraph.
+    {
+      const box = (t) => p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > *")].find((x) => x.textContent.trim() === ${JSON.stringify(t)}); if (!el) return null; const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, h: b.height }; })()`);
+      const src = await box("First line");
+      await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: src.x + 30, y: src.y + 8 });
+      await sleep(300);
+      const h = await p.eval(`(() => { const el = document.querySelector('[data-testid="block-handle"] [draggable="true"]'); const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+      const last = await p.eval(`(() => { const ps = [...document.querySelectorAll(".tiptap > p")].filter((x) => x.textContent.trim()); const b = ps[ps.length - 1].getBoundingClientRect(); return { x: b.left + 30, y: b.bottom - 2, text: ps[ps.length - 1].textContent.trim() }; })()`);
+      await p.send("Input.setInterceptDrags", { enabled: true });
+      const mark = b.events.length;
+      await p.send("Input.dispatchMouseEvent", { type: "mousePressed", x: h.x, y: h.y, button: "left", clickCount: 1 });
+      for (let i = 1; i <= 10; i++) {
+        await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: h.x + 30, y: h.y + ((last.y - h.y) * i) / 10, button: "left", buttons: 1 });
+        await sleep(30);
+      }
+      const data = b.events.slice(mark).find((e) => e.method === "Input.dragIntercepted")?.params.data;
+      if (data) for (const type of ["dragEnter", "dragOver", "drop"]) await p.send("Input.dispatchDragEvent", { type, x: last.x, y: last.y, data });
+      await p.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: last.x, y: last.y, button: "left", clickCount: 1 });
+      await p.send("Input.setInterceptDrags", { enabled: false });
+      await sleep(400);
+      const blocks = await p.eval(`[...document.querySelectorAll(".tiptap > *")].map((x) => x.textContent.trim()).filter(Boolean)`);
+      check("Notion: dragging ⋮⋮ moves the block (once, no copy left behind)", !!data && blocks.indexOf("First line") > blocks.indexOf(last.text) && blocks.filter((x) => x === "First line").length === 1, JSON.stringify(blocks));
+    }
+
+    // + adds a block below and opens the / menu.
+    await hoverText("Second line");
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-label="Add a block below"]').click()`);
+    await sleep(250);
+    check("Notion: + adds a block below with the / menu open", await p.eval(`!!document.querySelector('[data-slash-menu]')`));
+    await p.key("Escape");
+
+    // Colours: select text → A → Red text.
+    await p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > p")].find((x) => x.textContent.trim() === "Second line"); const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector(".ProseMirror").focus(); return true; })()`);
+    await sleep(350);
+    await p.eval(`document.querySelector('[aria-label="Text colour"]')?.click()`);
+    await sleep(150);
+    await p.eval(`document.querySelector('[data-color-menu] [aria-label="Red text"]')?.click()`);
+    await sleep(900);
+    check("Notion: colours text with a theme-aware colour", /color:\s*var\(--note-red\)/.test((await saved())?.content ?? ""), (await saved())?.content);
+
+    // Page icon and cover.
+    await p.eval(`[...document.querySelectorAll('[data-testid="page-head"] button')].find((x) => /Add icon/.test(x.textContent))?.click()`);
+    await p.eval(`[...document.querySelectorAll('[data-testid="page-head"] button')].find((x) => /Add cover/.test(x.textContent))?.click()`);
+    await sleep(800);
+    const withIcon = await saved();
+    check("Notion: Add icon and Add cover save on the note", !!withIcon?.icon && !!withIcon?.cover, JSON.stringify({ icon: withIcon?.icon, cover: withIcon?.cover }));
+    check("Notion: the note list shows the page icon", (await p.eval(`document.querySelector('[data-note-id="nb1"]')?.innerText ?? ""`)).includes(withIcon?.icon ?? "∅"));
+    await p.close();
+  },
+
   async improve(b, check) {
     // ✨ Improve (writing help) on selected text. The test build has no ProdLi
     // server, so a stub stands in for /api/ai/rewrite (lib/write.ts, test builds only).

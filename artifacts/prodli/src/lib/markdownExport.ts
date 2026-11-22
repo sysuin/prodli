@@ -41,6 +41,30 @@ function service(): TurndownService {
     filter: (node) => node.nodeName === "UL" && (node as HTMLElement).getAttribute("data-type") === "taskList",
     replacement: (content) => `\n\n${content}\n\n`,
   });
+  // Callouts: a quote that starts with the icon ("> 💡 Remember…").
+  turndown.addRule("callout", {
+    filter: (node) => node.nodeName === "DIV" && (node as HTMLElement).getAttribute("data-type") === "callout",
+    replacement: (content, node) => {
+      const emoji = (node as HTMLElement).getAttribute("data-emoji") || "💡";
+      const lines = content.replace(/^\n+|\n+$/g, "").split("\n");
+      lines[0] = `${emoji} ${lines[0]}`;
+      return `\n\n${lines.map((l) => (l ? `> ${l}` : ">")).join("\n")}\n\n`;
+    },
+  });
+  // Toggle lists: the heading in bold, then what's inside.
+  turndown.addRule("toggleSummary", {
+    filter: ["summary"],
+    replacement: (content) => `\n\n**${content.trim()}**\n\n`,
+  });
+  turndown.addRule("toggle", {
+    filter: (node) => node.nodeName === "DETAILS" || (node.nodeName === "DIV" && ["details", "detailsContent"].includes((node as HTMLElement).getAttribute("data-type") ?? "")),
+    replacement: (content) => `\n\n${content.trim()}\n\n`,
+  });
+  // Links to other notes: just the note's name.
+  turndown.addRule("noteLink", {
+    filter: (node) => node.nodeName === "A" && (node as HTMLElement).getAttribute("data-type") === "note-link",
+    replacement: (content) => content.replace(/^↗\s*/, ""),
+  });
   return turndown;
 }
 
