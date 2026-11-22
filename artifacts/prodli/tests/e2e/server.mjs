@@ -391,7 +391,7 @@ try {
   const me = await (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${s2?.token ?? ""}`, Origin: "chrome-extension://x" } })).json();
   check(
     "Pro: the checkout is for the yearly product, this user's Dodo customer, and returns to ProdLi",
-    checkoutCall?.auth === "Bearer dodo_e2e_key" && checkoutCall.body.product_cart[0].product_id === "pdt_year" && checkoutCall.body.customer.customer_id === "cus_e2e" && checkoutCall.body.metadata.userId === me.user.id && checkoutCall.body.return_url === `${SERVER}/?pro=thanks`,
+    checkoutCall?.auth === "Bearer dodo_e2e_key" && checkoutCall.body.product_cart[0].product_id === "pdt_year" && checkoutCall.body.customer.customer_id === "cus_e2e" && checkoutCall.body.metadata.userId === me.user.id && checkoutCall.body.return_url === `${SERVER}/pro/done?from=checkout`,
     JSON.stringify(checkoutCall?.body),
   );
   if (opened) await b.send("Target.closeTarget", { targetId: opened.targetId });
