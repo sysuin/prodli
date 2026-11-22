@@ -33,13 +33,13 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 ## Feature plan (from research, 2026-11-23)
 
-Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature-plan.md](docs/research/2026-11-productivity-apps-feature-plan.md). Effort is for one developer; add a 30–50% buffer.
+Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature-plan.md](docs/research/2026-11-productivity-apps-feature-plan.md). Which features of the most-installed apps and extensions fit ProdLi: [docs/research/2026-11-most-installed-apps-and-extensions.md](docs/research/2026-11-most-installed-apps-and-extensions.md). Effort is for one developer; add a 30–50% buffer. Statuses checked against `main` on 2026-11-23.
 
-**Tier 1: next 2–4 weeks** (ship 1, 2 and 5 first if time is short)
+**Tier 1: next 2–4 weeks** (1 and 5 are the real work; 2–4 are mostly built already)
 - [ ] **1. Meeting trust pack** (3–4 days): one-click notice to participants (chat line or spoken intro), visible recording indicator, auto-delete for audio and transcripts, one-page "export everything", and a written promise to keep export working if ProdLi ever shuts down.
-- [ ] **2. Voice brain-dump to tasks and plan** (4–6 days): hold the shortcut, talk, get dated tasks with lists, labels and subtasks, optionally dropped straight into Plan your day.
-- [ ] **3. Recipes and citations in Ask** (5–7 days): saved prompt templates over meetings and notes ("1:1 recap", "what did I promise this week?") and answers that link to the exact source.
-- [ ] **4. Focus friction** (4–5 days): block lists with active hours, automatic blocking while a Pomodoro runs, and a pause screen with a big "close tab" button.
+- [ ] **2. Voice brain-dump to tasks and plan** — *mostly built:* 🎙 Speak tasks (`lib/voiceTasks.ts`) turns a spoken brain dump into reviewed to-dos. Left (1–2 days): start it from the dictation shortcut, and an option to drop the result straight into Plan your day.
+- [x] **3. Recipes and citations in Ask** — *built:* saved prompts and scheduled prompts (`lib/askPrompts.ts`), answers with sources (`lib/ask.ts`). Left: a real-use check, and a few starter recipes ("1:1 recap", "what did I promise this week?") if they aren't there.
+- [x] **4. Focus friction** — *built:* scheduled blocking and blocking during Pomodoro, with a pause page ("Close tab" / slow "Continue anyway") (`lib/focusBlock.ts`, `PausePage.tsx`). Polish: path-level blocks like youtube.com/shorts (1–2 days).
 - [ ] **5. Conversion mechanics** (3–5 days): 14–30-day reverse trial (full Pro, then free), free plan limits history and AI volume rather than features, monthly "value recap", annual plan (about two months free), India price (try ₹199/month or ₹1,499/year; check UPI AutoPay in Dodo), fair-use allowance for AI transcription.
 - [ ] **Start Google verification for a Calendar write scope now** (1 day of paperwork; it takes weeks and gates item 6).
 
@@ -49,9 +49,9 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **8. Basic importer** (1–1.5 weeks): Todoist (API token), TickTick and Google Tasks files, generic CSV — the first part of the import plan below, brought forward because switching is when people pay.
 - [ ] **9. Gentle day mode** (2–3 weeks): vertical visual timeline, big countdown for the current block, one-tap AI "break this down", reminders that repeat until done or snoozed (ADHD-friendly).
 - [ ] **10. Read-only MCP server and personal API** (1–2 weeks) over tasks, notes, meetings and time, so Claude and ChatGPT can read ProdLi.
-- [ ] **11. Scheduled prompts** (1 week): e.g. "every Friday, summarise my meetings and open loops", by notification or email.
+- [x] **11. Scheduled prompts** — *built* (`lib/askPrompts.ts`: saved prompts run on chosen days, answers in a small inbox with a notification). Left: email delivery, phone push once the phone app ships.
 - [ ] **12. Upload any recording for notes** (2–4 days): phone memos, Plaud exports, in-person meetings.
-- [ ] **13. Web clipper and read-later** (2–3 weeks): save, highlight, AI summary into notes, link to a task, listen with the browser's text-to-speech.
+- [ ] **13. Web clipper and read-later** — *partly built:* Read later and right-click page summaries to notes (`lib/readLater.ts`). Left (1–2 weeks): highlights, link to a task, and read aloud with the browser's text-to-speech.
 
 **Tier 3: later / needs the native apps**
 - [ ] **14.** System-wide dictation in the desktop app, later a phone keyboard (3–5 weeks for desktop).
