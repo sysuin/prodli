@@ -713,7 +713,7 @@ nav :focus-visible { outline-offset: -3px; }
 
 .block-handle { position: absolute; display: flex; gap: 1px; z-index: 5; transition: opacity 0.1s; }
 .block-handle button {
-  width: 22px; height: 24px; border: none; background: transparent; color: hsl(var(--foreground) / 0.55);
+  width: 22px; height: 24px; border: none; background: transparent; color: hsl(var(--foreground) / 0.8);
   cursor: pointer; font-size: 15px; line-height: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .block-handle button:hover, .block-handle button:focus-visible { background: hsl(var(--foreground) / 0.1); color: hsl(var(--foreground)); }
@@ -723,13 +723,13 @@ nav :focus-visible { outline-offset: -3px; }
 .page-head-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; min-height: 26px; }
 .editor-page:hover .page-head-actions, .page-head-actions:focus-within { opacity: 1; }
 .page-head-actions button {
-  border: none; background: transparent; color: hsl(var(--foreground) / 0.6); font-family: inherit; font-size: 12px; font-weight: 700;
+  border: none; background: transparent; color: hsl(var(--foreground) / 0.85); font-family: inherit; font-size: 12px; font-weight: 700;
   padding: 3px 6px; cursor: pointer; border-radius: 4px;
 }
 .page-head-actions button:hover { background: hsl(var(--foreground) / 0.08); color: hsl(var(--foreground)); }
 .page-icon { font-size: 56px; line-height: 1; border: none; background: transparent; cursor: pointer; padding: 4px; border-radius: 6px; }
 .page-icon:hover { background: hsl(var(--foreground) / 0.08); }
-@media (hover: none) { .page-head-actions { opacity: 1; } }
+@media (hover: none) and (pointer: coarse) { .page-head-actions { opacity: 1; } }
 /* Phones: no block handle (touch), so no wide gutter for it. */
 @media (max-width: 767px) {
   .editor-scroll { padding: 16px 16px 24px !important; }

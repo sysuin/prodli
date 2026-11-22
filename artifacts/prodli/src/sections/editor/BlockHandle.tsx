@@ -14,7 +14,7 @@ interface Hover {
   height: number;
 }
 
-const isTouch = () => typeof window !== "undefined" && window.matchMedia?.("(hover: none)").matches;
+const isTouch = () => typeof window !== "undefined" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches;
 
 /** The top-level block element under the pointer's height, and its doc position. */
 function blockAtY(editor: Editor, y: number): { el: HTMLElement; start: number } | null {
