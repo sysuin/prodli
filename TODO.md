@@ -1,6 +1,6 @@
 # ProdLi — To-Do
 
-Last updated: 2026-11-20 · Version 1.4.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
+Last updated: 2026-11-23 · Version 1.4.0 · Repo: https://github.com/sysuin/prodli · Cost plan: [docs/COSTS.md](docs/COSTS.md)
 
 ## Now — needs you
 
@@ -35,6 +35,8 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 - [ ] **Import from other apps (later):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
 - [ ] **Mail section (later):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
+- [ ] **Phone app keeps Notion-style blocks:** the phone app's note editor flattens callouts, toggles and text/background colours made in the extension (they come back as plain text). Render them, or at least keep them intact when a note is edited on the phone.
+- [ ] **Dictation outside the extension:** voice dictation (Alt+Shift+D) works only in the Chrome extension. Add it to the web app, and system-wide dictation (any app) through the desktop app.
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
 - [ ] Real-use checks for 1.4.0: a Zoom web call and a Teams web call (with "Include my microphone" on), and 🎙 Record in person on a phone (app.prodli.com)
 - [ ] Move inline styles into shared UI components (needed before a web/desktop app)
