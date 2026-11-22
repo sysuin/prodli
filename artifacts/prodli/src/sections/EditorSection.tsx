@@ -27,6 +27,11 @@ import { isImprovable, useImprove } from "./editor/ImproveMenu";
 import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
 import { DAILY_NOTE_EVENT, newNoteFromTemplate, PENDING_DAILY_KEY, prepareDailyNote } from "../lib/noteTemplates";
 import { OPEN_ITEM_EVENT } from "../lib/askOpen";
+import { BlockHandle } from "./editor/BlockHandle";
+import { OPEN_NOTE_LINK_EVENT, setNoteTitles } from "./editor/blocks";
+import { detectNotePick, filterNotesForLink, NotePicker, type NotePickState } from "./editor/NotePicker";
+import { PageHead } from "./editor/PageHead";
+import { ColorButton } from "./editor/ColorButton";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -125,6 +130,8 @@ export function EditorSection() {
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [notePick, setNotePick] = useState<NotePickState | null>(null);
+  const [notePickIndex, setNotePickIndex] = useState(0);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const activeIdRef = useRef<string | null>(null);
@@ -132,6 +139,8 @@ export function EditorSection() {
   const loadingContent = useRef(false);
   const slashRef = useRef<{ state: SlashState | null; items: SlashItem[]; index: number; dismissedAt: number | null }>({ state: null, items: [], index: 0, dismissedAt: null });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const createLinkedNoteRef = useRef<(query: string) => void>(() => {});
+  const notePickRef = useRef<{ state: NotePickState | null; items: Note[]; index: number; canCreate: boolean; dismissedAt: number | null }>({ state: null, items: [], index: 0, canCreate: false, dismissedAt: null });
   const importInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -188,7 +197,36 @@ export function EditorSection() {
     });
   }, [setNotes, notesList]);
 
+  const updateNotePick = useCallback((ed: Editor) => {
+    const p = detectNotePick(ed);
+    const ref = notePickRef.current;
+    if (p && ref.dismissedAt === p.from) return;
+    if (!p) ref.dismissedAt = null;
+    const items = p ? filterNotesForLink(notesRef.current, p.query, activeIdRef.current) : [];
+    const canCreate = !!p && p.query.trim().length > 0 && !items.some((n) => n.title.trim().toLowerCase() === p.query.trim().toLowerCase());
+    const count = items.length + (canCreate ? 1 : 0);
+    const index = p && ref.state && ref.state.from === p.from ? Math.min(ref.index, Math.max(0, count - 1)) : 0;
+    notePickRef.current = { ...ref, state: p, items, index, canCreate };
+    setNotePick(p);
+    setNotePickIndex(index);
+  }, []);
+
+  const closeNotePick = useCallback(() => {
+    notePickRef.current = { ...notePickRef.current, state: null, dismissedAt: notePickRef.current.state?.from ?? null };
+    setNotePick(null);
+  }, []);
+
+  const pickNoteLink = useCallback((target: { id: string; title: string }) => {
+    const ed = editorRef.current;
+    const p = notePickRef.current.state;
+    if (!ed || !p) return;
+    ed.chain().focus().deleteRange({ from: p.from, to: p.to }).insertNoteLink({ id: target.id, title: target.title || "Untitled" }).run();
+    notePickRef.current = { ...notePickRef.current, state: null, dismissedAt: null };
+    setNotePick(null);
+  }, []);
+
   const updateSlash = useCallback((ed: Editor) => {
+    updateNotePick(ed);
     const s = detectSlash(ed);
     const ref = slashRef.current;
     if (s && ref.dismissedAt === s.from) return;
@@ -242,6 +280,25 @@ export function EditorSection() {
       editorProps: {
         attributes: { "aria-label": "Note editor", spellcheck: "true" },
         handleKeyDown: (_view, event) => {
+          const np = notePickRef.current;
+          if (np.state) {
+            const count = np.items.length + (np.canCreate ? 1 : 0);
+            if ((event.key === "ArrowDown" || event.key === "ArrowUp") && count) {
+              const index = (np.index + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+              notePickRef.current = { ...np, index };
+              setNotePickIndex(index);
+              return true;
+            }
+            if ((event.key === "Enter" || event.key === "Tab") && count) {
+              if (np.index < np.items.length) pickNoteLink(np.items[np.index]);
+              else createLinkedNoteRef.current(np.state.query);
+              return true;
+            }
+            if (event.key === "Escape") {
+              closeNotePick();
+              return true;
+            }
+          }
           const s = slashRef.current;
           if (s.state) {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -334,6 +391,8 @@ export function EditorSection() {
     loadingContent.current = false;
     slashRef.current = { state: null, items: [], index: 0, dismissedAt: null };
     setSlash(null);
+    notePickRef.current = { state: null, items: [], index: 0, canCreate: false, dismissedAt: null };
+    setNotePick(null);
   }, []);
 
   const toolbar = useEditorState({
@@ -503,6 +562,31 @@ export function EditorSection() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNotes]);
+
+  // [[ → "New note …": make the note (titled by its first heading) and link to it, staying here.
+  createLinkedNoteRef.current = (query: string) => {
+    const title = query.trim().slice(0, 120);
+    if (!title) return;
+    const esc = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const note = newNote({ title, content: `<h1>${esc}</h1><p></p>` });
+    setNotes((prev) => [note, ...prev]);
+    pickNoteLink({ id: note.id, title });
+    showToast(`Created “${title}”`);
+  };
+
+  // Note links show current titles; clicking one opens that note.
+  useEffect(() => {
+    setNoteTitles(notes.filter((n) => !n.template));
+  }, [notes]);
+  useEffect(() => {
+    const onOpenLink = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (id && notesRef.current.some((n) => n.id === id)) openNote(id);
+    };
+    window.addEventListener(OPEN_NOTE_LINK_EVENT, onOpenLink);
+    return () => window.removeEventListener(OPEN_NOTE_LINK_EVENT, onOpenLink);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Ask ProdLi → a source note: open it (Notes was already showing).
   useEffect(() => {
@@ -809,14 +893,16 @@ export function EditorSection() {
           {/* Editor content */}
           <div
             className="editor-scroll"
-            style={{ flex: 1, overflowY: "auto", padding: "24px 32px", background: "hsl(var(--card))", fontFamily: FONT_OPTIONS.find((f) => f.value === editorFont)?.family }}
+            style={{ flex: 1, overflowY: "auto", padding: "24px 56px", background: "hsl(var(--card))", fontFamily: FONT_OPTIONS.find((f) => f.value === editorFont)?.family }}
             onClick={(e) => {
               // Clicking the empty space below the text focuses the end of the note.
               if (e.target === e.currentTarget) editor?.commands.focus("end");
             }}
           >
             <div ref={pageRef} className="editor-page" style={{ maxWidth: 820, margin: "0 auto", position: "relative" }}>
+              {activeNote && <PageHead key={activeNote.id} note={activeNote} onChange={(patch) => setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? { ...n, ...patch, updatedAt: new Date().toISOString() } : n)))} />}
               <EditorContent editor={editor} style={{ minHeight: "100%" }} />
+              <BlockHandle editor={editor} pageRef={pageRef} />
               {improve.panel}
             </div>
           </div>
@@ -846,7 +932,7 @@ export function EditorSection() {
           {t && t.selectedWords > 0 ? <span style={{ background: "#FFD700", color: "#000", padding: "0 4px" }}>{t.selectedWords} selected</span> : <span>{t?.words ?? 0} words</span>}
           <span>{t?.chars ?? 0} chars</span>
           <span>{getReadingTime(t?.words ?? 0)}</span>
-          <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>Type / for commands · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links</span>
+          <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>Type / for commands · [[ links a note · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links</span>
           <span role="status" aria-live="polite" style={{ marginLeft: "auto", color: saveStatus === "error" ? "#E53935" : "hsl(var(--muted-foreground))" }}>
             {saveLabel}
           </span>
@@ -859,7 +945,7 @@ export function EditorSection() {
           editor={editor}
           pluginKey="formatBubble"
           shouldShow={({ editor: ed, state }) => {
-            if (ed.isActive("codeBlock") || slashRef.current.state || improveRef.current?.openRef.current) return false;
+            if (ed.isActive("codeBlock") || slashRef.current.state || notePickRef.current.state || improveRef.current?.openRef.current) return false;
             return !state.selection.empty || ed.isActive("link");
           }}
           options={{ placement: "top" }}
@@ -885,6 +971,7 @@ export function EditorSection() {
                 <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={t?.underline} title="Underline"><u>U</u></ToolbarButton>
                 <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={t?.strike} title="Strikethrough"><s>S</s></ToolbarButton>
                 <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={t?.highlight} title="Highlight">🖍</ToolbarButton>
+                <ColorButton editor={editor} />
                 <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} active={t?.code} title="Inline code">{"<>"}</ToolbarButton>
                 {!t?.link && <ToolbarButton onClick={setLink} title="Add link">🔗</ToolbarButton>}
               </>
@@ -893,6 +980,20 @@ export function EditorSection() {
         </BubbleMenu>
       )}
 
+      {notePick && (
+        <NotePicker
+          state={notePick}
+          items={notePickRef.current.items}
+          index={notePickIndex}
+          canCreate={notePickRef.current.canCreate}
+          onPick={(n) => pickNoteLink(n)}
+          onCreate={() => createLinkedNoteRef.current(notePick.query)}
+          onHover={(i) => {
+            notePickRef.current = { ...notePickRef.current, index: i };
+            setNotePickIndex(i);
+          }}
+        />
+      )}
       {slash && <SlashMenu state={slash} items={slashRef.current.items} index={slashIndex} onPick={pickSlash} onHover={(i) => { slashRef.current = { ...slashRef.current, index: i }; setSlashIndex(i); }} />}
 
       {toast && (

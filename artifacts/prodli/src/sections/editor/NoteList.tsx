@@ -237,6 +237,7 @@ export function NoteList({ notes, activeId, sort, onSortChange, onSelect, onCrea
                   >
                     <div style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {note.pinned && <span aria-label="Pinned" title="Pinned">📌 </span>}
+                      {note.icon && <span aria-hidden style={{ marginRight: 5 }}>{note.icon}</span>}
                       {note.title || "Untitled"}
                     </div>
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{relativeTime(note.updatedAt)}</div>

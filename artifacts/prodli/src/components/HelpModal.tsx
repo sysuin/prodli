@@ -122,6 +122,11 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="✍️" title="Editor">
+            <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block: + adds a block below (with the / menu), ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block, Ctrl/⌘+D duplicates it." />
+            <Row label={<Tag>Callouts & toggles</Tag>} desc="/ → Callout for a tinted box with an icon (click the icon to change it and its colour). / → Toggle list hides details under a line; click ▸ to open or close it." />
+            <Row label={<Tag>[[ Link a note</Tag>} desc="Type [[ and a note's name (or / → Link to note) to link another note; click the link to open it. If no note matches, pick New note to make one. Links follow renames." />
+            <Row label={<Tag>Colours</Tag>} desc="Select text, then A in the bubble for a text or background colour. Colours adjust for dark mode." />
+            <Row label={<Tag>Icon & cover</Tag>} desc="Hover the top of a note: Add icon (click it to pick another) and Add cover. The icon also shows in the notes list." />
             <Row label={<Tag>▾ Templates</Tag>} desc="New note from a template: Meeting notes, Daily note, Weekly plan, Project brief, 1:1, Decision record, or your own (⋯ → Save as template). Templates can use {{date}}, {{weekday}} and {{time}}." />
             <Row label={<Tag>📅 Daily note</Tag>} desc="Opens today's note, created once a day with your main focus and planned tasks. Make your own template called “Daily note” to change its layout. Also in ⌘K." />
             <Row label={<Tag>/ commands</Tag>} desc="Type / anywhere to insert headings, checklists, bullet or numbered lists, tables, quotes, code blocks, dividers, highlights, today's date or the time. Use ↑ ↓ and Enter, or keep typing to filter." />
