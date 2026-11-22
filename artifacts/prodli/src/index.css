@@ -730,3 +730,8 @@ nav :focus-visible { outline-offset: -3px; }
 .page-icon { font-size: 56px; line-height: 1; border: none; background: transparent; cursor: pointer; padding: 4px; border-radius: 6px; }
 .page-icon:hover { background: hsl(var(--foreground) / 0.08); }
 @media (hover: none) { .page-head-actions { opacity: 1; } }
+/* Phones: no block handle (touch), so no wide gutter for it. */
+@media (max-width: 767px) {
+  .editor-scroll { padding: 16px 16px 24px !important; }
+  .page-cover { margin: -16px -16px 0; }
+}
