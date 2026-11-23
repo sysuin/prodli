@@ -18,12 +18,13 @@ import { Logo } from "./Logo";
 import { WritingStyleSection } from "./WritingStyle";
 const DictationSettings = lazy(() => import("./DictationSettings").then((m) => ({ default: m.DictationSettings })));
 
-export type SettingsTab = "account" | "plan" | "devices" | "data" | "appearance" | "desktop" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "connections" | "data" | "appearance" | "desktop" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
 const MeetingsSetup = lazy(() => import("../sections/MeetingsSection").then((m) => ({ default: () => <m.MeetingsSection setupOnly /> })));
 const FilesOpenAnywhere = lazy(() => import("../sections/FilesSection").then((m) => ({ default: m.OpenAnywhereCard })));
+const ConnectionsSection = lazy(() => import("./Connections").then((m) => ({ default: m.ConnectionsSection })));
 const isExtensionPage = () => typeof chrome !== "undefined" && !!chrome.runtime?.id;
 
 export const SETTINGS_EVENT = "prodli-settings";
@@ -47,6 +48,7 @@ const TABS: TabDef[] = [
   { id: "account", label: "Account", icon: "👤", group: "Account" },
   { id: "plan", label: "Plan & usage", icon: "⭐", group: "Account", serverOnly: true },
   { id: "devices", label: "Sync & devices", icon: "🔄", group: "Account", serverOnly: true },
+  { id: "connections", label: "Connections", icon: "🔌", group: "Account", serverOnly: true },
   { id: "data", label: "Backup & data", icon: "💾", group: "Account" },
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
   { id: "desktop", label: "Desktop app", icon: "🖥", group: "Preferences", desktopOnly: true },
@@ -288,6 +290,16 @@ export function SettingsModal({
         <>
           <Heading sub="What's synced, and where you're signed in.">Sync & devices</Heading>
           <AccountPanel view="devices" onSignIn={goSignIn} />
+        </>
+      );
+      break;
+    case "connections":
+      body = (
+        <>
+          <Heading sub="Connect Claude, ChatGPT, Cursor or your own scripts to your ProdLi data (read-only).">Connections</Heading>
+          <Suspense fallback={loadingNote}>
+            <ConnectionsSection onSignIn={goSignIn} />
+          </Suspense>
         </>
       );
       break;

@@ -254,6 +254,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google (your profile, bottom left) to keep notes, to-dos, habits, meetings (text only) and history the same in the extension and at app.prodli.com. Everything already on this device is added; nothing is overwritten." />
                 <Row label={<Tag>Settings</Tag>} desc="Your profile menu → Settings: account, plan & usage, sync & devices, backups, appearance, Today and help — all in one place." />
                 <Row label={<Tag>Your data</Tag>} desc="Download your account's data or a local backup any time (Settings → Backup & data), or every note, meeting and to-do as plain Markdown files in a .zip. Deleting your account removes everything synced to ProdLi's servers." />
+                <Row label={<Tag>Claude & ChatGPT</Tag>} desc="Settings → Connections: create an API key and connect Claude Desktop, Claude.ai, ChatGPT, Cursor or your own scripts (ProdLi's MCP server and a JSON API). They can read your synced to-dos, notes, meeting notes and transcripts, habits and today's plan — never change anything. One key per app; revoke any key there. Sign out everywhere revokes them all." />
               </>
             ) : (
               <>

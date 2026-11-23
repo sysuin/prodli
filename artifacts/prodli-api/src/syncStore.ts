@@ -192,6 +192,19 @@ export class SyncStore {
     return out;
   }
 
+  /**
+   * Live (not deleted) items of one collection, or the one with `id`, for the
+   * read-only API (src/readApi.ts). `drop` leaves out top-level fields (meeting
+   * transcripts) inside SQLite, so they're never copied out when not needed.
+   */
+  readLive(c: CollectionName, opts: { id?: string; drop?: string[] } = {}): unknown[] {
+    const paths = (opts.drop ?? []).filter((k) => /^[A-Za-z]{1,40}$/.test(k)).map((k) => `$.${k}`);
+    const value = paths.length ? `json_remove(v, ${paths.map(() => "?").join(", ")})` : "v";
+    const byId = opts.id !== undefined;
+    const rows = this.sql.exec<{ v: string }>(`SELECT ${value} AS v FROM items WHERE c = ? AND d = 0${byId ? " AND id = ?" : ""}`, ...paths, c, ...(byId ? [opts.id] : [])).toArray();
+    return rows.map((r) => JSON.parse(r.v) as unknown);
+  }
+
   /** Live items after sequence number `after`, up to ~`maxBytes` (for backups). */
   backupChunk(after: number, maxBytes: number): BackupChunk {
     const rows: { c: CollectionName; id: string; u: string; v: unknown }[] = [];

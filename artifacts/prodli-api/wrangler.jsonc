@@ -27,7 +27,9 @@
   "assets": {
     "directory": "./app-dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/s/*", "/pro/*"],
+    // /mcp: the MCP server (src/mcp.ts). The .well-known paths answer MCP clients'
+    // OAuth discovery with a 404 (ProdLi uses API keys, not OAuth).
+    "run_worker_first": ["/api/*", "/s/*", "/pro/*", "/mcp", "/mcp/*", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/*"],
     "not_found_handling": "single-page-application"
   },
   "vars": {

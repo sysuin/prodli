@@ -12,7 +12,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./app";
-import { SyncError, SyncStore, type ChangeIn, type SyncResult } from "./syncStore";
+import { SyncError, SyncStore, type ChangeIn, type CollectionName, type SyncResult } from "./syncStore";
 
 const TICKET_TTL_MS = 60_000;
 
@@ -60,6 +60,11 @@ export class UserStore extends DurableObject<Env> {
     const r = this.store.sync(Number.MAX_SAFE_INTEGER, changes, Number.MAX_SAFE_INTEGER);
     if (r.accepted) this.notify(deviceId, this.store.seq());
     return r.accepted;
+  }
+
+  /** Read-only API and MCP (src/readApi.ts): live items of one collection, or one item. */
+  async readLive(c: CollectionName, opts: { id?: string; drop?: string[] } = {}): Promise<unknown[]> {
+    return this.store.readLive(c, opts);
   }
 
   async exportAll() {
