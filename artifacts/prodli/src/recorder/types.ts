@@ -98,6 +98,8 @@ export interface Meeting {
   /** Languages Whisper heard, most-spoken first (e.g. ["en", "tl"]). */
   audioLanguages?: string[];
   audioMimeType: string | null;
+  /** Uploaded recordings (⬆ Upload recording): when the file was added. `startedAt` is when it was recorded. */
+  uploadedAt?: string;
   updatedAt: string;
 }
 

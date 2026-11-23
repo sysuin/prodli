@@ -10,8 +10,8 @@
 // Apart from Meet, no captions are read: the tab's audio is recorded and
 // transcribed after the call (AI transcription when signed in, or on-device).
 
-/** "in-person": recorded from the microphone on the Meetings page (recorder/inPerson.ts), not a call tab. */
-export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person" | "desktop";
+/** "in-person": recorded from the microphone on the Meetings page (recorder/inPerson.ts), not a call tab. "upload": a file added with ⬆ Upload recording (recorder/upload.ts). */
+export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person" | "desktop" | "upload";
 
 export interface CallInfo {
   platform: CallPlatform;
@@ -31,6 +31,7 @@ export const PLATFORM_LABEL: Record<CallPlatform, string> = {
   browser: "Browser call",
   "in-person": "In person",
   desktop: "Call",
+  upload: "Uploaded recording",
 };
 
 const parse = (url: string | undefined): URL | null => {
@@ -155,7 +156,7 @@ const GENERIC_TITLES = new RegExp(`^(${APP_NAMES}|Meeting|Calendar|Chat|Activity
 
 /** A meeting name from a call tab's title, if it has one ("Weekly sync | Microsoft Teams" → "Weekly sync"). */
 export function titleFromTab(platform: CallPlatform, tabTitle: string | undefined): string | null {
-  if (!tabTitle || platform === "google-meet" || platform === "in-person") return null;
+  if (!tabTitle || platform === "google-meet" || platform === "in-person" || platform === "upload") return null;
   const t = tabTitle
     .replace(/^\(\d+\)\s*/, "")
     .replace(/^[•●]\s*/, "")
@@ -170,7 +171,7 @@ export function titleFromTab(platform: CallPlatform, tabTitle: string | undefine
 export function stillInCall(platform: CallPlatform, url: string | undefined): boolean {
   if (platform === "google-meet") return !!meetingCodeFromUrl(url);
   if (platform === "zoom") return !!zoomMeetingId(url);
-  if (platform === "browser" || platform === "in-person") return true; // stops when you click Stop or close the tab
+  if (platform === "browser" || platform === "in-person" || platform === "upload") return true; // stops when you click Stop or close the tab
   // The other apps: still on that app's pages.
   return callFromUrl(url)?.platform === platform;
 }
