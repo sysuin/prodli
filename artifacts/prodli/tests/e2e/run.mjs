@@ -724,6 +724,111 @@ const suites = {
     await p.close();
   },
 
+  async editorfind(b, check) {
+    // Find & replace in the open note: Ctrl/⌘+F, count, next/previous, Replace, Replace all (one undo), Esc.
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "ef1", title: "Pets", content: "<h1>Pets</h1><p>The cat sat. The <strong>cat</strong> ran to a (cat) show.</p><p>Concat is not a Cat.</p>", createdAt: "${now}", updatedAt: "${now}" },
+      { id: "ef2", title: "Other", content: "<p>Another cat note</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "ef1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const note = async (id) => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === id)?.content ?? "";
+    const count = () => p.eval(`document.querySelector('[data-testid="find-count"]')?.textContent ?? null`);
+    const sel = () => p.eval(`(() => { const ed = document.querySelector(".ProseMirror").editor; const { from, to } = ed.state.selection; return { from, to, text: ed.state.doc.textBetween(from, to) }; })()`);
+
+    await p.focusEditor("start");
+    await p.key("f", { mod: true });
+    await sleep(300);
+    const opened = await p.eval(`(() => { const bar = document.querySelector('[role="search"][data-testid="find-bar"]'); return !!bar && document.activeElement === bar.querySelector('[data-testid="find-input"]') && !bar.querySelector('[data-testid="replace-input"]'); })()`);
+    check("Find: Ctrl/⌘+F in the note opens the find bar with the search field focused", opened);
+    await p.type("cat");
+    await sleep(400);
+    check("Find: the bar shows the match count", (await count()) === "1 of 5", String(await count()));
+    check("Find: every match is highlighted, the current one stronger", await p.eval(`document.querySelectorAll(".ProseMirror .find-match").length === 5 && document.querySelectorAll(".ProseMirror .find-match-current").length === 1`));
+    const first = await sel();
+    await p.key("Enter");
+    await sleep(200);
+    const second = await sel();
+    check("Find: Enter moves to the next match (and selects it)", (await count()) === "2 of 5" && second.text === "cat" && second.from > first.from, JSON.stringify({ c: await count(), first, second }));
+    await p.key("Enter", { shift: true });
+    await sleep(200);
+    const back = await sel();
+    check("Find: Shift+Enter moves to the previous match", (await count()) === "1 of 5" && back.from === first.from, JSON.stringify({ c: await count(), back }));
+    await p.eval(`document.querySelector('button[aria-label="Next match"]').click()`);
+    await sleep(150);
+    check("Find: ↓ also moves to the next match", (await count()) === "2 of 5");
+    await p.eval(`document.querySelector('button[aria-label="Match case"]').click()`);
+    await sleep(150);
+    check("Find: Aa (match case) leaves out “Cat”", (await count())?.endsWith("of 4"), String(await count()));
+    await p.eval(`[...document.querySelectorAll('[data-testid="find-bar"] button')].find((x) => x.textContent.trim() === "Whole word").click()`);
+    await sleep(150);
+    check("Find: Whole word leaves out “Concat”", (await count())?.endsWith("of 3"), String(await count()));
+
+    // Replace: Ctrl/⌘+Shift+F shows the Replace field.
+    await p.key("f", { mod: true, shift: true });
+    await sleep(200);
+    check("Find: Ctrl/⌘+Shift+F shows Replace", await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`));
+    await p.shot("find-replace-bar");
+    await p.eval(`document.documentElement.classList.add("dark")`);
+    await p.shot("find-replace-bar-dark");
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('[data-testid="replace-input"]').focus()`);
+    await p.type("dog");
+    await p.eval(`document.querySelector('[data-testid="find-input"]').focus()`);
+    // Go to the first match so the result is predictable.
+    for (let i = 0; i < 3 && (await count()) !== "1 of 3"; i++) await p.key("Enter");
+    await p.click("Replace");
+    await sleep(200);
+    check("Find: Replace changes the current match and moves on", (await p.editorHtml()).includes("The dog sat") && (await count()) === "1 of 2", `${await count()} ${await p.editorHtml()}`);
+    await p.click("Replace all");
+    await sleep(200);
+    const replacedHtml = await p.editorHtml();
+    check("Find: Replace all changes every match (keeping bold) but not other words", replacedHtml.includes("<strong>dog</strong>") && replacedHtml.includes("(dog)") && replacedHtml.includes("Concat") && replacedHtml.includes("Cat.") && (await count()) === "No results", `${await count()} ${replacedHtml}`);
+    await sleep(900);
+    const saved = await note("ef1");
+    check("Find: the replacements are saved with the note", saved.includes("The dog sat") && saved.includes("<strong>dog</strong>") && saved.includes("(dog)"), saved);
+    check("Find: other notes are not touched", (await note("ef2")) === "<p>Another cat note</p>");
+
+    // One undo puts back everything Replace all changed.
+    await p.eval(`document.querySelector(".ProseMirror").focus()`);
+    await sleep(100);
+    await p.key("z", { mod: true });
+    await sleep(900);
+    const undone = await note("ef1");
+    check("Find: one Ctrl/⌘+Z undoes Replace all", undone.includes("The dog sat") && undone.includes("<strong>cat</strong>") && undone.includes("(cat)"), undone);
+
+    // Esc closes the bar and returns to the note with the match selected.
+    await p.key("f", { mod: true });
+    await sleep(300);
+    check("Find: Ctrl/⌘+F from the note goes back to the open bar, keeping the search and options", (await p.eval(`document.activeElement === document.querySelector('[data-testid="find-input"]') && document.activeElement.value === "cat"`)) && (await count())?.endsWith("of 2"), String(await count()));
+    await p.key("Escape");
+    await sleep(250);
+    const after = await sel();
+    check("Find: Esc closes the bar and puts focus back in the note on the match", await p.eval(`!document.querySelector('[data-testid="find-bar"]') && !document.querySelector(".ProseMirror .find-match") && document.activeElement === document.querySelector(".ProseMirror")`) && after.text.toLowerCase() === "cat", JSON.stringify(after));
+
+    // Reopened after closing: the last search comes back (options start off again).
+    await p.focusEditor("end");
+    await p.key("f", { mod: true });
+    await sleep(300);
+    check("Find: reopening shows the last search", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "cat" && (await count())?.endsWith("of 4"), String(await count()));
+    await p.key("Escape");
+    await sleep(200);
+
+    // Selected text pre-fills the search; ⋯ → Find and replace opens it with Replace shown.
+    await p.eval(`(() => { const t = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent.startsWith("Concat")); const r = document.createRange(); r.setStart(t.firstChild, 0); r.setEnd(t.firstChild, 6); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(200);
+    await p.eval(`document.querySelector('button[title^="More:"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.includes("Find and replace")).click()`);
+    await sleep(300);
+    check("Find: ⋯ → Find and replace opens with Replace and the selected text", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "Concat" && (await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`)) && (await count()) === "1 of 1", String(await count()));
+    await p.key("Escape");
+    await sleep(200);
+    await p.close();
+  },
+
   async notion(b, check) {
     // Editor, Notion-style: callouts, toggles, [[note links]], block handle (move / turn into / duplicate), colours, page icon and cover.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

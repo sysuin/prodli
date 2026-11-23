@@ -530,6 +530,13 @@
 }
 .tiptap pre code { font-size: 13px; line-height: 1.55; }
 
+/* Find & replace (editor/findReplace.ts): every match, and the current one stronger. */
+.tiptap .find-match { background: rgba(255, 196, 0, 0.38); box-shadow: 0 0 0 1px rgba(160, 110, 0, 0.45); border-radius: 2px; }
+.tiptap .find-match-current { background: #FF9632; color: #000; box-shadow: 0 0 0 2px #000; }
+.dark .tiptap .find-match { background: rgba(255, 215, 0, 0.26); box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.55); }
+.dark .tiptap .find-match-current { background: #FFD700; color: #000; box-shadow: 0 0 0 2px #fff; }
+.tiptap .find-match-current a, .tiptap a .find-match-current { color: #000; }
+
 /* Checklists */
 .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
 .tiptap ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
@@ -587,7 +594,9 @@
   .printing-note .editor-toolbar-row,
   .printing-note .editor-status,
   .printing-note .editor-outline,
+  .printing-note .editor-find-bar,
   .printing-note .bubble-menu { display: none !important; }
+  .printing-note .tiptap .find-match { background: none !important; box-shadow: none !important; color: inherit !important; }
   .printing-note body,
   .printing-note #root,
   .printing-note main,
