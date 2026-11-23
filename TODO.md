@@ -44,14 +44,14 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **Start Google verification for a Calendar write scope now** (1 day of paperwork; it takes weeks and gates item 6).
 
 **Tier 2: next quarter** (6–8 first; 13 can slip)
-- [ ] **6. Two-way Google Calendar** (2–3 weeks + verification): put time blocks and tasks on the real calendar, move them, keep both sides in step.
-- [ ] **7. Meetings tied to calendar events** (1–2 weeks): "starts in 2 minutes, take notes?", notes filed under the event, prep card with past notes and open action items for the same people.
-- [ ] **8. Basic importer** (1–1.5 weeks): Todoist (API token), TickTick and Google Tasks files, generic CSV — the first part of the import plan below, brought forward because switching is when people pay.
-- [ ] **9. Gentle day mode** (2–3 weeks): vertical visual timeline, big countdown for the current block, one-tap AI "break this down", reminders that repeat until done or snoozed (ADHD-friendly).
-- [ ] **10. Read-only MCP server and personal API** (1–2 weeks) over tasks, notes, meetings and time, so Claude and ChatGPT can read ProdLi.
+- [x] **6. Two-way Google Calendar** — *built 2026-11-23:* blocks go to a "ProdLi" calendar (scope `calendar.app.created`), moves/deletes in Google come back. **Needs you:** add the scope on the Google consent screen and submit verification with a demo video. Was: (2–3 weeks + verification): put time blocks and tasks on the real calendar, move them, keep both sides in step.
+- [x] **7. Meetings tied to calendar events** — *built 2026-11-23:* recordings are filed under the event on now (Meet link or time), show it and its invitees, and prep matches the series. (The "remember to record" nudge and prep reminders already existed.) Was: (1–2 weeks): "starts in 2 minutes, take notes?", notes filed under the event, prep card with past notes and open action items for the same people.
+- [x] **8. Basic importer** — *built 2026-11-23:* Todoist CSV/backup zip, TickTick backup, Google Tasks (Takeout), generic CSV, Markdown; preview, Undo, no duplicates. Todoist API sign-in not built (no host permission). Was: (1–1.5 weeks): Todoist (API token), TickTick and Google Tasks files, generic CSV — the first part of the import plan below, brought forward because switching is when people pay.
+- [x] **9. Gentle day mode** — *built 2026-11-23:* Today's Now card (countdown, steps, Done, +5 min), ✨ Break it down (AI steps), reminders that repeat every 10 min until done. Was: (2–3 weeks): vertical visual timeline, big countdown for the current block, one-tap AI "break this down", reminders that repeat until done or snoozed (ADHD-friendly).
+- [x] **10. Read-only MCP server and personal API** — *built 2026-11-23:* API keys (Settings → Connections), `/api/v1/*` and `/mcp` (docs/API.md). Was: (1–2 weeks) over tasks, notes, meetings and time, so Claude and ChatGPT can read ProdLi.
 - [x] **11. Scheduled prompts** — *built* (`lib/askPrompts.ts`: saved prompts run on chosen days, answers in a small inbox with a notification). Left: email delivery, phone push once the phone app ships.
-- [ ] **12. Upload any recording for notes** (2–4 days): phone memos, Plaud exports, in-person meetings.
-- [ ] **13. Web clipper and read-later** — *partly built:* Read later and right-click page summaries to notes (`lib/readLater.ts`). Left (1–2 weeks): highlights, link to a task, and read aloud with the browser's text-to-speech.
+- [x] **12. Upload any recording for notes** — *built 2026-11-23:* ⬆ Upload recording in Meetings (audio/video up to 500 MB / 3 h). Was: (2–4 days): phone memos, Plaud exports, in-person meetings.
+- [x] **13. Web clipper and read-later** — *built 2026-11-23:* read aloud, Save highlight to ProdLi, Read later → to-do. Was: — *partly built:* Read later and right-click page summaries to notes (`lib/readLater.ts`). Left (1–2 weeks): highlights, link to a task, and read aloud with the browser's text-to-speech.
 
 **Tier 3: later / needs the native apps**
 - [ ] **14.** System-wide dictation in the desktop app, later a phone keyboard (3–5 weeks for desktop).
@@ -67,7 +67,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **A4. One palette with prefixes** (4–6 days, desktop + extension): "t" to-do, "n" note, "h" habit, "p 25" Pomodoro, "?" Ask — shared by Quick add and Cmd+K.
 - [ ] **A5. Phone widgets** (2–3 weeks): habit check-off with streak, today's to-dos, next meeting (replaces part of Tier 3 #16).
 - [ ] **A6. Phone share sheet** (1–2 weeks): link, text or image to a note, task or Read later.
-- [ ] **A7. Read aloud** (2–3 days, all): Read later items, summaries and notes (`tts` permission, no warning).
+- [x] **A7. Read aloud** (done with item 13) (2–3 days, all): Read later items, summaries and notes (`tts` permission, no warning).
 - [x] **A8. Block Shorts and Reels** (1–2 days, extension): path-level blocks like youtube.com/shorts, instagram.com/reels in focus blocking.
 - [ ] **A9. Morning brief and scheduled-prompt answers as phone notifications** (2–4 days).
 - [ ] **A10. System-wide dictation into any app** (3–5 weeks, desktop): moved up from Tier 3 #14 to the first desktop feature once the app is signed.
