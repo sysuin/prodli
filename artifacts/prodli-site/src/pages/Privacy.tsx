@@ -103,6 +103,14 @@ Anthropic processes this data as our service provider under its commercial terms
 The copy is deleted when the link expires (after 7 or 30 days, or never if you choose that with ProdLi Pro), when you click Stop sharing, or when you delete your account. Sharing again updates the copy. Meeting notes contain what other participants said: share them only with people who should see them, and you are responsible for having the right to share them.`,
   },
   {
+    title: "Connected apps and API keys (optional)",
+    body: `With an account, you can create API keys (Settings → Connections) to let apps you choose, such as Claude, ChatGPT, Cursor or your own scripts, read your synced ProdLi data through ProdLi's read-only API and MCP server: to-dos and lists, notes, meeting summaries and your own meeting notes, meeting transcripts (only when the app asks for one), habits and your day's focus. Connected apps can't change anything. Your calendar, time tracking, files and meeting audio aren't available to them.
+
+What a connected app reads is sent to that app and handled under its own terms and privacy policy; ProdLi isn't responsible for how it uses the data. We store each key's name, a one-way hash of it (never the key itself), its first characters for display, and when it was created and last used. We don't log what's read. If you put a key in an app's connector URL instead of a header, the key appears in that app's settings and may appear in our hosting provider's request logs for up to 7 days.
+
+You can revoke a key at any time in Settings → Connections. "Sign out everywhere" and deleting your account revoke all your keys.`,
+  },
+  {
     title: "Google Calendar (optional)",
     body: `If you connect Google Calendar on the Today page, ProdLi asks Google for read-only access to your calendar (scope calendar.readonly) and reads today's events in your browser to show your agenda. ProdLi also reads each event's invitees (names and email addresses) to match the event with meetings you recorded before and show meeting prep; this happens only on your device. Events are not stored on ProdLi's servers, and invitees' details are never sent anywhere. Event titles and times, and meeting prep for matched meetings, are included in your daily brief only if you have an account and use the AI brief. You can disconnect at any time on the Today page, and remove ProdLi's access in your Google Account settings.
 
