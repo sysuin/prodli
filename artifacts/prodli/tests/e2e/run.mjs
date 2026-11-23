@@ -2065,7 +2065,12 @@ const suites = {
     n = notes.find((x) => x.id === "rl2note");
     const fresh = notes.find((x) => x.title === "Highlights: New page");
     check("Highlight: one note per page (appends; a new page gets a Highlights note)", (n.content.match(/<blockquote>/g) ?? []).length === 2 && !!fresh && fresh.sourceUrl === "https://example.org/new" && fresh.content.includes("New page quote.") && notes.length === 3, JSON.stringify(notes.map((x) => x.title)));
-    const shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+    // Notifications appear asynchronously: wait up to 2 s for all three.
+    let shown = 0;
+    for (let i = 0; i < 20 && shown < 3; i++) {
+      shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+      if (shown < 3) await sleep(100);
+    }
     check("Highlight: shows a confirmation", shown === 3, String(shown));
     check("Highlight: non-web pages are refused", (await sw.eval(`__prodliSaveHighlight("x", "chrome://newtab/", "New tab")`)) === false);
 
