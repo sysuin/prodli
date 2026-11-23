@@ -2,15 +2,30 @@
 import { addNote, addTask } from "./capture";
 import { accountsEnabled } from "./prodliAccount";
 import { syncOnce } from "./prodliSync";
-import { addReadLater, extractPageText, MAX_PAGE_CHARS, savePageNote } from "./readLater";
+import { addReadLater, extractPageText, MAX_PAGE_CHARS, saveHighlight, savePageNote } from "./readLater";
 
 const MENU_TODO = "prodli-add-todo";
 const MENU_NOTE = "prodli-add-note";
 const MENU_READ_LATER = "prodli-read-later";
 const MENU_SUMMARIZE = "prodli-summarize-page";
+const MENU_HIGHLIGHT = "prodli-save-highlight";
 
 function notify(title: string, message: string): void {
   chrome.notifications.create(`prodli-capture-${Date.now()}`, { type: "basic", iconUrl: "icons/icon-128.png", title, message: message.slice(0, 180), priority: 0 });
+}
+
+/**
+ * "Save highlight to ProdLi": the selected text (from the menu click itself,
+ * no page access) goes to that page's note. Returns whether it was saved.
+ */
+async function onSaveHighlight(selection: string | undefined, url: string | undefined, title: string | undefined): Promise<boolean> {
+  const r = await saveHighlight({ quote: selection, url, title });
+  if (!r) {
+    notify("Can't save this highlight", "Select text on a web page, then right-click → Save highlight to ProdLi.");
+    return false;
+  }
+  notify(r.created ? "Highlight saved to a new note" : "Highlight added to your note", r.note.title);
+  return true;
 }
 
 /** Opens the small Quick add window for the current tab. */
@@ -31,8 +46,10 @@ export function registerCapture(): void {
       chrome.contextMenus.create({ id: MENU_NOTE, title: "Save to ProdLi notes", contexts: ["page", "selection", "link"] });
       chrome.contextMenus.create({ id: MENU_READ_LATER, title: "Read later in ProdLi", contexts: ["page", "link"] });
       chrome.contextMenus.create({ id: MENU_SUMMARIZE, title: "Summarize page to ProdLi notes", contexts: ["page"] });
+      chrome.contextMenus.create({ id: MENU_HIGHLIGHT, title: "Save highlight to ProdLi", contexts: ["selection"] });
     });
   });
+  if (import.meta.env.VITE_E2E === "1") Object.assign(globalThis, { __prodliSaveHighlight: onSaveHighlight });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     void (async () => {
@@ -49,6 +66,8 @@ export function registerCapture(): void {
         const item = await addReadLater(info.linkUrl ?? info.pageUrl ?? tab?.url, info.linkUrl ? info.linkUrl : tab?.title);
         if (!item) return notify("Can't save this page", "Only web pages can be saved to Read later.");
         notify("Saved to Read later", item.title);
+      } else if (info.menuItemId === MENU_HIGHLIGHT) {
+        if (!(await onSaveHighlight(info.selectionText, info.pageUrl ?? tab?.url, tab?.title))) return;
       } else if (info.menuItemId === MENU_SUMMARIZE) {
         if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) return notify("Can't summarize this page", "Only web pages can be summarized.");
         notify("Summarizing…", tab.title ?? tab.url);

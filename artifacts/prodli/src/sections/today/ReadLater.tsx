@@ -6,13 +6,18 @@ import { useSyncedList } from "../../lib/syncedList";
 import { normalizeUrl } from "../../lib/quickLinks";
 import { generateId } from "../../lib/utils";
 import { isExtension, siteName } from "../../lib/tabSessions";
-import type { ReadLaterItem } from "../../types";
+import { addTask } from "../../lib/capture";
+import { findPageNote } from "../../lib/readLater";
+import { htmlToSpeechText } from "../../lib/readAloud";
+import { ReadAloudBar, useReadAloud } from "../../components/ReadAloud";
+import type { Note, ReadLaterItem } from "../../types";
 
 const icon: CSSProperties = { border: "none", background: "none", cursor: "pointer", fontWeight: 900, fontSize: 13, padding: "0 4px", color: "hsl(var(--foreground))", fontFamily: "inherit" };
 const small: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "3px 8px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" };
 
 export function ReadLater() {
   const { items, setItems: save } = useSyncedList<ReadLaterItem>("readLater");
+  const { items: notes } = useSyncedList<Note>("notes");
   const [showRead, setShowRead] = useState(false);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
@@ -32,15 +37,41 @@ export function ReadLater() {
     setUrl("");
     setError("");
   };
-  const row = (i: ReadLaterItem) => (
-    <li key={i.id} data-testid="read-later-item" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <button onClick={() => open(i)} title={i.url} style={{ ...icon, flex: 1, minWidth: 0, textAlign: "left", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: i.readAt ? 0.6 : 1 }}>
-        <span style={{ fontWeight: 800, opacity: 0.7, fontSize: 11 }}>{siteName(i.url)}</span> {i.title}
-      </button>
-      <button style={icon} onClick={() => markRead(i.id, !i.readAt)} aria-label={`${i.readAt ? "Mark unread" : "Mark read"}: ${i.title}`} title={i.readAt ? "Mark unread" : "Mark read"}>{i.readAt ? "↺" : "✓"}</button>
-      <button style={{ ...icon, color: "var(--danger-text)" }} onClick={() => save(items.filter((x) => x.id !== i.id))} aria-label={`Remove ${i.title}`} title="Remove">×</button>
-    </li>
-  );
+  const addTodo = async (i: ReadLaterItem) => {
+    if (i.todoId) return;
+    const todo = await addTask({ title: `Read: ${i.title}`, url: i.url });
+    save((prev) => prev.map((x) => (x.id === i.id ? { ...x, todoId: todo.id } : x)));
+  };
+  // ▶ Listen: items with a saved summary or highlights note can be read aloud.
+  const reader = useReadAloud();
+  const [readingId, setReadingId] = useState<string | null>(null);
+  const listen = (i: ReadLaterItem, note: Note) => {
+    if (reader.start(htmlToSpeechText(note.content))) setReadingId(i.id);
+  };
+  const row = (i: ReadLaterItem) => {
+    const note = reader.available ? findPageNote(notes, i.url) : undefined;
+    const speaking = readingId === i.id && reader.state !== "idle";
+    return (
+      <li key={i.id} data-testid="read-later-item" style={{ display: "grid", gap: 3 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <button onClick={() => open(i)} title={i.url} style={{ ...icon, flex: 1, minWidth: 0, textAlign: "left", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: i.readAt ? 0.6 : 1 }}>
+            <span style={{ fontWeight: 800, opacity: 0.7, fontSize: 11 }}>{siteName(i.url)}</span> {i.title}
+          </button>
+          {note && !speaking && (
+            <button style={icon} onClick={() => listen(i, note)} aria-label={`Listen to the note for ${i.title}`} title="Listen to the saved note">▶</button>
+          )}
+          {i.todoId ? (
+            <span style={{ ...icon, fontSize: 11, fontWeight: 800, opacity: 0.7, cursor: "default", whiteSpace: "nowrap" }} data-testid="read-later-in-todos">✓ In to-dos</span>
+          ) : (
+            <button style={{ ...icon, fontSize: 11, whiteSpace: "nowrap" }} onClick={() => void addTodo(i)} aria-label={`Add as to-do: ${i.title}`} title="Add as to-do">+ To-do</button>
+          )}
+          <button style={icon} onClick={() => markRead(i.id, !i.readAt)} aria-label={`${i.readAt ? "Mark unread" : "Mark read"}: ${i.title}`} title={i.readAt ? "Mark unread" : "Mark read"}>{i.readAt ? "↺" : "✓"}</button>
+          <button style={{ ...icon, color: "var(--danger-text)" }} onClick={() => save(items.filter((x) => x.id !== i.id))} aria-label={`Remove ${i.title}`} title="Remove">×</button>
+        </div>
+        {speaking && <ReadAloudBar reader={reader} label="Listening" />}
+      </li>
+    );
+  };
   return (
     <div data-testid="read-later" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
       {unread.length === 0 ? (

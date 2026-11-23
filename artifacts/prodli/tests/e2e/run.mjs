@@ -1633,6 +1633,88 @@ const suites = {
     server.close();
   },
 
+  async readlater2(b, check) {
+    // Read later upgrades: + To-do, ▶ Listen (read aloud), and "Save highlight to ProdLi".
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    // speechSynthesis is stubbed: what would be spoken is recorded instead.
+    await p.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `window.__spoken = []; window.__cancels = 0; (() => { const s = window.speechSynthesis; if (!s) return; s.speak = (u) => window.__spoken.push({ text: u.text, rate: u.rate }); s.cancel = () => { window.__cancels++; }; s.pause = () => {}; s.resume = () => {}; })();`,
+    });
+    const url = "https://example.com/deep-work";
+    const summary = { id: "rl2note", title: "Deep work", content: `<h1>Deep work</h1><p>Source: <a href="${url}">example.com</a></p><h2>Summary</h2><p>Focus is a skill you can train.</p><pre><code>secretCode()</code></pre>`, createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-11-01T00:00:00.000Z", sourceUrl: url };
+    const other = { id: "rl2other", title: "Other note", content: "<h1>Other note</h1><p>Nothing to see.</p>", createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+    await p.eval(`chrome.storage.local.set({ todos: [], readAloudPrefs: {}, notes: ${JSON.stringify([summary, other])}, readLater: [{ id: "rl2a", url: ${JSON.stringify(url)}, title: "Deep work", createdAt: new Date().toISOString() }, { id: "rl2b", url: "https://example.com/plain", title: "Plain page", createdAt: new Date().toISOString() }] })`);
+    await p.goto("today");
+    const items = async () => (await p.storage(["readLater"])).readLater ?? [];
+
+    // + To-do → "Read: <title>" with the link; the button becomes "✓ In to-dos".
+    await p.eval(`document.querySelector('button[aria-label="Add as to-do: Deep work"]').click()`);
+    await sleep(600);
+    const { todos = [] } = await p.storage(["todos"]);
+    const todo = todos.find((t) => t.title === "Read: Deep work");
+    check("Read later: + To-do adds “Read: title” with the link", !!todo && todo.subtasks.some((s) => s.title === url), JSON.stringify(todos));
+    check("Read later: the item then shows ✓ In to-dos", (await items()).find((i) => i.id === "rl2a")?.todoId === todo?.id && (await p.eval(`document.querySelector('[data-testid="read-later"]').innerText`)).includes("✓ In to-dos") && !(await p.eval(`!!document.querySelector('button[aria-label="Add as to-do: Deep work"]')`)));
+
+    // ▶ Listen shows only on items with a saved note, and reads that note (no code blocks).
+    check("Read later: ▶ Listen only on items with a saved note", (await p.eval(`!!document.querySelector('button[aria-label="Listen to the note for Deep work"]')`)) && !(await p.eval(`!!document.querySelector('button[aria-label="Listen to the note for Plain page"]')`)));
+    await p.eval(`document.querySelector('button[aria-label="Listen to the note for Deep work"]').click()`);
+    await sleep(300);
+    const spoken = await p.eval(`window.__spoken.map((u) => u.text).join(" ")`);
+    check("Read aloud: speaks the note's text (no code)", spoken.includes("Deep work.") && spoken.includes("Focus is a skill you can train.") && !spoken.includes("secretCode"), spoken);
+    check("Read aloud: Pause and Stop appear while listening", await p.eval(`!!document.querySelector('[data-testid="read-later"] [data-testid="read-aloud-bar"]')`));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="read-later"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Read later with + To-do and Listen has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Speed is remembered, and applies right away.
+    await p.eval(`(() => { const s = document.querySelector('select[aria-label="Reading speed"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "1.5"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(400);
+    const prefs = (await p.storage(["readAloudPrefs"])).readAloudPrefs;
+    check("Read aloud: speed is remembered and used", prefs?.rate === 1.5 && (await p.eval(`window.__spoken.at(-1).rate`)) === 1.5, JSON.stringify(prefs));
+    await p.click("⏹ Stop");
+    await sleep(200);
+    check("Read aloud: Stop ends it", !(await p.eval(`!!document.querySelector('[data-testid="read-aloud-bar"]')`)) && (await p.eval("window.__cancels")) > 0);
+
+    // Save highlight to ProdLi (the right-click handler, called from the test hook).
+    const sw = await b.serviceWorker();
+    await sw.eval(`chrome.notifications.getAll().then((all) => Promise.all(Object.keys(all).map((id) => chrome.notifications.clear(id))))`);
+    const saved = await sw.eval(`__prodliSaveHighlight("Depth is rare & valuable.", ${JSON.stringify(url)}, "Deep work")`);
+    let notes = (await p.storage(["notes"])).notes ?? [];
+    let n = notes.find((x) => x.id === "rl2note");
+    check("Highlight: added to the page's summary note as a quote with a link", saved === true && n.content.includes(`<h2>Highlights</h2><blockquote><p>Depth is rare &amp; valuable.</p><p>— <a href="${url}">Deep work</a></p></blockquote>`), n?.content);
+    await sw.eval(`__prodliSaveHighlight("A second quote.", ${JSON.stringify(url)}, "Deep work")`);
+    await sw.eval(`__prodliSaveHighlight("New page quote.", "https://example.org/new", "New page")`);
+    notes = (await p.storage(["notes"])).notes ?? [];
+    n = notes.find((x) => x.id === "rl2note");
+    const fresh = notes.find((x) => x.title === "Highlights: New page");
+    check("Highlight: one note per page (appends; a new page gets a Highlights note)", (n.content.match(/<blockquote>/g) ?? []).length === 2 && !!fresh && fresh.sourceUrl === "https://example.org/new" && fresh.content.includes("New page quote.") && notes.length === 3, JSON.stringify(notes.map((x) => x.title)));
+    const shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+    check("Highlight: shows a confirmation", shown === 3, String(shown));
+    check("Highlight: non-web pages are refused", (await sw.eval(`__prodliSaveHighlight("x", "chrome://newtab/", "New tab")`)) === false);
+
+    // ⋯ → Listen in the note editor; stops when you open another note.
+    await p.eval(`chrome.storage.local.set({ activeNoteId: "rl2note" })`);
+    await p.goto("editor");
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find(b => b.textContent.includes("Listen")).click()`);
+    await sleep(300);
+    const heard = await p.eval(`window.__spoken.map((u) => u.text).join(" ")`);
+    check("Read aloud: ⋯ → Listen reads the open note, highlights included", heard.includes("Focus is a skill you can train.") && heard.includes("Depth is rare & valuable.") && !heard.includes("secretCode") && (await p.eval(`window.__spoken[0].rate`)) === 1.5, heard);
+    check("Read aloud: the editor toolbar shows Pause / Stop", await p.eval(`!!document.querySelector('.editor-toolbar [data-testid="read-aloud-bar"]')`));
+    const cancelsBefore = await p.eval("window.__cancels");
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli:open-note-link", { detail: { id: "rl2other" } }))`);
+    await sleep(400);
+    check("Read aloud: stops when you open another note", !(await p.eval(`!!document.querySelector('[data-testid="read-aloud-bar"]')`)) && (await p.eval("window.__cancels")) > cancelsBefore);
+    await p.eval(`chrome.storage.local.set({ todos: [], readLater: [], notes: [], readAloudPrefs: {} })`);
+    await p.close();
+  },
+
   async voicetasks(b, check) {
     // 🎙 Speak tasks: a brain dump → reviewed tasks (a stub stands in for the AI; test builds only).
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
