@@ -153,6 +153,13 @@ export async function toggleDictation(tab: chrome.tabs.Tab | undefined): Promise
     s.info = ((await chrome.tabs.sendMessage(tab.id, force, { frameId: 0 }).catch(() => undefined)) as FieldInfo | undefined) ?? null;
   }
 
+  if (s.info?.handoff === "voice-tasks") {
+    // ProdLi's page opened Speak tasks instead (pill.ts): no dictation session.
+    current = null;
+    clearTimeout(s.timer);
+    return;
+  }
+
   await chrome.storage.session.set({ [DICTATING_KEY]: true });
   try {
     await ensureOffscreenDocument();

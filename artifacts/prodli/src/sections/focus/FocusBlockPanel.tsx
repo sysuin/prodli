@@ -76,7 +76,7 @@ export function FocusBlockPanel({ focusRunning }: { focusRunning: boolean }) {
         }}
         style={{ display: "flex", gap: 6, marginTop: 8 }}
       >
-        <input value={site} onChange={(e) => setSite(e.target.value)} placeholder="Add a site, e.g. youtube.com" aria-label="Site to block" style={{ ...field, flex: 1 }} />
+        <input value={site} onChange={(e) => setSite(e.target.value)} placeholder="Add a site, e.g. youtube.com or youtube.com/shorts" aria-label="Site to block" style={{ ...field, flex: 1 }} />
         <button type="submit" style={small}>Add</button>
       </form>
       {error && <div role="alert" style={{ fontSize: 11, color: "var(--danger-text)", fontWeight: 700, marginTop: 4 }}>{error}</div>}

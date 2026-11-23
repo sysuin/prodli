@@ -2,7 +2,7 @@
 // phones). Answers come from the user's own tasks, calendar, habits, notes and
 // meetings; suggested actions apply only when the user clicks them.
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { askProdli, canAsk, SUGGESTIONS, type AskAction, type ChatTurn } from "../lib/ask";
+import { askProdli, canAsk, RECIPES, SUGGESTIONS, type AskAction, type ChatTurn } from "../lib/ask";
 import { openSource } from "../lib/askOpen";
 import { addPrompt } from "../lib/askPrompts";
 import { SavedPrompts } from "./SavedPrompts";
@@ -135,6 +135,25 @@ export function AskPanel({ onClose, initialQuestion, initialTurns }: { onClose: 
                   <button key={s} onClick={() => void send(s)} disabled={!allowed || busy} style={{ ...btn(false, !allowed || busy), fontWeight: 600, fontSize: 12 }}>
                     {s}
                   </button>
+                ))}
+              </div>
+              <div data-testid="ask-recipes" style={{ display: "grid", gap: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.7 }}>Recipes for meetings and notes</div>
+                {RECIPES.map((r) => (
+                  <div key={r} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button onClick={() => void send(r)} disabled={!allowed || busy} style={{ ...btn(false, !allowed || busy), fontWeight: 600, fontSize: 12, textAlign: "left", flex: 1 }}>
+                      {r}
+                    </button>
+                    <button
+                      onClick={() => void addPrompt(r).then(() => setSaved((x) => ({ ...x, [r]: true })))}
+                      disabled={saved[r]}
+                      aria-label={saved[r] ? "Saved prompt" : `Save prompt: ${r}`}
+                      title="Save to ask again (or on a schedule)"
+                      style={{ border: "none", background: "none", cursor: saved[r] ? "default" : "pointer", fontSize: 13, fontWeight: 800, color: "hsl(var(--muted-foreground))", fontFamily: "inherit", padding: "0 4px" }}
+                    >
+                      {saved[r] ? "★" : "☆"}
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

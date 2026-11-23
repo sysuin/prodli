@@ -27,6 +27,8 @@ export interface ProdliUser {
   picture: string | null;
   plan: string;
   createdAt: number;
+  /** When the free Pro trial ends, while it runs (older servers don't send it). */
+  trialEndsAt?: number | null;
 }
 
 export interface Device {

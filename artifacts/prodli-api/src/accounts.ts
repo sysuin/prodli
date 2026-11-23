@@ -9,8 +9,11 @@ export interface User {
   email: string;
   name: string;
   picture: string | null;
+  /** Effective plan: "pro" for subscribers and during the free trial. */
   plan: string;
   createdAt: number;
+  /** When the free Pro trial ends (ms), while it's running; null otherwise (never had one, ended, or subscribed). */
+  trialEndsAt: number | null;
 }
 
 export interface SessionInfo {
@@ -34,9 +37,19 @@ interface UserRow {
   picture: string | null;
   plan: string;
   created_at: number;
+  trial_ends_at: number | null;
 }
 
-const toUser = (r: UserRow): User => ({ id: r.id, email: r.email, name: r.name, picture: r.picture, plan: r.plan, createdAt: r.created_at });
+/** Free Pro trial for new accounts (days). Off unless the environment sets TRIAL_DAYS. */
+export function trialDays(value: string | undefined): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && n <= 60 ? n : 0;
+}
+
+const toUser = (r: UserRow, now: number): User => {
+  const trial = r.plan !== "pro" && r.trial_ends_at != null && r.trial_ends_at > now;
+  return { id: r.id, email: r.email, name: r.name, picture: r.picture, plan: trial ? "pro" : r.plan, createdAt: r.created_at, trialEndsAt: trial ? r.trial_ends_at : null };
+};
 
 function base64url(bytes: Uint8Array): string {
   let s = "";
@@ -61,18 +74,19 @@ export function deviceLabel(userAgent: string | undefined): string {
   return os ? `${browser} on ${os}` : browser;
 }
 
-export async function upsertUser(db: D1Database, g: GoogleIdentity, now = Date.now()): Promise<User> {
+/** Signs in (or creates) the Google user. New accounts get `trial` days of Pro (0 = no trial). */
+export async function upsertUser(db: D1Database, g: GoogleIdentity, now = Date.now(), trial = 0): Promise<User> {
   const row = await db
     .prepare(
-      `INSERT INTO users (id, google_sub, email, name, picture, created_at, updated_at, last_seen_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?6)
+      `INSERT INTO users (id, google_sub, email, name, picture, created_at, updated_at, last_seen_at, trial_ends_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?6, ?7)
        ON CONFLICT (google_sub) DO UPDATE SET email = ?3, name = ?4, picture = ?5, updated_at = ?6, last_seen_at = ?6
-       RETURNING id, email, name, picture, plan, created_at`,
+       RETURNING id, email, name, picture, plan, created_at, trial_ends_at`,
     )
-    .bind(crypto.randomUUID(), g.sub, g.email, g.name, g.picture, now)
+    .bind(crypto.randomUUID(), g.sub, g.email, g.name, g.picture, now, trial > 0 ? now + trial * 86_400_000 : null)
     .first<UserRow>();
   if (!row) throw new Error("upsert_failed");
-  return toUser(row);
+  return toUser(row, now);
 }
 
 export async function createSession(db: D1Database, userId: string, client: Client, device: string, now = Date.now()): Promise<{ token: string; session: SessionInfo }> {
@@ -98,7 +112,7 @@ export async function authenticate(db: D1Database, token: string, now = Date.now
   const row = await db
     .prepare(
       `SELECT s.id AS session_id, s.client, s.last_used_at, s.expires_at,
-              u.id, u.email, u.name, u.picture, u.plan, u.created_at
+              u.id, u.email, u.name, u.picture, u.plan, u.created_at, u.trial_ends_at
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?1`,
     )
@@ -115,7 +129,7 @@ export async function authenticate(db: D1Database, token: string, now = Date.now
       db.prepare(`UPDATE users SET last_seen_at = ?1 WHERE id = ?2`).bind(now, row.id),
     ]);
   }
-  return { user: toUser(row), sessionId: row.session_id, client: row.client };
+  return { user: toUser(row, now), sessionId: row.session_id, client: row.client };
 }
 
 export async function listSessions(db: D1Database, userId: string, now = Date.now()): Promise<SessionInfo[]> {

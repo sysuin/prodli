@@ -272,6 +272,13 @@ function install(): void {
       startedAt = performance.now();
       hold = msg.state.phase === "listening" && msg.state.hold;
       const info = capture();
+      // In ProdLi itself with no text field focused, the shortcut opens 🎙 Speak tasks
+      // (the brain dump becomes to-dos). Same event as lib/voiceTasks.ts VOICE_TASKS_EVENT.
+      if (isExtensionPage && !info.editable && msg.state.phase === "listening") {
+        window.dispatchEvent(new CustomEvent("prodli-voice-tasks", { detail: { listen: true } }));
+        sendResponse({ ...info, handoff: "voice-tasks" } satisfies FieldInfo);
+        return undefined;
+      }
       render(msg.state.phase === "listening" ? { ...msg.state, command: !!info.selection.trim() && info.editable } : msg.state);
       sendResponse(info);
       return undefined;

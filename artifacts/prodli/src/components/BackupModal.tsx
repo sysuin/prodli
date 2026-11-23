@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { exportData, importData } from "../lib/backupRestore";
+import { downloadEverythingAsMarkdown } from "../lib/exportAll";
 import { Logo } from "./Logo";
 
 interface BackupModalProps {
@@ -16,6 +17,7 @@ type ImportState =
 
 export function BackupModal({ onClose = () => {}, embedded = false }: BackupModalProps) {
   const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "done">("idle");
+  const [mdStatus, setMdStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importState, setImportState] = useState<ImportState>({ stage: "idle" });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,6 +148,28 @@ export function BackupModal({ onClose = () => {}, embedded = false }: BackupModa
 
           {importState.stage !== "confirming" && importState.stage !== "restoring" && (
             <>
+              {/* Your data is yours: plain-Markdown export + the promise */}
+              <div data-testid="export-markdown" style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: "14px 20px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 900, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>📦 Your data is yours</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", lineHeight: 1.6, marginBottom: 10 }}>
+                  Download every note, meeting (notes and transcripts) and to-do as plain Markdown files in one .zip: they open in any editor and import into Notion, Obsidian or Google Docs. Export works offline and without an account, and it will keep working: if ProdLi ever shuts down, you'll get at least 60 days' notice to download everything first.
+                </div>
+                <button
+                  data-testid="export-markdown-button"
+                  disabled={mdStatus === "working"}
+                  onClick={() => {
+                    setMdStatus("working");
+                    void downloadEverythingAsMarkdown().then(
+                      () => setMdStatus("done"),
+                      () => setMdStatus("error"),
+                    );
+                  }}
+                  style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "7px 14px", fontWeight: 800, fontSize: 12, textTransform: "uppercase", cursor: mdStatus === "working" ? "default" : "pointer", fontFamily: "inherit" }}
+                >
+                  {mdStatus === "working" ? "Preparing…" : mdStatus === "done" ? "✓ Downloaded" : mdStatus === "error" ? "Couldn't export — try again" : "Download everything as Markdown (.zip)"}
+                </button>
+              </div>
+
               {/* Export card */}
               <div style={{
                 border: "var(--nb-border)",

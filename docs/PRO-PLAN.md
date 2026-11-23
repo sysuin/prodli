@@ -89,7 +89,9 @@ In the Dodo dashboard, switch to **Test Mode** (bottom left), then:
 
 ## How it works
 
-- **Checkout:** "Upgrade to Pro" asks the server (`POST /api/billing/checkout`) to create a Dodo customer for the account (once, saved in D1 `billing_customers`) and a checkout session, then opens Dodo's hosted checkout in a new tab, from the extension and the web app alike. After paying, Dodo returns to `app.prodli.com/?pro=thanks`.
+- **Free trial (reverse trial):** new accounts get 14 days of Pro (`TRIAL_DAYS` var in `wrangler.jsonc`, staging and production; unset in dev and tests). `users.trial_ends_at` is set once when the account is created; `users.plan` stays `free`, and `toUser` in `src/accounts.ts` reports `plan: "pro"` with `trialEndsAt` while it runs, so limits and Pro features apply and checkout still works. Existing accounts never get one. The app shows "Pro trial: N days left" on the plan screen, a reminder on Today in the last 3 days (with what ProdLi did during the trial), and a monthly recap in the first days of each month (`lib/valueRecap.ts`, counted on the device).
+
+- **Checkout:** "Upgrade to Pro" asks the server (`POST /api/billing/checkout`) to create a Dodo customer for the account (once, saved in D1 `billing_customers`) and a checkout session, then opens Dodo's hosted checkout in a new tab, from the extension and the web app alike. After paying, Dodo returns to `app.prodli.com/pro/done` (a thank-you page served by the Worker, `src/proPage.ts`).
 - **Webhooks** (`POST /api/billing/webhook`) are verified with the Standard Webhooks signature (`webhook-id`, `webhook-timestamp`, `webhook-signature`, HMAC-SHA256) and a 5-minute window. Each user has one row in D1 `subscriptions`; `users.plan` is `pro` while the status is `active` or `past_due` (grace period after a failed renewal) and `free` otherwise (`on_hold`, `cancelled`, `expired`, `failed`). Old or repeated events are ignored.
 - **Manage subscription** opens Dodo's customer portal (change plan or card, invoices, cancel). A cancellation at the end of the period keeps Pro until then.
 - **Deleting an account** cancels its subscription at Dodo first.

@@ -410,6 +410,35 @@ const suites = {
     check("Captions: leaving the call ends recording", await p.eval(`window.__sent.some(m => m.type === 'captions-ended')`));
     await p.close();
 
+    // Opt-in heads-up: posted in Meet's chat when recording starts (chat panel closed at first).
+    const chat = await b.openPage("about:blank");
+    await chat.eval(`
+      document.title = "Meet - Client call";
+      document.body.innerHTML = '<button aria-label="Leave call">x</button><div role="region" aria-label="Captions" id="cap"></div><button aria-label="Chat with everyone" id="chatBtn">chat</button>';
+      window.__chat = [];
+      document.getElementById('chatBtn').addEventListener('click', () => {
+        if (document.querySelector('aside')) return;
+        const a = document.createElement('aside');
+        a.innerHTML = '<textarea aria-label="Send a message"></textarea><button aria-label="Send a message" id="send">send</button>';
+        document.body.appendChild(a);
+        a.querySelector('#send').addEventListener('click', () => { const t = a.querySelector('textarea'); window.__chat.push(t.value); t.value = ''; });
+      });
+      window.__sent = []; window.__listeners = [];
+      window.chrome = { runtime: { sendMessage: (m) => { window.__sent.push(JSON.parse(JSON.stringify(m))); return Promise.resolve({ ok: true }); }, onMessage: { addListener: (f) => window.__listeners.push(f), removeListener: () => {} } } };
+      true`);
+    await chat.eval(script + ";true");
+    await chat.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "start", meetingId: "m3", startedAtMs: Date.now(), disclosure: "Heads-up: I'm taking AI notes." }, {}, r))`);
+    await sleep(1500);
+    check("Captions: heads-up posted in the Meet chat (opt-in)", JSON.stringify(await chat.eval(`window.__chat`)) === JSON.stringify(["Heads-up: I'm taking AI notes."]));
+    await chat.eval(`new Promise(r => window.__listeners[0]({ target: "captions", type: "stop" }, {}, r))`);
+    // No chat on the page: an on-page note asks the user to paste it.
+    await chat.eval(`document.getElementById('chatBtn').remove(); document.querySelector('aside').remove(); true`);
+    await chat.eval(script + ";true");
+    await chat.eval(`new Promise(r => window.__listeners.at(-1)({ target: "captions", type: "start", meetingId: "m4", startedAtMs: Date.now(), disclosure: "Heads-up" }, {}, r))`);
+    await sleep(4000);
+    check("Captions: says so when the heads-up can't be posted", await chat.eval(`!!document.querySelector('[data-prodli-chat-note]')`));
+    await chat.close();
+
     // Today's Meet layout: captions region > scroll container > one block per speaker turn,
     // with a "jump to latest" button inside the container once captions overflow, and a
     // long monologue whose start scrolls away while Meet keeps correcting recent words.

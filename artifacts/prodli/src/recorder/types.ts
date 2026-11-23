@@ -167,6 +167,8 @@ export const RECORD_ANY_TAB_STORAGE_KEY = "recorderAnyTab";
 export const AUTO_TRANSCRIBE_STORAGE_KEY = "recorderAutoTranscribe";
 /** Show a small "recording" label inside the Meet call (only the recorder sees it). Off by default. */
 export const SHOW_INDICATOR_STORAGE_KEY = "recorderShowIndicator";
+/** Google Meet: post the heads-up message (DISCLOSURE_STORAGE_KEY) in the call chat when recording starts. Off by default. */
+export const AUTO_POST_DISCLOSURE_STORAGE_KEY = "recorderAutoPostDisclosure";
 
 /** Optional permissions requested when the user turns the recorder on. */
 export const RECORDER_PERMISSIONS: chrome.permissions.Permissions = {
@@ -196,5 +198,5 @@ export type BackgroundMessage =
   | { target: "background"; type: "summarize"; meetingId: string };
 
 export type ContentCommand =
-  | { target: "captions"; type: "start"; meetingId: string; startedAtMs: number; showIndicator?: boolean }
+  | { target: "captions"; type: "start"; meetingId: string; startedAtMs: number; showIndicator?: boolean; disclosure?: string | null }
   | { target: "captions"; type: "stop" };

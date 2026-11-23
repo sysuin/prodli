@@ -16,6 +16,7 @@ import { keepNotificationsInside } from "./lib/quietNotifications";
 import { registerPrepReminders } from "./lib/prepReminders";
 import { registerRecordNudge } from "./lib/recordNudge";
 import { registerDictation } from "./dictation/background";
+import { registerMeetingRetention } from "./recorder/retention";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
@@ -25,6 +26,7 @@ registerRecorder();
 registerRecordNudge();
 // Voice dictation into any text box (Alt+Shift+D).
 registerDictation();
+registerMeetingRetention();
 // Pomodoro: finishes phases and notifies even when no ProdLi tab is open.
 registerPomodoro();
 // Google Drive: daily backup while signed in (no-op otherwise).

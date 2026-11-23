@@ -725,6 +725,10 @@ function MeetingDetail({
 /** `setupOnly`: just the recorder setup (Settings › Meetings). */
 export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } = {}) {
   const ext = isExtension();
+  // Auto-delete (Setup → Meeting notes): also applied here, so the web app keeps to it too.
+  useEffect(() => {
+    void import("../recorder/retention").then((r) => r.applyRetention()).catch(() => {});
+  }, []);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [recState, setRecState] = useState<RecordingState | null>(null);

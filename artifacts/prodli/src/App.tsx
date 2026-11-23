@@ -139,9 +139,14 @@ export default function App() {
   const closeAsk = useCallback(() => setAsk({ open: false }), []);
   const closeQuickAdd = useCallback(() => setQuickAdd({ open: false }), []);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceListen, setVoiceListen] = useState(false);
   const closeVoice = useCallback(() => setVoiceOpen(false), []);
   useEffect(() => {
-    const open = () => setVoiceOpen(true);
+    // detail.listen: opened by the dictation shortcut, so start listening straight away.
+    const open = (e: Event) => {
+      setVoiceListen(!!(e as CustomEvent<{ listen?: boolean } | undefined>).detail?.listen);
+      setVoiceOpen(true);
+    };
     window.addEventListener(VOICE_TASKS_EVENT, open);
     return () => window.removeEventListener(VOICE_TASKS_EVENT, open);
   }, []);
@@ -403,7 +408,10 @@ export default function App() {
     ask: (question?: string) => setAsk({ open: true, question }),
     addTask: (title: string) => void addTask({ title, smart: true }).then((t) => flash(`Added to-do: ${t.title}${t.dueDate ? ` · due ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ""}` : ""}${t.repeat ? " · repeats" : ""}`)),
     quickAdd: () => setQuickAdd({ open: true }),
-    voiceTasks: () => setVoiceOpen(true),
+    voiceTasks: () => {
+      setVoiceListen(false);
+      setVoiceOpen(true);
+    },
     dailyNote: () => void requestDailyNote().then(() => handleSectionChange("editor")),
     saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
@@ -542,7 +550,7 @@ export default function App() {
       {toast && <div role="status" className="app-toast">{toast}</div>}
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} initialTurns={ask.turns} />}
-      {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} />}
+      {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} autoListen={voiceListen} />}
       {section !== "meetings" && <InPersonChip onOpen={() => void handleSectionChange("meetings")} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}

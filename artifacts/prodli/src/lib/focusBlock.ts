@@ -40,7 +40,14 @@ export const DEFAULT_FOCUS_BLOCK: FocusBlockSettings = {
   duringPomodoro: true,
 };
 
-export const SUGGESTED_SITES = ["youtube.com", "x.com", "reddit.com", "instagram.com", "facebook.com", "tiktok.com", "netflix.com", "news.ycombinator.com"];
+export const SUGGESTED_SITES = ["youtube.com/shorts", "instagram.com/reels", "youtube.com", "x.com", "reddit.com", "instagram.com", "facebook.com", "tiktok.com", "netflix.com", "news.ycombinator.com"];
+
+/**
+ * Short-video feeds that can be blocked without blocking the whole site
+ * (keep YouTube for work videos, block Shorts). Any other path is dropped, so
+ * pasting a link blocks its site.
+ */
+export const PAGE_BLOCKS = ["youtube.com/shorts", "instagram.com/reels", "instagram.com/reel", "facebook.com/reel", "facebook.com/reels"];
 
 /** "https://www.YouTube.com/watch?v=1" → "youtube.com"; null if it isn't a site. */
 export function normalizeSite(input: string): string | null {
@@ -48,8 +55,11 @@ export function normalizeSite(input: string): string | null {
   if (!s) return null;
   if (!/^[a-z][a-z0-9+.-]*:\/\//.test(s)) s = `https://${s}`;
   try {
-    const host = new URL(s).hostname.replace(/^www\./, "");
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+    const u = new URL(s);
+    const host = u.hostname.replace(/^www\.|^m\./, "");
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) return null;
+    const page = `${host}/${u.pathname.split("/")[1] ?? ""}`;
+    return PAGE_BLOCKS.includes(page) ? page : u.hostname.replace(/^www\./, "");
   } catch {
     return null;
   }
@@ -57,6 +67,24 @@ export function normalizeSite(input: string): string | null {
 
 /** Does `domain` (e.g. "m.youtube.com") fall under `site` ("youtube.com")? */
 export const siteMatches = (domain: string, site: string) => domain === site || domain.endsWith(`.${site}`);
+
+/** Like siteMatches, but a page entry ("youtube.com/shorts") only matches pages under that path. */
+export function pageMatches(domain: string, path: string, site: string): boolean {
+  const slash = site.indexOf("/");
+  if (slash < 0) return siteMatches(domain, site);
+  const p = `/${site.slice(slash + 1)}`;
+  const lower = path.toLowerCase();
+  return siteMatches(domain, site.slice(0, slash)) && (lower === p || lower.startsWith(`${p}/`));
+}
+
+/** The path of a URL ("/shorts/abc"), or "/". */
+export function pathOf(url: string | undefined): string {
+  try {
+    return url ? new URL(url).pathname || "/" : "/";
+  } catch {
+    return "/";
+  }
+}
 
 export function domainOf(url: string | undefined): string | null {
   if (!url || !/^https?:\/\//.test(url)) return null;
@@ -93,6 +121,8 @@ export interface BlockContext {
   /** Sites whose daily Time Tracker limit is used up and set to redirect. */
   limitReached?: string[];
   passes?: Record<string, number>;
+  /** The page's path, for page entries like "youtube.com/shorts". */
+  path?: string;
 }
 
 /** Why `domain` is blocked right now, or null. */
@@ -102,7 +132,7 @@ export function blockReason(domain: string | null, s: FocusBlockSettings, ctx: B
   const pass = Object.entries(ctx.passes ?? {}).find(([site]) => siteMatches(domain, site));
   if (pass && pass[1] > now.getTime()) return null;
   if (ctx.limitReached?.some((site) => siteMatches(domain, site))) return "limit";
-  if (!s.enabled || !s.sites.some((site) => siteMatches(domain, site))) return null;
+  if (!s.enabled || !s.sites.some((site) => pageMatches(domain, ctx.path ?? "/", site))) return null;
   if (s.duringPomodoro && ctx.pomodoroFocus) return "pomodoro";
   if (activeSchedule(s.schedules, now)) return "schedule";
   return null;

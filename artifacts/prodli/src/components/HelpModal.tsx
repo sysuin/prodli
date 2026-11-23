@@ -157,7 +157,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           {/* To-Dos */}
           <Section emoji="✅" title="To-Dos">
             <Row label={<Tag>Add task</Tag>} desc="Type a task and press Enter. Words set the details: “tomorrow”, “next month”, “at 3pm”, “tonight”, “in 2 hours”, “every monday”, “every weekday”, “monthly”, “!high”, “#Work” (list) and “@errands” (label). The preview shows how it was read. Works in ⌘K and Quick add (Alt+Shift+A) too." />
-            <Row label={<Tag>🎙 Speak tasks</Tag>} desc="Talk or paste a brain dump (“call mom tomorrow at 5, buy milk, the report's due Friday, urgent”). ProdLi finds the separate tasks; you check them before they're added. Also in ⌘K. Uses writing help when signed in; otherwise it splits sentences on this device." />
+            <Row label={<Tag>🎙 Speak tasks</Tag>} desc="Talk or paste a brain dump (“call mom tomorrow at 5, buy milk, the report's due Friday, urgent”). ProdLi finds the separate tasks; you check them before they're added, and can tick Plan these for today. Also in ⌘K, or press the dictation shortcut (Alt+Shift+D) in ProdLi when no text box is selected. Uses writing help when signed in; otherwise it splits sentences on this device." />
             <Row label={<Tag>▦ Board · ⊞ Matrix</Tag>} desc="Board: columns No date, Upcoming, Today and Done. Matrix: important (high priority) × urgent (overdue, due by tomorrow, or planned today). Drag a card, or use its Move to menu: moving changes the task's plan, date or priority, and Done completes it." />
             <Row label={<Tag>Lists & labels</Tag>} desc="The side panel has All, Inbox, Today, your lists, labels and saved filters. Add a list with +; ⋯ renames or deletes it. ☆ Save view keeps the current list, filter and search as a saved filter." />
             <Row label={<Tag>✎ Details</Tag>} desc="Edit a task's date, time (reminder), repeat, list, labels and priority. Completing a repeating task moves it to its next date." />
@@ -227,7 +227,8 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Speakers & talk time</Tag>} desc="With Include my microphone on, ProdLi notes who's talking (your mic or the call) on this device. AI transcripts then label lines You and Others, and Insights shows the talk-time split, your longest stretch and how often the turn changed (Pro)." />
             <Row label={<Tag>Meeting type</Tag>} desc="Pick General, 1:1, Interview, Sales call, Stand-up or Planning next to Summarize; it shapes what the summary pulls out. Set your usual type in Setup → Meeting notes." />
             <Row label={<Tag>Word list</Tag>} desc="Setup → Meeting notes: names and terms (people, products, jargon) that summaries and audio transcripts should spell exactly." />
-            <Row label={<Tag>Heads-up</Tag>} desc="Edit your “I'm taking AI notes” message in Setup; Copy heads-up (also in the recording bar) puts it on the clipboard to paste in the meeting chat." />
+            <Row label={<Tag>Heads-up</Tag>} desc="Edit your “I'm taking AI notes” message in Setup; Copy heads-up (also in the recording bar) puts it on the clipboard to paste in the meeting chat. In Google Meet, ProdLi can post it in the chat for you when recording starts (Setup → Post it in the Google Meet chat)." />
+            <Row label={<Tag>Auto-delete</Tag>} desc="Setup → Meeting notes → Auto-delete: remove recordings after 7, 30 or 90 days (transcripts and notes stay), and/or whole meetings after 30 days, 90 days or a year. Off by default." />
           </Section>
 
           {/* Files */}
@@ -245,7 +246,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
               <>
                 <Row label={<Tag>Sign in</Tag>} desc="Optional. Sign in with Google (your profile, bottom left) to keep notes, to-dos, habits, meetings (text only) and history the same in the extension and at app.prodli.com. Everything already on this device is added; nothing is overwritten." />
                 <Row label={<Tag>Settings</Tag>} desc="Your profile menu → Settings: account, plan & usage, sync & devices, backups, appearance, Today and help — all in one place." />
-                <Row label={<Tag>Your data</Tag>} desc="Download your account's data or a local backup any time (Settings → Backup & data). Deleting your account removes everything synced to ProdLi's servers." />
+                <Row label={<Tag>Your data</Tag>} desc="Download your account's data or a local backup any time (Settings → Backup & data), or every note, meeting and to-do as plain Markdown files in a .zip. Deleting your account removes everything synced to ProdLi's servers." />
               </>
             ) : (
               <>

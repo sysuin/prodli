@@ -36,11 +36,11 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature-plan.md](docs/research/2026-11-productivity-apps-feature-plan.md). Which features of the most-installed apps and extensions fit ProdLi: [docs/research/2026-11-most-installed-apps-and-extensions.md](docs/research/2026-11-most-installed-apps-and-extensions.md). Effort is for one developer; add a 30–50% buffer. Statuses checked against `main` on 2026-11-23.
 
 **Tier 1: next 2–4 weeks** (1 and 5 are the real work; 2–4 are mostly built already)
-- [ ] **1. Meeting trust pack** (3–4 days): one-click notice to participants (chat line or spoken intro), visible recording indicator, auto-delete for audio and transcripts, one-page "export everything", and a written promise to keep export working if ProdLi ever shuts down.
-- [ ] **2. Voice brain-dump to tasks and plan** — *mostly built:* 🎙 Speak tasks (`lib/voiceTasks.ts`) turns a spoken brain dump into reviewed to-dos. Left (1–2 days): start it from the dictation shortcut, and an option to drop the result straight into Plan your day.
-- [x] **3. Recipes and citations in Ask** — *built:* saved prompts and scheduled prompts (`lib/askPrompts.ts`), answers with sources (`lib/ask.ts`). Left: a real-use check, and a few starter recipes ("1:1 recap", "what did I promise this week?") if they aren't there.
-- [x] **4. Focus friction** — *built:* scheduled blocking and blocking during Pomodoro, with a pause page ("Close tab" / slow "Continue anyway") (`lib/focusBlock.ts`, `PausePage.tsx`). Polish: path-level blocks like youtube.com/shorts (1–2 days).
-- [ ] **5. Conversion mechanics** (3–5 days): 14–30-day reverse trial (full Pro, then free), free plan limits history and AI volume rather than features, monthly "value recap", annual plan (about two months free), India price (try ₹199/month or ₹1,499/year; check UPI AutoPay in Dodo), fair-use allowance for AI transcription.
+- [x] **1. Meeting trust pack** — *done 2026-11-23:* opt-in heads-up posted in the Meet chat, auto-delete for recordings and meetings (off by default), "Download everything as Markdown" and a 60-day shutdown-notice promise (Privacy). Was: one-click notice to participants (chat line or spoken intro), visible recording indicator, auto-delete for audio and transcripts, one-page "export everything", and a written promise to keep export working if ProdLi ever shuts down.
+- [x] **2. Voice brain-dump to tasks and plan** — *done 2026-11-23:* "Plan these for today" in Speak tasks, and the dictation shortcut opens Speak tasks in ProdLi when no text box is selected. Was: 🎙 Speak tasks (`lib/voiceTasks.ts`) turns a spoken brain dump into reviewed to-dos. Left (1–2 days): start it from the dictation shortcut, and an option to drop the result straight into Plan your day.
+- [x] **3. Recipes and citations in Ask** — *built:* saved prompts and scheduled prompts (`lib/askPrompts.ts`), answers with sources (`lib/ask.ts`). Starter recipes added 2026-11-23. Left: a real-use check.
+- [x] **4. Focus friction** — *built:* scheduled blocking and blocking during Pomodoro, with a pause page ("Close tab" / slow "Continue anyway") (`lib/focusBlock.ts`, `PausePage.tsx`). Shorts and Reels blocks added 2026-11-23 (A8).
+- [ ] **5. Conversion mechanics** — *partly done 2026-11-23:* 14-day reverse trial for new accounts, trial reminder and monthly value recap on Today. Decided: keep $5 everywhere (no India price for now). Left: fair-use allowance review. Was: 14–30-day reverse trial (full Pro, then free), free plan limits history and AI volume rather than features, monthly "value recap", annual plan (about two months free), India price (try ₹199/month or ₹1,499/year; check UPI AutoPay in Dodo), fair-use allowance for AI transcription.
 - [ ] **Start Google verification for a Calendar write scope now** (1 day of paperwork; it takes weeks and gates item 6).
 
 **Tier 2: next quarter** (6–8 first; 13 can slip)
@@ -68,7 +68,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **A5. Phone widgets** (2–3 weeks): habit check-off with streak, today's to-dos, next meeting (replaces part of Tier 3 #16).
 - [ ] **A6. Phone share sheet** (1–2 weeks): link, text or image to a note, task or Read later.
 - [ ] **A7. Read aloud** (2–3 days, all): Read later items, summaries and notes (`tts` permission, no warning).
-- [ ] **A8. Block Shorts and Reels** (1–2 days, extension): path-level blocks like youtube.com/shorts, instagram.com/reels in focus blocking.
+- [x] **A8. Block Shorts and Reels** (1–2 days, extension): path-level blocks like youtube.com/shorts, instagram.com/reels in focus blocking.
 - [ ] **A9. Morning brief and scheduled-prompt answers as phone notifications** (2–4 days).
 - [ ] **A10. System-wide dictation into any app** (3–5 weeks, desktop): moved up from Tier 3 #14 to the first desktop feature once the app is signed.
 - [ ] **A11. Document scan to a note with OCR**, searchable in Ask (1–2 weeks, phone).
