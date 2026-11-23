@@ -114,6 +114,8 @@ async function begin(kind: RecordingKind): Promise<string> {
     updatedAt: iso,
   };
   await putMeeting(meeting);
+  // In person, by time: the calendar event that's on now (lib/calendarLink.ts).
+  void import("../lib/calendarLink").then((c) => c.linkCalendarEvent(meetingId, { at: new Date(iso) }));
 
   const mime = pickMime();
   const recorder = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 32_000 });

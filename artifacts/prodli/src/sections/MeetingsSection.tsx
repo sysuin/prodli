@@ -533,6 +533,19 @@ function MeetingDetail({
             {new Date(meeting.startedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
             {meeting.endedAt ? ` · ${formatDuration(meeting.durationSec)}` : ""} · {meeting.transcript.length} transcript lines
           </div>
+          {meeting.calendarEvent && (
+            <div data-testid="meeting-calendar-event" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, marginTop: 2 }}>
+              📅 {meeting.calendarEvent.title}
+              {meeting.calendarEvent.start ? ` · ${meeting.calendarEvent.start}${meeting.calendarEvent.end ? `–${meeting.calendarEvent.end}` : ""}` : ""}
+              {meeting.calendarEvent.attendees?.length
+                ? ` · with ${meeting.calendarEvent.attendees
+                    .slice(0, 4)
+                    .map((a) => a.name || a.email?.split("@")[0] || "")
+                    .filter(Boolean)
+                    .join(", ")}${meeting.calendarEvent.attendees.length > 4 ? ` +${meeting.calendarEvent.attendees.length - 4}` : ""}`
+                : ""}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <select

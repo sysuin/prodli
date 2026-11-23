@@ -228,6 +228,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Meeting type</Tag>} desc="Pick General, 1:1, Interview, Sales call, Stand-up or Planning next to Summarize; it shapes what the summary pulls out. Set your usual type in Setup → Meeting notes." />
             <Row label={<Tag>Word list</Tag>} desc="Setup → Meeting notes: names and terms (people, products, jargon) that summaries and audio transcripts should spell exactly." />
             <Row label={<Tag>Heads-up</Tag>} desc="Edit your “I'm taking AI notes” message in Setup; Copy heads-up (also in the recording bar) puts it on the clipboard to paste in the meeting chat. In Google Meet, ProdLi can post it in the chat for you when recording starts (Setup → Post it in the Google Meet chat)." />
+            <Row label={<Tag>📅 Calendar</Tag>} desc="With Google Calendar connected (Today), a meeting you record is filed under the event that's on: the same Meet link, or the event at that time. It shows the event and who was invited, takes the event's name if it had none, and meeting prep finds it for the next one in the series." />
             <Row label={<Tag>Auto-delete</Tag>} desc="Setup → Meeting notes → Auto-delete: remove recordings after 7, 30 or 90 days (transcripts and notes stay), and/or whole meetings after 30 days, 90 days or a year. Off by default." />
           </Section>
 

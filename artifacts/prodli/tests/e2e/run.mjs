@@ -98,6 +98,7 @@ const suites = {
           id: "mtg_e2e", platform: "google-meet", title: "Google Meet · abc-defg-hij", meetingCode: "abc-defg-hij",
           url: "https://meet.google.com/abc-defg-hij", startedAt: new Date(now - 1800e3).toISOString(), endedAt: now.toISOString(),
           durationSec: 1800, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: now.toISOString(),
+          calendarEvent: { id: "ev_beta", title: "Beta launch sync", start: "10:00", end: "10:30", attendees: [{ name: "Priya Shah", email: "priya@acme.com" }] },
           transcript: [{ id: "1", speaker: "You", text: "Ship Friday.", startMs: 5000, endMs: 8000 }],
           summary: { title: "Beta launch planning", overview: "Ship on Friday.", keyPoints: ["Scope frozen"], decisions: ["Ship Friday"],
             actionItems: [{ task: "Finish onboarding emails", owner: "Priya Shah", dueDate: "2026-11-12", priority: "high" }, { task: "Prepare release notes", owner: null, dueDate: null, priority: "medium" }],
@@ -109,6 +110,7 @@ const suites = {
     })`);
     await sleep(3600);
     check("Meetings: meeting shows with summary", (await p.text()).includes("Beta launch planning"));
+    check("Meetings: shows its calendar event and who was invited", (await p.text()).includes("📅 Beta launch sync · 10:00–10:30 · with Priya Shah"));
     await p.click("Add all to To-Dos");
     await sleep(600);
     await p.click("Add all to To-Dos");
