@@ -135,9 +135,10 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="✍️" title="Editor">
-            <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block — or a single item in a list or checklist: + adds one below, ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block or list item, Ctrl/⌘+D duplicates it." />
-            <Row label={<Tag>🖼 Pictures</Tag>} desc="Paste a screenshot, drop a picture onto a note, or type / → Image. Pictures are shrunk on your device and saved in the note (a note holds about 1.3 MB of pictures)." />
+            <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block — or a single item in a list or checklist: + adds one below, ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block or list item, Ctrl/⌘+D duplicates it. On a phone or tablet, tap a block and use the ⋮⋮ button at its right edge." />
+            <Row label={<Tag>🖼 Pictures</Tag>} desc="Paste a screenshot, drop a picture onto a note, or type / → Image. Click a picture for S · M · L · Full sizes (or drag its right edge) and to add a caption. Pictures are shrunk on your device and saved in the note (a note holds about 1.3 MB of pictures)." />
             <Row label={<Tag>Callouts & toggles</Tag>} desc="/ → Callout for a tinted box with an icon (click the icon to change it and its colour). / → Toggle list hides details under a line; click ▸ to open or close it." />
+            <Row label={<Tag>{"{}"} Code blocks</Tag>} desc="Type ``` and a space (or ```python and a space), / → Code block, or {} in the toolbar. Code is coloured automatically; pick the language at the top of the block, and Copy puts the code on the clipboard. Markdown import/export keeps the language (```python)." />
             <Row label={<Tag>[[ Link a note</Tag>} desc="Type [[ and a note's name (or / → Link to note) to link another note; click the link to open it. If no note matches, pick New note to make one. Links follow renames." />
             <Row label={<Tag>Colours</Tag>} desc="Select text, then A in the bubble for a text or background colour. Colours adjust for dark mode." />
             <Row label={<Tag>Icon & cover</Tag>} desc="Hover the top of a note: Add icon (click it to pick another) and Add cover. The icon also shows in the notes list." />
@@ -150,6 +151,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
             <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
             <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K (or 🔗) opens a small link box next to the text: paste an address and press Enter; Remove takes a link off. Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
+            <Row label={<Tag>🔍 Find & replace</Tag>} desc="Ctrl/⌘+F finds in the open note (selected text is searched for); Ctrl/⌘+Shift+F, or ⋯ → Find and replace, also shows Replace. Enter / Shift+Enter (or ↑ ↓) go to the next or previous match; Aa matches case; Whole word skips longer words. Replace changes the current match, Replace all changes every one — one Ctrl/⌘+Z puts them back. Esc closes the bar with the match selected. Only this note changes." />
             <Row label={<Tag>Paste Markdown</Tag>} desc="Pasting Markdown text (headings, lists, checklists, bold, links) turns it into formatting automatically." />
             <Row label={<Tag>+ / Alt+N</Tag>} desc="New note. Untitled notes are named after their first line until you rename them." />
             <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
@@ -289,6 +291,8 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 <ShortcutRow keys={["Ctrl+Y / ⌘+Shift+Z"]} action="Redo" />
                 <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Insert, edit or remove a link" />
                 <ShortcutRow keys={["Ctrl / ⌘ + J"]} action="✨ Improve selected text (grammar, shorter, clearer, tone)" />
+                <ShortcutRow keys={["Ctrl / ⌘ + F"]} action="🔍 Find in this note (Enter / Shift+Enter: next / previous, Esc: close)" />
+                <ShortcutRow keys={["Ctrl / ⌘ + Shift + F"]} action="Find and replace in this note" />
                 <ShortcutRow keys={["Ctrl / ⌘ + Shift + H"]} action="Highlight" />
                 <ShortcutRow keys={["Ctrl / ⌘ + E"]} action="Inline code" />
                 <ShortcutRow keys={["/"]} action="Insert a block (checklist, table, heading…)" />

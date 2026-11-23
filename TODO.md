@@ -90,6 +90,13 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 
 - [ ] **Import from other apps (first part is Feature plan item 8):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
 - [ ] **Upload Retry resumes:** retrying a failed uploaded-recording transcription starts from the beginning, so minutes already used for pieces sent before the failure count twice. Resume from the last finished piece instead.
+- [ ] **Editor, next round** (from the 2026-11-23 editor testing):
+  - [x] Picture resizing and captions (done 2026-11-23: S/M/L/Full, drag the edge, caption) (pictures always fill the note width today).
+  - [x] Code blocks: syntax colours, a language picker and a Copy button.
+  - [x] Find & replace inside a note (done: Ctrl/⌘+F, Ctrl/⌘+Shift+F for replace) (Ctrl/⌘+F finds with the browser, no replace).
+  - [x] Phone toolbar (done: everyday buttons fit): only a few formatting buttons fit before it scrolls.
+  - [x] The ⋮⋮ block handle on touch screens (done: follows the block you tap) (hidden on phones and tablets).
+  - [ ] Check pasting from real apps (Google Docs, Word, Notion) and on a real phone — only simulated so far.
 - [ ] **Mail section (later; the 2026-11-23 research says don't build the full dashboard, see Feature plan):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
 - [ ] **Phone app keeps Notion-style blocks:** the phone app's note editor flattens callouts, toggles and text/background colours made in the extension (they come back as plain text). Render them, or at least keep them intact when a note is edited on the phone.
 - [ ] **Dictation outside the extension:** voice dictation (Alt+Shift+D) works only in the Chrome extension. Add it to the web app, and system-wide dictation (any app) through the desktop app.

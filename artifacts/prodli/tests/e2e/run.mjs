@@ -724,6 +724,317 @@ const suites = {
     await p.close();
   },
 
+  async editorpictures(b, check) {
+    // Pictures: size buttons and caption (saved as <figure>); phones: short toolbar and a ⋮⋮ button that follows the cursor.
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAIAAAA8r+mnAAAAEklEQVR42mNk+M+AFTAOZQkAP9IEAQvK7c0AAAAASUVORK5CYII=";
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "pic1", title: "Pictures", content: '<h1>Pictures</h1><p>Before</p><img src="${png}" alt="Chart"><p>After</p>', createdAt: "${now}", updatedAt: "${now}", autoTitle: false }
+    ], activeNoteId: "pic1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const saved = async () => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === "pic1")?.content ?? "";
+    // Select the picture (a real click), then M and a caption.
+    const at = await p.eval(`(() => { const r = document.querySelector(".ProseMirror figure img").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    await p.send("Input.dispatchMouseEvent", { type: "mousePressed", x: at.x, y: at.y, button: "left", buttons: 1, clickCount: 1 });
+    await p.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: at.x, y: at.y, button: "left", buttons: 0, clickCount: 1 });
+    await sleep(300);
+    check("Pictures: selecting one shows S / M / L / Full and a caption field", await p.eval(`document.querySelectorAll(".note-figure-sizes button").length === 4 && !!document.querySelector("figure figcaption input")`));
+    await p.eval(`[...document.querySelectorAll(".note-figure-sizes button")].find((b) => b.textContent === "M").click()`);
+    await sleep(200);
+    await p.eval(`document.querySelector("figure figcaption input").focus()`);
+    await p.type("Q3 chart");
+    await p.key("Enter");
+    await sleep(1000);
+    const html = await saved();
+    check("Pictures: the size and caption are saved with the note", /<figure data-type="note-image"[^>]*data-width="50"/.test(html) && html.includes("<figcaption>Q3 chart</figcaption>"), html.replace(/base64,[^"]+/, "…").slice(0, 300));
+    check("Pictures: Enter in the caption returns to the note", await p.eval(`document.activeElement?.classList.contains("ProseMirror")`));
+
+    // Phone with a touch screen.
+    await p.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 800, deviceScaleFactor: 2, mobile: true });
+    await p.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    await p.send("Emulation.setEmulatedMedia", { features: [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }] }).catch(() => {});
+    await sleep(400);
+    const shown = await p.eval(`[...document.querySelectorAll('[role="toolbar"][aria-label="Formatting"] button')].filter((b) => b.offsetParent).map((b) => b.title.split(" (")[0])`);
+    check("Phone: the toolbar keeps the everyday buttons only", shown.includes("Bold") && shown.includes("Checklist") && !shown.includes("Insert table") && !shown.some((t) => t.startsWith("Underline")), JSON.stringify(shown));
+    check("Phone: the toolbar fits without scrolling", await p.eval(`(() => { const s = document.querySelector(".editor-toolbar-scroll"); return s.scrollWidth <= s.clientWidth + 1; })()`));
+    await p.eval(`(() => { const t = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent === "After"); const r = document.createRange(); r.setStart(t.firstChild, 2); r.collapse(true); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(400);
+    check("Touch: a ⋮⋮ button appears at the block you're in", await p.eval(`!!document.querySelector('.block-handle.is-touch button[aria-label="Block options"]')`));
+    await p.eval(`document.querySelector('.block-handle.is-touch button').click()`);
+    await sleep(300);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] [role="menuitem"]')].find((b) => b.textContent.includes("Move up")).click()`);
+    await sleep(900);
+    const order = await p.eval(`[...document.querySelector(".ProseMirror").children].map((c) => (c.querySelector("figure") || c.tagName === "FIGURE" ? "FIGURE" : c.tagName) + ":" + c.textContent.trim()).slice(0, 4)`);
+    check("Touch: the block menu's Move up moves the block", order[2] === "P:After" && order[3].startsWith("FIGURE"), JSON.stringify(order));
+    await p.send("Emulation.clearDeviceMetricsOverride", {});
+    await p.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await p.send("Emulation.setEmulatedMedia", { features: [] }).catch(() => {});
+    await p.close();
+  },
+
+  async editorfind(b, check) {
+    // Find & replace in the open note: Ctrl/⌘+F, count, next/previous, Replace, Replace all (one undo), Esc.
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "ef1", title: "Pets", content: "<h1>Pets</h1><p>The cat sat. The <strong>cat</strong> ran to a (cat) show.</p><p>Concat is not a Cat.</p>", createdAt: "${now}", updatedAt: "${now}" },
+      { id: "ef2", title: "Other", content: "<p>Another cat note</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "ef1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const note = async (id) => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === id)?.content ?? "";
+    const count = () => p.eval(`document.querySelector('[data-testid="find-count"]')?.textContent ?? null`);
+    const sel = () => p.eval(`(() => { const ed = document.querySelector(".ProseMirror").editor; const { from, to } = ed.state.selection; return { from, to, text: ed.state.doc.textBetween(from, to) }; })()`);
+
+    await p.focusEditor("start");
+    await p.key("f", { mod: true });
+    await sleep(300);
+    const opened = await p.eval(`(() => { const bar = document.querySelector('[role="search"][data-testid="find-bar"]'); return !!bar && document.activeElement === bar.querySelector('[data-testid="find-input"]') && !bar.querySelector('[data-testid="replace-input"]'); })()`);
+    check("Find: Ctrl/⌘+F in the note opens the find bar with the search field focused", opened);
+    await p.type("cat");
+    await sleep(400);
+    check("Find: the bar shows the match count", (await count()) === "1 of 5", String(await count()));
+    check("Find: every match is highlighted, the current one stronger", await p.eval(`document.querySelectorAll(".ProseMirror .find-match").length === 5 && document.querySelectorAll(".ProseMirror .find-match-current").length === 1`));
+    const first = await sel();
+    await p.key("Enter");
+    await sleep(200);
+    const second = await sel();
+    check("Find: Enter moves to the next match (and selects it)", (await count()) === "2 of 5" && second.text === "cat" && second.from > first.from, JSON.stringify({ c: await count(), first, second }));
+    await p.key("Enter", { shift: true });
+    await sleep(200);
+    const back = await sel();
+    check("Find: Shift+Enter moves to the previous match", (await count()) === "1 of 5" && back.from === first.from, JSON.stringify({ c: await count(), back }));
+    await p.eval(`document.querySelector('button[aria-label="Next match"]').click()`);
+    await sleep(150);
+    check("Find: ↓ also moves to the next match", (await count()) === "2 of 5");
+    await p.eval(`document.querySelector('button[aria-label="Match case"]').click()`);
+    await sleep(150);
+    check("Find: Aa (match case) leaves out “Cat”", (await count())?.endsWith("of 4"), String(await count()));
+    await p.eval(`[...document.querySelectorAll('[data-testid="find-bar"] button')].find((x) => x.textContent.trim() === "Whole word").click()`);
+    await sleep(150);
+    check("Find: Whole word leaves out “Concat”", (await count())?.endsWith("of 3"), String(await count()));
+
+    // Replace: Ctrl/⌘+Shift+F shows the Replace field.
+    await p.key("f", { mod: true, shift: true });
+    await sleep(200);
+    check("Find: Ctrl/⌘+Shift+F shows Replace", await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`));
+    await p.shot("find-replace-bar");
+    await p.eval(`document.documentElement.classList.add("dark")`);
+    await p.shot("find-replace-bar-dark");
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    await p.eval(`document.querySelector('[data-testid="replace-input"]').focus()`);
+    await p.type("dog");
+    await p.eval(`document.querySelector('[data-testid="find-input"]').focus()`);
+    // Go to the first match so the result is predictable.
+    for (let i = 0; i < 3 && (await count()) !== "1 of 3"; i++) await p.key("Enter");
+    await p.click("Replace");
+    await sleep(200);
+    check("Find: Replace changes the current match and moves on", (await p.editorHtml()).includes("The dog sat") && (await count()) === "1 of 2", `${await count()} ${await p.editorHtml()}`);
+    await p.click("Replace all");
+    await sleep(200);
+    const replacedHtml = await p.editorHtml();
+    check("Find: Replace all changes every match (keeping bold) but not other words", replacedHtml.includes("<strong>dog</strong>") && replacedHtml.includes("(dog)") && replacedHtml.includes("Concat") && replacedHtml.includes("Cat.") && (await count()) === "No results", `${await count()} ${replacedHtml}`);
+    await sleep(900);
+    const saved = await note("ef1");
+    check("Find: the replacements are saved with the note", saved.includes("The dog sat") && saved.includes("<strong>dog</strong>") && saved.includes("(dog)"), saved);
+    check("Find: other notes are not touched", (await note("ef2")) === "<p>Another cat note</p>");
+
+    // One undo puts back everything Replace all changed.
+    await p.eval(`document.querySelector(".ProseMirror").focus()`);
+    await sleep(100);
+    await p.key("z", { mod: true });
+    await sleep(900);
+    const undone = await note("ef1");
+    check("Find: one Ctrl/⌘+Z undoes Replace all", undone.includes("The dog sat") && undone.includes("<strong>cat</strong>") && undone.includes("(cat)"), undone);
+
+    // Esc closes the bar and returns to the note with the match selected.
+    await p.key("f", { mod: true });
+    await sleep(300);
+    check("Find: Ctrl/⌘+F from the note goes back to the open bar, keeping the search and options", (await p.eval(`document.activeElement === document.querySelector('[data-testid="find-input"]') && document.activeElement.value === "cat"`)) && (await count())?.endsWith("of 2"), String(await count()));
+    await p.key("Escape");
+    await sleep(250);
+    const after = await sel();
+    check("Find: Esc closes the bar and puts focus back in the note on the match", await p.eval(`!document.querySelector('[data-testid="find-bar"]') && !document.querySelector(".ProseMirror .find-match") && document.activeElement === document.querySelector(".ProseMirror")`) && after.text.toLowerCase() === "cat", JSON.stringify(after));
+
+    // Reopened after closing: the last search comes back (options start off again).
+    await p.focusEditor("end");
+    await p.key("f", { mod: true });
+    await sleep(300);
+    check("Find: reopening shows the last search", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "cat" && (await count())?.endsWith("of 4"), String(await count()));
+    await p.key("Escape");
+    await sleep(200);
+
+    // Selected text pre-fills the search; ⋯ → Find and replace opens it with Replace shown.
+    await p.eval(`(() => { const t = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent.startsWith("Concat")); const r = document.createRange(); r.setStart(t.firstChild, 0); r.setEnd(t.firstChild, 6); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(200);
+    await p.eval(`document.querySelector('button[title^="More:"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.includes("Find and replace")).click()`);
+    await sleep(300);
+    check("Find: ⋯ → Find and replace opens with Replace and the selected text", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "Concat" && (await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`)) && (await count()) === "1 of 1", String(await count()));
+    await p.key("Escape");
+    await sleep(200);
+    await p.close();
+  },
+
+  async codeblocks(b, check) {
+    // Code blocks: colours, language picker, Copy, Markdown fences — and the old ways in (/, ```, {}, Turn into) still work.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "cb1", title: "Snippets", content: "<h1>Snippets</h1><p>intro</p><p>outro</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "cb1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const saved = async () => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === "cb1")?.content ?? "";
+    const codeText = (n = 0) => p.eval(`document.querySelectorAll(".ProseMirror pre code")[${n}]?.textContent ?? null`);
+    // Focus first, then place the caret (focusing can restore the editor's old selection), then give
+    // ProseMirror a moment to read the new selection before any key is pressed.
+    const focusFirst = async () => {
+      if (!(await p.eval(`document.activeElement === document.querySelector(".ProseMirror")`))) {
+        await p.eval(`document.querySelector(".ProseMirror").focus(); true`);
+        await sleep(120);
+      }
+    };
+    const caretAtEndOf = async (text) => (await focusFirst(), await p.eval(`(() => { const el = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent === ${JSON.stringify(text)}); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`), await sleep(120));
+    // Caret at a character offset inside the n-th code block (its text is split into colour spans).
+    const caretInCode = async (n, at) => (await focusFirst(), await p.eval(`(() => { const code = document.querySelectorAll(".ProseMirror pre code")[${n}]; const w = document.createTreeWalker(code, NodeFilter.SHOW_TEXT); let left = ${at}, node, last = null; while ((node = w.nextNode())) { last = node; if (left <= node.length) break; left -= node.length; } const r = document.createRange(); if (node) r.setStart(node, left); else if (last) r.setStart(last, last.length); else r.setStart(code, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`), await sleep(120));
+    const caretBlock = () => p.eval(`(() => { const n = getSelection().anchorNode; const el = n && (n.nodeType === 1 ? n : n.parentElement); const b = el?.closest(".ProseMirror pre, .ProseMirror p, .ProseMirror h1"); return b ? b.tagName.toLowerCase() + ":" + b.textContent : null; })()`);
+
+    // / → Code block, then type: Enter makes a new line inside the code.
+    // (Wait until the note has settled so loading it can't move the caret afterwards.)
+    for (let i = 0; i < 10; i++) {
+      await p.eval(`!!document.querySelector(".ProseMirror p") && [...document.querySelectorAll(".ProseMirror p")].some((x) => x.textContent === "intro")`).then((ok) => ok && caretAtEndOf("intro"));
+      await sleep(300);
+      if ((await caretBlock()) === "p:intro") break;
+    }
+    await p.key("Enter");
+    await p.type("/code");
+    await sleep(200);
+    await p.key("Enter");
+    await sleep(200);
+    const head = await p.eval(`(() => { const h = document.querySelector(".ProseMirror .note-code .note-code-head"); return h ? { editable: h.getAttribute("contenteditable"), select: !!h.querySelector('select[aria-label="Code language"]'), copy: h.querySelector(".note-code-copy")?.textContent, lang: h.querySelector("select").value } : null; })()`);
+    check("Code: / → Code block shows a header with a language picker and Copy", !!head && head.editable === "false" && head.select && head.copy === "Copy" && head.lang === "", JSON.stringify(head));
+    await p.type("def greet(name):");
+    await p.key("Enter");
+    await p.type('    return "hi " + name  # say hi');
+    await sleep(300);
+    const typed = 'def greet(name):\n    return "hi " + name  # say hi';
+    check("Code: typing goes into the code (header text stays out)", (await codeText()) === typed, JSON.stringify(await codeText()));
+    check("Code: colours appear even before a language is picked (auto-detect)", await p.eval(`document.querySelectorAll('.ProseMirror pre [class*="hljs-"]').length > 2`));
+
+    // Pick Python.
+    await p.eval(`(() => { const s = document.querySelector('.note-code select[aria-label="Code language"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "python"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(300);
+    const spans = await p.eval(`(() => { const pre = document.querySelector(".ProseMirror pre"); const t = (c) => [...pre.querySelectorAll(".hljs-" + c)].map((x) => x.textContent); return { cls: pre.querySelector("code").className, keyword: t("keyword"), string: t("string"), comment: t("comment"), lang: document.querySelector(".note-code select").value }; })()`);
+    check("Code: picking Python sets the language", spans.cls === "language-python" && spans.lang === "python", JSON.stringify(spans));
+    check("Code: Python is coloured (hljs keyword, string and comment spans)", spans.keyword.includes("def") && spans.keyword.includes("return") && spans.string.some((s) => s.includes("hi ")) && spans.comment.some((s) => s.includes("say hi")), JSON.stringify(spans));
+    await sleep(900);
+    const html1 = await saved();
+    check("Code: the note saves plain code with its language (no colours or header)", html1.includes(`<pre><code class="language-python">def greet(name):`) && !/hljs|note-code|Copy/.test(html1), html1);
+
+    // Keys inside the code still behave: more typing, ↑ out of the first line, Tab as before.
+    await caretInCode(0, 9999);
+    await p.key("Enter");
+    await p.type("print(greet('Ada'))");
+    await sleep(200);
+    const typed2 = typed + "\nprint(greet('Ada'))";
+    check("Code: typing after picking a language still works", (await codeText()) === typed2, JSON.stringify(await codeText()));
+    await caretInCode(0, 2);
+    await p.key("ArrowUp");
+    await sleep(150);
+    check("Code: ↑ on the first line leaves the code (skips the header)", (await caretBlock()) === "p:intro", await caretBlock());
+    await caretInCode(0, 3);
+    await p.key("Tab");
+    await sleep(150);
+    check("Code: Tab in code doesn't type into the code (focus moves on, as before)",(await codeText()) === typed2, JSON.stringify(await codeText()));
+
+    // Copy puts the code on the clipboard and says so for 2 s.
+    await p.eval(`navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; true`);
+    await p.eval(`document.querySelector(".note-code-copy").click()`);
+    await sleep(150);
+    check("Code: Copy puts the block's text on the clipboard", (await p.eval(`window.__copied`)) === typed2, JSON.stringify(await p.eval(`window.__copied`)));
+    check("Code: the button shows “Copied ✓”", (await p.eval(`document.querySelector(".note-code-copy").textContent`)) === "Copied ✓");
+    await sleep(2100);
+    check("Code: …and goes back to “Copy” after 2 s", (await p.eval(`document.querySelector(".note-code-copy").textContent`)) === "Copy");
+
+    // Readable in light and dark; the header passes axe.
+    await p.eval(axeSource + ";true");
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(120);
+      const low = await p.eval(`(() => {
+        const rgb = (s) => s.match(/[\\d.]+/g).slice(0, 3).map(Number);
+        const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const ratio = (a, b) => { const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+        const bg = getComputedStyle(document.querySelector(".ProseMirror pre")).backgroundColor;
+        return ["keyword", "string", "comment", "title", "built_in"].map((c) => document.querySelector(".ProseMirror pre .hljs-" + c)).filter(Boolean).map((el) => [el.className, ratio(getComputedStyle(el).color, bg)]).filter(([, r]) => r < 4.5).map(([c, r]) => c + " " + r.toFixed(2));
+      })()`);
+      check(`Code (${theme}): colours have enough contrast on the dark block`, low.length === 0, low.join(", "));
+      await p.shot(`code-block-${theme}`);
+      const v = await p.eval(`axe.run(document.querySelector(".ProseMirror .note-code"), { runOnly: ["wcag2a", "wcag2aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): code block header has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+
+    // Printing hides the header.
+    await p.eval(`document.documentElement.classList.add("printing-note")`);
+    await p.send("Emulation.setEmulatedMedia", { media: "print" });
+    check("Code: the header is hidden when printing", (await p.eval(`getComputedStyle(document.querySelector(".note-code-head")).display`)) === "none");
+    await p.send("Emulation.setEmulatedMedia", { media: "" });
+    await p.eval(`document.documentElement.classList.remove("printing-note")`);
+
+    // Export Markdown keeps the fence language.
+    await sleep(900);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More:")).click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
+    const md = await waitForDownload(b, "Snippets");
+    check("Code: Markdown export writes ```python", md.includes("```python\n" + typed2 + "\n```"), md.replace(/\n/g, "⏎"));
+    await p.key("Escape");
+
+    // Pasting Markdown with a fence keeps the language (```js → JavaScript).
+    await caretAtEndOf("outro");
+    await p.key("Enter");
+    await p.eval(`(() => { const dt = new DataTransfer(); dt.setData("text/plain", ["\`\`\`js", "const a = 1;", "\`\`\`"].join(String.fromCharCode(10))); document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); return true; })()`);
+    await sleep(700);
+    const pastedBlock = await p.eval(`(() => { const w = [...document.querySelectorAll(".ProseMirror .note-code")].find((x) => x.querySelector("pre code").textContent.startsWith("const a")); return w ? { cls: w.querySelector("pre code").className, text: w.querySelector("pre code").textContent, lang: w.querySelector("select").value, kw: !!w.querySelector(".hljs-keyword") } : null; })()`);
+    check("Code: pasted ```js Markdown keeps the language (picker shows JavaScript)", !!pastedBlock && pastedBlock.cls === "language-js" && pastedBlock.lang === "javascript" && pastedBlock.text === "const a = 1;" && pastedBlock.kw, JSON.stringify(pastedBlock));
+    await sleep(900);
+    check("Code: …and saves it as language js", (await saved()).includes(`<pre><code class="language-js">const a = 1;</code></pre>`), await saved());
+
+    // ``` input rule (with a language), the toolbar's {} and Turn into → Code block.
+    await caretAtEndOf("outro");
+    await p.key("Enter");
+    await p.type("```sql");
+    await p.type(" ");
+    await sleep(200);
+    await p.type("SELECT 1;");
+    await sleep(200);
+    check("Code: typing ```sql and a space makes an SQL code block", await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.className === "language-sql" && c.textContent === "SELECT 1;" && !!c.querySelector(".hljs-keyword"))`));
+    await caretAtEndOf("outro");
+    await p.eval(`document.querySelector('button[title="Code block"]').click()`);
+    await sleep(200);
+    const viaToolbar = await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.textContent === "outro")`);
+    await p.eval(`document.querySelector('button[title="Code block"]').click()`);
+    await sleep(200);
+    check("Code: the toolbar's {} turns a line into code and back", viaToolbar && (await p.eval(`[...document.querySelectorAll(".ProseMirror p")].some((x) => x.textContent === "outro")`)));
+    const r = await p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > p")].find((x) => x.textContent.trim() === "intro"); const b = el.getBoundingClientRect(); return { x: b.left + 20, y: b.top + 6 }; })()`);
+    await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x, y: r.y });
+    await sleep(250);
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-haspopup="menu"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => /Turn into/.test(x.textContent)).click()`);
+    await sleep(150);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => x.textContent.trim().endsWith("Code block")).click()`);
+    await sleep(250);
+    check("Code: block handle Turn into → Code block works", await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.textContent === "intro") && !!document.querySelector(".ProseMirror .note-code .note-code-head")`));
+    await p.close();
+  },
+
   async notion(b, check) {
     // Editor, Notion-style: callouts, toggles, [[note links]], block handle (move / turn into / duplicate), colours, page icon and cover.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
@@ -1754,7 +2065,12 @@ const suites = {
     n = notes.find((x) => x.id === "rl2note");
     const fresh = notes.find((x) => x.title === "Highlights: New page");
     check("Highlight: one note per page (appends; a new page gets a Highlights note)", (n.content.match(/<blockquote>/g) ?? []).length === 2 && !!fresh && fresh.sourceUrl === "https://example.org/new" && fresh.content.includes("New page quote.") && notes.length === 3, JSON.stringify(notes.map((x) => x.title)));
-    const shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+    // Notifications appear asynchronously: wait up to 2 s for all three.
+    let shown = 0;
+    for (let i = 0; i < 20 && shown < 3; i++) {
+      shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+      if (shown < 3) await sleep(100);
+    }
     check("Highlight: shows a confirmation", shown === 3, String(shown));
     check("Highlight: non-web pages are refused", (await sw.eval(`__prodliSaveHighlight("x", "chrome://newtab/", "New tab")`)) === false);
 

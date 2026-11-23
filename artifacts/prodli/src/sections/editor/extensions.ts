@@ -7,14 +7,17 @@ import Highlight from "@tiptap/extension-highlight";
 import Typography from "@tiptap/extension-typography";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
-import Image from "@tiptap/extension-image";
 import { BlockKeys, Callout, NoteLink } from "./blocks";
+import { NoteImage } from "./noteImage";
+import { FindReplace } from "./findReplace";
+import { CodeBlock } from "./codeBlock";
 
 /** All Editor features in one place. */
 export function buildExtensions() {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
+      codeBlock: false, // replaced by CodeBlock below (colours, language picker, Copy)
       link: {
         openOnClick: false, // plain click edits; Ctrl/⌘+click (or the bubble's Open) follows the link
         autolink: true,
@@ -51,9 +54,12 @@ export function buildExtensions() {
     DetailsSummary,
     DetailsContent,
     // Pictures (lib/noteImages.ts shrinks pasted/dropped ones and stores them in the note).
-    Image.configure({ allowBase64: true, HTMLAttributes: { class: "note-image", loading: "lazy" } }),
+    NoteImage.configure({ allowBase64: true, HTMLAttributes: { loading: "lazy" } }),
+    CodeBlock,
     Callout,
     NoteLink,
     BlockKeys,
+    // Find & replace in the note (Ctrl/⌘+F; the bar is FindBar.tsx).
+    FindReplace,
   ];
 }

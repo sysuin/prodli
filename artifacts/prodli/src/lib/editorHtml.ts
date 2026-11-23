@@ -22,6 +22,12 @@ export function toEditorHtml(html: string): string {
       box?.remove();
     }
   });
+  // Fenced code ends with a newline (```lang\ncode\n```); in the Editor that
+  // would show as an empty last line. The language stays on <code class="language-…">.
+  doc.querySelectorAll("pre > code").forEach((code) => {
+    const last = code.lastChild;
+    if (last?.nodeType === 3 && last.textContent?.endsWith("\n")) last.textContent = last.textContent.slice(0, -1);
+  });
   return doc.body.innerHTML;
 }
 
