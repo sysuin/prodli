@@ -729,6 +729,8 @@ nav :focus-visible { outline-offset: -3px; }
 }
 .block-handle button:hover, .block-handle button:focus-visible { background: hsl(var(--foreground) / 0.1); color: hsl(var(--foreground)); }
 .block-handle button[draggable="true"] { cursor: grab; letter-spacing: -2px; }
+/* Touch: one bigger ⋮⋮ button at the right edge of the block you're in. */
+.block-handle.is-touch button { width: 30px; height: 30px; background: hsl(var(--card)); border: var(--nb-border); box-shadow: var(--nb-shadow-sm); letter-spacing: -2px; font-size: 14px; }
 .tiptap .ProseMirror-selectednode:not(.note-link):not(hr) { outline: 2px solid #FFD70099; outline-offset: 2px; border-radius: 2px; }
 .page-cover { height: 120px; margin: -24px -32px 0; border-bottom: var(--nb-border); position: relative; }
 .page-head-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; min-height: 26px; }
@@ -754,5 +756,21 @@ nav :focus-visible { outline-offset: -3px; }
 .editor-toolbar-scroll > * { flex-shrink: 0; }
 
 /* Pictures in notes */
-.tiptap img.note-image { display: block; max-width: 100%; height: auto; margin: 10px 0; border: var(--nb-border); box-shadow: var(--nb-shadow-sm); background: hsl(var(--card)); }
+.tiptap figure.note-figure { margin: 10px 0; }
+.tiptap .note-figure-frame { position: relative; max-width: 100%; }
+.tiptap img.note-image { display: block; width: 100%; max-width: 100%; height: auto; border: var(--nb-border); box-shadow: var(--nb-shadow-sm); background: hsl(var(--card)); }
+.tiptap figure.note-figure > img.note-image { width: auto; }
+.tiptap figure.note-figure.is-selected img.note-image,
 .tiptap img.note-image.ProseMirror-selectednode { outline: 3px solid #FFD700; outline-offset: 2px; }
+.tiptap .note-figure-resize { position: absolute; top: 50%; right: -7px; width: 10px; height: 44px; transform: translateY(-50%); background: #FFD700; border: 2px solid #000; cursor: ew-resize; touch-action: none; }
+.tiptap .note-figure-sizes { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; }
+.tiptap .note-figure-sizes button { border: 2px solid #000; background: #fff; color: #000; font: 800 11px/1 var(--app-font-sans); padding: 4px 6px; cursor: pointer; }
+.tiptap .note-figure-sizes button[aria-pressed="true"] { background: #FFD700; }
+.tiptap figure.note-figure figcaption { margin-top: 6px; font-size: 13px; color: hsl(var(--muted-foreground)); }
+.tiptap figure.note-figure figcaption input { width: 100%; border: none; background: transparent; color: inherit; font: inherit; padding: 2px 0; outline: none; }
+.tiptap figure.note-figure figcaption input:focus { border-bottom: 1px dashed hsl(var(--muted-foreground)); }
+
+/* Phones: keep the toolbar to the everyday buttons (the rest are in the / menu and the selection bar). */
+@media (max-width: 640px) {
+  .editor-toolbar-row .tb-optional { display: none !important; }
+}

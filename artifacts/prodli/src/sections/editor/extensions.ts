@@ -7,8 +7,8 @@ import Highlight from "@tiptap/extension-highlight";
 import Typography from "@tiptap/extension-typography";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
-import Image from "@tiptap/extension-image";
 import { BlockKeys, Callout, NoteLink } from "./blocks";
+import { NoteImage } from "./noteImage";
 
 /** All Editor features in one place. */
 export function buildExtensions() {
@@ -51,7 +51,7 @@ export function buildExtensions() {
     DetailsSummary,
     DetailsContent,
     // Pictures (lib/noteImages.ts shrinks pasted/dropped ones and stores them in the note).
-    Image.configure({ allowBase64: true, HTMLAttributes: { class: "note-image", loading: "lazy" } }),
+    NoteImage.configure({ allowBase64: true, HTMLAttributes: { loading: "lazy" } }),
     Callout,
     NoteLink,
     BlockKeys,

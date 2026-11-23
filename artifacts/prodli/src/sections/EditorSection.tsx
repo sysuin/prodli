@@ -77,6 +77,8 @@ function newNote(partial: Partial<Note> = {}): Note {
 }
 
 interface ToolbarButtonProps {
+  /** Hidden on phones (index.css .tb-optional). */
+  optional?: boolean;
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
@@ -84,10 +86,11 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
   wide?: boolean;
 }
-function ToolbarButton({ onClick, active, disabled, title, children, wide }: ToolbarButtonProps) {
+function ToolbarButton({ onClick, active, disabled, title, children, wide, optional }: ToolbarButtonProps) {
   return (
     <button
       type="button"
+      className={optional ? "tb-optional" : undefined}
       onClick={onClick}
       title={title}
       aria-label={title}
@@ -120,7 +123,7 @@ function ToolbarButton({ onClick, active, disabled, title, children, wide }: Too
   );
 }
 
-const Divider = () => <div style={{ width: 1, height: 24, background: "var(--nb-section-border)", margin: "0 4px" }} />;
+const Divider = () => <div className="tb-optional" style={{ width: 1, height: 24, background: "var(--nb-section-border)", margin: "0 4px" }} />;
 
 export function EditorSection() {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -857,7 +860,7 @@ export function EditorSection() {
           {/* Formatting buttons scroll sideways when there's no room; the note actions on the right stay put. */}
           <div className="editor-toolbar-scroll" style={{ display: "flex", gap: 4, alignItems: "center", flex: "1 1 auto", minWidth: 0, overflowX: "auto", scrollbarWidth: "thin" }}>
           <ToolbarButton onClick={run((e) => e.chain().focus().undo().run())} disabled={!t?.canUndo} title="Undo (Ctrl/⌘+Z)">↩</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().redo().run())} disabled={!t?.canRedo} title="Redo (Ctrl/⌘+Shift+Z)">↪</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().redo().run())} disabled={!t?.canRedo} optional title="Redo (Ctrl/⌘+Shift+Z)">↪</ToolbarButton>
           <Divider />
           <select
             aria-label="Text style"
@@ -878,26 +881,26 @@ export function EditorSection() {
           <Divider />
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBold().run())} active={t?.bold} title="Bold (Ctrl/⌘+B)">B</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleItalic().run())} active={t?.italic} title="Italic (Ctrl/⌘+I)"><em>I</em></ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleUnderline().run())} active={t?.underline} title="Underline (Ctrl/⌘+U)"><u>U</u></ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleStrike().run())} active={t?.strike} title="Strikethrough (Ctrl/⌘+Shift+S)"><s>S</s></ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleHighlight().run())} active={t?.highlight} title="Highlight (Ctrl/⌘+Shift+H)">🖍</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCode().run())} active={t?.code} title="Inline code (Ctrl/⌘+E)">{"<>"}</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleUnderline().run())} active={t?.underline} optional title="Underline (Ctrl/⌘+U)"><u>U</u></ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleStrike().run())} active={t?.strike} optional title="Strikethrough (Ctrl/⌘+Shift+S)"><s>S</s></ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleHighlight().run())} active={t?.highlight} optional title="Highlight (Ctrl/⌘+Shift+H)">🖍</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCode().run())} active={t?.code} optional title="Inline code (Ctrl/⌘+E)">{"<>"}</ToolbarButton>
           <ToolbarButton onClick={setLink} active={t?.link} title="Link (Ctrl/⌘+K)">🔗</ToolbarButton>
           <Divider />
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBulletList().run())} active={t?.bullet} title="Bullet list">•</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} title="Numbered list">
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleOrderedList().run())} active={t?.ordered} optional title="Numbered list">
             <ListOrdered size={16} strokeWidth={2.5} aria-hidden="true" />
           </ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleTaskList().run())} active={t?.task} title="Checklist">☑</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} title="Quote">❝</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} title="Code block">{"{}"}</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())} active={t?.inTable} title="Insert table">▦</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().setHorizontalRule().run())} title="Divider line">—</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} optional title="Quote">❝</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} optional title="Code block">{"{}"}</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())} active={t?.inTable} optional title="Insert table">▦</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().setHorizontalRule().run())} optional title="Divider line">—</ToolbarButton>
 
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6, flex: "0 0 auto" }}>
             <ReadAloudBar reader={reader} />
-            <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} title="Outline (headings in this note)">☰</ToolbarButton>
+            <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} optional title="Outline (headings in this note)">☰</ToolbarButton>
             <div style={{ position: "relative" }}>
               <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: font, copy, import, export, print">⋯</ToolbarButton>
               {showMore && (
@@ -970,7 +973,7 @@ export function EditorSection() {
                 e.target.value = "";
               }}
             />
-            <ToolbarButton onClick={() => setIsFullscreen((f) => !f)} active={isFullscreen} title={isFullscreen ? "Exit full screen (Esc)" : "Full screen"}>⛶</ToolbarButton>
+            <ToolbarButton onClick={() => setIsFullscreen((f) => !f)} active={isFullscreen} optional title={isFullscreen ? "Exit full screen (Esc)" : "Full screen"}>⛶</ToolbarButton>
           </div>
         </div>
 

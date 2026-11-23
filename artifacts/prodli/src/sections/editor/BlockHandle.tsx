@@ -1,6 +1,8 @@
 // Notion-style block handle: hovering a block shows "+" (add a block below,
 // opening the / menu) and "⋮⋮" (drag to move the block; click for the block
-// menu: turn into, colour, duplicate, move, delete). Hidden on touch screens.
+// menu: turn into, colour, duplicate, move, delete). On touch screens there's
+// no hover: a ⋮⋮ button follows the block you're typing in (at its right edge)
+// and opens the same menu (Move up / Move down instead of dragging).
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Editor } from "@tiptap/react";
@@ -84,6 +86,41 @@ export function BlockHandle({ editor, pageRef }: { editor: Editor | null; pageRe
     [editor, pageRef, menu],
   );
 
+  // Touch: follow the block with the cursor (no hover on phones and tablets).
+  useEffect(() => {
+    if (!editor) return;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const place = () => {
+      clearTimeout(hideTimer);
+      const page = pageRef.current;
+      // Checked each time: a tablet can gain or lose a keyboard/mouse.
+      if (!page || !editor.isFocused || !isTouch()) return;
+      const start = itemStartAt(editor);
+      if (start === null) return;
+      const dom = editor.view.nodeDOM(start) as HTMLElement | null;
+      if (!dom?.getBoundingClientRect) return;
+      const pr = page.getBoundingClientRect();
+      const r = dom.getBoundingClientRect();
+      setHover({ start, top: r.top - pr.top, height: r.height });
+    };
+    // Tapping the handle blurs the editor for a moment: keep it a little while.
+    const blur = () => {
+      if (!isTouch()) return;
+      hideTimer = setTimeout(() => setHover((h) => (menuRef.current ? h : null)), 400);
+    };
+    editor.on("selectionUpdate", place);
+    editor.on("focus", place);
+    editor.on("update", place);
+    editor.on("blur", blur);
+    return () => {
+      clearTimeout(hideTimer);
+      editor.off("selectionUpdate", place);
+      editor.off("focus", place);
+      editor.off("update", place);
+      editor.off("blur", blur);
+    };
+  }, [editor, pageRef]);
+
   useEffect(() => {
     const page = pageRef.current;
     if (!page || !editor) return;
@@ -160,6 +197,44 @@ export function BlockHandle({ editor, pageRef }: { editor: Editor | null; pageRe
   };
 
   const h = menu ? { start: menu.start, top: menu.top, height: 0 } : hover;
+  const touch = isTouch();
+  if (touch && h) {
+    return (
+      <>
+        <div className="block-handle is-touch" data-testid="block-handle" style={{ top: h.top, right: -14 }}>
+          <button
+            type="button"
+            aria-label="Block options"
+            aria-haspopup="menu"
+            aria-expanded={!!menu}
+            title="Block options"
+            onPointerDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              if (menu) return setMenu(null);
+              focusBlock(editor, h.start);
+              setMenu({ start: h.start, top: h.top });
+            }}
+          >
+            ⋮⋮
+          </button>
+        </div>
+        {menu && (
+          <BlockMenu
+            ref={menuRef}
+            editor={editor}
+            start={menu.start}
+            top={menu.top + 28}
+            align="right"
+            onDone={() => {
+              setMenu(null);
+              setHover(null);
+            }}
+          />
+        )}
+      </>
+    );
+  }
   return (
     <>
       {h && (
@@ -210,7 +285,7 @@ const item: CSSProperties = { display: "flex", alignItems: "center", gap: 8, wid
 const head: CSSProperties = { fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.8, padding: "6px 8px 2px" };
 const kbd: CSSProperties = { marginLeft: "auto", fontSize: 10, opacity: 0.8, fontWeight: 700 };
 
-function BlockMenu({ ref, editor, start, top, onDone }: { ref: RefObject<HTMLDivElement | null>; editor: Editor; start: number; top: number; onDone: () => void }) {
+function BlockMenu({ ref, editor, start, top, onDone, align = "left" }: { ref: RefObject<HTMLDivElement | null>; editor: Editor; start: number; top: number; onDone: () => void; align?: "left" | "right" }) {
   const [tab, setTab] = useState<"main" | "turn" | "color">("main");
   const node = editor.state.doc.nodeAt(start);
   if (!node) return null;
@@ -245,7 +320,7 @@ function BlockMenu({ ref, editor, start, top, onDone }: { ref: RefObject<HTMLDiv
       role="menu"
       aria-label="Block options"
       data-testid="block-menu"
-      style={{ position: "absolute", top, left: -48, zIndex: 10000, width: 240, maxHeight: 420, overflowY: "auto", background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}
+      style={{ position: "absolute", top, ...(align === "right" ? { right: 0 } : { left: -48 }), zIndex: 10000, width: 240, maxHeight: 420, overflowY: "auto", background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}
     >
       {tab === "main" && (
         <>
@@ -257,13 +332,13 @@ function BlockMenu({ ref, editor, start, top, onDone }: { ref: RefObject<HTMLDiv
           </button>
           <div style={{ height: 1, background: "hsl(var(--foreground) / 0.12)", margin: "4px 0" }} />
           <button role="menuitem" style={item} onClick={act(() => duplicateBlock(editor, start))}>
-            <span aria-hidden style={{ width: 18, textAlign: "center" }}>⧉</span> Duplicate <span style={kbd}>{mod}+D</span>
+            <span aria-hidden style={{ width: 18, textAlign: "center" }}>⧉</span> Duplicate <span style={{ ...kbd, display: align === "right" ? "none" : undefined }}>{mod}+D</span>
           </button>
           <button role="menuitem" style={item} onClick={act(() => moveBlock(editor, start, "up"))}>
-            <span aria-hidden style={{ width: 18, textAlign: "center" }}>↑</span> Move up <span style={kbd}>Alt+Shift+↑</span>
+            <span aria-hidden style={{ width: 18, textAlign: "center" }}>↑</span> Move up <span style={{ ...kbd, display: align === "right" ? "none" : undefined }}>Alt+Shift+↑</span>
           </button>
           <button role="menuitem" style={item} onClick={act(() => moveBlock(editor, start, "down"))}>
-            <span aria-hidden style={{ width: 18, textAlign: "center" }}>↓</span> Move down <span style={kbd}>Alt+Shift+↓</span>
+            <span aria-hidden style={{ width: 18, textAlign: "center" }}>↓</span> Move down <span style={{ ...kbd, display: align === "right" ? "none" : undefined }}>Alt+Shift+↓</span>
           </button>
           <button role="menuitem" style={{ ...item, color: "var(--danger-text)" }} onClick={act(() => deleteBlock(editor, start))}>
             <span aria-hidden style={{ width: 18, textAlign: "center" }}>🗑</span> Delete

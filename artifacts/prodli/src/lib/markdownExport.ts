@@ -42,6 +42,18 @@ function service(): TurndownService {
     replacement: (content) => `\n\n${content}\n\n`,
   });
   // Callouts: a quote that starts with the icon ("> 💡 Remember…").
+  turndown.addRule("noteFigure", {
+    // A picture with its caption: ![alt](src) and the caption in italics under it.
+    filter: (node) => node.nodeName === "FIGURE" && (node as HTMLElement).getAttribute("data-type") === "note-image",
+    replacement: (_content, node) => {
+      const el = node as HTMLElement;
+      const img = el.querySelector("img");
+      if (!img) return "";
+      const alt = (img.getAttribute("alt") ?? "").replace(/[[\]]/g, "");
+      const caption = el.querySelector("figcaption")?.textContent?.trim();
+      return `\n\n![${alt}](${img.getAttribute("src") ?? ""})${caption ? `\n*${caption}*` : ""}\n\n`;
+    },
+  });
   turndown.addRule("callout", {
     filter: (node) => node.nodeName === "DIV" && (node as HTMLElement).getAttribute("data-type") === "callout",
     replacement: (content, node) => {

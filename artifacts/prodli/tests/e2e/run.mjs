@@ -724,6 +724,56 @@ const suites = {
     await p.close();
   },
 
+  async editorpictures(b, check) {
+    // Pictures: size buttons and caption (saved as <figure>); phones: short toolbar and a ⋮⋮ button that follows the cursor.
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAIAAAA8r+mnAAAAEklEQVR42mNk+M+AFTAOZQkAP9IEAQvK7c0AAAAASUVORK5CYII=";
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "pic1", title: "Pictures", content: '<h1>Pictures</h1><p>Before</p><img src="${png}" alt="Chart"><p>After</p>', createdAt: "${now}", updatedAt: "${now}", autoTitle: false }
+    ], activeNoteId: "pic1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const saved = async () => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === "pic1")?.content ?? "";
+    // Select the picture (a real click), then M and a caption.
+    const at = await p.eval(`(() => { const r = document.querySelector(".ProseMirror figure img").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    await p.send("Input.dispatchMouseEvent", { type: "mousePressed", x: at.x, y: at.y, button: "left", buttons: 1, clickCount: 1 });
+    await p.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: at.x, y: at.y, button: "left", buttons: 0, clickCount: 1 });
+    await sleep(300);
+    check("Pictures: selecting one shows S / M / L / Full and a caption field", await p.eval(`document.querySelectorAll(".note-figure-sizes button").length === 4 && !!document.querySelector("figure figcaption input")`));
+    await p.eval(`[...document.querySelectorAll(".note-figure-sizes button")].find((b) => b.textContent === "M").click()`);
+    await sleep(200);
+    await p.eval(`document.querySelector("figure figcaption input").focus()`);
+    await p.type("Q3 chart");
+    await p.key("Enter");
+    await sleep(1000);
+    const html = await saved();
+    check("Pictures: the size and caption are saved with the note", /<figure data-type="note-image"[^>]*data-width="50"/.test(html) && html.includes("<figcaption>Q3 chart</figcaption>"), html.replace(/base64,[^"]+/, "…").slice(0, 300));
+    check("Pictures: Enter in the caption returns to the note", await p.eval(`document.activeElement?.classList.contains("ProseMirror")`));
+
+    // Phone with a touch screen.
+    await p.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 800, deviceScaleFactor: 2, mobile: true });
+    await p.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    await p.send("Emulation.setEmulatedMedia", { features: [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }] }).catch(() => {});
+    await sleep(400);
+    const shown = await p.eval(`[...document.querySelectorAll('[role="toolbar"][aria-label="Formatting"] button')].filter((b) => b.offsetParent).map((b) => b.title.split(" (")[0])`);
+    check("Phone: the toolbar keeps the everyday buttons only", shown.includes("Bold") && shown.includes("Checklist") && !shown.includes("Insert table") && !shown.some((t) => t.startsWith("Underline")), JSON.stringify(shown));
+    check("Phone: the toolbar fits without scrolling", await p.eval(`(() => { const s = document.querySelector(".editor-toolbar-scroll"); return s.scrollWidth <= s.clientWidth + 1; })()`));
+    await p.eval(`(() => { const t = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent === "After"); const r = document.createRange(); r.setStart(t.firstChild, 2); r.collapse(true); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(400);
+    check("Touch: a ⋮⋮ button appears at the block you're in", await p.eval(`!!document.querySelector('.block-handle.is-touch button[aria-label="Block options"]')`));
+    await p.eval(`document.querySelector('.block-handle.is-touch button').click()`);
+    await sleep(300);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] [role="menuitem"]')].find((b) => b.textContent.includes("Move up")).click()`);
+    await sleep(900);
+    const order = await p.eval(`[...document.querySelector(".ProseMirror").children].map((c) => (c.querySelector("figure") || c.tagName === "FIGURE" ? "FIGURE" : c.tagName) + ":" + c.textContent.trim()).slice(0, 4)`);
+    check("Touch: the block menu's Move up moves the block", order[2] === "P:After" && order[3].startsWith("FIGURE"), JSON.stringify(order));
+    await p.send("Emulation.clearDeviceMetricsOverride", {});
+    await p.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await p.send("Emulation.setEmulatedMedia", { features: [] }).catch(() => {});
+    await p.close();
+  },
+
   async notion(b, check) {
     // Editor, Notion-style: callouts, toggles, [[note links]], block handle (move / turn into / duplicate), colours, page icon and cover.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
