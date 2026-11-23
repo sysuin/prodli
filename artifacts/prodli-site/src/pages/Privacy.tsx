@@ -83,6 +83,12 @@ Speak tasks (🎙 in To-dos): what you say is turned into text by Chrome's built
 
 Voice dictation (Alt+Shift+D in the extension): with an account, while you dictate, ProdLi records your microphone and sends the audio in short pieces to our server, which has it transcribed by Whisper on Cloudflare Workers AI; the text is then sent to Anthropic's Claude API to remove filler words, punctuate and format it in the style you chose for that kind of website (or, in Command Mode, together with the text you selected, to apply your spoken instruction). The website's address is used on your device to pick the style and is not sent. Nothing is stored on our servers except monthly counts; the last 50 dictations are kept on your device. ProdLi only listens after you press the shortcut or 🎙, until you finish or cancel, and shows a pill on the page while it listens.
 
+Break it down (✨ on Today's Now card): with an account, our server sends Anthropic's Claude API the task's title and its existing steps (up to 1,500 characters) and gets back a few suggested steps. Nothing is stored on our servers; the steps are added only if you choose to. Each use counts toward your monthly writing-help uses.
+
+Importing to-dos (Todoist, TickTick, Google Tasks, CSV or Markdown files): the file you choose is read on your device and never uploaded. The imported to-dos are saved like any other, so they sync if you use sync.
+
+Read aloud (▶ Listen in Notes and Read later): the text is spoken by your browser's built-in voices. ProdLi doesn't send it anywhere, but some of Chrome's voices (those named "Google …") are produced online by Google as part of Chrome; pick a voice from your computer to keep it local.
+
 Writing help (✨ Improve in Notes): with an account, you can select text in a note and ask ProdLi to fix spelling and grammar, make it shorter or clearer, or change its tone. Our server sends Anthropic's Claude API only the selected text (up to about 1,000 words), the kind of change you picked and, if you set one (Settings → Writing style), your writing style. Neither the text nor the suggestion is stored on our servers; your note changes only if you click Replace or Insert below. We count how many times you use writing help each month (page summaries and Speak tasks count too).
 
 Meeting coaching (🎯 Coach me, Pro): when you ask for it, our server sends that meeting's transcript, name and date, what kind of meeting you said it was and, if it was recorded, your share of the talking to Anthropic's Claude API. The feedback is saved with the meeting; the server keeps only the monthly count (it uses your AI meeting summaries).
@@ -98,7 +104,11 @@ The copy is deleted when the link expires (after 7 or 30 days, or never if you c
   },
   {
     title: "Google Calendar (optional)",
-    body: `If you connect Google Calendar on the Today page, ProdLi asks Google for read-only access to your calendar (scope calendar.readonly) and reads today's events in your browser to show your agenda. ProdLi also reads each event's invitees (names and email addresses) to match the event with meetings you recorded before and show meeting prep; this happens only on your device. Events are not stored on ProdLi's servers, and invitees' details are never sent anywhere. Event titles and times, and meeting prep for matched meetings, are included in your daily brief only if you have an account and use the AI brief. You can disconnect at any time on the Today page, and remove ProdLi's access in your Google Account settings.`,
+    body: `If you connect Google Calendar on the Today page, ProdLi asks Google for read-only access to your calendar (scope calendar.readonly) and reads today's events in your browser to show your agenda. ProdLi also reads each event's invitees (names and email addresses) to match the event with meetings you recorded before and show meeting prep; this happens only on your device. Events are not stored on ProdLi's servers, and invitees' details are never sent anywhere. Event titles and times, and meeting prep for matched meetings, are included in your daily brief only if you have an account and use the AI brief. You can disconnect at any time on the Today page, and remove ProdLi's access in your Google Account settings.
+
+When you record a meeting while your calendar is connected, ProdLi files the meeting under the calendar event that's on at that time and saves the event's title, time and invitees (names and email addresses) with the meeting. Like the rest of the meeting, this syncs to your account if you use sync.
+
+Time blocks in Google Calendar (optional): if you turn on "Show blocks in Google Calendar" (Today), ProdLi asks Google for permission to create and manage calendars it creates itself (scope calendar.app.created; it can't see or change your other calendars). It creates a calendar called "ProdLi" and keeps one event per time block (the task's title and time) for today and the next 7 days, and reads those events back so changes you make in Google Calendar update your plan. This happens between your browser and Google; nothing goes through ProdLi's servers. Turning it off stops syncing; you can delete the "ProdLi" calendar in Google Calendar at any time.`,
   },
   {
     title: "Technical data and logs",
@@ -123,7 +133,7 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
     body: `• Cloudflare, Inc.: hosting, databases, sync, backups, request logs and AI audio transcription (Workers AI), only when you use it with your account
 • Dodo Payments: if you buy ProdLi Pro. Dodo Payments is our reseller and the merchant of record: it sells you the subscription, takes payment and handles tax and invoices under its own terms and privacy policy. You give your payment details to Dodo Payments, not to us. We give Dodo Payments your name, email address and ProdLi account ID to set up your checkout, and it tells us your subscription's status, plan, renewal date and its customer and subscription IDs; we never receive your card details.
 • Google LLC: sign-in
-• Anthropic, PBC: AI daily briefs, weekly reviews, Ask ProdLi answers, meeting summaries, follow-up emails, writing help, page summaries and Speak tasks, only when you use them with your account
+• Anthropic, PBC: AI daily briefs, weekly reviews, Ask ProdLi answers, meeting summaries, follow-up emails, writing help, page summaries, Speak tasks and Break it down, only when you use them with your account
 Separately, Chrome's speech recognition (used by Speak tasks, and by on-device meeting transcription) is provided by Google as part of Chrome. When it can't run on your device, Chrome sends the audio to Google under Google's terms; ProdLi doesn't receive that audio.
 These providers process data only to provide their services to us, under data processing terms. We don't share your data with anyone else, except where the law requires us to or to protect people's safety. If ProdLi is ever transferred to a new owner, we'll tell you first.`,
   },
@@ -167,7 +177,7 @@ Depending on where you live (for example under the EU/UK GDPR or India's DPDP Ac
 • tabs, idle, alarms, notifications: Time Tracker, Pomodoro, reminders, focus blocking (it checks the site name of the page you open and shows a pause screen instead of a blocked site), saving your open tabs when you click Save, and background sync
 • identity: Google sign-in
 • search: the search box on Today searches with your default search engine
-• contextMenus: the right-click menus "Add to ProdLi", "Read later in ProdLi" and "Summarize page to ProdLi notes" (they read the page title, address and any text you selected only when you click them)
+• contextMenus: the right-click menus "Add to ProdLi", "Read later in ProdLi", "Summarize page to ProdLi notes" and "Save highlight to ProdLi" (they read the page title, address and any text you selected only when you click them)
 • activeTab and scripting: read the text of the page you right-click for "Summarize page" (only that tab, only then), and start reading Google Meet's captions when you start recording a Meet call
 • webNavigation: to notice when a Markdown, CSV, JSON or text file from your computer is opened in Chrome, so ProdLi can show it in its Files viewer (only if you turn this on; the file is read on your device and never uploaded)
 • Requested only if you turn on "Open files from anywhere in Chrome": access to local files (file:///) and downloads (Chrome downloads some files, such as CSV, instead of opening them; ProdLi cancels that download and shows the file instead), plus Chrome's "Allow access to file URLs" switch, which you control in Chrome's extension settings
@@ -175,7 +185,7 @@ Depending on where you live (for example under the EU/UK GDPR or India's DPDP Ac
   },
   {
     title: "Google API data",
-    body: `ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We use your Google profile information only to sign you in and show your account, and your calendar events (if you connect your calendar) only to show your agenda, plan your day and prepare for your meetings. We don't transfer Google data to others except our service providers as described above, and never use it for advertising.`,
+    body: `ProdLi's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. We use your Google profile information only to sign you in and show your account, your calendar events (if you connect your calendar) only to show your agenda, plan your day, prepare for your meetings and file recorded meetings under their events, and the "ProdLi" calendar (if you turn on blocks in Google Calendar) only to show and sync your time blocks. We don't transfer Google data to others except our service providers as described above, and never use it for advertising.`,
   },
   {
     title: "Children",

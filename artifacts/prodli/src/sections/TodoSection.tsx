@@ -593,6 +593,13 @@ export function TodoSection() {
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px", height: "38px", boxSizing: "border-box" as const, background: "hsl(var(--card))", color: "hsl(var(--foreground))", cursor: "pointer", fontSize: 15 }}
           >🎙</button>
           <button
+            data-testid="todo-import"
+            onClick={() => window.dispatchEvent(new CustomEvent(IMPORT_TASKS_EVENT))}
+            title="Import to-dos from Todoist, TickTick, Google Tasks, a CSV or Markdown"
+            aria-label="Import to-dos from other apps"
+            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px", height: "38px", boxSizing: "border-box" as const, background: "hsl(var(--card))", color: "hsl(var(--foreground))", cursor: "pointer", fontSize: 15 }}
+          >⇩</button>
+          <button
             onClick={addTodo}
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 18px", height: "38px", boxSizing: "border-box" as const, background: "#FFD700", fontWeight: 800, cursor: "pointer", fontSize: 13, textTransform: "uppercase", fontFamily: "inherit", color: "#000" }}
           >Add</button>
@@ -642,12 +649,6 @@ export function TodoSection() {
         {canSaveView && (
           <button onClick={saveView} title="Save this list, label, filter and search as a saved filter" style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}>☆ Save view</button>
         )}
-        <button
-          data-testid="todo-import"
-          onClick={() => window.dispatchEvent(new CustomEvent(IMPORT_TASKS_EVENT))}
-          title="Import to-dos from Todoist, TickTick, Google Tasks, a CSV or Markdown"
-          style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}
-        >⇩ Import</button>
         {completedCount > 0 && (
           <button
             onClick={clearCompleted}
