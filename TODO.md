@@ -10,6 +10,8 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [ ] **Calendar verification:** branding re-verification is scheduled for 2026-11-18 (Google asks for a 24-hour wait after domain verification). After branding passes, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today).
 - [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit.
 - [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Left for you: one real purchase to confirm the live flow — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [ ] **Chrome Web Store: version number.** The rebuilt `prodli-extension-store.zip` (Tier 1 + Tier 2) is still version 1.4.0. If 1.4.0 is already in the store, raise the version before uploading (tell Claude).
+- [ ] **Two-way calendar, first real run:** on Today, turn on "Show blocks in Google Calendar" with your real Google account; check a "ProdLi" calendar appears in Google Calendar, a block shows there, and moving/deleting the event moves/unblocks the task in ProdLi.
 - [ ] **Real-use checks:**
   - [ ] A real Google Meet call with captions on (full transcript, summary)
   - [ ] Captions off for part of a call with on-device transcription on (gaps filled, marked "on device")
@@ -87,6 +89,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 ## Next ideas
 
 - [ ] **Import from other apps (first part is Feature plan item 8):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
+- [ ] **Upload Retry resumes:** retrying a failed uploaded-recording transcription starts from the beginning, so minutes already used for pieces sent before the failure count twice. Resume from the last finished piece instead.
 - [ ] **Mail section (later; the 2026-11-23 research says don't build the full dashboard, see Feature plan):** a Gmail dashboard in the extension (needs reply / waiting on others / newsletters, add to to-dos), read in the browser with `gmail.readonly` and sorted by Chrome's on-device AI, so email never reaches ProdLi's servers and Google's paid security assessment shouldn't apply. Works for up to 100 testers right away; public use needs Google's free restricted-scope review. Plan: [docs/PLAN-MAIL.md](docs/PLAN-MAIL.md)
 - [ ] **Phone app keeps Notion-style blocks:** the phone app's note editor flattens callouts, toggles and text/background colours made in the extension (they come back as plain text). Render them, or at least keep them intact when a note is edited on the phone.
 - [ ] **Dictation outside the extension:** voice dictation (Alt+Shift+D) works only in the Chrome extension. Add it to the web app, and system-wide dictation (any app) through the desktop app.

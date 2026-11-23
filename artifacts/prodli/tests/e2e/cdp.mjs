@@ -144,9 +144,9 @@ export class Page {
     await this.send("Input.insertText", { text });
     await sleep(60);
   }
-  async key(key, { mod = false, shift = false } = {}) {
+  async key(key, { mod = false, shift = false, alt = false } = {}) {
     const codes = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, Backspace: 8, Tab: 9 };
-    const modifiers = (mod ? (process.platform === "darwin" ? 4 : 2) : 0) | (shift ? 8 : 0);
+    const modifiers = (mod ? (process.platform === "darwin" ? 4 : 2) : 0) | (shift ? 8 : 0) | (alt ? 1 : 0);
     const vk = codes[key] ?? key.toUpperCase().charCodeAt(0);
     const code = codes[key] ? key : `Key${key.toUpperCase()}`;
     const text = key === "Enter" ? "\r" : undefined;

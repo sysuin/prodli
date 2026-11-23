@@ -365,11 +365,13 @@ export default function App() {
     const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
     // The import window takes its own drops.
     const importing = () => !!document.querySelector('[data-testid="import-tasks"]');
-    const onEnter = (e: DragEvent) => { if (hasFiles(e) && !importing()) { depth++; setDraggingFile(true); } };
+    // Pictures dragged over a note go into the note (the editor handles that drop).
+    const imageOverNote = (e: DragEvent) => !!(e.target as Element | null)?.closest?.(".ProseMirror") && Array.from(e.dataTransfer?.items ?? []).some((i) => i.kind === "file" && i.type.startsWith("image/"));
+    const onEnter = (e: DragEvent) => { if (hasFiles(e) && !importing() && !imageOverNote(e)) { depth++; setDraggingFile(true); } };
     const onLeave = (e: DragEvent) => { if (hasFiles(e)) { depth = Math.max(0, depth - 1); if (depth === 0) setDraggingFile(false); } };
     const onOver = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
     const onDrop = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!hasFiles(e) || e.defaultPrevented) return; // e.g. a picture the note editor already took
       if (importing()) {
         e.preventDefault();
         return;

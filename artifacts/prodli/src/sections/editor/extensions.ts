@@ -7,6 +7,7 @@ import Highlight from "@tiptap/extension-highlight";
 import Typography from "@tiptap/extension-typography";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
+import Image from "@tiptap/extension-image";
 import { BlockKeys, Callout, NoteLink } from "./blocks";
 
 /** All Editor features in one place. */
@@ -23,7 +24,9 @@ export function buildExtensions() {
       },
     }),
     Placeholder.configure({
-      placeholder: ({ node }) => {
+      placeholder: ({ node, pos }) => {
+        // The first line is the note's title (the note list uses it).
+        if (pos === 0 && node.type.name === "heading" && node.attrs.level === 1) return "Untitled";
         if (node.type.name === "heading") return `Heading ${node.attrs.level}`;
         if (node.type.name === "detailsSummary") return "Toggle";
         return "Write something, or type “/” for commands…";
@@ -47,6 +50,8 @@ export function buildExtensions() {
     }),
     DetailsSummary,
     DetailsContent,
+    // Pictures (lib/noteImages.ts shrinks pasted/dropped ones and stores them in the note).
+    Image.configure({ allowBase64: true, HTMLAttributes: { class: "note-image", loading: "lazy" } }),
     Callout,
     NoteLink,
     BlockKeys,

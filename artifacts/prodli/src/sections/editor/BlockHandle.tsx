@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
-import { blockStartAt, currentKind, deleteBlock, duplicateBlock, focusBlock, insertParagraphAfter, moveBlock, selectBlock, turnInto, TURN_INTO } from "./blockOps";
+import { blockStartAt, currentKind, deleteBlock, duplicateBlock, focusBlock, insertParagraphAfter, isListItem, itemStartAt, moveBlock, selectBlock, turnInto, TURN_INTO } from "./blockOps";
 import { bgColor, NOTE_COLORS, textColor, type NoteColor } from "./colors";
 
 interface Hover {
@@ -16,7 +16,7 @@ interface Hover {
 
 const isTouch = () => typeof window !== "undefined" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches;
 
-/** The top-level block element under the pointer's height, and its doc position. */
+/** The block (or list item) element under the pointer's height, and its doc position. */
 function blockAtY(editor: Editor, y: number): { el: HTMLElement; start: number } | null {
   const root = editor.view.dom as HTMLElement;
   const kids = Array.from(root.children) as HTMLElement[];
@@ -30,6 +30,23 @@ function blockAtY(editor: Editor, y: number): { el: HTMLElement; start: number }
     }
   }
   if (!best) return null;
+  // Inside a list or checklist: the single item under the pointer (the innermost one, for nested lists).
+  if (best.matches("ul, ol")) {
+    let item: HTMLElement | null = null;
+    for (const li of Array.from(best.querySelectorAll("li")) as HTMLElement[]) {
+      const r = li.getBoundingClientRect();
+      if (r.height && y >= r.top - 2 && y <= r.bottom + 2) item = li; // later = deeper
+    }
+    if (item) {
+      try {
+        const pos = editor.view.posAtDOM(item, 0);
+        const start = itemStartAt(editor, pos);
+        if (start !== null && isListItem(editor.state.doc.nodeAt(start)?.type.name)) return { el: item, start };
+      } catch {
+        // fall back to the whole list
+      }
+    }
+  }
   let pos: number;
   try {
     pos = editor.view.posAtDOM(best, 0);
@@ -114,6 +131,11 @@ export function BlockHandle({ editor, pageRef }: { editor: Editor | null; pageRe
 
   const add = (start: number) => {
     const node = editor.state.doc.nodeAt(start);
+    if (isListItem(node?.type.name)) {
+      insertParagraphAfter(editor, start); // a new empty item below
+      setHover(null);
+      return;
+    }
     if (node?.type.name === "paragraph" && node.content.size === 0) {
       editor.chain().focus().setTextSelection(start + 1).insertContent("/").run();
     } else {

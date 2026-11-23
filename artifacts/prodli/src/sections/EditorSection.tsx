@@ -15,6 +15,8 @@ import { useSyncedList } from "../lib/syncedList";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
 import { looksLikeMarkdown, MAX_NOTE_BYTES } from "../lib/markdownDetect";
+import { fitsInNote, imageFileToDataUrl, INSERT_IMAGE_EVENT, isNoteImage } from "../lib/noteImages";
+import { LinkBox, linkBoxFor, type LinkBoxState } from "./editor/LinkBox";
 
 // Loaded on demand so the Editor opens faster: Markdown conversion
 // (marked + DOMPurify) for paste/import, and turndown for export.
@@ -22,7 +24,7 @@ const loadMarkdownImport = () => import("../lib/editorHtml");
 const loadMarkdownExport = () => import("../lib/markdownExport");
 import { buildExtensions } from "./editor/extensions";
 import { detectSlash, filterSlashItems, SlashMenu, type SlashItem, type SlashState } from "./editor/SlashMenu";
-import { NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
+import { isBlankNote, NoteList, sortNotes, type NoteSort } from "./editor/NoteList";
 import { isImprovable, useImprove } from "./editor/ImproveMenu";
 import { IMPROVE_EVENT, type RewriteAction } from "../lib/write";
 import { DAILY_NOTE_EVENT, newNoteFromTemplate, PENDING_DAILY_KEY, prepareDailyNote } from "../lib/noteTemplates";
@@ -255,25 +257,15 @@ export function EditorSection() {
     setSlash(null);
   }, []);
 
+  // Ctrl/⌘+K, 🔗 and "Edit" open the link box next to the text (editor/LinkBox.tsx).
+  const [linkBox, setLinkBox] = useState<LinkBoxState | null>(null);
   const setLink = useCallback(() => {
     const ed = editorRef.current;
     if (!ed) return;
-    const previous = (ed.getAttributes("link").href as string | undefined) ?? "";
-    const input = window.prompt("Link URL (leave empty to remove the link):", previous || "https://");
-    if (input === null) return;
-    const url = input.trim();
-    if (!url || url === "https://") {
-      ed.chain().focus().extendMarkRange("link").unsetLink().run();
-      return;
-    }
-    const href = /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
-    if (/^javascript:/i.test(href)) return;
-    if (ed.state.selection.empty && !ed.isActive("link")) {
-      ed.chain().focus().insertContent({ type: "text", text: url, marks: [{ type: "link", attrs: { href } }] }).run();
-    } else {
-      ed.chain().focus().extendMarkRange("link").setLink({ href }).run();
-    }
+    if (ed.isActive("link")) ed.chain().extendMarkRange("link").run();
+    setLinkBox(linkBoxFor(ed));
   }, []);
+  const closeLinkBox = useCallback(() => setLinkBox(null), []);
 
   const editor = useEditor(
     {
@@ -343,7 +335,23 @@ export function EditorSection() {
           }
           return false;
         },
+        handleDrop: (view, event, _slice, moved) => {
+          if (moved) return false;
+          const files = Array.from(event.dataTransfer?.files ?? []).filter(isNoteImage);
+          if (!files.length) return false;
+          event.preventDefault();
+          const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+          void insertImagesRef.current(files, at?.pos);
+          return true;
+        },
         handlePaste: (_view, event) => {
+          // A pasted screenshot or copied picture.
+          const pics = Array.from(event.clipboardData?.files ?? []).filter(isNoteImage);
+          if (pics.length) {
+            event.preventDefault();
+            void insertImagesRef.current(pics);
+            return true;
+          }
           const text = event.clipboardData?.getData("text/plain") ?? "";
           const html = event.clipboardData?.getData("text/html") ?? "";
           const ed = editorRef.current;
@@ -368,6 +376,33 @@ export function EditorSection() {
     [],
   );
   editorRef.current = editor;
+
+  // Pictures: shrink on this device and put them in the note (lib/noteImages.ts).
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const insertImagesRef = useRef<(files: File[], pos?: number) => Promise<void>>(async () => {});
+  insertImagesRef.current = async (files, pos) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    for (const f of files.slice(0, 6)) {
+      try {
+        const src = await imageFileToDataUrl(f);
+        if (!fitsInNote(ed.getHTML().length, src.length)) {
+          showToast("This note holds as many pictures as it can (about 1.3 MB). Put more in a new note.");
+          return;
+        }
+        const node = { type: "image", attrs: { src, alt: f.name.replace(/\.[^.]+$/, "").slice(0, 120) } };
+        if (pos !== undefined) ed.chain().focus().insertContentAt(pos, node).run();
+        else ed.chain().focus().insertContent(node).run();
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : "Couldn't add the picture.");
+      }
+    }
+  };
+  useEffect(() => {
+    const open = () => imageInputRef.current?.click();
+    window.addEventListener(INSERT_IMAGE_EVENT, open);
+    return () => window.removeEventListener(INSERT_IMAGE_EVENT, open);
+  }, []);
 
   // ✨ Improve (writing help) for the selection: bubble button, Ctrl/⌘+J, command palette.
   const improve = useImprove(editor, pageRef, showToast);
@@ -508,13 +543,41 @@ export function EditorSection() {
 
   function selectNote(id: string) {
     if (pendingEdit.current) commitEdit();
+    // Leaving a note you never wrote in: tidy it away instead of keeping an empty "Untitled".
+    const leaving = activeIdRef.current;
+    const doc = editorRef.current?.state.doc;
+    if (leaving && leaving !== id && doc && doc.textContent.trim() === "") {
+      let hasContent = false;
+      doc.descendants((node) => {
+        if (node.isAtom && !node.isText) hasContent = true;
+        return !hasContent;
+      });
+      const note = notesRef.current.find((n) => n.id === leaving);
+      if (!hasContent && note && isBlankNote({ ...note, content: "" })) setNotes((prev) => prev.filter((n) => n.id !== leaving));
+    }
     activeIdRef.current = id;
     setActiveId(id);
     void storageSet("activeNoteId", id).catch(() => {});
   }
 
   const createNote = useCallback(() => {
-    const note = newNote();
+    // Already on an empty note (or one is waiting): use it rather than adding another "Untitled".
+    const current = notesRef.current.find((n) => n.id === activeIdRef.current);
+    const blank = current && isBlankNote(current) && editorRef.current?.state.doc.textContent.trim() === "" ? current : notesRef.current.find((n) => n.id !== activeIdRef.current && isBlankNote(n));
+    if (blank) {
+      if (blank.id !== activeIdRef.current) selectNote(blank.id);
+      setMobilePane("note");
+      setTimeout(() => {
+        const ed = editorRef.current;
+        if (!ed) return;
+        // Older empty notes have no title line yet: give them one.
+        if (ed.state.doc.firstChild?.type.name !== "heading") ed.commands.setContent("<h1></h1>", { emitUpdate: true });
+        ed.commands.focus("start");
+      }, 0);
+      return;
+    }
+    // New notes start with a title line (shown as “Untitled” until you type).
+    const note = newNote({ content: "<h1></h1>" });
     setNotes((prev) => [note, ...prev]);
     selectNote(note.id);
     setMobilePane("note");
@@ -790,7 +853,9 @@ export function EditorSection() {
           </div>
         )}
         {/* Toolbar */}
-        <div className="editor-toolbar" role="toolbar" aria-label="Formatting" style={{ borderBottom: "var(--nb-border)", padding: "8px 16px", display: "flex", gap: 4, flexWrap: "wrap", background: "hsl(var(--muted))", alignItems: "center" }}>
+        <div role="toolbar" aria-label="Formatting" className="editor-toolbar-row" style={{ borderBottom: "var(--nb-border)", padding: "8px 16px", display: "flex", gap: 6, background: "hsl(var(--muted))", alignItems: "center" }}>
+          {/* Formatting buttons scroll sideways when there's no room; the note actions on the right stay put. */}
+          <div className="editor-toolbar-scroll" style={{ display: "flex", gap: 4, alignItems: "center", flex: "1 1 auto", minWidth: 0, overflowX: "auto", scrollbarWidth: "thin" }}>
           <ToolbarButton onClick={run((e) => e.chain().focus().undo().run())} disabled={!t?.canUndo} title="Undo (Ctrl/⌘+Z)">↩</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().redo().run())} disabled={!t?.canRedo} title="Redo (Ctrl/⌘+Shift+Z)">↪</ToolbarButton>
           <Divider />
@@ -828,23 +893,13 @@ export function EditorSection() {
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} title="Code block">{"{}"}</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())} active={t?.inTable} title="Insert table">▦</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().setHorizontalRule().run())} title="Divider line">—</ToolbarButton>
-          <Divider />
-          <select
-            value={editorFont}
-            onChange={(e) => changeFont(e.target.value as EditorFont)}
-            aria-label="Writing font"
-            title="Writing font"
-            style={{ border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "var(--app-font-sans)", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 6px", height: 32, cursor: "pointer", outline: "none", boxShadow: "var(--nb-shadow-sm)" }}
-          >
-            {FONT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6, flex: "0 0 auto" }}>
             <ReadAloudBar reader={reader} />
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} title="Outline (headings in this note)">☰</ToolbarButton>
             <div style={{ position: "relative" }}>
-              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: copy, import, export, print">⋯</ToolbarButton>
+              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: font, copy, import, export, print">⋯</ToolbarButton>
               {showMore && (
                 <div role="menu" aria-label="More note actions" style={{ position: "absolute", right: 0, top: 38, zIndex: 30, minWidth: 220, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}>
                   {[
@@ -869,9 +924,41 @@ export function EditorSection() {
                       {item.label}
                     </button>
                   ))}
+                  <div role="group" aria-label="Writing font" style={{ borderTop: "1px solid var(--nb-section-border)", marginTop: 4, paddingTop: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7, padding: "4px 10px" }}>Font</div>
+                    <div style={{ display: "flex", gap: 4, padding: "2px 6px 6px" }}>
+                      {FONT_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          role="menuitemradio"
+                          aria-checked={editorFont === opt.value}
+                          title={opt.label}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => changeFont(opt.value)}
+                          style={{ flex: 1, padding: "6px 4px", border: editorFont === opt.value ? "2px solid hsl(var(--foreground))" : "1px solid var(--nb-section-border)", background: editorFont === opt.value ? "#FFD700" : "transparent", color: editorFont === opt.value ? "#000" : "inherit", cursor: "pointer", fontFamily: opt.family, fontSize: 15, fontWeight: 700, lineHeight: 1.1 }}
+                        >
+                          Aa
+                          <span style={{ display: "block", fontSize: 9, fontFamily: "var(--app-font-sans)", fontWeight: 700, marginTop: 2 }}>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
+              multiple
+              data-testid="note-image-input"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (files.length) void insertImagesRef.current(files);
+              }}
+            />
             <input
               ref={importInputRef}
               type="file"
@@ -941,24 +1028,27 @@ export function EditorSection() {
         </div>
 
         {/* Status bar */}
-        <div className="editor-status" style={{ borderTop: "var(--nb-border)", padding: "6px 16px", display: "flex", gap: 16, background: "hsl(var(--muted))", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", flexWrap: "wrap" }}>
+        <div className="editor-status" style={{ borderTop: "var(--nb-border)", padding: "6px 16px", display: "flex", gap: 16, background: "hsl(var(--muted))", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", alignItems: "center", whiteSpace: "nowrap" }}>
           {t && t.selectedWords > 0 ? <span style={{ background: "#FFD700", color: "#000", padding: "0 4px" }}>{t.selectedWords} selected</span> : <span>{t?.words ?? 0} words</span>}
           <span>{t?.chars ?? 0} chars</span>
           <span>{getReadingTime(t?.words ?? 0)}</span>
-          <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>Type / for commands · [[ links a note · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links</span>
+          <span className="editor-hints" style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0, flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="Type / for commands · [[ links a note · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links">Type / for commands · [[ links a note · Ctrl/⌘+J improves selected text · Ctrl/⌘+click opens links</span>
           <span role="status" aria-live="polite" style={{ marginLeft: "auto", color: saveStatus === "error" ? "#E53935" : "hsl(var(--muted-foreground))" }}>
             {saveLabel}
           </span>
         </div>
       </div>
 
+      {editor && linkBox && <LinkBox editor={editor} state={linkBox} onClose={closeLinkBox} />}
       {/* Formatting bubble on text selection or inside a link */}
       {editor && (
         <BubbleMenu
           editor={editor}
           pluginKey="formatBubble"
           shouldShow={({ editor: ed, state }) => {
-            if (ed.isActive("codeBlock") || slashRef.current.state || notePickRef.current.state || improveRef.current?.openRef.current) return false;
+            if (ed.isActive("codeBlock") || slashRef.current.state || notePickRef.current.state || improveRef.current?.openRef.current || document.querySelector('[data-testid="link-box"]')) return false;
+            // A selected picture, divider or other block (not text): nothing to format.
+            if ("node" in state.selection && (state.selection as { node?: { isText?: boolean; isInline?: boolean } }).node && !(state.selection as { node: { isInline: boolean } }).node.isInline) return false;
             return !state.selection.empty || ed.isActive("link");
           }}
           options={{ placement: "top" }}
