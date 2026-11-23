@@ -119,7 +119,12 @@ try {
   await sleep(1500);
   // ★ Mark moment (what Alt+Shift+M and the ★ buttons do); a quick second press is the same moment.
   const mark1 = await swEval(`__prodliMarkMoment()`);
-  const flashed = await swEval("chrome.action.getBadgeText({})");
+  // The ★ flash starts a moment after the mark is saved: watch for it (up to 500 ms).
+  let flashed = "";
+  for (let i = 0; i < 25 && flashed !== "★"; i++) {
+    flashed = await swEval("chrome.action.getBadgeText({})");
+    if (flashed !== "★") await sleep(20);
+  }
   await swEval(`__prodliMarkMoment()`);
   await sleep(1500);
   check("★ Mark moment saves the moment and flashes ★ on the icon, then REC again", mark1?.ok === true && mark1?.count === 1 && flashed === "★" && (await swEval("chrome.action.getBadgeText({})")) === "REC", JSON.stringify({ mark1, flashed }));
