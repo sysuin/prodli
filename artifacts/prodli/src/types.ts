@@ -15,6 +15,8 @@ export interface Note {
   icon?: string;
   /** Cover colour band at the top of the note (a NOTE_COVERS id). */
   cover?: string;
+  /** The web page this note is about (page summaries and saved highlights). */
+  sourceUrl?: string;
 }
 
 export interface Subtask {
@@ -42,6 +44,8 @@ export interface ReadLaterItem {
   updatedAt?: string;
   /** When it was opened or marked read. */
   readAt?: string;
+  /** The to-do made from it (Add as to-do). */
+  todoId?: string;
 }
 
 /** A quick link tile on Today. Synced as the "quickLinks" collection. */

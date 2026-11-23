@@ -115,6 +115,9 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           <Section emoji="📚" title="Read later & page summaries">
             <Row label={<Tag>Read later</Tag>} desc="Right-click a page or link → Read later in ProdLi (or pick 📚 Later in Quick add, or paste a link on Today). Opening it marks it read." />
             <Row label={<Tag>Summarize page</Tag>} desc="Right-click a page → Summarize page to ProdLi notes: a note with the source, a short summary and key points (uses writing help; signed out, you get an excerpt). ProdLi reads only that page, only when you click." />
+            <Row label={<Tag>Save highlight</Tag>} desc="Select text on a page, right-click → Save highlight to ProdLi. It's added as a quote with a link to that page's note (its summary note, or a new Highlights note)." />
+            <Row label={<Tag>+ To-do</Tag>} desc="On a Read later item, + To-do adds “Read: page title” with the link to your to-dos." />
+            <Row label={<Tag>Listen</Tag>} desc="▶ on a Read later item with a saved note, or ⋯ → Listen in any note, reads it aloud with your browser's voices. Pick the voice and speed (0.75–2×); it stops when you leave the note." />
           </Section>
 
           <Section emoji="🗂" title="Saved tabs">
