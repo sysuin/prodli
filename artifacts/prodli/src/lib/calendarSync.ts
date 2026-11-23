@@ -16,6 +16,11 @@ import { blockMinutes } from "./timeBlocks";
 import { storageGet, storageSet } from "./storage";
 
 export const CALENDAR_SYNC_KEY = "calendarSync";
+/**
+ * On unless a build sets VITE_CALENDAR_BLOCKS=0. calendar.app.created is on ProdLi's Google consent
+ * screen (added 2026-11-23) and Google lists it as non-sensitive, so it needs no extra review.
+ */
+export const calendarBlocksAvailable = () => import.meta.env.VITE_CALENDAR_BLOCKS !== "0";
 export interface CalendarSyncSettings {
   enabled: boolean;
   /** The "ProdLi" calendar's id in this Google account. */
@@ -193,7 +198,7 @@ export interface SyncResult {
 export function syncCalendarBlocks(interactive = false, now = new Date()): Promise<SyncResult> {
   running ??= (async (): Promise<SyncResult> => {
     const s = await storageGet<CalendarSyncSettings>(CALENDAR_SYNC_KEY, { enabled: false });
-    if (!s.enabled) return { ok: true, pushed: 0, pulled: 0 };
+    if (!s.enabled || !calendarBlocksAvailable()) return { ok: true, pushed: 0, pulled: 0 };
     const { calendarWriteToken, dropToken } = await import("./calendar");
     let token = "";
     try {

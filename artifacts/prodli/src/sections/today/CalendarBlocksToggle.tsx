@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { onStorageChange, storageGet } from "../../lib/storage";
-import { CALENDAR_SYNC_KEY, setCalendarSync, syncCalendarBlocks, type CalendarSyncSettings } from "../../lib/calendarSync";
+import { calendarBlocksAvailable, CALENDAR_SYNC_KEY, setCalendarSync, syncCalendarBlocks, type CalendarSyncSettings } from "../../lib/calendarSync";
 import type { Todo } from "../../types";
 
 const isExtension = () => typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.alarms;
@@ -27,7 +27,7 @@ export function CalendarBlocksToggle({ todos, style }: { todos: Todo[]; style: C
     return () => clearTimeout(t);
   }, [s?.enabled, todos]);
 
-  if (!s) return null;
+  if (!s || !calendarBlocksAvailable()) return null;
   const toggle = async () => {
     setBusy(true);
     setNote("");
