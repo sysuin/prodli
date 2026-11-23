@@ -2,7 +2,9 @@
 // the notes whose title matches what's typed after "[["; Enter or click
 // inserts a link (blocks.tsx NoteLink) in place of "[[…".
 
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { placeMenu } from "./menuPlace";
 import type { Note } from "../../types";
 
 export interface NotePickState {
@@ -11,6 +13,8 @@ export interface NotePickState {
   to: number;
   left: number;
   top: number;
+  /** Top of the cursor's line (the menu opens above it when there's no room below). */
+  lineTop: number;
 }
 
 /** If the cursor is right after "[[words" in a text block (not code), where it is. */
@@ -23,7 +27,7 @@ export function detectNotePick(editor: Editor): NotePickState | null {
   if (!m) return null;
   const from = $from.pos - m[0].length;
   const coords = view.coordsAtPos($from.pos);
-  return { query: m[1], from, to: $from.pos, left: coords.left, top: coords.bottom + 6 };
+  return { query: m[1], from, to: $from.pos, left: coords.left, top: coords.bottom, lineTop: coords.top };
 }
 
 /** Notes to offer: title matches first, then recently edited; never the note itself or templates. */
@@ -42,14 +46,20 @@ export function filterNotesForLink(notes: Note[], query: string, currentId: stri
 }
 
 export function NotePicker({ state, items, index, onPick, onHover, canCreate, onCreate }: { state: NotePickState; items: Note[]; index: number; onPick: (n: Note) => void; onHover: (i: number) => void; canCreate: boolean; onCreate: () => void }) {
-  const top = Math.min(state.top, window.innerHeight - 340);
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(200);
+  useLayoutEffect(() => {
+    if (ref.current) setHeight(ref.current.offsetHeight);
+  }, [items.length, canCreate]);
+  const pos = placeMenu({ left: state.left, top: state.lineTop, bottom: state.top }, { width: 280, height }, { width: window.innerWidth, height: window.innerHeight });
   const createIndex = items.length;
   return (
     <div
+      ref={ref}
       role="listbox"
       aria-label="Link to a note"
       data-note-picker
-      style={{ position: "fixed", left: Math.min(state.left, window.innerWidth - 300), top: Math.max(8, top), width: 280, maxHeight: 320, overflowY: "auto", zIndex: 10000, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}
+      style={{ position: "fixed", left: pos.left, top: pos.top, width: 280, maxHeight: 320, overflowY: "auto", zIndex: 10000, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}
     >
       <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.8, padding: "4px 8px" }}>Link to a note</div>
       {items.map((n, i) => (

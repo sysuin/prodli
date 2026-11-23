@@ -1,6 +1,8 @@
 // Notion-style block actions for the Editor: move a block up or down, duplicate
 // or delete it, and turn it into another kind of block. A "block" is a direct
-// child of the document (a paragraph, heading, list, quote, callout, toggle…).
+// child of the document (a paragraph, heading, list, quote, callout, toggle…),
+// or a single item of a list or checklist (itemStartAt), so one bullet can be
+// moved or deleted on its own.
 // Used by the ⋮⋮ block handle, its menu and the keyboard shortcuts
 // (Alt+Shift+↑/↓ move, Ctrl/⌘+D duplicate).
 
@@ -22,26 +24,28 @@ export function blockStartAt(editor: Editor, pos = editor.state.selection.from):
   return $pos.before(1);
 }
 
-function blockIndex(editor: Editor, start: number): number {
-  let p = 0;
+const ITEM_TYPES = new Set(["listItem", "taskItem"]);
+export const isListItem = (name: string | undefined) => !!name && ITEM_TYPES.has(name);
+
+/** Start of the innermost list item around `pos` (or the cursor); otherwise of its top-level block. */
+export function itemStartAt(editor: Editor, pos = editor.state.selection.from): number | null {
   const { doc } = editor.state;
-  for (let i = 0; i < doc.childCount; i++) {
-    if (p === start) return i;
-    p += doc.child(i).nodeSize;
-  }
-  return -1;
+  const $pos = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
+  for (let d = $pos.depth; d > 0; d--) if (ITEM_TYPES.has($pos.node(d).type.name)) return $pos.before(d);
+  return blockStartAt(editor, pos);
 }
 
-/** Moves the block starting at `start` one place up or down. Returns false at the top/bottom. */
+/** Moves the block (or list item) starting at `start` one place up or down among its siblings. False at the top/bottom. */
 export function moveBlock(editor: Editor, start: number, dir: "up" | "down"): boolean {
   const { state } = editor;
-  const { doc } = state;
-  const index = blockIndex(editor, start);
-  if (index < 0) return false;
+  const $start = state.doc.resolve(start);
+  const parent = $start.parent;
+  const index = $start.index();
+  if (index >= parent.childCount || parent.child(index) !== state.doc.nodeAt(start)) return false;
   const target = dir === "up" ? index - 1 : index + 1;
-  if (target < 0 || target >= doc.childCount) return false;
-  const node = doc.child(index);
-  const other = doc.child(target);
+  if (target < 0 || target >= parent.childCount) return false;
+  const node = parent.child(index);
+  const other = parent.child(target);
   // Keep the cursor at the same spot inside the moved block.
   const offsetInBlock = Math.max(0, state.selection.from - start);
   const tr = state.tr.delete(start, start + node.nodeSize);
@@ -68,8 +72,15 @@ export function duplicateBlock(editor: Editor, start: number): boolean {
 
 export function deleteBlock(editor: Editor, start: number): boolean {
   const { state } = editor;
-  const node = state.doc.nodeAt(start);
+  let node = state.doc.nodeAt(start);
   if (!node) return false;
+  // The only item of a list: remove the (now empty) list with it.
+  let $s = state.doc.resolve(start);
+  while ($s.depth > 0 && $s.parent.childCount === 1 && (ITEM_TYPES.has(node.type.name) || /list/i.test($s.parent.type.name))) {
+    start = $s.before($s.depth);
+    node = $s.parent;
+    $s = state.doc.resolve(start);
+  }
   const tr = state.tr.delete(start, start + node.nodeSize);
   if (tr.doc.childCount === 0) tr.insert(0, state.schema.nodes.paragraph.create());
   tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(start, tr.doc.content.size))));
@@ -89,11 +100,21 @@ export function focusBlock(editor: Editor, start: number): void {
   editor.chain().focus().setTextSelection(TextSelection.near(editor.state.doc.resolve(pos)).from).run();
 }
 
-/** Adds an empty paragraph after the block and puts the cursor in it. */
+/** Adds an empty paragraph after the block (a new item after a list item) and puts the cursor in it. */
 export function insertParagraphAfter(editor: Editor, start: number, text = ""): void {
   const node = editor.state.doc.nodeAt(start);
   if (!node) return;
   const after = start + node.nodeSize;
+  if (ITEM_TYPES.has(node.type.name)) {
+    const { schema } = editor.state;
+    const para = schema.nodes.paragraph.create(null, text ? schema.text(text) : undefined);
+    const item = node.type.create(node.type.name === "taskItem" ? { checked: false } : null, para);
+    const tr = editor.state.tr.insert(after, item);
+    tr.setSelection(TextSelection.create(tr.doc, after + 2 + text.length));
+    editor.view.dispatch(tr.scrollIntoView());
+    editor.commands.focus();
+    return;
+  }
   editor
     .chain()
     .focus()

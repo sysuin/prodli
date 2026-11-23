@@ -6,9 +6,11 @@ export type NoteSort = "updated" | "created" | "title";
 
 export function plainTextOf(html: string): string {
   return html
-    .replace(/<\/(p|h[1-6]|li|div|tr|blockquote|pre)>/gi, "\n")
+    .replace(/<\/(p|h[1-6]|li|div|tr|blockquote|pre|summary)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, " ")
+    .replace(/<\/(td|th)>/gi, " ")
+    // Inline tags (bold, links, colours…) join their text without adding spaces: "a <a>link</a>." stays "a link.".
+    .replace(/<[^>]*>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -17,6 +19,13 @@ export function plainTextOf(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, " ")
     .trim();
+}
+
+/** A note nobody has written in yet (no text, no picture, no icon or cover). It's tidied away when you leave it. */
+export function isBlankNote(n: Pick<Note, "content" | "template" | "icon" | "cover" | "autoTitle">): boolean {
+  if (n.template || n.icon || n.cover || n.autoTitle === false) return false;
+  if (/<(img|table|hr|span[^>]*data-note-id)/i.test(n.content)) return false;
+  return plainTextOf(n.content).trim() === "";
 }
 
 /** First words of a note after its title line, for the note list. */

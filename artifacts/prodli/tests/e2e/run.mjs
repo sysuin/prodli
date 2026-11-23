@@ -658,11 +658,69 @@ const suites = {
     const imported = notes.find((n) => n.title === "sample");
     check("Editor: import Markdown keeps checklist and table", !!imported && imported.content.includes("<h1>Project Plan</h1>") && imported.content.includes('data-type="taskList"') && imported.content.includes("<table") && !/<script/i.test(imported.content));
     await sleep(300);
-    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More:")).click()`);
     await sleep(200);
     await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
     const md = await waitForDownload(b, "sample");
     check("Editor: export note as Markdown", md.startsWith("# Project Plan") && md.includes("**bold**") && md.includes("[safe link](https://example.com)") && md.includes("- [x] Write spec") && /\|\s*Name\s*\|\s*Role\s*\|/.test(md), md.slice(0, 160).replace(/\n/g, "⏎"));
+    await p.close();
+  },
+
+  async editorpolish(b, check) {
+    // Editor polish: new notes start with a title and don't pile up, pictures, the link box, single list items, font in ⋯.
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "ep1", title: "Groceries", content: "<h1>Groceries</h1><ul><li><p>milk</p></li><li><p>eggs</p></li><li><p>bread</p></li></ul><p>Visit the shop</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "ep1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const notes = async () => (await p.storage(["notes"])).notes ?? [];
+    const lis = () => p.eval(`[...document.querySelectorAll(".ProseMirror li")].map((li) => li.textContent.trim())`);
+
+    // A single list item moves with Alt+Shift+↑ (not the whole list).
+    await p.eval(`(() => { const t = [...document.querySelectorAll(".ProseMirror li p")].find((x) => x.textContent === "eggs"); const r = document.createRange(); r.setStart(t.firstChild, 2); r.collapse(true); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(150);
+    await p.key("ArrowUp", { alt: true, shift: true });
+    await sleep(200);
+    check("Editor: Alt+Shift+↑ moves one list item", JSON.stringify(await lis()) === JSON.stringify(["eggs", "milk", "bread"]), JSON.stringify(await lis()));
+
+    // The link box (Ctrl/⌘+K) instead of the browser's prompt.
+    await p.eval(`(() => { window.prompt = () => { window.__prompted = true; return null; }; const t = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent === "Visit the shop"); const r = document.createRange(); r.setStart(t.firstChild, 10); r.setEnd(t.firstChild, 14); document.querySelector(".ProseMirror").focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`);
+    await sleep(200);
+    await p.key("k", { mod: true });
+    await sleep(300);
+    check("Editor: Ctrl/⌘+K opens the link box (no browser prompt)", await p.eval(`!!document.querySelector('[data-testid="link-box"] input') && !window.__prompted`));
+    await p.type("example.com/shop");
+    await p.key("Enter");
+    await sleep(300);
+    check("Editor: the link box adds the link to the selected text", await p.eval(`(() => { const a = document.querySelector(".ProseMirror a"); return !!a && a.textContent === "shop" && a.getAttribute("href") === "https://example.com/shop" && !document.querySelector('[data-testid="link-box"]'); })()`));
+
+    // A pasted screenshot becomes a small picture in the note.
+    await p.focusEditor();
+    const pasted = await p.eval(`(async () => { const c = document.createElement("canvas"); c.width = 2400; c.height = 1200; const g = c.getContext("2d"); g.fillStyle = "#4a90e2"; g.fillRect(0, 0, 2400, 1200); g.fillStyle = "#fff"; g.fillRect(200, 200, 800, 300); const blob = await new Promise((r) => c.toBlob(r, "image/png")); const dt = new DataTransfer(); dt.items.add(new File([blob], "Shot.png", { type: "image/png" })); document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 1500)); const img = document.querySelector(".ProseMirror img.note-image"); return img ? { webp: img.src.startsWith("data:image/webp"), kb: Math.round(img.src.length / 1024), w: img.naturalWidth, alt: img.alt } : null; })()`);
+    check("Editor: a pasted screenshot is shrunk and saved in the note", !!pasted && pasted.webp && pasted.w === 1600 && pasted.kb < 300 && pasted.alt === "Shot", JSON.stringify(pasted));
+    await sleep(900);
+    check("Editor: the picture is saved with the note", ((await notes()).find((n) => n.id === "ep1")?.content ?? "").includes("data:image/webp"));
+
+    // New notes start with a title line, and + doesn't pile up empty notes.
+    const before = (await notes()).length;
+    await p.eval(`document.querySelector('button[aria-label="New note"]').click()`);
+    await sleep(500);
+    check("Editor: a new note starts with an “Untitled” title line", await p.eval(`(() => { const h = document.querySelector(".ProseMirror > h1:first-child"); return !!h && h.getAttribute("data-placeholder") === "Untitled"; })()`));
+    await p.eval(`document.querySelector('button[aria-label="New note"]').click()`);
+    await sleep(500);
+    check("Editor: clicking + again reuses the empty note", (await notes()).length === before + 1, String((await notes()).length));
+    await p.eval(`document.querySelector('div[data-note-id="ep1"]').click()`);
+    await sleep(600);
+    check("Editor: leaving an empty note tidies it away", (await notes()).length === before, String((await notes()).length));
+
+    // Font lives in the ⋯ menu now (one-row toolbar).
+    await p.eval(`document.querySelector('button[title^="More:"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitemradio"]')].find((b) => b.title === "Inter").click()`);
+    await sleep(300);
+    check("Editor: the font picker is in the ⋯ menu", (await p.storage(["editorFont"])).editorFont === "inter" && !(await p.eval(`!!document.querySelector('select[aria-label="Writing font"]')`)));
     await p.close();
   },
 
@@ -825,6 +883,9 @@ const suites = {
     await p.goto("editor");
     await p.click("+");
     await sleep(300);
+    // New notes start with a title line.
+    await p.type("Plan notes");
+    await p.key("Enter");
     await p.type("I saw teh plan yesterday.");
     await p.key("Enter");
     await p.type("Second paragraph stays.");
@@ -965,7 +1026,7 @@ const suites = {
     await sleep(300);
     await p.key("Enter");
     await sleep(500);
-    check("Improve: select-all sends the whole note", (await p.eval("window.__rewrites.at(-1)?.text")) === "I saw teh plan yesterday.\n\nSecond paragraph stays.", JSON.stringify(await p.eval("window.__rewrites.at(-1)")));
+    check("Improve: select-all sends the whole note", (await p.eval("window.__rewrites.at(-1)?.text")) === "# Plan notes\n\nI saw teh plan yesterday.\n\nSecond paragraph stays.", JSON.stringify(await p.eval("window.__rewrites.at(-1)")));
     await p.key("Escape");
     await sleep(200);
 
@@ -1700,13 +1761,13 @@ const suites = {
     // ⋯ → Listen in the note editor; stops when you open another note.
     await p.eval(`chrome.storage.local.set({ activeNoteId: "rl2note" })`);
     await p.goto("editor");
-    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More:")).click()`);
     await sleep(200);
     await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find(b => b.textContent.includes("Listen")).click()`);
     await sleep(300);
     const heard = await p.eval(`window.__spoken.map((u) => u.text).join(" ")`);
     check("Read aloud: ⋯ → Listen reads the open note, highlights included", heard.includes("Focus is a skill you can train.") && heard.includes("Depth is rare & valuable.") && !heard.includes("secretCode") && (await p.eval(`window.__spoken[0].rate`)) === 1.5, heard);
-    check("Read aloud: the editor toolbar shows Pause / Stop", await p.eval(`!!document.querySelector('.editor-toolbar [data-testid="read-aloud-bar"]')`));
+    check("Read aloud: the editor toolbar shows Pause / Stop", await p.eval(`!!document.querySelector('[role="toolbar"][aria-label="Formatting"] [data-testid="read-aloud-bar"]')`));
     const cancelsBefore = await p.eval("window.__cancels");
     await p.eval(`window.dispatchEvent(new CustomEvent("prodli:open-note-link", { detail: { id: "rl2other" } }))`);
     await sleep(400);

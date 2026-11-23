@@ -9,7 +9,7 @@
 import { Extension, mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { useState, useSyncExternalStore } from "react";
-import { blockStartAt, duplicateBlock, moveBlock } from "./blockOps";
+import { duplicateBlock, itemStartAt, moveBlock } from "./blockOps";
 import { EmojiPicker } from "./EmojiPicker";
 import { NOTE_COLORS, type NoteColor } from "./colors";
 
@@ -190,15 +190,16 @@ export const NoteLink = Node.create({
 export const BlockKeys = Extension.create({
   name: "blockKeys",
   addKeyboardShortcuts() {
+    // Inside a list, these move or duplicate the list item; elsewhere, the whole block.
     const move = (dir: "up" | "down") => () => {
-      const start = blockStartAt(this.editor);
+      const start = itemStartAt(this.editor);
       return start === null ? false : moveBlock(this.editor, start, dir);
     };
     return {
       "Alt-Shift-ArrowUp": move("up"),
       "Alt-Shift-ArrowDown": move("down"),
       "Mod-d": () => {
-        const start = blockStartAt(this.editor);
+        const start = itemStartAt(this.editor);
         return start === null ? false : duplicateBlock(this.editor, start);
       },
     };

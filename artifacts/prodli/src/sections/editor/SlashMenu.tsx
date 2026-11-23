@@ -1,4 +1,6 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { placeMenu } from "./menuPlace";
 import { NOTE_COLORS, textColor, type NoteColor } from "./colors";
 
 export interface SlashItem {
@@ -30,6 +32,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "code", group: "Basic blocks", label: "Code block", hint: "Monospace code  ```", icon: "{}", keywords: "pre snippet", run: (e) => e.chain().focus().toggleCodeBlock().run() },
   { id: "divider", group: "Basic blocks", label: "Divider", hint: "Horizontal line  ---", icon: "—", keywords: "hr line separator rule", run: (e) => e.chain().focus().setHorizontalRule().run() },
   { id: "notelink", group: "Insert", label: "Link to note", hint: "Link another note  [[", icon: "↗", keywords: "link page note mention reference backlink", run: (e) => e.chain().focus().insertContent("[[").run() },
+  { id: "image", group: "Insert", label: "Image", hint: "Upload a picture (or paste one)", icon: "🖼", keywords: "picture photo image screenshot upload", run: () => window.dispatchEvent(new CustomEvent("prodli-insert-image")) },
   { id: "date", group: "Insert", label: "Today's date", hint: today(), icon: "📅", keywords: "date day now", run: (e) => e.chain().focus().insertContent(today()).run() },
   { id: "time", group: "Insert", label: "Current time", hint: "Insert the time", icon: "🕒", keywords: "time clock now", run: (e) => e.chain().focus().insertContent(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })).run() },
   { id: "highlight", group: "Style", label: "Highlight", hint: "Mark text in yellow", icon: "🖍", keywords: "marker mark", run: (e) => e.chain().focus().toggleHighlight().run() },
@@ -42,6 +45,8 @@ export interface SlashState {
   to: number;
   left: number;
   top: number;
+  /** Top of the cursor's line (the menu opens above it when there's no room below). */
+  lineTop: number;
 }
 
 /** If the cursor is right after "/word" in a text block (not code), returns where it is. */
@@ -55,7 +60,7 @@ export function detectSlash(editor: Editor): SlashState | null {
   const query = m[1];
   const from = $from.pos - query.length - 1;
   const coords = view.coordsAtPos($from.pos);
-  return { query, from, to: $from.pos, left: coords.left, top: coords.bottom + 6 };
+  return { query, from, to: $from.pos, left: coords.left, top: coords.bottom, lineTop: coords.top };
 }
 
 export function filterSlashItems(query: string): SlashItem[] {
@@ -65,16 +70,22 @@ export function filterSlashItems(query: string): SlashItem[] {
 }
 
 export function SlashMenu({ state, items, index, onPick, onHover }: { state: SlashState; items: SlashItem[]; index: number; onPick: (i: SlashItem) => void; onHover: (i: number) => void }) {
-  const top = Math.min(state.top, window.innerHeight - 340);
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(320);
+  useLayoutEffect(() => {
+    if (ref.current) setHeight(ref.current.offsetHeight);
+  }, [items.length]);
+  const pos = placeMenu({ left: state.left, top: state.lineTop, bottom: state.top }, { width: 260, height }, { width: window.innerWidth, height: window.innerHeight });
   return (
     <div
+      ref={ref}
       role="listbox"
       aria-label="Insert block"
       data-slash-menu
       style={{
         position: "fixed",
-        left: Math.min(state.left, window.innerWidth - 280),
-        top: Math.max(8, top),
+        left: pos.left,
+        top: pos.top,
         width: 260,
         maxHeight: 320,
         overflowY: "auto",

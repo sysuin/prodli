@@ -135,7 +135,8 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="✍️" title="Editor">
-            <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block: + adds a block below (with the / menu), ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block, Ctrl/⌘+D duplicates it." />
+            <Row label={<Tag>⋮⋮ Blocks</Tag>} desc="Hover any block — or a single item in a list or checklist: + adds one below, ⋮⋮ drags it to a new place, or click ⋮⋮ for Turn into, Colour, Duplicate, Move up/down and Delete. Keyboard: Alt+Shift+↑/↓ moves the block or list item, Ctrl/⌘+D duplicates it." />
+            <Row label={<Tag>🖼 Pictures</Tag>} desc="Paste a screenshot, drop a picture onto a note, or type / → Image. Pictures are shrunk on your device and saved in the note (a note holds about 1.3 MB of pictures)." />
             <Row label={<Tag>Callouts & toggles</Tag>} desc="/ → Callout for a tinted box with an icon (click the icon to change it and its colour). / → Toggle list hides details under a line; click ▸ to open or close it." />
             <Row label={<Tag>[[ Link a note</Tag>} desc="Type [[ and a note's name (or / → Link to note) to link another note; click the link to open it. If no note matches, pick New note to make one. Links follow renames." />
             <Row label={<Tag>Colours</Tag>} desc="Select text, then A in the bubble for a text or background colour. Colours adjust for dark mode." />
@@ -148,13 +149,14 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>✍️ Writing style · Pro</Tag>} desc="Settings → Writing style: describe how you like to write (e.g. British English, friendly, short sentences). ✨ Improve (except Fix spelling) and follow-up emails follow it." />
             <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
             <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
-            <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K adds or edits a link (leave empty to remove). Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
+            <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K (or 🔗) opens a small link box next to the text: paste an address and press Enter; Remove takes a link off. Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
             <Row label={<Tag>Paste Markdown</Tag>} desc="Pasting Markdown text (headings, lists, checklists, bold, links) turns it into formatting automatically." />
             <Row label={<Tag>+ / Alt+N</Tag>} desc="New note. Untitled notes are named after their first line until you rename them." />
             <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
             <Row label={<Tag>Sort & search</Tag>} desc="Sort by recently edited, newest, or A–Z. Search matches titles and text, with an excerpt." />
             <Row label={<Tag>☰ Outline</Tag>} desc="Shows the note's headings; click one to jump there." />
-            <Row label={<Tag>⋯ More</Tag>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, or print / save as PDF." />
+            <Row label={<Tag>⋯ More</Tag>} desc="Copy as Markdown, import a .md file as a note, export the note as .md, print / save as PDF, listen, and the writing font." />
+            <Row label={<Tag>New notes</Tag>} desc="A new note starts with its title line. An empty note is tidied away when you open another one, and + reuses it instead of adding another “Untitled”." />
             <Row label={<Tag>⛶ Fullscreen</Tag>} desc="Hides the sidebar for distraction-free writing. Press Escape to exit." />
             <Row label={<Tag>Saving</Tag>} desc="Notes save automatically (the status bar shows Saving… / Saved). Edits in several ProdLi tabs are merged — nothing gets overwritten." />
           </Section>
