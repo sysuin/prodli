@@ -22,6 +22,7 @@ import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
 import { ValueRecap } from "./today/ValueRecap";
+import { NowCard } from "./today/NowCard";
 import { ReadLater } from "./today/ReadLater";
 import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
 import { DayView } from "./today/DayView";
@@ -250,6 +251,8 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
         <QuickLinks />
 
         <ValueRecap trialEndsAt={proAccess?.trialEndsAt} />
+
+        <NowCard todos={todos} setTodos={setTodos} day={today} signedIn={!!user} />
 
 
         {daysLoaded && reviewDue(days) && (

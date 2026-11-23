@@ -67,7 +67,15 @@ async function notifyTask(id: string, snoozed: boolean): Promise<void> {
     requireInteraction: true,
     priority: 2,
   });
+  // "Keep reminding me": again in 10 minutes until it's done, for up to 2 hours.
+  if ((await getTodaySettings()).nagReminders && nagAgain(reminderAt(t), Date.now())) await chrome.alarms.create(`${SNOOZE_ALARM}${id}`, { when: Date.now() + SNOOZE_MS });
 }
+
+/** Pure: whether a persistent reminder should come back once more (within 2 hours of the task's time). */
+export function nagAgain(reminderMs: number | null, now: number): boolean {
+  return reminderMs !== null && now + SNOOZE_MS <= reminderMs + NAG_FOR_MS;
+}
+export const NAG_FOR_MS = 2 * 3600_000;
 
 /** Completes a task from its notification (repeating tasks move to their next date). */
 export async function completeTaskFromReminder(id: string, now = new Date()): Promise<void> {

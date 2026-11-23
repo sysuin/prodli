@@ -1728,6 +1728,28 @@ const suites = {
     await p.close();
   },
 
+  async nowcard(b, check) {
+    // Today → Now: the block that's on, a live countdown, steps, ✓ Done.
+    const p = await b.openPage();
+    const { day, start } = await p.eval(`(() => { const d = new Date(Date.now() - 5 * 60_000); const p2 = (n) => String(n).padStart(2, "0"); return { day: d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()), start: p2(d.getHours()) + ":" + p2(d.getMinutes()) }; })()`);
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, days: [], todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: false }, todos: [
+      { id: "n1", title: "Draft the proposal", completed: false, estimateMin: 30, block: { day: "${day}", start: "${start}" }, subtasks: [{ id: "s1", title: "Open the doc", completed: false }], createdAt: new Date().toISOString() }
+    ] })`);
+    await p.goto("today");
+    await sleep(1200);
+    const card = await p.eval(`(() => { const c = document.querySelector('[data-testid="now-card"]'); return c ? c.innerText : ""; })()`);
+    check("Now card: shows the block that's on, with its steps", card.includes("Draft the proposal") && card.includes("Open the doc"), card);
+    const t1 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
+    await sleep(2100);
+    const t2 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
+    check("Now card: the countdown runs (about 25 minutes left)", /^2[45]:\d\d$/.test(t1) && t1 !== t2, `${t1} → ${t2}`);
+    await p.eval(`document.querySelector('[data-testid="now-done"]').click(); true`);
+    await sleep(800);
+    const todos = (await p.storage(["todos"])).todos;
+    check("Now card: ✓ Done completes the task", todos.find((x) => x.id === "n1")?.completed === true);
+    await p.close();
+  },
+
   async timebox(b, check) {
     // Today → Agenda → Day: drag tasks onto the timeline, move and resize blocks, unblock, and the keyboard.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

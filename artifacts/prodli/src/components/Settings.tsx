@@ -167,6 +167,9 @@ function TodaySettingsSection() {
           <label style={row}>
             <input type="checkbox" checked={s.taskReminders !== false} onChange={(e) => save({ taskReminders: e.target.checked })} /> Remind me when a task with a time is due
           </label>
+<label style={row}>
+            <input type="checkbox" checked={!!s.nagReminders} disabled={s.taskReminders === false} onChange={(e) => save({ nagReminders: e.target.checked })} data-testid="nag-reminders" /> Keep reminding me every 10 minutes until I tick it off (up to 2 hours)
+          </label>
         </div>
       )}
     </div>

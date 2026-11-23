@@ -190,6 +190,8 @@ export interface TodaySettings {
   prepReminders?: boolean;
   /** Notify at a task's time (to-dos with a time). Default on. */
   taskReminders?: boolean;
+  /** Keep reminding every 10 minutes (up to 2 hours) until the task is ticked off. Default off. */
+  nagReminders?: boolean;
 }
 
 export type Section = "today" | "review" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";

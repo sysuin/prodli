@@ -72,6 +72,11 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { tldr: `About ${input.title}.`, points: ["One", "Two"], model: "test" };
     },
+    breakdown: async (input) => {
+      calls.push({ kind: "breakdown", clientId: input.task });
+      if (input.task === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
+      return { steps: [`Open ${input.task}`, "Do the first part", "Check it"], model: "test" };
+    },
     extractTasks: async (input) => {
       calls.push({ kind: "extract", clientId: input.lists.join(",") });
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
