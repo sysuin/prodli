@@ -296,6 +296,38 @@
   background: transparent;
   padding: 0;
 }
+/* Code block header (sections/editor/codeBlock.tsx): language picker + Copy */
+.tiptap .note-code {
+  background: hsl(var(--foreground));
+  margin: 12px 0;
+}
+.tiptap .note-code > pre { margin: 0; padding-top: 6px; }
+.note-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 0 12px;
+  user-select: none;
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.note-code-head select,
+.note-code-head button {
+  background: transparent;
+  color: hsl(var(--primary));
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  font: inherit;
+  font-weight: 700;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.note-code-head select:hover,
+.note-code-head button:hover { background: rgba(255, 215, 0, 0.14); }
+.note-code-head select:disabled { cursor: default; opacity: 0.8; }
+.note-code-head option { color: #000; background: #fff; }
+.dark .tiptap .note-code { background: #0d0f14; }
 .tiptap a {
   color: #1a56db;
   text-decoration: none;
@@ -595,7 +627,8 @@
   .printing-note .editor-status,
   .printing-note .editor-outline,
   .printing-note .editor-find-bar,
-  .printing-note .bubble-menu { display: none !important; }
+  .printing-note .bubble-menu,
+  .printing-note .note-code-head { display: none !important; }
   .printing-note .tiptap .find-match { background: none !important; box-shadow: none !important; color: inherit !important; }
   .printing-note body,
   .printing-note #root,
@@ -639,14 +672,18 @@ nav :focus-visible { outline-offset: -3px; }
 .code-preview .hljs-deletion { color: #b91c1c; }
 .code-preview .hljs-emphasis { font-style: italic; }
 .code-preview .hljs-strong { font-weight: 700; }
-.dark .code-preview .hljs-comment, .dark .code-preview .hljs-quote { color: #8b949e; }
-.dark .code-preview .hljs-keyword, .dark .code-preview .hljs-selector-tag, .dark .code-preview .hljs-built_in { color: #c4b5fd; }
-.dark .code-preview .hljs-string, .dark .code-preview .hljs-attr-value, .dark .code-preview .hljs-regexp, .dark .code-preview .hljs-addition { color: #86efac; }
-.dark .code-preview .hljs-number, .dark .code-preview .hljs-literal, .dark .code-preview .hljs-symbol, .dark .code-preview .hljs-bullet { color: #fdba74; }
-.dark .code-preview .hljs-title, .dark .code-preview .hljs-title.function_, .dark .code-preview .hljs-section { color: #93c5fd; }
-.dark .code-preview .hljs-attr, .dark .code-preview .hljs-attribute, .dark .code-preview .hljs-variable, .dark .code-preview .hljs-property { color: #fcd34d; }
-.dark .code-preview .hljs-tag, .dark .code-preview .hljs-name, .dark .code-preview .hljs-selector-class { color: #fda4af; }
-.dark .code-preview .hljs-type, .dark .code-preview .hljs-params { color: #67e8f9; }
+/* Dark backgrounds: the previewer in dark mode, and Editor code blocks (dark in both themes) */
+.dark .code-preview .hljs-comment, .dark .code-preview .hljs-quote, .tiptap pre .hljs-comment, .tiptap pre .hljs-quote { color: #8b949e; }
+.dark .code-preview .hljs-keyword, .dark .code-preview .hljs-selector-tag, .dark .code-preview .hljs-built_in, .tiptap pre .hljs-keyword, .tiptap pre .hljs-selector-tag, .tiptap pre .hljs-built_in { color: #c4b5fd; }
+.dark .code-preview .hljs-string, .dark .code-preview .hljs-attr-value, .dark .code-preview .hljs-regexp, .dark .code-preview .hljs-addition, .tiptap pre .hljs-string, .tiptap pre .hljs-attr-value, .tiptap pre .hljs-regexp, .tiptap pre .hljs-addition { color: #86efac; }
+.dark .code-preview .hljs-number, .dark .code-preview .hljs-literal, .dark .code-preview .hljs-symbol, .dark .code-preview .hljs-bullet, .tiptap pre .hljs-number, .tiptap pre .hljs-literal, .tiptap pre .hljs-symbol, .tiptap pre .hljs-bullet { color: #fdba74; }
+.dark .code-preview .hljs-title, .dark .code-preview .hljs-title.function_, .dark .code-preview .hljs-section, .tiptap pre .hljs-title, .tiptap pre .hljs-title.function_, .tiptap pre .hljs-section { color: #93c5fd; }
+.dark .code-preview .hljs-attr, .dark .code-preview .hljs-attribute, .dark .code-preview .hljs-variable, .dark .code-preview .hljs-property, .tiptap pre .hljs-attr, .tiptap pre .hljs-attribute, .tiptap pre .hljs-variable, .tiptap pre .hljs-property { color: #fcd34d; }
+.dark .code-preview .hljs-tag, .dark .code-preview .hljs-name, .dark .code-preview .hljs-selector-class, .tiptap pre .hljs-tag, .tiptap pre .hljs-name, .tiptap pre .hljs-selector-class { color: #fda4af; }
+.dark .code-preview .hljs-type, .dark .code-preview .hljs-params, .tiptap pre .hljs-type, .tiptap pre .hljs-params { color: #67e8f9; }
+.tiptap pre .hljs-comment, .tiptap pre .hljs-quote, .tiptap pre .hljs-emphasis { font-style: italic; }
+.tiptap pre .hljs-keyword, .tiptap pre .hljs-selector-tag, .tiptap pre .hljs-built_in, .tiptap pre .hljs-title, .tiptap pre .hljs-section, .tiptap pre .hljs-strong { font-weight: 700; }
+.tiptap pre .hljs-deletion { color: #fca5a5; }
 
 /* Settings window (components/Settings.tsx) */
 .settings-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }

@@ -10,12 +10,14 @@ import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style"
 import { BlockKeys, Callout, NoteLink } from "./blocks";
 import { NoteImage } from "./noteImage";
 import { FindReplace } from "./findReplace";
+import { CodeBlock } from "./codeBlock";
 
 /** All Editor features in one place. */
 export function buildExtensions() {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
+      codeBlock: false, // replaced by CodeBlock below (colours, language picker, Copy)
       link: {
         openOnClick: false, // plain click edits; Ctrl/⌘+click (or the bubble's Open) follows the link
         autolink: true,
@@ -53,6 +55,7 @@ export function buildExtensions() {
     DetailsContent,
     // Pictures (lib/noteImages.ts shrinks pasted/dropped ones and stores them in the note).
     NoteImage.configure({ allowBase64: true, HTMLAttributes: { loading: "lazy" } }),
+    CodeBlock,
     Callout,
     NoteLink,
     BlockKeys,

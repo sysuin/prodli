@@ -52,6 +52,8 @@ autoInstallPeers: false
 
 overrides:
   esbuild: "0.27.3"
+  # One highlight.js for the Files previewer and the Editor's code blocks (lowlight pins ~11.11).
+  "lowlight>highlight.js": "^11.12.0"
 
 allowBuilds:
   esbuild: true

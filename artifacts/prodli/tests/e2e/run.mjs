@@ -873,6 +873,159 @@ const suites = {
     check("Find: ⋯ → Find and replace opens with Replace and the selected text", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "Concat" && (await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`)) && (await count()) === "1 of 1", String(await count()));
     await p.key("Escape");
     await sleep(200);
+  async codeblocks(b, check) {
+    // Code blocks: colours, language picker, Copy, Markdown fences — and the old ways in (/, ```, {}, Turn into) still work.
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    const now = new Date().toISOString();
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, notes: [
+      { id: "cb1", title: "Snippets", content: "<h1>Snippets</h1><p>intro</p><p>outro</p>", createdAt: "${now}", updatedAt: "${now}" }
+    ], activeNoteId: "cb1" })`);
+    await p.goto("editor");
+    await sleep(900);
+    const saved = async () => ((await p.storage(["notes"])).notes ?? []).find((n) => n.id === "cb1")?.content ?? "";
+    const codeText = (n = 0) => p.eval(`document.querySelectorAll(".ProseMirror pre code")[${n}]?.textContent ?? null`);
+    // Focus first, then place the caret (focusing can restore the editor's old selection), then give
+    // ProseMirror a moment to read the new selection before any key is pressed.
+    const focusFirst = async () => {
+      if (!(await p.eval(`document.activeElement === document.querySelector(".ProseMirror")`))) {
+        await p.eval(`document.querySelector(".ProseMirror").focus(); true`);
+        await sleep(120);
+      }
+    };
+    const caretAtEndOf = async (text) => (await focusFirst(), await p.eval(`(() => { const el = [...document.querySelectorAll(".ProseMirror p")].find((x) => x.textContent === ${JSON.stringify(text)}); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`), await sleep(120));
+    // Caret at a character offset inside the n-th code block (its text is split into colour spans).
+    const caretInCode = async (n, at) => (await focusFirst(), await p.eval(`(() => { const code = document.querySelectorAll(".ProseMirror pre code")[${n}]; const w = document.createTreeWalker(code, NodeFilter.SHOW_TEXT); let left = ${at}, node, last = null; while ((node = w.nextNode())) { last = node; if (left <= node.length) break; left -= node.length; } const r = document.createRange(); if (node) r.setStart(node, left); else if (last) r.setStart(last, last.length); else r.setStart(code, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; })()`), await sleep(120));
+    const caretBlock = () => p.eval(`(() => { const n = getSelection().anchorNode; const el = n && (n.nodeType === 1 ? n : n.parentElement); const b = el?.closest(".ProseMirror pre, .ProseMirror p, .ProseMirror h1"); return b ? b.tagName.toLowerCase() + ":" + b.textContent : null; })()`);
+
+    // / → Code block, then type: Enter makes a new line inside the code.
+    // (Wait until the note has settled so loading it can't move the caret afterwards.)
+    for (let i = 0; i < 10; i++) {
+      await p.eval(`!!document.querySelector(".ProseMirror p") && [...document.querySelectorAll(".ProseMirror p")].some((x) => x.textContent === "intro")`).then((ok) => ok && caretAtEndOf("intro"));
+      await sleep(300);
+      if ((await caretBlock()) === "p:intro") break;
+    }
+    await p.key("Enter");
+    await p.type("/code");
+    await sleep(200);
+    await p.key("Enter");
+    await sleep(200);
+    const head = await p.eval(`(() => { const h = document.querySelector(".ProseMirror .note-code .note-code-head"); return h ? { editable: h.getAttribute("contenteditable"), select: !!h.querySelector('select[aria-label="Code language"]'), copy: h.querySelector(".note-code-copy")?.textContent, lang: h.querySelector("select").value } : null; })()`);
+    check("Code: / → Code block shows a header with a language picker and Copy", !!head && head.editable === "false" && head.select && head.copy === "Copy" && head.lang === "", JSON.stringify(head));
+    await p.type("def greet(name):");
+    await p.key("Enter");
+    await p.type('    return "hi " + name  # say hi');
+    await sleep(300);
+    const typed = 'def greet(name):\n    return "hi " + name  # say hi';
+    check("Code: typing goes into the code (header text stays out)", (await codeText()) === typed, JSON.stringify(await codeText()));
+    check("Code: colours appear even before a language is picked (auto-detect)", await p.eval(`document.querySelectorAll('.ProseMirror pre [class*="hljs-"]').length > 2`));
+
+    // Pick Python.
+    await p.eval(`(() => { const s = document.querySelector('.note-code select[aria-label="Code language"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "python"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(300);
+    const spans = await p.eval(`(() => { const pre = document.querySelector(".ProseMirror pre"); const t = (c) => [...pre.querySelectorAll(".hljs-" + c)].map((x) => x.textContent); return { cls: pre.querySelector("code").className, keyword: t("keyword"), string: t("string"), comment: t("comment"), lang: document.querySelector(".note-code select").value }; })()`);
+    check("Code: picking Python sets the language", spans.cls === "language-python" && spans.lang === "python", JSON.stringify(spans));
+    check("Code: Python is coloured (hljs keyword, string and comment spans)", spans.keyword.includes("def") && spans.keyword.includes("return") && spans.string.some((s) => s.includes("hi ")) && spans.comment.some((s) => s.includes("say hi")), JSON.stringify(spans));
+    await sleep(900);
+    const html1 = await saved();
+    check("Code: the note saves plain code with its language (no colours or header)", html1.includes(`<pre><code class="language-python">def greet(name):`) && !/hljs|note-code|Copy/.test(html1), html1);
+
+    // Keys inside the code still behave: more typing, ↑ out of the first line, Tab as before.
+    await caretInCode(0, 9999);
+    await p.key("Enter");
+    await p.type("print(greet('Ada'))");
+    await sleep(200);
+    const typed2 = typed + "\nprint(greet('Ada'))";
+    check("Code: typing after picking a language still works", (await codeText()) === typed2, JSON.stringify(await codeText()));
+    await caretInCode(0, 2);
+    await p.key("ArrowUp");
+    await sleep(150);
+    check("Code: ↑ on the first line leaves the code (skips the header)", (await caretBlock()) === "p:intro", await caretBlock());
+    await caretInCode(0, 3);
+    await p.key("Tab");
+    await sleep(150);
+    check("Code: Tab in code doesn't type into the code (focus moves on, as before)",(await codeText()) === typed2, JSON.stringify(await codeText()));
+
+    // Copy puts the code on the clipboard and says so for 2 s.
+    await p.eval(`navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }; true`);
+    await p.eval(`document.querySelector(".note-code-copy").click()`);
+    await sleep(150);
+    check("Code: Copy puts the block's text on the clipboard", (await p.eval(`window.__copied`)) === typed2, JSON.stringify(await p.eval(`window.__copied`)));
+    check("Code: the button shows “Copied ✓”", (await p.eval(`document.querySelector(".note-code-copy").textContent`)) === "Copied ✓");
+    await sleep(2100);
+    check("Code: …and goes back to “Copy” after 2 s", (await p.eval(`document.querySelector(".note-code-copy").textContent`)) === "Copy");
+
+    // Readable in light and dark; the header passes axe.
+    await p.eval(axeSource + ";true");
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(120);
+      const low = await p.eval(`(() => {
+        const rgb = (s) => s.match(/[\\d.]+/g).slice(0, 3).map(Number);
+        const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const ratio = (a, b) => { const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+        const bg = getComputedStyle(document.querySelector(".ProseMirror pre")).backgroundColor;
+        return ["keyword", "string", "comment", "title", "built_in"].map((c) => document.querySelector(".ProseMirror pre .hljs-" + c)).filter(Boolean).map((el) => [el.className, ratio(getComputedStyle(el).color, bg)]).filter(([, r]) => r < 4.5).map(([c, r]) => c + " " + r.toFixed(2));
+      })()`);
+      check(`Code (${theme}): colours have enough contrast on the dark block`, low.length === 0, low.join(", "));
+      await p.shot(`code-block-${theme}`);
+      const v = await p.eval(`axe.run(document.querySelector(".ProseMirror .note-code"), { runOnly: ["wcag2a", "wcag2aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): code block header has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+
+    // Printing hides the header.
+    await p.eval(`document.documentElement.classList.add("printing-note")`);
+    await p.send("Emulation.setEmulatedMedia", { media: "print" });
+    check("Code: the header is hidden when printing", (await p.eval(`getComputedStyle(document.querySelector(".note-code-head")).display`)) === "none");
+    await p.send("Emulation.setEmulatedMedia", { media: "" });
+    await p.eval(`document.documentElement.classList.remove("printing-note")`);
+
+    // Export Markdown keeps the fence language.
+    await sleep(900);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More:")).click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("Export this note")).click()`);
+    const md = await waitForDownload(b, "Snippets");
+    check("Code: Markdown export writes ```python", md.includes("```python\n" + typed2 + "\n```"), md.replace(/\n/g, "⏎"));
+    await p.key("Escape");
+
+    // Pasting Markdown with a fence keeps the language (```js → JavaScript).
+    await caretAtEndOf("outro");
+    await p.key("Enter");
+    await p.eval(`(() => { const dt = new DataTransfer(); dt.setData("text/plain", ["\`\`\`js", "const a = 1;", "\`\`\`"].join(String.fromCharCode(10))); document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); return true; })()`);
+    await sleep(700);
+    const pastedBlock = await p.eval(`(() => { const w = [...document.querySelectorAll(".ProseMirror .note-code")].find((x) => x.querySelector("pre code").textContent.startsWith("const a")); return w ? { cls: w.querySelector("pre code").className, text: w.querySelector("pre code").textContent, lang: w.querySelector("select").value, kw: !!w.querySelector(".hljs-keyword") } : null; })()`);
+    check("Code: pasted ```js Markdown keeps the language (picker shows JavaScript)", !!pastedBlock && pastedBlock.cls === "language-js" && pastedBlock.lang === "javascript" && pastedBlock.text === "const a = 1;" && pastedBlock.kw, JSON.stringify(pastedBlock));
+    await sleep(900);
+    check("Code: …and saves it as language js", (await saved()).includes(`<pre><code class="language-js">const a = 1;</code></pre>`), await saved());
+
+    // ``` input rule (with a language), the toolbar's {} and Turn into → Code block.
+    await caretAtEndOf("outro");
+    await p.key("Enter");
+    await p.type("```sql");
+    await p.type(" ");
+    await sleep(200);
+    await p.type("SELECT 1;");
+    await sleep(200);
+    check("Code: typing ```sql and a space makes an SQL code block", await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.className === "language-sql" && c.textContent === "SELECT 1;" && !!c.querySelector(".hljs-keyword"))`));
+    await caretAtEndOf("outro");
+    await p.eval(`document.querySelector('button[title="Code block"]').click()`);
+    await sleep(200);
+    const viaToolbar = await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.textContent === "outro")`);
+    await p.eval(`document.querySelector('button[title="Code block"]').click()`);
+    await sleep(200);
+    check("Code: the toolbar's {} turns a line into code and back", viaToolbar && (await p.eval(`[...document.querySelectorAll(".ProseMirror p")].some((x) => x.textContent === "outro")`)));
+    const r = await p.eval(`(() => { const el = [...document.querySelectorAll(".tiptap > p")].find((x) => x.textContent.trim() === "intro"); const b = el.getBoundingClientRect(); return { x: b.left + 20, y: b.top + 6 }; })()`);
+    await p.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: r.x, y: r.y });
+    await sleep(250);
+    await p.eval(`document.querySelector('[data-testid="block-handle"] [aria-haspopup="menu"]').click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => /Turn into/.test(x.textContent)).click()`);
+    await sleep(150);
+    await p.eval(`[...document.querySelectorAll('[data-testid="block-menu"] button')].find((x) => x.textContent.trim().endsWith("Code block")).click()`);
+    await sleep(250);
+    check("Code: block handle Turn into → Code block works", await p.eval(`[...document.querySelectorAll(".ProseMirror pre code")].some((c) => c.textContent === "intro") && !!document.querySelector(".ProseMirror .note-code .note-code-head")`));
     await p.close();
   },
 
