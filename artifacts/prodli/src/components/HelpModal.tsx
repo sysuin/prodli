@@ -150,6 +150,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
             <Row label={<Tag>Checklists</Tag>} desc="Tick items off right in the note. Checklists survive Markdown import/export." />
             <Row label={<Tag>Tables</Tag>} desc="Insert with / or ▦. While the cursor is in a table, a Table bar lets you add or delete rows and columns, toggle the header row, or delete the table. Drag column edges to resize." />
             <Row label={<Tag>🔗 Links</Tag>} desc="Ctrl/⌘+K (or 🔗) opens a small link box next to the text: paste an address and press Enter; Remove takes a link off. Plain click edits; Ctrl/⌘+click — or Open ↗ in the link menu — opens it." />
+            <Row label={<Tag>🔍 Find & replace</Tag>} desc="Ctrl/⌘+F finds in the open note (selected text is searched for); Ctrl/⌘+Shift+F, or ⋯ → Find and replace, also shows Replace. Enter / Shift+Enter (or ↑ ↓) go to the next or previous match; Aa matches case; Whole word skips longer words. Replace changes the current match, Replace all changes every one — one Ctrl/⌘+Z puts them back. Esc closes the bar with the match selected. Only this note changes." />
             <Row label={<Tag>Paste Markdown</Tag>} desc="Pasting Markdown text (headings, lists, checklists, bold, links) turns it into formatting automatically." />
             <Row label={<Tag>+ / Alt+N</Tag>} desc="New note. Untitled notes are named after their first line until you rename them." />
             <Row label={<Tag>⋯ menu</Tag>} desc="Pin to top, rename (or double-click the title), duplicate, or delete — with Undo." />
@@ -289,6 +290,8 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 <ShortcutRow keys={["Ctrl+Y / ⌘+Shift+Z"]} action="Redo" />
                 <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Insert, edit or remove a link" />
                 <ShortcutRow keys={["Ctrl / ⌘ + J"]} action="✨ Improve selected text (grammar, shorter, clearer, tone)" />
+                <ShortcutRow keys={["Ctrl / ⌘ + F"]} action="🔍 Find in this note (Enter / Shift+Enter: next / previous, Esc: close)" />
+                <ShortcutRow keys={["Ctrl / ⌘ + Shift + F"]} action="Find and replace in this note" />
                 <ShortcutRow keys={["Ctrl / ⌘ + Shift + H"]} action="Highlight" />
                 <ShortcutRow keys={["Ctrl / ⌘ + E"]} action="Inline code" />
                 <ShortcutRow keys={["/"]} action="Insert a block (checklist, table, heading…)" />

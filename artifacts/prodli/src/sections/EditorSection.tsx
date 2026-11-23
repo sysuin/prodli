@@ -34,6 +34,8 @@ import { OPEN_NOTE_LINK_EVENT, setNoteTitles } from "./editor/blocks";
 import { detectNotePick, filterNotesForLink, NotePicker, type NotePickState } from "./editor/NotePicker";
 import { PageHead } from "./editor/PageHead";
 import { ColorButton } from "./editor/ColorButton";
+import { FindBar, type FindBarHandle } from "./editor/FindBar";
+import { findStatus, selectionQuery } from "./editor/findReplace";
 import { ReadAloudBar, useReadAloud } from "../components/ReadAloud";
 import { htmlToSpeechText } from "../lib/readAloud";
 
@@ -269,6 +271,27 @@ export function EditorSection() {
     setLinkBox(linkBoxFor(ed));
   }, []);
   const closeLinkBox = useCallback(() => setLinkBox(null), []);
+
+  // 🔍 Find & replace in this note: Ctrl/⌘+F, Ctrl/⌘+Shift+F (Replace shown), or ⋯ → Find and replace.
+  const [find, setFind] = useState<{ query: string; replace: boolean } | null>(null);
+  const findOpenRef = useRef(false);
+  findOpenRef.current = !!find;
+  const findBarRef = useRef<FindBarHandle>(null);
+  const lastFindQuery = useRef("");
+  const openFind = useCallback((replace: boolean) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const picked = selectionQuery(ed.state);
+    if (findOpenRef.current) findBarRef.current?.focus({ query: picked || undefined, replace });
+    else setFind({ query: picked || lastFindQuery.current, replace });
+  }, []);
+  const closeFind = useCallback(() => {
+    const ed = editorRef.current;
+    if (ed && !ed.isDestroyed) lastFindQuery.current = findStatus(ed).query;
+    setFind(null);
+    // Back to the note with the current match selected.
+    ed?.chain().focus().scrollIntoView().run();
+  }, []);
 
   const editor = useEditor(
     {
@@ -787,9 +810,25 @@ export function EditorSection() {
     return () => document.removeEventListener("mousedown", close);
   }, [showMore]);
 
+  // Ctrl/⌘+F finds in the note, Ctrl/⌘+Shift+F also shows Replace — while you're in Notes
+  // (the browser's own find still works everywhere else, and over dialogs).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "f") return;
+      const t = e.target as HTMLElement | null;
+      const inNotes = !!t?.closest?.(".editor-root") || ((t === document.body || t === document.documentElement) && !document.querySelector('[aria-modal="true"]'));
+      if (!inNotes) return;
+      e.preventDefault();
+      openFind(e.shiftKey);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [openFind]);
+
   // Escape leaves full screen; Alt+N makes a new note.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if (e.key === "Escape" && isFullscreen && !slashRef.current.state && !improveRef.current?.openRef.current) setIsFullscreen(false);
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "n" || e.key === "N" || e.code === "KeyN")) {
         e.preventDefault();
@@ -902,10 +941,11 @@ export function EditorSection() {
             <ReadAloudBar reader={reader} />
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} optional title="Outline (headings in this note)">☰</ToolbarButton>
             <div style={{ position: "relative" }}>
-              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: font, copy, import, export, print">⋯</ToolbarButton>
+              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: find, font, copy, import, export, print">⋯</ToolbarButton>
               {showMore && (
                 <div role="menu" aria-label="More note actions" style={{ position: "absolute", right: 0, top: 38, zIndex: 30, minWidth: 220, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}>
                   {[
+                    { icon: "🔍", label: "Find and replace…", title: "Find and replace in this note (Ctrl/⌘+F)", run: () => openFind(true) },
                     { icon: "⧉", label: "Copy as Markdown", title: "Copy note as Markdown", run: () => void copyMarkdown() },
                     { icon: "⬆", label: "Import Markdown file…", title: "Import a Markdown file as a new note", run: () => importInputRef.current?.click() },
                     { icon: "⬇", label: "Export as Markdown (.md)", title: "Export this note as Markdown (.md)", run: exportMarkdown },
@@ -976,6 +1016,8 @@ export function EditorSection() {
             <ToolbarButton onClick={() => setIsFullscreen((f) => !f)} active={isFullscreen} optional title={isFullscreen ? "Exit full screen (Esc)" : "Full screen"}>⛶</ToolbarButton>
           </div>
         </div>
+
+        {editor && find && <FindBar ref={findBarRef} editor={editor} initialQuery={find.query} initialReplace={find.replace} onClose={closeFind} />}
 
         {/* Table controls appear while the cursor is in a table */}
         {t?.inTable && (
@@ -1049,6 +1091,7 @@ export function EditorSection() {
           editor={editor}
           pluginKey="formatBubble"
           shouldShow={({ editor: ed, state }) => {
+            if (findOpenRef.current && !ed.view.hasFocus()) return false; // matches selected from the find bar
             if (ed.isActive("codeBlock") || slashRef.current.state || notePickRef.current.state || improveRef.current?.openRef.current || document.querySelector('[data-testid="link-box"]')) return false;
             // A selected picture, divider or other block (not text): nothing to format.
             if ("node" in state.selection && (state.selection as { node?: { isText?: boolean; isInline?: boolean } }).node && !(state.selection as { node: { isInline: boolean } }).node.isInline) return false;

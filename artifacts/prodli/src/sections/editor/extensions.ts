@@ -9,6 +9,7 @@ import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-detai
 import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
 import { BlockKeys, Callout, NoteLink } from "./blocks";
 import { NoteImage } from "./noteImage";
+import { FindReplace } from "./findReplace";
 
 /** All Editor features in one place. */
 export function buildExtensions() {
@@ -55,5 +56,7 @@ export function buildExtensions() {
     Callout,
     NoteLink,
     BlockKeys,
+    // Find & replace in the note (Ctrl/⌘+F; the bar is FindBar.tsx).
+    FindReplace,
   ];
 }
