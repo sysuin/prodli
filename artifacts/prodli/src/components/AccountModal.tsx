@@ -199,7 +199,7 @@ function PlanBox({ user }: { user: ProdliUser }) {
 
 type Profile = Pick<GoogleAccount, "name" | "email" | "picture">;
 
-const btn = (primary = false, disabled = false): React.CSSProperties => ({
+export const btn = (primary = false, disabled = false): React.CSSProperties => ({
   border: "var(--nb-border)",
   boxShadow: disabled ? "none" : "var(--nb-shadow-sm)",
   background: primary ? "#FFD700" : "hsl(var(--card))",
@@ -357,7 +357,7 @@ function SyncBox({ ext }: { ext: boolean }) {
 export type AccountView = "account" | "devices";
 
 /** Shared state for the ProdLi account sections. */
-function useProdliUser() {
+export function useProdliUser() {
   const [user, setUser] = useState<ProdliUser | null | undefined>(undefined);
   useEffect(() => {
     void getProdliAccount().then((cached) => {
@@ -369,7 +369,7 @@ function useProdliUser() {
   return [user, setUser] as const;
 }
 
-function useAction() {
+export function useAction() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const act = async (label: string, fn: () => Promise<void>) => {
@@ -395,7 +395,7 @@ export const sectionTitle: React.CSSProperties = { fontWeight: 900, fontSize: 12
 export const box: React.CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 };
 
 /** Shown in sections that need an account, when signed out. */
-function SignInFirst({ what, onSignIn }: { what: string; onSignIn: () => void }) {
+export function SignInFirst({ what, onSignIn }: { what: string; onSignIn: () => void }) {
   return (
     <div style={box}>
       <div style={{ fontSize: 14, lineHeight: 1.6 }}>{what}</div>
@@ -624,7 +624,7 @@ function ProdliDevicesSection({ onSignIn }: { onSignIn: () => void }) {
           ))
         )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px dashed hsl(var(--border))", paddingTop: 10 }}>
-          <span style={{ fontSize: 12, opacity: 0.75 }}>Lost a device? Sign out of all of them at once.</span>
+          <span style={{ fontSize: 12, opacity: 0.75 }}>Lost a device? Sign out of all of them at once. This also revokes your API keys (Connections).</span>
           <button style={btn(false, !!busy)} disabled={!!busy} onClick={() => void act("everywhere", async () => {
             await signOutEverywhere();
             if (ext && (await getAccount())) await signOut();

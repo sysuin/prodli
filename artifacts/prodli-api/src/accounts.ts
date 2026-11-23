@@ -51,7 +51,7 @@ const toUser = (r: UserRow, now: number): User => {
   return { id: r.id, email: r.email, name: r.name, picture: r.picture, plan: trial ? "pro" : r.plan, createdAt: r.created_at, trialEndsAt: trial ? r.trial_ends_at : null };
 };
 
-function base64url(bytes: Uint8Array): string {
+export function base64url(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -149,10 +149,11 @@ export async function deleteAllSessions(db: D1Database, userId: string): Promise
   await db.prepare(`DELETE FROM sessions WHERE user_id = ?1`).bind(userId).run();
 }
 
-/** Permanently deletes the account and every session. */
+/** Permanently deletes the account, every session and every API token. */
 export async function deleteUser(db: D1Database, userId: string): Promise<void> {
   await db.batch([
     db.prepare(`DELETE FROM sessions WHERE user_id = ?1`).bind(userId),
+    db.prepare(`DELETE FROM api_tokens WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM desktop_codes WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM ai_usage WHERE user_id = ?1`).bind(userId),
     db.prepare(`DELETE FROM brief_usage WHERE user_id = ?1`).bind(userId),

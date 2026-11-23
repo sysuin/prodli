@@ -218,6 +218,40 @@ export async function signOutEverywhere(): Promise<void> {
 }
 
 /** Downloads everything ProdLi's server holds about the account. */
+/** A personal access token for the read-only API and MCP (Settings → Connections). */
+export interface ApiToken {
+  id: string;
+  name: string;
+  /** The token's first characters ("plt_AbCd"), to tell keys apart. */
+  prefix: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+const tokenMessages = {
+  too_many_tokens: "You can have up to 10 keys. Revoke one you don't use, then try again.",
+  bad_request: 'Give the key a name, like "Claude Desktop".',
+  not_found: "That key was already revoked.",
+};
+
+export async function listApiTokens(): Promise<{ tokens: ApiToken[]; max: number }> {
+  return accountRequest<{ tokens: ApiToken[]; max: number }>("/api/tokens", {}, tokenMessages);
+}
+
+/** Creates a key. The token itself comes back only this once. */
+export async function createApiToken(name: string): Promise<{ token: string; apiToken: ApiToken }> {
+  return accountRequest<{ token: string; apiToken: ApiToken }>("/api/tokens", { method: "POST", body: JSON.stringify({ name }) }, tokenMessages);
+}
+
+export async function revokeApiToken(id: string): Promise<void> {
+  await accountRequest(`/api/tokens/${encodeURIComponent(id)}`, { method: "DELETE" }, tokenMessages);
+}
+
+/** Where this build's server lives (for the web app: this page's own origin). */
+export function serverOrigin(): string {
+  return apiBase() || (typeof location !== "undefined" ? location.origin : "https://app.prodli.com");
+}
+
 export async function downloadAccountExport(): Promise<void> {
   const data = await accountRequest<Record<string, unknown>>("/api/account/export");
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });

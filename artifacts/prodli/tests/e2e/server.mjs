@@ -347,6 +347,31 @@ try {
 
   check("Today: shows how much is planned against the time left", /planned · .* free/.test(await w.eval(`document.querySelector('[data-testid="workload"]')?.innerText ?? ""`)));
 
+  console.log("connections (API keys + MCP)");
+  await openAccount(w, "connections");
+  await sleep(1200);
+  check("Connections: explains what a key can do", (await w.text()).includes("Let Claude, ChatGPT or your own scripts read your ProdLi to-dos, notes and meetings"));
+  check("Connections: shows this server's MCP URL", (await w.eval(`document.querySelector('[data-testid="mcp-url"]')?.innerText ?? ""`)).trim() === `${SERVER}/mcp`);
+  await w.eval(setInput('[data-testid="connections"] input', "E2E script"));
+  await sleep(100);
+  await w.click("Create key");
+  ms = await waitFor(() => w.eval(`!!document.querySelector('[data-testid="new-token"]')`), 5000);
+  const apiKey = ms >= 0 ? (await w.eval(`document.querySelector('[data-testid="new-token"]').innerText`)).trim() : "";
+  check("Connections: creates a key and shows it once", /^plt_[A-Za-z0-9_-]{43}$/.test(apiKey) && (await w.eval(`document.querySelector('[data-testid="api-tokens"]')?.innerText ?? ""`)).includes("E2E script"), apiKey);
+  const mcp = (body) => fetch(`${SERVER}/mcp`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
+  const listed = await (await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list" })).json();
+  const toolNames = (listed.result?.tools ?? []).map((x) => x.name);
+  check("MCP: tools/list with the new key lists the read-only tools", toolNames.length === 7 && toolNames.includes("list_todos") && listed.result.tools.every((x) => x.annotations?.readOnlyHint === true), JSON.stringify(listed).slice(0, 300));
+  const called = await (await mcp({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "list_todos", arguments: {} } })).json();
+  check("MCP: list_todos reads the to-dos synced from the extension", (called.result?.content?.[0]?.text ?? "").includes("Task from the extension"), JSON.stringify(called).slice(0, 300));
+  const meetingsText = (await (await mcp({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "list_meetings", arguments: {} } })).json()).result?.content?.[0]?.text ?? "";
+  const todayText = (await (await mcp({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "get_today", arguments: {} } })).json()).result?.content?.[0]?.text ?? "";
+  check("MCP: list_meetings and get_today work on the real Durable Object", meetingsText.includes("Quarterly planning") && !meetingsText.includes("moves to Thursday") && todayText.includes("Focus: Ship ProdLi 1.4"), `${meetingsText.slice(0, 200)} | ${todayText.slice(0, 200)}`);
+  const sessionOnMcp = await w.eval(`fetch("/mcp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) }).then(r => r.status)`);
+  check("MCP: the web app's session cookie doesn't work there (keys only)", sessionOnMcp === 401);
+  const keyOnAccount = (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).status;
+  check("API key: can't use the rest of the API", keyOnAccount === 401);
+
   await openAccount(w, "devices");
   await sleep(800);
   t = await w.text();
@@ -360,6 +385,7 @@ try {
   check("Web: sign out everywhere", t.includes("Signed out on every device"), t.slice(0, 400).replace(/\n/g, " | "));
   const meAfter = await p.eval(`fetch(${JSON.stringify(SERVER)} + "/api/me", { headers: { Authorization: "Bearer " + ${JSON.stringify(prodliSession?.token ?? "")} } }).then(r => r.status)`);
   check("…which also signed out the extension", meAfter === 401);
+  check("…and revoked the API key", (await mcp({ jsonrpc: "2.0", id: 3, method: "tools/list" })).status === 401);
 
   console.log("delete account");
   await p.send("Page.reload", {});
