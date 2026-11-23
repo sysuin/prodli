@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { exportData, importData } from "../lib/backupRestore";
 import { downloadEverythingAsMarkdown } from "../lib/exportAll";
 import { Logo } from "./Logo";
+import { IMPORT_TASKS_EVENT } from "../lib/importers/core";
 
 interface BackupModalProps {
   onClose?: () => void;
@@ -167,6 +168,24 @@ export function BackupModal({ onClose = () => {}, embedded = false }: BackupModa
                   style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "7px 14px", fontWeight: 800, fontSize: 12, textTransform: "uppercase", cursor: mdStatus === "working" ? "default" : "pointer", fontFamily: "inherit" }}
                 >
                   {mdStatus === "working" ? "Preparing…" : mdStatus === "done" ? "✓ Downloaded" : mdStatus === "error" ? "Couldn't export — try again" : "Download everything as Markdown (.zip)"}
+                </button>
+              </div>
+
+              {/* Import to-dos from other apps (components/ImportTasks.tsx, opened by App) */}
+              <div data-testid="import-other-apps" style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: "14px 20px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 900, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>⇩ Import from other apps</div>
+                <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", lineHeight: 1.6, marginBottom: 10 }}>
+                  Bring your to-dos from Todoist, TickTick, Google Tasks, a CSV or a Markdown checklist. You'll see a preview first, and can undo it. Your current data stays.
+                </div>
+                <button
+                  data-testid="import-other-apps-button"
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent(IMPORT_TASKS_EVENT));
+                  }}
+                  style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "7px 14px", fontWeight: 800, fontSize: 12, textTransform: "uppercase", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Import from other apps
                 </button>
               </div>
 

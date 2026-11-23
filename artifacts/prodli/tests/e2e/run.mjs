@@ -2606,6 +2606,94 @@ const suites = {
     check("Backup: includes meetings, never the API key", Array.isArray(json.meetings) && !JSON.stringify(json).includes("sk-ant-e2e-secret"));
     await p.close();
   },
+
+  async importer(b, check) {
+    // Import from other apps: a Todoist project CSV → preview → import → Undo.
+    const p = await b.openPage();
+    await p.goto("todos");
+    await p.eval(`chrome.storage.local.set({ todos: [{ id: "keep", title: "My own task", completed: false, createdAt: new Date().toISOString() }], lists: [] })`);
+    await sleep(500);
+    const modalOpen = () => p.eval(`!!document.querySelector('[data-testid="import-tasks"]')`);
+    const modalText = () => p.eval(`document.querySelector('[data-testid="import-tasks"]')?.innerText ?? ""`);
+    const clickTestId = (id) => p.eval(`(() => { const el = document.querySelector('[data-testid="${id}"]'); if (!el) throw new Error("No ${id}"); el.click(); return true; })()`);
+
+    // Opens from Settings → Backup & data (and Settings closes) and from ⌘K.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`);
+    await sleep(400);
+    await clickTestId("import-other-apps-button");
+    await sleep(500);
+    check("Import: opens from Settings → Backup & data", (await modalOpen()) && !(await p.eval(`!!document.querySelector('[aria-label="Settings"]')`)));
+    await p.key("Escape");
+    await sleep(200);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await p.type("import to-dos");
+    await sleep(200);
+    await p.key("Enter");
+    await sleep(500);
+    check("Import: opens from the ⌘K palette", await modalOpen());
+    await p.key("Escape");
+    await sleep(200);
+
+    // From the To-Dos toolbar: pick Todoist, choose the file.
+    await clickTestId("todo-import");
+    await sleep(500);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    const summary = await p.eval(`document.querySelector('[data-testid="import-summary"]')?.innerText ?? ""`);
+    check("Import: preview counts tasks, lists and repeating", /3 tasks in 1 list, 1 repeating/i.test(summary), summary);
+    await p.shot("import-preview");
+    const preview = await modalText();
+    check("Import: preview shows a sample and what won't carry over", preview.includes("Buy oat milk") && preview.includes("E2E Errands") && /won.t carry over/i.test(preview), preview.slice(0, 400));
+    await clickTestId("import-confirm");
+    await sleep(900);
+    let { todos = [], lists = [] } = await p.storage(["todos", "lists"]);
+    const list = lists.find((l) => l.name === "E2E Errands");
+    const milk = todos.find((t) => t.title === "Buy oat milk");
+    const books = todos.find((t) => t.title === "Return library books");
+    check("Import: adds the list and its to-dos", !!list && [milk, books, todos.find((t) => t.title === "Fix bike light")].every((t) => t?.listId === list.id), JSON.stringify(lists));
+    check(
+      "Import: maps priority, labels, repeat, dates and subtasks",
+      milk?.priority === "high" && milk?.labels?.includes("shop") && milk?.repeat?.unit === "week" && milk?.repeat?.weekdays?.[0] === 1 && books?.dueDate === "2030-01-15" && books?.subtasks?.some((s) => s.title === "Find receipt") && books?.subtasks?.some((s) => s.title.includes("front desk")),
+      JSON.stringify({ milk, books }),
+    );
+    check("Import: remembers where each to-do came from", todos.filter((t) => t.importedFrom?.app === "todoist").length === 3);
+    check("Import: the list shows in To-Dos and the toast offers Undo", (await p.text()).includes("E2E Errands") && /imported 3 tasks/i.test(await p.eval(`document.querySelector('[data-testid="app-toast"]')?.innerText ?? ""`)));
+
+    // Importing the same file again adds nothing.
+    await clickTestId("todo-import");
+    await sleep(400);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    check("Import: re-importing skips tasks already here", /imported before/i.test(await modalText()) && (await p.eval(`document.querySelector('[data-testid="import-confirm"]').disabled`)));
+    await p.key("Escape");
+    await sleep(200);
+
+    // Import again from scratch to get a fresh Undo toast, then Undo.
+    await p.eval(`chrome.storage.local.set({ todos: [{ id: "keep", title: "My own task", completed: false, createdAt: new Date().toISOString() }], lists: [] })`);
+    await sleep(500);
+    await clickTestId("todo-import");
+    await sleep(400);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    await clickTestId("import-confirm");
+    await sleep(900);
+    ({ todos = [] } = await p.storage(["todos"]));
+    check("Import: second import adds the tasks again after they were removed", todos.length === 4, JSON.stringify(todos.map((t) => t.title)));
+    await p.shot("import-done-toast");
+    await clickTestId("toast-action");
+    await sleep(900);
+    ({ todos = [], lists = [] } = await p.storage(["todos", "lists"]));
+    check("Import: Undo removes exactly what was added, including the new list", todos.length === 1 && todos[0].id === "keep" && !lists.some((l) => l.name === "E2E Errands"), JSON.stringify({ todos: todos.map((t) => t.title), lists }));
+    check("Import: the To-Dos view updates after Undo", !(await p.text()).includes("Buy oat milk"));
+    await p.close();
+  },
 };
 
 // ── Runner ────────────────────────────────────────────────────────────────────
