@@ -23,6 +23,7 @@ import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
 import { ValueRecap } from "./today/ValueRecap";
 import { NowCard } from "./today/NowCard";
+import { CalendarBlocksToggle } from "./today/CalendarBlocksToggle";
 import { ReadLater } from "./today/ReadLater";
 import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
 import { DayView } from "./today/DayView";
@@ -379,6 +380,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
                       Clear blocks
                     </button>
                   )}
+                  {calendarAvailable() && calendar.connected && <CalendarBlocksToggle todos={todos} style={btn()} />}
                   {calendarAvailable() && calendar.connected && (
                     <button style={btn()} onClick={() => void disconnectCalendar().then(() => (setEvents([]), setCalendar({ connected: false, error: null, loading: false })))}>
                       Disconnect

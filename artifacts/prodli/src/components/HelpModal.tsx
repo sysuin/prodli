@@ -90,6 +90,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           </Section>
 
           <Section emoji="🗓" title="Day view (timeboxing)">
+            <Row label={<Tag>📅 Blocks in Google Calendar</Tag>} desc="Today → Agenda → Show blocks in Google Calendar: ProdLi puts your time blocks (today and the next 7 days) in its own “ProdLi” calendar. Move or resize one in Google Calendar and ProdLi follows; delete it there and the task is unblocked. ProdLi can only change the calendar it creates." />
             <Row label={<Tag>🌿 Now</Tag>} desc="While a time block is on, Today shows it at the top with a big countdown, its steps and ✓ Done / +5 min. ✨ Break it down asks ProdLi's AI for a few small steps you can add (signed in; a writing-help use). Between blocks it shows what's next." />
             <Row label={<Tag>Day / List</Tag>} desc="Today → Agenda shows your day as a timeline. Drag a task from To place onto it to block time, drag a block to move it, drag its bottom edge to change its length, or drag it back to To place to unblock it. Times snap to 15 minutes." />
             <Row label={<Tag>Keyboard</Tag>} desc="Enter on a task places it in the next free time. On a block: ↑/↓ move it 15 minutes, Shift + ↑/↓ change its length, Delete unblocks it." />
