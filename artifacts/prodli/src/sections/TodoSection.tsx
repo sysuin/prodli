@@ -21,6 +21,7 @@ import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import { parseTask } from "../lib/taskParse";
 import { VOICE_TASKS_EVENT } from "../lib/voiceTasks";
+import { IMPORT_TASKS_EVENT } from "../lib/importers/core";
 import { repeatLabel, timeLabel, toggleTodo } from "../lib/recurrence";
 import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
 import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection } from "./todo/TodoNav";
@@ -641,6 +642,12 @@ export function TodoSection() {
         {canSaveView && (
           <button onClick={saveView} title="Save this list, label, filter and search as a saved filter" style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}>☆ Save view</button>
         )}
+        <button
+          data-testid="todo-import"
+          onClick={() => window.dispatchEvent(new CustomEvent(IMPORT_TASKS_EVENT))}
+          title="Import to-dos from Todoist, TickTick, Google Tasks, a CSV or Markdown"
+          style={{ border: "none", borderLeft: "var(--nb-border)", padding: "8px 12px", background: "transparent", color: "hsl(var(--foreground))", fontWeight: 800, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit", whiteSpace: "nowrap" }}
+        >⇩ Import</button>
         {completedCount > 0 && (
           <button
             onClick={clearCompleted}

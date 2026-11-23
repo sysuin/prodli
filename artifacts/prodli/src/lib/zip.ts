@@ -1,5 +1,6 @@
 // A tiny zip writer (stored, no compression) for "Download everything as
-// Markdown". Text files only; no dependency. Spec: PKWARE APPNOTE 4.3.
+// Markdown", and a reader for imports (stored or deflate, via the browser's
+// DecompressionStream). No dependency. Spec: PKWARE APPNOTE 4.3.
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -73,4 +74,61 @@ export function zipFiles(files: { name: string; text: string }[], when = new Dat
   end.setUint32(12, cdSize, true);
   end.setUint32(16, offset, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)] as BlobPart[], { type: "application/zip" });
+}
+
+export interface ZipEntry {
+  name: string;
+  bytes: Uint8Array;
+}
+
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/**
+ * Reads a .zip (files only; folders are skipped). Supports stored and deflated
+ * entries, which is what Todoist, Google Takeout and the OS "Compress" menus
+ * write. Throws on encrypted, zip64 or otherwise unsupported archives.
+ * `accept` filters by name before anything is inflated.
+ */
+export async function readZip(input: Uint8Array | ArrayBuffer, accept: (name: string) => boolean = () => true, maxEntries = 500): Promise<ZipEntry[]> {
+  const buf = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  // End of central directory: 22 bytes plus an optional comment of up to 64 KB.
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("This isn't a .zip file.");
+  const count = view.getUint16(eocd + 10, true);
+  let p = view.getUint32(eocd + 16, true);
+  if (p === 0xffffffff || count === 0xffff) throw new Error("This .zip is too large to read here.");
+  const utf8 = new TextDecoder();
+  const out: ZipEntry[] = [];
+  for (let n = 0; n < count && p + 46 <= buf.length; n++) {
+    if (view.getUint32(p, true) !== 0x02014b50) throw new Error("This .zip looks damaged.");
+    const flags = view.getUint16(p + 8, true);
+    const method = view.getUint16(p + 10, true);
+    const compSize = view.getUint32(p + 20, true);
+    const nameLen = view.getUint16(p + 28, true);
+    const extraLen = view.getUint16(p + 30, true);
+    const commentLen = view.getUint16(p + 32, true);
+    const localOffset = view.getUint32(p + 42, true);
+    const name = utf8.decode(buf.subarray(p + 46, p + 46 + nameLen));
+    p += 46 + nameLen + extraLen + commentLen;
+    if (name.endsWith("/") || !accept(name)) continue;
+    if (flags & 1) throw new Error("This .zip is password-protected.");
+    if (localOffset + 30 > buf.length || view.getUint32(localOffset, true) !== 0x04034b50) throw new Error("This .zip looks damaged.");
+    const start = localOffset + 30 + view.getUint16(localOffset + 26, true) + view.getUint16(localOffset + 28, true);
+    const data = buf.subarray(start, start + compSize);
+    if (method === 0) out.push({ name, bytes: data });
+    else if (method === 8) out.push({ name, bytes: await inflateRaw(data) });
+    else throw new Error(`Can't read ${name} in this .zip (unsupported compression).`);
+    if (out.length >= maxEntries) break;
+  }
+  return out;
 }

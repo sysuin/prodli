@@ -105,6 +105,9 @@ export interface Todo {
   block?: { day: string; start: string };
   /** When it was completed (ISO) — lets the evening review and tomorrow's brief see what got done. */
   completedAt?: string;
+  /** Imported from another app (Settings → Backup & data → Import): that app and the task's id there
+   *  (or a hash of list + title + due date), so importing the same file again skips it. */
+  importedFrom?: { app: string; id: string };
   createdAt: string;
   updatedAt?: string;
 }

@@ -1,0 +1,7 @@
+TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG
+task,Buy oat milk @shop,,1,1,E2E (1),,every monday,en,UTC,,None,,
+task,Return library books,Due at the front desk,4,1,E2E (1),,2030-01-15,en,UTC,,None,,
+task,Find receipt,,4,2,E2E (1),,,en,UTC,,None,,
+,,,,,,,,,,,,,
+section,Later,,,,,,,,,,,,
+task,Fix bike light,,2,1,E2E (1),,,en,UTC,,None,,
