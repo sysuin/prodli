@@ -27,12 +27,14 @@ export function cleanRetention(r: Partial<MeetingRetention> | null | undefined):
 }
 
 /** What to delete now. Meetings still recording or being processed are never touched. */
-export function retentionPlan(meetings: Pick<Meeting, "id" | "startedAt" | "status" | "hasAudio">[], r: MeetingRetention, now: number): { deleteMeetings: string[]; deleteAudio: string[] } {
+export function retentionPlan(meetings: (Pick<Meeting, "id" | "startedAt" | "status" | "hasAudio"> & { uploadedAt?: string })[], r: MeetingRetention, now: number): { deleteMeetings: string[]; deleteAudio: string[] } {
   const deleteMeetings: string[] = [];
   const deleteAudio: string[] = [];
   for (const m of meetings) {
     if (m.status === "recording" || m.status === "processing") continue;
-    const age = now - Date.parse(m.startedAt);
+    // An old recording uploaded today counts from the upload, so it isn't deleted straight away.
+    const from = m.uploadedAt && Date.parse(m.uploadedAt) > Date.parse(m.startedAt) ? m.uploadedAt : m.startedAt;
+    const age = now - Date.parse(from);
     if (!Number.isFinite(age)) continue;
     if (r.meetingDays && age > r.meetingDays * DAY) deleteMeetings.push(m.id);
     else if (r.audioDays && m.hasAudio && age > r.audioDays * DAY) deleteAudio.push(m.id);

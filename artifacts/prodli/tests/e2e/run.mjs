@@ -2190,6 +2190,129 @@ const suites = {
 
   },
 
+  async upload(b, check) {
+    // ⬆ Upload recording: an audio file picked on Meetings becomes a meeting with a transcript (stubbed AI;
+    // test builds only). WAV, M4A (AAC through WebCodecs) and MP3 (decoded in pieces); a failure keeps the
+    // audio and offers Retry; dropping a file on Meetings opens the same panel.
+    const p = await b.openPage();
+    const readMeetings = () => p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result.filter((m) => m.platform === "upload").map((m) => ({ id: m.id, title: m.title, status: m.status, hasAudio: m.hasAudio, mime: m.audioMimeType, durationSec: m.durationSec, notice: m.notice, error: m.error, source: m.transcriptSource, uploadedAt: m.uploadedAt, transcript: m.transcript.map((e) => e.speaker + ": " + e.text) }))); }; })`);
+    const audioSize = (id) => p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("audio").objectStore("audio").get(${JSON.stringify(id)}); q.onsuccess = () => res(q.result ? q.result.size : -1); }; })`);
+    const setInput = (sel, value) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(value)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const waitFor = async (expr, ms = 8000) => {
+      for (let t = 0; t < ms; t += 250) {
+        if (await p.eval(expr)) return true;
+        await sleep(250);
+      }
+      return false;
+    };
+    const uploadFile = async (name, title) => {
+      await p.setFile('[data-testid="upload-recording-input"]', name);
+      await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+      if (title) await setInput('[data-testid="upload-title"]', title);
+      await sleep(100);
+      await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    };
+    const waitReady = async (title) => {
+      let m;
+      for (let i = 0; i < 60; i++) {
+        await sleep(250);
+        m = (await readMeetings()).find((x) => x.title === title);
+        if (m && m.status === "ready") break;
+      }
+      return m;
+    };
+    await p.goto("meetings");
+    await sleep(600);
+    check("Upload: Meetings has ⬆ Upload recording next to Record in person", await p.eval(`(() => { const u = document.querySelector('[data-testid="upload-recording"]'); const r = document.querySelector('[data-testid="record-in-person"]'); return !!u && !!r && u.parentElement === r.parentElement; })()`));
+    // Whisper stand-in: counts pieces and the audio sent; a little slow so the progress shows.
+    await p.eval(`(() => { globalThis.__up = { pieces: 0, samples: 0 }; globalThis.__prodliTranscribeStub = async (wav) => { __up.pieces++; __up.samples += (wav.length - 44) / 2; await new Promise((r) => setTimeout(r, 600)); return { text: "We agreed to ship the pilot on Friday.", segments: [{ start: 0, end: 2, text: "We agreed to ship the pilot on Friday." }], language: "en" }; }; return true; })()`);
+
+    await p.setFile('[data-testid="upload-recording-input"]', "speech-en.wav");
+    await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+    const panel = await p.eval(`({ title: document.querySelector('[data-testid="upload-title"]')?.value, date: document.querySelector('[data-testid="upload-date"]')?.value, text: document.querySelector('[data-testid="upload-panel"]')?.innerText ?? "" })`);
+    check("Upload: picking a file asks for a title (the file name) and the date it was recorded", panel.title === "speech-en" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(panel.date ?? "") && /speech-en\.wav · 19\d KB · 6s/.test(panel.text), JSON.stringify(panel));
+    await setInput('[data-testid="upload-title"]', "Pilot kickoff (upload)");
+    await setInput('[data-testid="upload-date"]', "2026-11-20T09:30");
+    await p.shot("upload-panel");
+    await sleep(100);
+    await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    const sawProgress = await waitFor(`/Transcribing…/.test(document.querySelector('[data-testid="upload-progress"]')?.innerText ?? "")`, 4000);
+    await p.shot("upload-progress");
+    check("Upload: the new meeting opens and shows transcription progress", sawProgress, await p.eval(`document.body.innerText.slice(0, 400)`));
+    const wav = await waitReady("Pilot kickoff (upload)");
+    check("Upload: a WAV becomes a meeting with a transcript and keeps the audio", wav?.status === "ready" && wav.hasAudio && wav.source === "audio" && wav.transcript[0] === "Speaker: We agreed to ship the pilot on Friday." && wav.durationSec === 6 && !!wav.uploadedAt && (await audioSize(wav.id)) === 197288, JSON.stringify(wav));
+    const wavDate = await p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").get(${JSON.stringify(wav?.id ?? "")}); q.onsuccess = () => res(q.result?.startedAt); }; })`);
+    check("Upload: the meeting is dated when it was recorded", wavDate === new Date(2026, 10, 20, 9, 30).toISOString(), wavDate);
+    const wavSamples = await p.eval("__up.samples");
+    check("Upload: the speech is sent in pieces (silence skipped)", (await p.eval("__up.pieces")) >= 1 && wavSamples > 16000 * 2 && wavSamples <= 16000 * 6.2, `${wavSamples} samples`);
+    await sleep(500);
+    const detail = await p.text();
+    await p.shot("upload-meeting");
+    check("Upload: the meeting shows its transcript and audio player", detail.includes("We agreed to ship the pilot on Friday.") && (await p.eval(`!!document.querySelector("audio[src^='blob:']")`)), detail.slice(0, 300));
+
+    // Other formats: M4A (AAC, WebCodecs) and MP3 (cut at frames) decode to about the same audio.
+    await p.eval(`__up = { pieces: 0, samples: 0 }`);
+    await uploadFile("speech-en.m4a", "Pilot kickoff (m4a)");
+    const m4a = await waitReady("Pilot kickoff (m4a)");
+    const m4aSamples = await p.eval("__up.samples");
+    check("Upload: an M4A is decoded and transcribed", m4a?.status === "ready" && m4a.transcript.length > 0 && /mp4|m4a/.test(m4a.mime ?? "") && Math.abs(m4aSamples - wavSamples) < 16000, `${JSON.stringify(m4a)} · ${m4aSamples} vs ${wavSamples}`);
+    await p.eval(`__up = { pieces: 0, samples: 0 }`);
+    await uploadFile("speech-en.mp3", "Pilot kickoff (mp3)");
+    const mp3 = await waitReady("Pilot kickoff (mp3)");
+    const mp3Samples = await p.eval("__up.samples");
+    check("Upload: an MP3 is decoded and transcribed", mp3?.status === "ready" && mp3.transcript.length > 0 && Math.abs(mp3Samples - wavSamples) < 16000, `${JSON.stringify(mp3)} · ${mp3Samples} vs ${wavSamples}`);
+
+    // Failure mid-way: the meeting keeps the audio and offers Retry, which works once the service is back.
+    await p.eval(`(() => { globalThis.__prodliTranscribeStub = async () => { throw new Error("offline"); }; return true; })()`);
+    await uploadFile("speech-en.wav", "Flaky upload");
+    const failed = await waitReady("Flaky upload");
+    await sleep(400);
+    check("Upload: a failed transcription keeps the audio and offers Retry", failed?.status === "ready" && failed.hasAudio && failed.transcript.length === 0 && /Couldn't transcribe/.test(failed.error ?? "") && (await p.eval(`!!document.querySelector('[data-testid="upload-retry"]')`)), JSON.stringify(failed));
+    await p.eval(`(() => { globalThis.__prodliTranscribeStub = async () => ({ text: "Retry worked.", segments: [], language: "en" }); return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="upload-retry"] button').click()`);
+    let retried;
+    for (let i = 0; i < 40; i++) {
+      await sleep(250);
+      retried = (await readMeetings()).find((x) => x.title === "Flaky upload");
+      if (retried?.transcript.length && retried.status === "ready") break;
+    }
+    check("Upload: Retry transcribes it", retried?.transcript[0] === "Speaker: Retry worked." && !retried.error, JSON.stringify(retried));
+
+    // Not audio: the panel explains instead of uploading.
+    await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
+    await sleep(500);
+    check("Upload: a file that isn't audio is explained, not uploaded", /isn't an audio or video file/.test(await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`)) && !(await p.eval(`!!document.querySelector('[data-testid="upload-start"]')`)));
+    await p.click("Close");
+
+    // Drag and drop: dropping an audio file on Meetings opens the panel for it.
+    const dropped = await p.eval(`(async () => {
+      const bytes = await new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("audio").objectStore("audio").get(${JSON.stringify(wav?.id ?? "")}); q.onsuccess = () => res(q.result); }; });
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], "Hallway chat.wav", { type: "audio/wav" }));
+      const target = document.querySelector('[data-testid="upload-recording"]');
+      target.dispatchEvent(new DragEvent("dragenter", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      const overlay = !!document.querySelector('[data-testid="upload-drop"]') || await new Promise((r) => setTimeout(() => r(!!document.querySelector('[data-testid="upload-drop"]')), 100));
+      target.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      return overlay;
+    })()`);
+    await waitFor(`!!document.querySelector('[data-testid="upload-title"]')`, 4000);
+    const dropPanel = await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? "(no panel)"`);
+    check("Upload: dropping an audio file on Meetings opens the upload panel", dropped && (await p.eval(`document.querySelector('[data-testid="upload-title"]')?.value`)) === "Hallway chat" && !(await p.eval(`!!document.querySelector('[data-testid="upload-drop"]')`)), dropPanel);
+    await p.eval(`document.querySelector('[data-testid="upload-panel"] button:last-child')?.click()`);
+    // An upload left mid-transcription by a closed page offers Retry when Meetings opens again.
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); const now = new Date().toISOString(); t.objectStore("meetings").put({ id: "mtg_upcut", platform: "upload", title: "Upload · cut", meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 60, status: "processing", transcript: [], summary: null, error: null, notice: null, hasAudio: true, micIncluded: true, audioMimeType: "audio/wav", uploadedAt: now, updatedAt: now }); t.oncomplete = () => resolve(true); }; })`);
+    await p.goto("meetings");
+    let cut;
+    for (let i = 0; i < 30; i++) {
+      await sleep(250);
+      cut = (await readMeetings()).find((x) => x.id === "mtg_upcut");
+      if (cut?.status === "ready") break;
+    }
+    check("Upload: one cut short by a closed page offers Retry", cut?.status === "ready" && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
+    await p.eval(`delete globalThis.__prodliTranscribeStub`);
+    await p.close();
+  },
+
   async meetingprep(b, check) {
     // Meeting prep on Today: an upcoming calendar event (stubbed calendar; test builds only) matched to an earlier recorded meeting.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

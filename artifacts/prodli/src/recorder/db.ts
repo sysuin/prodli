@@ -146,6 +146,11 @@ export async function finalizeAudio(meetingId: string, mimeType: string): Promis
   return blob.size > 0;
 }
 
+/** Stores a whole recording at once (an uploaded file). */
+export async function putAudio(meetingId: string, blob: Blob): Promise<void> {
+  await tx(AUDIO, "readwrite", (t) => reqToPromise(t.objectStore(AUDIO).put(blob, meetingId)));
+}
+
 export async function getAudio(meetingId: string): Promise<Blob | undefined> {
   return tx(AUDIO, "readonly", (t) => reqToPromise(t.objectStore(AUDIO).get(meetingId) as IDBRequest<Blob | undefined>));
 }

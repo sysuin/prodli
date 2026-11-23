@@ -100,6 +100,8 @@ export interface Meeting {
   audioMimeType: string | null;
   /** The Google Calendar event this meeting belongs to, matched when recording starts (lib/calendarLink.ts). */
   calendarEvent?: CalendarEventRef;
+  /** Uploaded recordings (⬆ Upload recording): when the file was added. `startedAt` is when it was recorded. */
+  uploadedAt?: string;
   updatedAt: string;
 }
 
