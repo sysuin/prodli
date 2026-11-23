@@ -32,6 +32,8 @@ import { OPEN_NOTE_LINK_EVENT, setNoteTitles } from "./editor/blocks";
 import { detectNotePick, filterNotesForLink, NotePicker, type NotePickState } from "./editor/NotePicker";
 import { PageHead } from "./editor/PageHead";
 import { ColorButton } from "./editor/ColorButton";
+import { ReadAloudBar, useReadAloud } from "../components/ReadAloud";
+import { htmlToSpeechText } from "../lib/readAloud";
 
 type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -663,6 +665,15 @@ export function EditorSection() {
 
   const activeNote = notes.find((n) => n.id === activeId) ?? null;
 
+  // 🔊 Read aloud (⋯ → Listen). Stops when you open another note or leave Notes.
+  const reader = useReadAloud();
+  const stopReader = reader.stop;
+  useEffect(() => stopReader(), [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listen = () => {
+    const text = htmlToSpeechText(editorRef.current?.getHTML() ?? activeNote?.content ?? "");
+    if (!reader.start(text)) showToast(text ? "Read aloud isn't available in this browser" : "Nothing to read in this note");
+  };
+
   const currentMarkdown = async () => {
     const ed = editorRef.current;
     const { noteToMarkdown } = await loadMarkdownExport();
@@ -830,6 +841,7 @@ export function EditorSection() {
             ))}
           </select>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <ReadAloudBar reader={reader} />
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} title="Outline (headings in this note)">☰</ToolbarButton>
             <div style={{ position: "relative" }}>
               <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: copy, import, export, print">⋯</ToolbarButton>
@@ -840,6 +852,7 @@ export function EditorSection() {
                     { icon: "⬆", label: "Import Markdown file…", title: "Import a Markdown file as a new note", run: () => importInputRef.current?.click() },
                     { icon: "⬇", label: "Export as Markdown (.md)", title: "Export this note as Markdown (.md)", run: exportMarkdown },
                     { icon: "🖨", label: "Print / save as PDF", title: "Print or save as PDF", run: printNote },
+                    ...(reader.available ? [{ icon: "▶", label: "Listen (read aloud)", title: "Read this note aloud", run: listen }] : []),
                   ].map((item) => (
                     <button
                       key={item.label}

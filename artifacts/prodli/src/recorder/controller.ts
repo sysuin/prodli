@@ -16,6 +16,7 @@ import { anyWebsiteCall, callFromUrl, isPlaceholderTitle, notACallReason, placeh
 import { sendWithRetry } from "./audioTranscribe";
 import { labelSpeakers, type SpeakerActivity } from "./speakers";
 import { addMark } from "../lib/moments";
+import { linkCalendarEvent } from "../lib/calendarLink";
 import { canUseProdliAi, SIGN_IN_FOR_SUMMARIES, summarizeMeeting, SummarizeError } from "./summarize";
 import {
   AUTO_SUMMARIZE_STORAGE_KEY,
@@ -240,6 +241,8 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallI
     };
     await putMeeting(meeting);
     await setState({ meetingId, tabId: tab.id, startedAt: meeting.startedAt, captionsOn: false, platform: call.platform });
+    // File it under today's calendar event, if the calendar is connected (lib/calendarLink.ts).
+    void linkCalendarEvent(meetingId, { code: call.code, url: tab.url, at: startedAt });
 
     const withMic = await getLocal<boolean>(MIC_ENABLED_STORAGE_KEY, false);
     const speechOn = await getLocal<boolean>(SPEECH_ENABLED_STORAGE_KEY, false);

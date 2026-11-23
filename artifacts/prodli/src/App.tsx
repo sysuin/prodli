@@ -19,6 +19,8 @@ import { saveAndCloseWindow } from "./lib/tabSessions";
 import { requestDailyNote } from "./lib/noteTemplates";
 import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
 import { VoiceTasksModal } from "./components/VoiceTasks";
+import { IMPORT_TASKS_EVENT } from "./lib/importers/core";
+import { undoImport, type ImportOutcome } from "./lib/importers/apply";
 import { InPersonChip } from "./components/InPersonChip";
 import { INBOX_KEY, OPEN_INBOX_KEY, type InboxAnswer } from "./lib/askPrompts";
 import type { ChatTurn } from "./lib/ask";
@@ -83,6 +85,8 @@ function rememberSectionHint(s: Section) {
   void (importers[(hint && hint in importers ? hint : "editor") as Section])();
 })();
 
+// Import from other apps: loaded only when opened.
+const ImportTasksModal = lazy(() => import("./components/ImportTasks").then((m) => ({ default: m.ImportTasksModal })));
 const TodaySection = lazy(() => importers.today().then(m => ({ default: m.TodaySection })));
 const ReviewSection = lazy(() => importers.review().then(m => ({ default: m.ReviewSection })));
 const EditorSection = lazy(() => importers.editor().then(m => ({ default: m.EditorSection })));
@@ -128,7 +132,8 @@ export default function App() {
   }, []);
   const [quickAdd, setQuickAdd] = useState<{ open: boolean; initial?: CaptureInput }>({ open: false });
   const [showMore, setShowMore] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; action?: { label: string; run: () => void } } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem("prodli_sidebar_collapsed") === "1";
@@ -150,10 +155,39 @@ export default function App() {
     window.addEventListener(VOICE_TASKS_EVENT, open);
     return () => window.removeEventListener(VOICE_TASKS_EVENT, open);
   }, []);
-  const flash = useCallback((m: string) => {
-    setToast(m);
-    setTimeout(() => setToast(null), 2600);
+  /** A short message at the bottom; with an action (Undo), it stays longer. */
+  const flash = useCallback((m: string, action?: { label: string; run: () => void }) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message: m, action });
+    toastTimer.current = setTimeout(() => setToast(null), action ? 10_000 : 2600);
   }, []);
+  const [importOpen, setImportOpen] = useState(false);
+  const closeImport = useCallback(() => setImportOpen(false), []);
+  useEffect(() => {
+    const open = () => {
+      setSettingsTab(null);
+      setImportOpen(true);
+    };
+    window.addEventListener(IMPORT_TASKS_EVENT, open);
+    return () => window.removeEventListener(IMPORT_TASKS_EVENT, open);
+  }, []);
+  const imported = useCallback(
+    (out: ImportOutcome) => {
+      const parts = [`Imported ${out.added} task${out.added === 1 ? "" : "s"}`];
+      if (out.newLists) parts.push(`${out.newLists} new list${out.newLists === 1 ? "" : "s"}`);
+      if (out.skipped) parts.push(`${out.skipped} already here`);
+      flash(
+        parts.join(" · "),
+        out.added || out.newLists
+          ? {
+              label: "Undo",
+              run: () => void undoImport(out.undo).then(() => flash("Import undone"), () => flash("Couldn't undo. Try again.")),
+            }
+          : undefined,
+      );
+    },
+    [flash],
+  );
   const toggleCollapsed = () =>
     setCollapsed((c) => {
       try {
@@ -329,11 +363,17 @@ export default function App() {
   useEffect(() => {
     let depth = 0;
     const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
-    const onEnter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDraggingFile(true); } };
+    // The import window takes its own drops.
+    const importing = () => !!document.querySelector('[data-testid="import-tasks"]');
+    const onEnter = (e: DragEvent) => { if (hasFiles(e) && !importing()) { depth++; setDraggingFile(true); } };
     const onLeave = (e: DragEvent) => { if (hasFiles(e)) { depth = Math.max(0, depth - 1); if (depth === 0) setDraggingFile(false); } };
     const onOver = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
     const onDrop = (e: DragEvent) => {
       if (!hasFiles(e)) return;
+      if (importing()) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault();
       depth = 0;
       setDraggingFile(false);
@@ -412,6 +452,7 @@ export default function App() {
       setVoiceListen(false);
       setVoiceOpen(true);
     },
+    importTasks: () => setImportOpen(true),
     dailyNote: () => void requestDailyNote().then(() => handleSectionChange("editor")),
     saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
@@ -547,10 +588,32 @@ export default function App() {
         </div>
       )}
 
-      {toast && <div role="status" className="app-toast">{toast}</div>}
+      {toast && (
+        <div role="status" className="app-toast" data-testid="app-toast">
+          {toast.message}
+          {toast.action && (
+            <button
+              data-testid="toast-action"
+              onClick={() => {
+                const run = toast.action!.run;
+                setToast(null);
+                run();
+              }}
+              style={{ marginLeft: 12, border: "2px solid #FFD700", background: "#FFD700", color: "#000", fontWeight: 900, fontSize: 12, textTransform: "uppercase", padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
+      )}
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} initialTurns={ask.turns} />}
       {voiceOpen && <VoiceTasksModal onClose={closeVoice} onDone={flash} autoListen={voiceListen} />}
+      {importOpen && (
+        <Suspense fallback={null}>
+          <ImportTasksModal onClose={closeImport} onDone={imported} />
+        </Suspense>
+      )}
       {section !== "meetings" && <InPersonChip onOpen={() => void handleSectionChange("meetings")} />}
       {quickAdd.open && <QuickAddModal initial={quickAdd.initial} onClose={closeQuickAdd} onSaved={flash} />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}

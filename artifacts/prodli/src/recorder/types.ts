@@ -98,7 +98,21 @@ export interface Meeting {
   /** Languages Whisper heard, most-spoken first (e.g. ["en", "tl"]). */
   audioLanguages?: string[];
   audioMimeType: string | null;
+  /** The Google Calendar event this meeting belongs to, matched when recording starts (lib/calendarLink.ts). */
+  calendarEvent?: CalendarEventRef;
+  /** Uploaded recordings (⬆ Upload recording): when the file was added. `startedAt` is when it was recorded. */
+  uploadedAt?: string;
   updatedAt: string;
+}
+
+/** What a meeting keeps of its calendar event. */
+export interface CalendarEventRef {
+  id: string;
+  title: string;
+  /** "HH:MM" local, or null (all-day). */
+  start: string | null;
+  end: string | null;
+  attendees?: { name?: string; email?: string }[];
 }
 
 /** Live recording state kept in chrome.storage.session under RECORDING_STATE_KEY. */

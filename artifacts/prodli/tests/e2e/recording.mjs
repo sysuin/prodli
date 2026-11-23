@@ -30,9 +30,10 @@ writeFileSync(path.join(EXT, "manifest.json"), JSON.stringify(manifest, null, 2)
 const extId = [...createHash("sha256").update(EXT).digest("hex").slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join("");
 
 process.env.PRODLI_OUT_DIR = path.relative(path.resolve(here, "../.."), EXT);
-process.env.PRODLI_CHROME_ARGS = `--allowlisted-extension-id=${extId}`;
-// Sound on: a muted browser also silences captured tab audio, and the Zoom check needs real audio.
-// The stand-in calls play a very quiet tone for a few seconds.
+// --mute-audio would also silence captured tab audio (the Zoom check needs real audio), so instead
+// the browser plays sound into a fake output device: the recorder still hears the stand-in calls'
+// test tone, but nothing comes out of the computer's speakers.
+process.env.PRODLI_CHROME_ARGS = `--allowlisted-extension-id=${extId} --disable-audio-output`;
 process.env.PRODLI_UNMUTE = "1";
 const { Browser, sleep } = await import("./cdp.mjs");
 

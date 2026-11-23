@@ -29,6 +29,8 @@ import { copyDisclosure, MeetingNotesSettings } from "./meetings/MeetingNotesSet
 import { isPlaceholderTitle, PLATFORM_LABEL } from "../recorder/calls";
 import { InPersonBar, InPersonButton } from "./meetings/InPerson";
 import { callRecordingSupported, recoverInPerson } from "../recorder/inPerson";
+import { recoverUploads } from "../recorder/upload";
+import { DropOverlay, UploadButton, UploadPanel, UploadStatus, useUploadDrop } from "./meetings/Upload";
 import { answerReviewAsk, CHROME_STORE_REVIEWS_URL, NO_REVIEW_ASK, REVIEW_ASK_KEY, shouldAskForReview, type ReviewAskState } from "../lib/reviewAsk";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
@@ -168,7 +170,8 @@ function escapeHtml(s: string): string {
 export function audioFileName(m: Pick<Meeting, "title" | "audioMimeType"> & { summary?: { title?: string } | null }): string {
   const base = (m.summary?.title || m.title).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "meeting";
   const type = (m.audioMimeType ?? "").toLowerCase();
-  const ext = type.includes("ogg") ? "ogg" : type.includes("mp4") || type.includes("aac") ? "m4a" : type.includes("mpeg") ? "mp3" : type.includes("wav") ? "wav" : "webm";
+  // Uploaded files can be any of these (recorder/uploadFile.ts).
+  const ext = type.includes("ogg") ? "ogg" : type.startsWith("video/mp4") || type.includes("m4v") ? "mp4" : type.includes("quicktime") ? "mov" : type.includes("flac") ? "flac" : type.includes("mp4") || type.includes("m4a") || type.includes("aac") ? "m4a" : type.includes("mpeg") || type.includes("mp3") ? "mp3" : type.includes("wav") ? "wav" : "webm";
   return `${base}-audio.${ext}`;
 }
 
@@ -533,6 +536,19 @@ function MeetingDetail({
             {new Date(meeting.startedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
             {meeting.endedAt ? ` · ${formatDuration(meeting.durationSec)}` : ""} · {meeting.transcript.length} transcript lines
           </div>
+          {meeting.calendarEvent && (
+            <div data-testid="meeting-calendar-event" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, marginTop: 2 }}>
+              📅 {meeting.calendarEvent.title}
+              {meeting.calendarEvent.start ? ` · ${meeting.calendarEvent.start}${meeting.calendarEvent.end ? `–${meeting.calendarEvent.end}` : ""}` : ""}
+              {meeting.calendarEvent.attendees?.length
+                ? ` · with ${meeting.calendarEvent.attendees
+                    .slice(0, 4)
+                    .map((a) => a.name || a.email?.split("@")[0] || "")
+                    .filter(Boolean)
+                    .join(", ")}${meeting.calendarEvent.attendees.length > 4 ? ` +${meeting.calendarEvent.attendees.length - 4}` : ""}`
+                : ""}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <select
@@ -555,7 +571,7 @@ function MeetingDetail({
             ))}
           </select>
           <button style={btn("primary", !canSummarize)} disabled={!canSummarize} onClick={onSummarize} title={hasKey ? "" : NO_AI_HINT}>
-            {meeting.status === "processing" ? "Summarizing…" : s ? "Re-summarize" : "✨ Summarize"}
+            {meeting.status === "processing" ? (meeting.platform === "upload" && !meeting.transcript.length ? "Transcribing…" : "Summarizing…") : s ? "Re-summarize" : "✨ Summarize"}
           </button>
           <button style={btn("plain", busy)} disabled={busy} onClick={saveAsNote}>Save as note</button>
           {accountsEnabled() && meeting.transcript.length > 0 && (
@@ -576,6 +592,7 @@ function MeetingDetail({
       {meeting.status === "recording" && <Banner tone="info">Recording in progress — notes appear here when the meeting ends.</Banner>}
       {meeting.notice && <Banner tone="warn">{meeting.notice}</Banner>}
       {meeting.error && <Banner tone="error">{meeting.error}</Banner>}
+      {meeting.platform === "upload" && <UploadStatus meeting={meeting} signedIn={hasKey} flash={flash} />}
       {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">{NO_AI_HINT} to turn this transcript into notes and action items.</Banner>}
 
       {audioUrl && (
@@ -584,7 +601,8 @@ function MeetingDetail({
           <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
             Download audio
           </a>
-          <AudioTranscribe meeting={meeting} busy={busy} flash={flash} onSummarize={onSummarize} canSummarize={canSummarize} />
+          {/* An upload that isn't transcribed yet has Retry above instead. */}
+          {(meeting.platform !== "upload" || meeting.transcript.length > 0) && <AudioTranscribe meeting={meeting} busy={busy} flash={flash} onSummarize={onSummarize} canSummarize={canSummarize} />}
         </Section>
       )}
 
@@ -761,6 +779,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   }, []);
+  // ⬆ Upload recording: the picked (or dropped) file, waiting for a title and date.
+  const [pendingUpload, setPendingUpload] = useState<File | null>(null);
+  const drop = useUploadDrop(setPendingUpload, flash);
 
   const refresh = useCallback(async () => {
     const list = await listMeetings();
@@ -803,7 +824,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   // in-person recordings cut short by a closed page.)
   useEffect(() => {
     if (ext) return;
-    void recoverInPerson().catch(() => 0).then(() => refresh()).then(() => setLoaded(true));
+    void Promise.all([recoverInPerson().catch(() => 0), recoverUploads().catch(() => 0)]).then(() => refresh()).then(() => setLoaded(true));
     const poll = setInterval(() => void refresh(), 3000);
     return () => clearInterval(poll);
   }, [ext, refresh]);
@@ -827,6 +848,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       setRecState((session[RECORDING_STATE_KEY] as RecordingState | undefined) ?? null);
       setShowSetup(!granted);
       await recoverInPerson().catch(() => 0);
+      await recoverUploads().catch(() => 0);
       await refresh();
       setLoaded(true);
     })();
@@ -992,6 +1014,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           </button>
         )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
+        <UploadButton onFile={setPendingUpload} />
         {ext && (
           <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
             ⚙ Setup
@@ -1015,12 +1038,26 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
       ai={{ signedIn, usage: aiUsage }}
     />
   );
+  const uploadPanel = pendingUpload && (
+    <UploadPanel
+      file={pendingUpload}
+      signedIn={signedIn}
+      onClose={() => setPendingUpload(null)}
+      onCreated={(id) => {
+        setPendingUpload(null);
+        setView("meetings");
+        setShowSetup(false); // so the new meeting (and its progress) is in view
+        void refresh().then(() => setSelectedId(id));
+      }}
+    />
+  );
   if (setupOnly) return ext ? setupPanel : <div style={card}><strong>Meeting notes are recorded by the ProdLi Chrome extension.</strong><p style={{ fontSize: 13, marginBottom: 0 }}>Its recorder settings live there (Settings › Meetings in the extension).</p></div>;
 
   if (!ext && !signedIn && meetings.length === 0) {
     return (
-      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative" }} {...drop.handlers}>
         {header}
+        {uploadPanel}
         <InPersonBar flash={flash} onDone={(id) => void refresh().then(() => setSelectedId(id))} />
         <div style={{ padding: 24 }}>
           {callRecordingSupported() ? (
@@ -1031,12 +1068,13 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             </div>
           ) : (
             <div style={card}>
-              <strong>Record a meeting in the room with 🎙 Record in person above</strong>, or get notes from calls with the ProdLi Chrome extension.
+              <strong>Record a meeting in the room with 🎙 Record in person above</strong>, ⬆ Upload a recording, or get notes from calls with the ProdLi Chrome extension.
               <p style={{ fontSize: 14 }}>For calls, install ProdLi, join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…), and click the ProdLi icon to get a transcript, summary and action items — without a bot joining the call.</p>
               {accountsEnabled() && <p style={{ fontSize: 14 }}>Already use the extension? Sign in (👤 at the top) to see your meetings here, search them and get summaries.</p>}
             </div>
           )}
         </div>
+        {drop.dragging && <DropOverlay />}
       </div>
     );
   }
@@ -1046,8 +1084,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
   const elapsed = recState ? Math.max(0, Math.floor((now - new Date(recState.startedAt).getTime()) / 1000)) : 0;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative" }} {...drop.handlers}>
       {header}
+      {uploadPanel}
 
       {problem && !recState && (
         <div role="alert" data-testid="recorder-problem" style={{ borderBottom: "var(--nb-border)", background: "#FFF3CD", color: "#000", padding: "10px 24px", display: "flex", alignItems: "center", gap: 12, fontSize: 13, fontWeight: 600 }}>
@@ -1093,7 +1132,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
             <div style={{ fontSize: 36 }}>🎙️</div>
             <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>No meetings yet</div>
             <p style={{ fontSize: 14, opacity: 0.8 }}>
-              {ext ? "Join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…) and click the ProdLi icon (or press Alt+Shift+R) to start taking notes. For a meeting in the room, press 🎙 Record in person." : "Press 🎙 Record in person for a meeting in the room. Calls you record with the ProdLi extension appear here too."}
+              {ext ? "Join a call in your browser (Meet, Zoom, Teams, Webex, Slack, Discord…) and click the ProdLi icon (or press Alt+Shift+R) to start taking notes. For a meeting in the room, press 🎙 Record in person. Have a recording already? ⬆ Upload it." : "Press 🎙 Record in person for a meeting in the room, or ⬆ Upload a recording. Calls you record with the ProdLi extension appear here too."}
             </p>
           </div>
         ) : (
@@ -1130,7 +1169,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
                     <div style={{ fontWeight: 800, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.summary?.title || m.title}</div>
                     <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}>
                       {new Date(m.startedAt).toLocaleDateString([], { month: "short", day: "numeric" })} ·{" "}
-                      {m.status === "recording" ? "● recording" : m.status === "processing" ? "summarizing…" : m.endedAt ? formatDuration(m.durationSec) : "—"}
+                      {m.status === "recording" ? "● recording" : m.status === "processing" ? (m.platform === "upload" && !m.transcript.length ? "transcribing…" : "summarizing…") : m.endedAt ? formatDuration(m.durationSec) : "—"}
                       {m.error ? " · ⚠" : ""}
                     </div>
                   </button>
@@ -1155,6 +1194,7 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
         )}
       </div>
 
+      {drop.dragging && <DropOverlay />}
       {toast && (
         <div style={{ position: "absolute", right: 24, bottom: 24, ...card, background: "#000", color: "#FFD700", fontWeight: 800, fontSize: 13, padding: "10px 14px" }}>
           {toast}

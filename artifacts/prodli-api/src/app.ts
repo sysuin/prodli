@@ -37,7 +37,7 @@ import { backupUser, deleteBackups, listBackups, restoreUser } from "./backup";
 import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary, cleanMoments, cleanUserNotes, isMeetingTemplate, isSummaryLanguage, MAX_TRANSCRIPT_CHARS, refundAi, reserveAi, summarizeWithClaude, type Summary, type SummarizeInput } from "./ai";
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { funnelReport, parseUninstallFeedback, saveUninstallFeedback } from "./insights";
-import { ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
+import { BreakdownInputSchema, breakdownWithClaude, type BreakdownInput, ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
@@ -46,6 +46,9 @@ import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepIn
 import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
 import { DICTATE_MONTHLY_LIMIT, DictateInputSchema, dictateWithClaude, MAX_DICTATION_CHARS, type DictateInput } from "./dictate";
 import { DODO_RETURN_PARAMS, renderProPage, type ProPageFrom } from "./proPage";
+import { authenticateApiToken, cleanTokenName, createApiToken, deleteAllApiTokens, deleteApiToken, listApiTokens, MAX_TOKENS, TOKEN_PREFIX, type TokenAuth } from "./apiTokens";
+import { ArgError, check, getMeeting, getNote, getToday, listHabits, listMeetings, listTodos, searchNotes, type Reader } from "./readApi";
+import { mcpResponse, SERVER_INFO } from "./mcp";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -91,12 +94,13 @@ export interface Deps {
   transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[]) => Promise<TranscriptPiece>;
   summarizePage: (input: PageSummaryInput, apiKey: string) => Promise<PageSummary>;
   extractTasks: (input: ExtractTasksInput, apiKey: string) => Promise<{ lines: string[]; model: string }>;
+  breakdown: (input: BreakdownInput, apiKey: string) => Promise<{ steps: string[]; model: string }>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, breakdown: breakdownWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -121,11 +125,14 @@ export function allowedOrigins(env: Environment): string[] {
   return [...production, ...local];
 }
 
-type AppEnv = { Bindings: Env; Variables: { auth: Authenticated; authVia: "bearer" | "cookie" } };
+type AppEnv = { Bindings: Env; Variables: { auth: Authenticated; authVia: "bearer" | "cookie"; token: TokenAuth } };
 type Ctx = Context<AppEnv>;
 
 /** Local development also accepts unpacked test builds, whose extension ID is random. */
 const devExtension = (env: Environment, origin: string) => env === "development" && /^chrome-extension:\/\/[a-p]{32}$/.test(origin);
+
+/** Logs never show a token from an /mcp/<token> URL. */
+const redactPath = (path: string) => path.replace(/^\/mcp\/[^/]+/, "/mcp/<token>");
 
 const isAllowedOrigin = (c: Ctx, origin: string | undefined) =>
   !!origin && (allowedOrigins(c.env.ENV).includes(origin) || devExtension(c.env.ENV, origin) || origin === new URL(c.req.url).origin);
@@ -178,10 +185,13 @@ export function createApp(deps: Deps = realDeps) {
   app.use("/api/*", (c, next) =>
     c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
   );
-  app.use("/api/*", async (c, next) => {
+  const noStore: MiddlewareHandler<AppEnv> = async (c, next) => {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
-  });
+  };
+  app.use("/api/*", noStore);
+  // The MCP server (src/mcp.ts): small JSON-RPC messages only.
+  for (const path of ["/mcp", "/mcp/*"]) app.use(path, smallBody, noStore);
 
   const rateLimitAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     if (c.env.AUTH_LIMITER) {
@@ -337,6 +347,8 @@ export function createApp(deps: Deps = realDeps) {
   app.post("/api/auth/logout-all", requireAuth, async (c) => {
     const userId = c.get("auth").user.id;
     await deleteAllSessions(c.env.DB, userId);
+    // API keys too: "sign out everywhere" should leave nothing that can read the account.
+    await deleteAllApiTokens(c.env.DB, userId);
     await storeFor(c.env, userId).disconnectAll();
     clearSessionCookie(c);
     return c.json({ ok: true });
@@ -840,6 +852,27 @@ export function createApp(deps: Deps = realDeps) {
     }
   });
 
+  // POST { task, context } → { steps, usage }. ✨ Break it down (Today's Now card, to-dos). A writing-help use.
+  app.post("/api/ai/breakdown", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const input = BreakdownInputSchema.safeParse(await c.req.json().catch(() => null));
+    if (!input.success || !input.data.task.trim()) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = writeLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "write_usage");
+    if (used === null) return c.json({ error: "write_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.breakdown(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ steps: r.steps, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "write_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
   // POST { title, url, text } → { summary: { tldr, points }, usage }. Right-click "Summarize page".
   // Counts toward the writing allowance; the page text goes to Anthropic and isn't stored.
   app.post("/api/ai/summarize-page", requireAuth, async (c) => {
@@ -1003,6 +1036,114 @@ export function createApp(deps: Deps = realDeps) {
     return c.body(renderProPage(from, url.searchParams.get("status")), 200, SHARE_PAGE_HEADERS);
   });
 
+  // ── Personal access tokens (src/apiTokens.ts) ──────────────────────────────
+  // Managed with a normal session (Settings → Connections). The token itself is
+  // returned once, by POST; only its hash is stored.
+  app.get("/api/tokens", requireAuth, async (c) => c.json({ tokens: await listApiTokens(c.env.DB, c.get("auth").user.id), max: MAX_TOKENS }));
+
+  app.post("/api/tokens", requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { name?: unknown } | null;
+    const name = cleanTokenName(body?.name);
+    if (!name) return c.json({ error: "bad_request", message: "Give the key a name, like \"Claude Desktop\"." }, 400);
+    const created = await createApiToken(c.env.DB, c.get("auth").user.id, name, deps.now());
+    if (!created.ok) return c.json({ error: created.error, message: `You can have up to ${MAX_TOKENS} keys. Revoke one you don't use, then try again.` }, 409);
+    return c.json({ token: created.token, apiToken: created.info });
+  });
+
+  app.delete("/api/tokens/:id", requireAuth, async (c) => {
+    return (await deleteApiToken(c.env.DB, c.get("auth").user.id, c.req.param("id"))) ? c.json({ ok: true }) : c.json({ error: "not_found" }, 404);
+  });
+
+  // ── Read-only personal API (/api/v1/*) and MCP (/mcp) ──────────────────────
+  // Only personal access tokens ("plt_…") work here: not sessions, not cookies.
+  // And those tokens work nowhere else (authenticate() accepts only "pls_").
+  const requireApiToken: MiddlewareHandler<AppEnv> = async (c, next) => {
+    const header = c.req.header("Authorization");
+    // /mcp/<token> is for clients that only take a URL (see docs/API.md for the trade-off).
+    const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : (c.req.param("token") ?? "");
+    const unauthorized = (error: string, message: string) => c.json({ error, message }, 401, { "WWW-Authenticate": `Bearer realm="ProdLi", error="invalid_token"` });
+    if (!token) return unauthorized("unauthorized", "Send a ProdLi API key: Authorization: Bearer plt_… (create one in Settings → Connections).");
+    if (!token.startsWith(TOKEN_PREFIX)) return unauthorized("token_required", "This API takes a ProdLi API key (plt_…) from Settings → Connections, not a sign-in session.");
+    const auth = await authenticateApiToken(c.env.DB, token, deps.now());
+    if (!auth) {
+      // Slow down guessing (tokens are 256-bit, but don't let anyone hammer the database).
+      if (c.env.AUTH_LIMITER && !(await c.env.AUTH_LIMITER.limit({ key: `apitoken:${c.req.header("CF-Connecting-IP") ?? "unknown"}` })).success) return c.json({ error: "rate_limited" }, 429);
+      return unauthorized("invalid_token", "This API key isn't valid. It may have been revoked; create a new one in Settings → Connections.");
+    }
+    if (c.env.SYNC_LIMITER && !(await c.env.SYNC_LIMITER.limit({ key: `api:${auth.tokenId}` })).success) return c.json({ error: "rate_limited", message: "Too many requests. Wait a minute and try again." }, 429, { "Retry-After": "60" });
+    c.set("token", auth);
+    return next();
+  };
+
+  /** Reads from the token owner's own UserStore (the id comes only from the verified token). */
+  const readerFor = (c: Ctx): Reader => {
+    const store = storeFor(c.env, c.get("token").userId);
+    return (coll, opts) => store.readLive(coll, opts);
+  };
+  /** Runs a read; null = not found, ArgError = bad query. */
+  const v1 = async (c: Ctx, run: () => Promise<object | null>) => {
+    try {
+      const out = await run();
+      return out ? c.json(out) : c.json({ error: "not_found" }, 404);
+    } catch (err) {
+      if (err instanceof ArgError) return c.json({ error: "bad_request", message: err.message }, 400);
+      throw err;
+    }
+  };
+  const q = (c: Ctx, name: string) => c.req.query(name);
+
+  app.get("/api/v1/todos", requireApiToken, (c) => v1(c, () => listTodos(readerFor(c), check("list_todos", { status: q(c, "status"), list: q(c, "list"), label: q(c, "label"), limit: q(c, "limit") }))));
+  app.get("/api/v1/notes", requireApiToken, (c) => v1(c, () => searchNotes(readerFor(c), check("search_notes", { query: q(c, "q"), limit: q(c, "limit") }))));
+  app.get("/api/v1/notes/:id", requireApiToken, (c) =>
+    v1(c, async () => {
+      const note = await getNote(readerFor(c), check("get_note", { id: c.req.param("id") }).id as string);
+      return note && { note };
+    }),
+  );
+  app.get("/api/v1/meetings", requireApiToken, (c) => v1(c, () => listMeetings(readerFor(c), check("list_meetings", { since: q(c, "since"), limit: q(c, "limit") }))));
+  app.get("/api/v1/meetings/:id", requireApiToken, (c) =>
+    v1(c, async () => {
+      const args = check("get_meeting", { id: c.req.param("id"), transcript: q(c, "transcript") });
+      const meeting = await getMeeting(readerFor(c), args.id as string, args.transcript === true);
+      return meeting && { meeting };
+    }),
+  );
+  app.get("/api/v1/habits", requireApiToken, (c) => v1(c, () => listHabits(readerFor(c), check("list_habits", { date: q(c, "date"), timezone: q(c, "tz"), include_archived: q(c, "archived") }), deps.now())));
+  app.get("/api/v1/today", requireApiToken, (c) => v1(c, () => getToday(readerFor(c), check("get_today", { date: q(c, "date"), timezone: q(c, "tz") }), deps.now())));
+
+  // MCP over Streamable HTTP (src/mcp.ts): POST only, plain JSON replies, no sessions.
+  const mcpOrigin: MiddlewareHandler<AppEnv> = async (c, next) => {
+    // The spec asks servers to refuse browsers on other sites (DNS rebinding). AI
+    // apps call from their servers or desktop apps, which send no Origin.
+    const origin = c.req.header("Origin");
+    if (origin !== undefined && !isAllowedOrigin(c, origin)) return c.json({ jsonrpc: "2.0", error: { code: -32600, message: "Forbidden origin" } }, 403);
+    return next();
+  };
+  const mcpPost = async (c: Ctx) =>
+    mcpResponse(await c.req.text(), {
+      read: readerFor(c),
+      now: deps.now(),
+      headers: c.req.raw.headers,
+      log: (m) => console.error(JSON.stringify(m)),
+    });
+  const mcpInfo = (c: Ctx) =>
+    c.json(
+      { name: SERVER_INFO.name, title: SERVER_INFO.title, description: "ProdLi's read-only MCP server. POST JSON-RPC messages here (Streamable HTTP) with Authorization: Bearer <ProdLi API key>.", docs: "https://github.com/sysuin/prodli/blob/main/docs/API.md" },
+      405,
+      { Allow: "POST" },
+    );
+  for (const path of ["/mcp", "/mcp/:token"]) {
+    app.post(path, mcpOrigin, requireApiToken, mcpPost);
+    app.get(path, mcpInfo);
+    app.delete(path, mcpInfo);
+  }
+
+  // No OAuth here: answer MCP clients' discovery requests with a clean 404
+  // (not the web app's index.html), so they fall back to the API key.
+  for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/*"]) {
+    app.all(path, (c) => c.json({ error: "not_found" }, 404));
+  }
+
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
 
   // Everything else is the web app (static files). With `run_worker_first:
@@ -1011,7 +1152,7 @@ export function createApp(deps: Deps = realDeps) {
 
   app.onError((err, c) => {
     // Never log request bodies: they will contain users' notes.
-    console.error(JSON.stringify({ msg: "unhandled_error", path: new URL(c.req.url).pathname, error: err.message }));
+    console.error(JSON.stringify({ msg: "unhandled_error", path: redactPath(new URL(c.req.url).pathname), error: err.message }));
     return c.json({ error: "internal_error" }, 500);
   });
 

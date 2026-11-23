@@ -15,6 +15,8 @@ export interface Note {
   icon?: string;
   /** Cover colour band at the top of the note (a NOTE_COVERS id). */
   cover?: string;
+  /** The web page this note is about (page summaries and saved highlights). */
+  sourceUrl?: string;
 }
 
 export interface Subtask {
@@ -42,6 +44,8 @@ export interface ReadLaterItem {
   updatedAt?: string;
   /** When it was opened or marked read. */
   readAt?: string;
+  /** The to-do made from it (Add as to-do). */
+  todoId?: string;
 }
 
 /** A quick link tile on Today. Synced as the "quickLinks" collection. */
@@ -101,6 +105,9 @@ export interface Todo {
   block?: { day: string; start: string };
   /** When it was completed (ISO) — lets the evening review and tomorrow's brief see what got done. */
   completedAt?: string;
+  /** Imported from another app (Settings → Backup & data → Import): that app and the task's id there
+   *  (or a hash of list + title + due date), so importing the same file again skips it. */
+  importedFrom?: { app: string; id: string };
   createdAt: string;
   updatedAt?: string;
 }
@@ -190,6 +197,8 @@ export interface TodaySettings {
   prepReminders?: boolean;
   /** Notify at a task's time (to-dos with a time). Default on. */
   taskReminders?: boolean;
+  /** Keep reminding every 10 minutes (up to 2 hours) until the task is ticked off. Default off. */
+  nagReminders?: boolean;
 }
 
 export type Section = "today" | "review" | "editor" | "todos" | "pomodoro" | "habits" | "tracker" | "meetings" | "files";

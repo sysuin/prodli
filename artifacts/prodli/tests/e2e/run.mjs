@@ -98,6 +98,7 @@ const suites = {
           id: "mtg_e2e", platform: "google-meet", title: "Google Meet · abc-defg-hij", meetingCode: "abc-defg-hij",
           url: "https://meet.google.com/abc-defg-hij", startedAt: new Date(now - 1800e3).toISOString(), endedAt: now.toISOString(),
           durationSec: 1800, status: "ready", error: null, notice: null, hasAudio: false, micIncluded: false, audioMimeType: null, updatedAt: now.toISOString(),
+          calendarEvent: { id: "ev_beta", title: "Beta launch sync", start: "10:00", end: "10:30", attendees: [{ name: "Priya Shah", email: "priya@acme.com" }] },
           transcript: [{ id: "1", speaker: "You", text: "Ship Friday.", startMs: 5000, endMs: 8000 }],
           summary: { title: "Beta launch planning", overview: "Ship on Friday.", keyPoints: ["Scope frozen"], decisions: ["Ship Friday"],
             actionItems: [{ task: "Finish onboarding emails", owner: "Priya Shah", dueDate: "2026-11-12", priority: "high" }, { task: "Prepare release notes", owner: null, dueDate: null, priority: "medium" }],
@@ -109,6 +110,7 @@ const suites = {
     })`);
     await sleep(3600);
     check("Meetings: meeting shows with summary", (await p.text()).includes("Beta launch planning"));
+    check("Meetings: shows its calendar event and who was invited", (await p.text()).includes("📅 Beta launch sync · 10:00–10:30 · with Priya Shah"));
     await p.click("Add all to To-Dos");
     await sleep(600);
     await p.click("Add all to To-Dos");
@@ -1631,6 +1633,88 @@ const suites = {
     server.close();
   },
 
+  async readlater2(b, check) {
+    // Read later upgrades: + To-do, ▶ Listen (read aloud), and "Save highlight to ProdLi".
+    const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
+    const p = await b.openPage();
+    // speechSynthesis is stubbed: what would be spoken is recorded instead.
+    await p.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `window.__spoken = []; window.__cancels = 0; (() => { const s = window.speechSynthesis; if (!s) return; s.speak = (u) => window.__spoken.push({ text: u.text, rate: u.rate }); s.cancel = () => { window.__cancels++; }; s.pause = () => {}; s.resume = () => {}; })();`,
+    });
+    const url = "https://example.com/deep-work";
+    const summary = { id: "rl2note", title: "Deep work", content: `<h1>Deep work</h1><p>Source: <a href="${url}">example.com</a></p><h2>Summary</h2><p>Focus is a skill you can train.</p><pre><code>secretCode()</code></pre>`, createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-11-01T00:00:00.000Z", sourceUrl: url };
+    const other = { id: "rl2other", title: "Other note", content: "<h1>Other note</h1><p>Nothing to see.</p>", createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+    await p.eval(`chrome.storage.local.set({ todos: [], readAloudPrefs: {}, notes: ${JSON.stringify([summary, other])}, readLater: [{ id: "rl2a", url: ${JSON.stringify(url)}, title: "Deep work", createdAt: new Date().toISOString() }, { id: "rl2b", url: "https://example.com/plain", title: "Plain page", createdAt: new Date().toISOString() }] })`);
+    await p.goto("today");
+    const items = async () => (await p.storage(["readLater"])).readLater ?? [];
+
+    // + To-do → "Read: <title>" with the link; the button becomes "✓ In to-dos".
+    await p.eval(`document.querySelector('button[aria-label="Add as to-do: Deep work"]').click()`);
+    await sleep(600);
+    const { todos = [] } = await p.storage(["todos"]);
+    const todo = todos.find((t) => t.title === "Read: Deep work");
+    check("Read later: + To-do adds “Read: title” with the link", !!todo && todo.subtasks.some((s) => s.title === url), JSON.stringify(todos));
+    check("Read later: the item then shows ✓ In to-dos", (await items()).find((i) => i.id === "rl2a")?.todoId === todo?.id && (await p.eval(`document.querySelector('[data-testid="read-later"]').innerText`)).includes("✓ In to-dos") && !(await p.eval(`!!document.querySelector('button[aria-label="Add as to-do: Deep work"]')`)));
+
+    // ▶ Listen shows only on items with a saved note, and reads that note (no code blocks).
+    check("Read later: ▶ Listen only on items with a saved note", (await p.eval(`!!document.querySelector('button[aria-label="Listen to the note for Deep work"]')`)) && !(await p.eval(`!!document.querySelector('button[aria-label="Listen to the note for Plain page"]')`)));
+    await p.eval(`document.querySelector('button[aria-label="Listen to the note for Deep work"]').click()`);
+    await sleep(300);
+    const spoken = await p.eval(`window.__spoken.map((u) => u.text).join(" ")`);
+    check("Read aloud: speaks the note's text (no code)", spoken.includes("Deep work.") && spoken.includes("Focus is a skill you can train.") && !spoken.includes("secretCode"), spoken);
+    check("Read aloud: Pause and Stop appear while listening", await p.eval(`!!document.querySelector('[data-testid="read-later"] [data-testid="read-aloud-bar"]')`));
+    for (const theme of ["light", "dark"]) {
+      await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
+      await sleep(150);
+      await p.eval(axeSource + ";true");
+      const v = await p.eval(`axe.run(document.querySelector('[data-testid="read-later"]'), { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"], resultTypes: ["violations"] }).then(r => r.violations.filter(v => v.impact === "serious" || v.impact === "critical").map(v => v.id + "×" + v.nodes.length))`);
+      check(`A11y (${theme}): Read later with + To-do and Listen has no serious problems`, v.length === 0, v.join(", "));
+    }
+    await p.eval(`document.documentElement.classList.remove("dark")`);
+    // Speed is remembered, and applies right away.
+    await p.eval(`(() => { const s = document.querySelector('select[aria-label="Reading speed"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(s, "1.5"); s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await sleep(400);
+    const prefs = (await p.storage(["readAloudPrefs"])).readAloudPrefs;
+    check("Read aloud: speed is remembered and used", prefs?.rate === 1.5 && (await p.eval(`window.__spoken.at(-1).rate`)) === 1.5, JSON.stringify(prefs));
+    await p.click("⏹ Stop");
+    await sleep(200);
+    check("Read aloud: Stop ends it", !(await p.eval(`!!document.querySelector('[data-testid="read-aloud-bar"]')`)) && (await p.eval("window.__cancels")) > 0);
+
+    // Save highlight to ProdLi (the right-click handler, called from the test hook).
+    const sw = await b.serviceWorker();
+    await sw.eval(`chrome.notifications.getAll().then((all) => Promise.all(Object.keys(all).map((id) => chrome.notifications.clear(id))))`);
+    const saved = await sw.eval(`__prodliSaveHighlight("Depth is rare & valuable.", ${JSON.stringify(url)}, "Deep work")`);
+    let notes = (await p.storage(["notes"])).notes ?? [];
+    let n = notes.find((x) => x.id === "rl2note");
+    check("Highlight: added to the page's summary note as a quote with a link", saved === true && n.content.includes(`<h2>Highlights</h2><blockquote><p>Depth is rare &amp; valuable.</p><p>— <a href="${url}">Deep work</a></p></blockquote>`), n?.content);
+    await sw.eval(`__prodliSaveHighlight("A second quote.", ${JSON.stringify(url)}, "Deep work")`);
+    await sw.eval(`__prodliSaveHighlight("New page quote.", "https://example.org/new", "New page")`);
+    notes = (await p.storage(["notes"])).notes ?? [];
+    n = notes.find((x) => x.id === "rl2note");
+    const fresh = notes.find((x) => x.title === "Highlights: New page");
+    check("Highlight: one note per page (appends; a new page gets a Highlights note)", (n.content.match(/<blockquote>/g) ?? []).length === 2 && !!fresh && fresh.sourceUrl === "https://example.org/new" && fresh.content.includes("New page quote.") && notes.length === 3, JSON.stringify(notes.map((x) => x.title)));
+    const shown = await sw.eval(`chrome.notifications.getAll().then((all) => Object.keys(all).length)`);
+    check("Highlight: shows a confirmation", shown === 3, String(shown));
+    check("Highlight: non-web pages are refused", (await sw.eval(`__prodliSaveHighlight("x", "chrome://newtab/", "New tab")`)) === false);
+
+    // ⋯ → Listen in the note editor; stops when you open another note.
+    await p.eval(`chrome.storage.local.set({ activeNoteId: "rl2note" })`);
+    await p.goto("editor");
+    await p.eval(`[...document.querySelectorAll("button")].find(b => b.title.startsWith("More: copy")).click()`);
+    await sleep(200);
+    await p.eval(`[...document.querySelectorAll('[role="menuitem"]')].find(b => b.textContent.includes("Listen")).click()`);
+    await sleep(300);
+    const heard = await p.eval(`window.__spoken.map((u) => u.text).join(" ")`);
+    check("Read aloud: ⋯ → Listen reads the open note, highlights included", heard.includes("Focus is a skill you can train.") && heard.includes("Depth is rare & valuable.") && !heard.includes("secretCode") && (await p.eval(`window.__spoken[0].rate`)) === 1.5, heard);
+    check("Read aloud: the editor toolbar shows Pause / Stop", await p.eval(`!!document.querySelector('.editor-toolbar [data-testid="read-aloud-bar"]')`));
+    const cancelsBefore = await p.eval("window.__cancels");
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli:open-note-link", { detail: { id: "rl2other" } }))`);
+    await sleep(400);
+    check("Read aloud: stops when you open another note", !(await p.eval(`!!document.querySelector('[data-testid="read-aloud-bar"]')`)) && (await p.eval("window.__cancels")) > cancelsBefore);
+    await p.eval(`chrome.storage.local.set({ todos: [], readLater: [], notes: [], readAloudPrefs: {} })`);
+    await p.close();
+  },
+
   async voicetasks(b, check) {
     // 🎙 Speak tasks: a brain dump → reviewed tasks (a stub stands in for the AI; test builds only).
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
@@ -1723,6 +1807,28 @@ const suites = {
     await sleep(300);
     check("Focus trends: switches to 90 days", /average over 90 days/.test(await p.eval(`document.querySelector('[data-testid="focus-trends"]').innerText`)));
     await p.eval(`chrome.storage.local.remove(["siteCategories", "tt_${dayKey}", "tt_${prevKey}"])`);
+    await p.close();
+  },
+
+  async nowcard(b, check) {
+    // Today → Now: the block that's on, a live countdown, steps, ✓ Done.
+    const p = await b.openPage();
+    const { day, start } = await p.eval(`(() => { const d = new Date(Date.now() - 5 * 60_000); const p2 = (n) => String(n).padStart(2, "0"); return { day: d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()), start: p2(d.getHours()) + ":" + p2(d.getMinutes()) }; })()`);
+    await p.eval(`chrome.storage.local.set({ hasSeenOnboarding: true, days: [], todaySettings: { workStart: "00:00", workEnd: "23:59", reminder: null, startOnToday: false, autoBrief: false, blockReminders: false }, todos: [
+      { id: "n1", title: "Draft the proposal", completed: false, estimateMin: 30, block: { day: "${day}", start: "${start}" }, subtasks: [{ id: "s1", title: "Open the doc", completed: false }], createdAt: new Date().toISOString() }
+    ] })`);
+    await p.goto("today");
+    await sleep(1200);
+    const card = await p.eval(`(() => { const c = document.querySelector('[data-testid="now-card"]'); return c ? c.innerText : ""; })()`);
+    check("Now card: shows the block that's on, with its steps", card.includes("Draft the proposal") && card.includes("Open the doc"), card);
+    const t1 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
+    await sleep(2100);
+    const t2 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
+    check("Now card: the countdown runs (about 25 minutes left)", /^2[45]:\d\d$/.test(t1) && t1 !== t2, `${t1} → ${t2}`);
+    await p.eval(`document.querySelector('[data-testid="now-done"]').click(); true`);
+    await sleep(800);
+    const todos = (await p.storage(["todos"])).todos;
+    check("Now card: ✓ Done completes the task", todos.find((x) => x.id === "n1")?.completed === true);
     await p.close();
   },
 
@@ -2082,6 +2188,129 @@ const suites = {
     check("In person: an interrupted recording is kept when Meetings opens again", cut?.status === "ready" && cut.hasAudio && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
     await ip.close();
 
+  },
+
+  async upload(b, check) {
+    // ⬆ Upload recording: an audio file picked on Meetings becomes a meeting with a transcript (stubbed AI;
+    // test builds only). WAV, M4A (AAC through WebCodecs) and MP3 (decoded in pieces); a failure keeps the
+    // audio and offers Retry; dropping a file on Meetings opens the same panel.
+    const p = await b.openPage();
+    const readMeetings = () => p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").getAll(); q.onsuccess = () => res(q.result.filter((m) => m.platform === "upload").map((m) => ({ id: m.id, title: m.title, status: m.status, hasAudio: m.hasAudio, mime: m.audioMimeType, durationSec: m.durationSec, notice: m.notice, error: m.error, source: m.transcriptSource, uploadedAt: m.uploadedAt, transcript: m.transcript.map((e) => e.speaker + ": " + e.text) }))); }; })`);
+    const audioSize = (id) => p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("audio").objectStore("audio").get(${JSON.stringify(id)}); q.onsuccess = () => res(q.result ? q.result.size : -1); }; })`);
+    const setInput = (sel, value) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(value)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const waitFor = async (expr, ms = 8000) => {
+      for (let t = 0; t < ms; t += 250) {
+        if (await p.eval(expr)) return true;
+        await sleep(250);
+      }
+      return false;
+    };
+    const uploadFile = async (name, title) => {
+      await p.setFile('[data-testid="upload-recording-input"]', name);
+      await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+      if (title) await setInput('[data-testid="upload-title"]', title);
+      await sleep(100);
+      await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    };
+    const waitReady = async (title) => {
+      let m;
+      for (let i = 0; i < 60; i++) {
+        await sleep(250);
+        m = (await readMeetings()).find((x) => x.title === title);
+        if (m && m.status === "ready") break;
+      }
+      return m;
+    };
+    await p.goto("meetings");
+    await sleep(600);
+    check("Upload: Meetings has ⬆ Upload recording next to Record in person", await p.eval(`(() => { const u = document.querySelector('[data-testid="upload-recording"]'); const r = document.querySelector('[data-testid="record-in-person"]'); return !!u && !!r && u.parentElement === r.parentElement; })()`));
+    // Whisper stand-in: counts pieces and the audio sent; a little slow so the progress shows.
+    await p.eval(`(() => { globalThis.__up = { pieces: 0, samples: 0 }; globalThis.__prodliTranscribeStub = async (wav) => { __up.pieces++; __up.samples += (wav.length - 44) / 2; await new Promise((r) => setTimeout(r, 600)); return { text: "We agreed to ship the pilot on Friday.", segments: [{ start: 0, end: 2, text: "We agreed to ship the pilot on Friday." }], language: "en" }; }; return true; })()`);
+
+    await p.setFile('[data-testid="upload-recording-input"]', "speech-en.wav");
+    await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+    const panel = await p.eval(`({ title: document.querySelector('[data-testid="upload-title"]')?.value, date: document.querySelector('[data-testid="upload-date"]')?.value, text: document.querySelector('[data-testid="upload-panel"]')?.innerText ?? "" })`);
+    check("Upload: picking a file asks for a title (the file name) and the date it was recorded", panel.title === "speech-en" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(panel.date ?? "") && /speech-en\.wav · 19\d KB · 6s/.test(panel.text), JSON.stringify(panel));
+    await setInput('[data-testid="upload-title"]', "Pilot kickoff (upload)");
+    await setInput('[data-testid="upload-date"]', "2026-11-20T09:30");
+    await p.shot("upload-panel");
+    await sleep(100);
+    await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    const sawProgress = await waitFor(`/Transcribing…/.test(document.querySelector('[data-testid="upload-progress"]')?.innerText ?? "")`, 4000);
+    await p.shot("upload-progress");
+    check("Upload: the new meeting opens and shows transcription progress", sawProgress, await p.eval(`document.body.innerText.slice(0, 400)`));
+    const wav = await waitReady("Pilot kickoff (upload)");
+    check("Upload: a WAV becomes a meeting with a transcript and keeps the audio", wav?.status === "ready" && wav.hasAudio && wav.source === "audio" && wav.transcript[0] === "Speaker: We agreed to ship the pilot on Friday." && wav.durationSec === 6 && !!wav.uploadedAt && (await audioSize(wav.id)) === 197288, JSON.stringify(wav));
+    const wavDate = await p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").get(${JSON.stringify(wav?.id ?? "")}); q.onsuccess = () => res(q.result?.startedAt); }; })`);
+    check("Upload: the meeting is dated when it was recorded", wavDate === new Date(2026, 10, 20, 9, 30).toISOString(), wavDate);
+    const wavSamples = await p.eval("__up.samples");
+    check("Upload: the speech is sent in pieces (silence skipped)", (await p.eval("__up.pieces")) >= 1 && wavSamples > 16000 * 2 && wavSamples <= 16000 * 6.2, `${wavSamples} samples`);
+    await sleep(500);
+    const detail = await p.text();
+    await p.shot("upload-meeting");
+    check("Upload: the meeting shows its transcript and audio player", detail.includes("We agreed to ship the pilot on Friday.") && (await p.eval(`!!document.querySelector("audio[src^='blob:']")`)), detail.slice(0, 300));
+
+    // Other formats: M4A (AAC, WebCodecs) and MP3 (cut at frames) decode to about the same audio.
+    await p.eval(`__up = { pieces: 0, samples: 0 }`);
+    await uploadFile("speech-en.m4a", "Pilot kickoff (m4a)");
+    const m4a = await waitReady("Pilot kickoff (m4a)");
+    const m4aSamples = await p.eval("__up.samples");
+    check("Upload: an M4A is decoded and transcribed", m4a?.status === "ready" && m4a.transcript.length > 0 && /mp4|m4a/.test(m4a.mime ?? "") && Math.abs(m4aSamples - wavSamples) < 16000, `${JSON.stringify(m4a)} · ${m4aSamples} vs ${wavSamples}`);
+    await p.eval(`__up = { pieces: 0, samples: 0 }`);
+    await uploadFile("speech-en.mp3", "Pilot kickoff (mp3)");
+    const mp3 = await waitReady("Pilot kickoff (mp3)");
+    const mp3Samples = await p.eval("__up.samples");
+    check("Upload: an MP3 is decoded and transcribed", mp3?.status === "ready" && mp3.transcript.length > 0 && Math.abs(mp3Samples - wavSamples) < 16000, `${JSON.stringify(mp3)} · ${mp3Samples} vs ${wavSamples}`);
+
+    // Failure mid-way: the meeting keeps the audio and offers Retry, which works once the service is back.
+    await p.eval(`(() => { globalThis.__prodliTranscribeStub = async () => { throw new Error("offline"); }; return true; })()`);
+    await uploadFile("speech-en.wav", "Flaky upload");
+    const failed = await waitReady("Flaky upload");
+    await sleep(400);
+    check("Upload: a failed transcription keeps the audio and offers Retry", failed?.status === "ready" && failed.hasAudio && failed.transcript.length === 0 && /Couldn't transcribe/.test(failed.error ?? "") && (await p.eval(`!!document.querySelector('[data-testid="upload-retry"]')`)), JSON.stringify(failed));
+    await p.eval(`(() => { globalThis.__prodliTranscribeStub = async () => ({ text: "Retry worked.", segments: [], language: "en" }); return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="upload-retry"] button').click()`);
+    let retried;
+    for (let i = 0; i < 40; i++) {
+      await sleep(250);
+      retried = (await readMeetings()).find((x) => x.title === "Flaky upload");
+      if (retried?.transcript.length && retried.status === "ready") break;
+    }
+    check("Upload: Retry transcribes it", retried?.transcript[0] === "Speaker: Retry worked." && !retried.error, JSON.stringify(retried));
+
+    // Not audio: the panel explains instead of uploading.
+    await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
+    await sleep(500);
+    check("Upload: a file that isn't audio is explained, not uploaded", /isn't an audio or video file/.test(await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`)) && !(await p.eval(`!!document.querySelector('[data-testid="upload-start"]')`)));
+    await p.click("Close");
+
+    // Drag and drop: dropping an audio file on Meetings opens the panel for it.
+    const dropped = await p.eval(`(async () => {
+      const bytes = await new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("audio").objectStore("audio").get(${JSON.stringify(wav?.id ?? "")}); q.onsuccess = () => res(q.result); }; });
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], "Hallway chat.wav", { type: "audio/wav" }));
+      const target = document.querySelector('[data-testid="upload-recording"]');
+      target.dispatchEvent(new DragEvent("dragenter", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      const overlay = !!document.querySelector('[data-testid="upload-drop"]') || await new Promise((r) => setTimeout(() => r(!!document.querySelector('[data-testid="upload-drop"]')), 100));
+      target.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+      return overlay;
+    })()`);
+    await waitFor(`!!document.querySelector('[data-testid="upload-title"]')`, 4000);
+    const dropPanel = await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? "(no panel)"`);
+    check("Upload: dropping an audio file on Meetings opens the upload panel", dropped && (await p.eval(`document.querySelector('[data-testid="upload-title"]')?.value`)) === "Hallway chat" && !(await p.eval(`!!document.querySelector('[data-testid="upload-drop"]')`)), dropPanel);
+    await p.eval(`document.querySelector('[data-testid="upload-panel"] button:last-child')?.click()`);
+    // An upload left mid-transcription by a closed page offers Retry when Meetings opens again.
+    await p.eval(`new Promise((resolve) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const t = r.result.transaction("meetings", "readwrite"); const now = new Date().toISOString(); t.objectStore("meetings").put({ id: "mtg_upcut", platform: "upload", title: "Upload · cut", meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 60, status: "processing", transcript: [], summary: null, error: null, notice: null, hasAudio: true, micIncluded: true, audioMimeType: "audio/wav", uploadedAt: now, updatedAt: now }); t.oncomplete = () => resolve(true); }; })`);
+    await p.goto("meetings");
+    let cut;
+    for (let i = 0; i < 30; i++) {
+      await sleep(250);
+      cut = (await readMeetings()).find((x) => x.id === "mtg_upcut");
+      if (cut?.status === "ready") break;
+    }
+    check("Upload: one cut short by a closed page offers Retry", cut?.status === "ready" && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
+    await p.eval(`delete globalThis.__prodliTranscribeStub`);
+    await p.close();
   },
 
   async meetingprep(b, check) {
@@ -2604,6 +2833,94 @@ const suites = {
     const json = JSON.parse(await waitForDownload(b, "prodli-backup-"));
     check("Backup: includes Time Tracker history", json.version === "1.1" && json.timeTracking?.["2026-11-07"]?.["github.com"] === 120);
     check("Backup: includes meetings, never the API key", Array.isArray(json.meetings) && !JSON.stringify(json).includes("sk-ant-e2e-secret"));
+    await p.close();
+  },
+
+  async importer(b, check) {
+    // Import from other apps: a Todoist project CSV → preview → import → Undo.
+    const p = await b.openPage();
+    await p.goto("todos");
+    await p.eval(`chrome.storage.local.set({ todos: [{ id: "keep", title: "My own task", completed: false, createdAt: new Date().toISOString() }], lists: [] })`);
+    await sleep(500);
+    const modalOpen = () => p.eval(`!!document.querySelector('[data-testid="import-tasks"]')`);
+    const modalText = () => p.eval(`document.querySelector('[data-testid="import-tasks"]')?.innerText ?? ""`);
+    const clickTestId = (id) => p.eval(`(() => { const el = document.querySelector('[data-testid="${id}"]'); if (!el) throw new Error("No ${id}"); el.click(); return true; })()`);
+
+    // Opens from Settings → Backup & data (and Settings closes) and from ⌘K.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`);
+    await sleep(400);
+    await clickTestId("import-other-apps-button");
+    await sleep(500);
+    check("Import: opens from Settings → Backup & data", (await modalOpen()) && !(await p.eval(`!!document.querySelector('[aria-label="Settings"]')`)));
+    await p.key("Escape");
+    await sleep(200);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await p.type("import to-dos");
+    await sleep(200);
+    await p.key("Enter");
+    await sleep(500);
+    check("Import: opens from the ⌘K palette", await modalOpen());
+    await p.key("Escape");
+    await sleep(200);
+
+    // From the To-Dos toolbar: pick Todoist, choose the file.
+    await clickTestId("todo-import");
+    await sleep(500);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    const summary = await p.eval(`document.querySelector('[data-testid="import-summary"]')?.innerText ?? ""`);
+    check("Import: preview counts tasks, lists and repeating", /3 tasks in 1 list, 1 repeating/i.test(summary), summary);
+    await p.shot("import-preview");
+    const preview = await modalText();
+    check("Import: preview shows a sample and what won't carry over", preview.includes("Buy oat milk") && preview.includes("E2E Errands") && /won.t carry over/i.test(preview), preview.slice(0, 400));
+    await clickTestId("import-confirm");
+    await sleep(900);
+    let { todos = [], lists = [] } = await p.storage(["todos", "lists"]);
+    const list = lists.find((l) => l.name === "E2E Errands");
+    const milk = todos.find((t) => t.title === "Buy oat milk");
+    const books = todos.find((t) => t.title === "Return library books");
+    check("Import: adds the list and its to-dos", !!list && [milk, books, todos.find((t) => t.title === "Fix bike light")].every((t) => t?.listId === list.id), JSON.stringify(lists));
+    check(
+      "Import: maps priority, labels, repeat, dates and subtasks",
+      milk?.priority === "high" && milk?.labels?.includes("shop") && milk?.repeat?.unit === "week" && milk?.repeat?.weekdays?.[0] === 1 && books?.dueDate === "2030-01-15" && books?.subtasks?.some((s) => s.title === "Find receipt") && books?.subtasks?.some((s) => s.title.includes("front desk")),
+      JSON.stringify({ milk, books }),
+    );
+    check("Import: remembers where each to-do came from", todos.filter((t) => t.importedFrom?.app === "todoist").length === 3);
+    check("Import: the list shows in To-Dos and the toast offers Undo", (await p.text()).includes("E2E Errands") && /imported 3 tasks/i.test(await p.eval(`document.querySelector('[data-testid="app-toast"]')?.innerText ?? ""`)));
+
+    // Importing the same file again adds nothing.
+    await clickTestId("todo-import");
+    await sleep(400);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    check("Import: re-importing skips tasks already here", /imported before/i.test(await modalText()) && (await p.eval(`document.querySelector('[data-testid="import-confirm"]').disabled`)));
+    await p.key("Escape");
+    await sleep(200);
+
+    // Import again from scratch to get a fresh Undo toast, then Undo.
+    await p.eval(`chrome.storage.local.set({ todos: [{ id: "keep", title: "My own task", completed: false, createdAt: new Date().toISOString() }], lists: [] })`);
+    await sleep(500);
+    await clickTestId("todo-import");
+    await sleep(400);
+    await clickTestId("import-app-todoist");
+    await sleep(200);
+    await p.setFile('[data-testid="import-file"]', "E2E Errands [42].csv");
+    await sleep(500);
+    await clickTestId("import-confirm");
+    await sleep(900);
+    ({ todos = [] } = await p.storage(["todos"]));
+    check("Import: second import adds the tasks again after they were removed", todos.length === 4, JSON.stringify(todos.map((t) => t.title)));
+    await p.shot("import-done-toast");
+    await clickTestId("toast-action");
+    await sleep(900);
+    ({ todos = [], lists = [] } = await p.storage(["todos", "lists"]));
+    check("Import: Undo removes exactly what was added, including the new list", todos.length === 1 && todos[0].id === "keep" && !lists.some((l) => l.name === "E2E Errands"), JSON.stringify({ todos: todos.map((t) => t.title), lists }));
+    check("Import: the To-Dos view updates after Undo", !(await p.text()).includes("Buy oat milk"));
     await p.close();
   },
 };

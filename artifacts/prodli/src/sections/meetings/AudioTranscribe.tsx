@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { getAudio, updateMeeting } from "../../recorder/db";
-import { transcribeRecording, TranscribeError, type TranscribeProgress } from "../../recorder/audioTranscribe";
+import { transcribeRecording, TranscribeError, TRANSCRIBE_QUOTA_MESSAGE, type TranscribeProgress } from "../../recorder/audioTranscribe";
 import { labelSpeakers } from "../../recorder/speakers";
 import { accountsEnabled, getAiUsage, getProdliAccount } from "../../lib/prodliAccount";
 import type { Meeting } from "../../recorder/types";
@@ -67,7 +67,7 @@ export function AudioTranscribe({ meeting, busy, flash, onSummarize, canSummariz
 
   const start = async () => {
     if (left !== null && left < Math.min(meeting.durationSec, 60)) {
-      setPhase({ kind: "error", message: "You've used this month's audio transcription minutes. They reset on the 1st, or get more with ProdLi Pro (👤 Account)." });
+      setPhase({ kind: "error", message: TRANSCRIBE_QUOTA_MESSAGE });
       return;
     }
     const blob = await getAudio(meeting.id);

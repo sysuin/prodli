@@ -83,6 +83,8 @@ export function speakerNames(m: Meeting): Set<string> {
 
 /** How an event and a past meeting match, if they do. */
 export function matchMeeting(event: CalendarEvent, m: Meeting): PrepMatch | null {
+  // Filed under this event, or another in its series, when it was recorded (lib/calendarLink.ts).
+  if (m.calendarEvent && (m.calendarEvent.id === event.id || m.calendarEvent.id.split("_")[0] === event.id.split("_")[0])) return "link";
   const code = meetCode(event.meetLink);
   if (code && (m.meetingCode?.toLowerCase() === code || meetCode(m.url) === code)) return "link";
   if (titlesMatch(event.title, m.title) || (m.summary?.title && titlesMatch(event.title, m.summary.title))) return "title";

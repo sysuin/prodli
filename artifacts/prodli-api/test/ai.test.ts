@@ -463,3 +463,19 @@ describe("Tasks from a brain dump", () => {
     expect((await app.request("/api/ai/extract-tasks", json({ text: "x" }, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
   });
 });
+
+describe("Break a task down", () => {
+  it("returns a few steps and counts a writing-help use", async () => {
+    const { app } = makeApp();
+    const env = withKey();
+    const auth = await signIn(app, env);
+    const res = await app.request("/api/ai/breakdown", json({ task: "the tax return", context: "due Friday" }, auth), env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ steps: ["Open the tax return", "Do the first part", "Check it"], usage: { used: 1, limit: WRITE_MONTHLY_LIMIT.free } });
+    expect((await app.request("/api/ai/breakdown", json({ task: "FAIL" }, auth), env)).status).toBe(502);
+    expect(await (await app.request("/api/ai/usage", { headers: auth }, env)).json()).toMatchObject({ writes: { used: 1 } });
+    expect((await app.request("/api/ai/breakdown", json({ task: "" }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/breakdown", json({ task: "x".repeat(301) }, auth), env)).status).toBe(400);
+    expect((await app.request("/api/ai/breakdown", json({ task: "x" }, { Origin: EXT_ORIGIN }), env)).status).toBe(401);
+  });
+});

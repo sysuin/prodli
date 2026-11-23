@@ -45,7 +45,7 @@ export function isCalendarConnected(): Promise<boolean> {
   return storageGet<boolean>(CALENDAR_KEY, false);
 }
 
-let webToken: { token: string; expires: number } | null = null;
+let webToken: { token: string; expires: number; write?: boolean } | null = null;
 
 interface TokenClient {
   requestAccessToken(opts?: { prompt?: string }): void;
@@ -54,8 +54,11 @@ interface GoogleOAuth {
   accounts: { oauth2: { initTokenClient(o: { client_id: string; scope: string; prompt?: string; callback: (r: { access_token?: string; expires_in?: number; error?: string }) => void; error_callback?: (e: { type: string }) => void }): TokenClient } };
 }
 
-async function webAccessToken(interactive: boolean): Promise<string> {
-  if (webToken && webToken.expires > Date.now() + 60_000) return webToken.token;
+/** Two-way time blocks (lib/calendarSync.ts): a calendar ProdLi creates and manages itself, nothing else. */
+export const CALENDAR_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
+
+async function webAccessToken(interactive: boolean, write = false): Promise<string> {
+  if (webToken && webToken.expires > Date.now() + 60_000 && (!write || webToken.write)) return webToken.token;
   if (!interactive) throw new CalendarError("Reconnect Google Calendar to see today's events.");
   const { googleWebClientId } = await accountRequest<{ googleWebClientId: string | null }>("/api/config");
   if (!googleWebClientId) throw new CalendarError("Google sign-in isn't set up on this server.");
@@ -72,10 +75,10 @@ async function webAccessToken(interactive: boolean): Promise<string> {
   return new Promise((resolve, reject) => {
     const client = w.google!.accounts.oauth2.initTokenClient({
       client_id: googleWebClientId,
-      scope: CALENDAR_SCOPE,
+      scope: write ? `${CALENDAR_SCOPE} ${CALENDAR_WRITE_SCOPE}` : CALENDAR_SCOPE,
       callback: (r) => {
         if (!r.access_token) return reject(new CalendarError(r.error === "access_denied" ? "Calendar access wasn't allowed." : "Couldn't connect Google Calendar."));
-        webToken = { token: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 };
+        webToken = { token: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000, write };
         resolve(r.access_token);
       },
       error_callback: (e) => reject(new CalendarError(e.type === "popup_closed" ? "The Google window was closed." : "Couldn't connect Google Calendar.")),
@@ -84,15 +87,24 @@ async function webAccessToken(interactive: boolean): Promise<string> {
   });
 }
 
-async function accessToken(interactive: boolean): Promise<string> {
+async function accessToken(interactive: boolean, write = false): Promise<string> {
   if (isExtension()) {
     try {
-      return await getToken(interactive, [...PROFILE_SCOPES, CALENDAR_SCOPE]);
+      return await getToken(interactive, write ? [...PROFILE_SCOPES, CALENDAR_SCOPE, CALENDAR_WRITE_SCOPE] : [...PROFILE_SCOPES, CALENDAR_SCOPE]);
     } catch (err) {
       throw new CalendarError(err instanceof Error ? err.message : "Couldn't connect Google Calendar.");
     }
   }
-  return webAccessToken(interactive);
+  return webAccessToken(interactive, write);
+}
+
+/** A token that can also manage ProdLi's own calendar (two-way time blocks). */
+export const calendarWriteToken = (interactive: boolean) => accessToken(interactive, true);
+
+/** Drops a rejected extension token so the next request gets a fresh one. */
+export async function dropToken(token: string): Promise<void> {
+  if (isExtension()) await chrome.identity.removeCachedAuthToken({ token });
+  else webToken = null;
 }
 
 /** Asks for read-only calendar access (the user clicked "Connect"). */

@@ -21,6 +21,7 @@ import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import { parseTask } from "../lib/taskParse";
 import { VOICE_TASKS_EVENT } from "../lib/voiceTasks";
+import { IMPORT_TASKS_EVENT } from "../lib/importers/core";
 import { repeatLabel, timeLabel, toggleTodo } from "../lib/recurrence";
 import { RepeatPicker, TaskDetails, withRepeat } from "./todo/TaskDetails";
 import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection } from "./todo/TodoNav";
@@ -591,6 +592,13 @@ export function TodoSection() {
             aria-label="Speak tasks"
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px", height: "38px", boxSizing: "border-box" as const, background: "hsl(var(--card))", color: "hsl(var(--foreground))", cursor: "pointer", fontSize: 15 }}
           >🎙</button>
+          <button
+            data-testid="todo-import"
+            onClick={() => window.dispatchEvent(new CustomEvent(IMPORT_TASKS_EVENT))}
+            title="Import to-dos from Todoist, TickTick, Google Tasks, a CSV or Markdown"
+            aria-label="Import to-dos from other apps"
+            style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 12px", height: "38px", boxSizing: "border-box" as const, background: "hsl(var(--card))", color: "hsl(var(--foreground))", cursor: "pointer", fontSize: 15 }}
+          >⇩</button>
           <button
             onClick={addTodo}
             style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", padding: "0 18px", height: "38px", boxSizing: "border-box" as const, background: "#FFD700", fontWeight: 800, cursor: "pointer", fontSize: 13, textTransform: "uppercase", fontFamily: "inherit", color: "#000" }}
