@@ -771,6 +771,9 @@ const suites = {
     await p.send("Emulation.clearDeviceMetricsOverride", {});
     await p.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await p.send("Emulation.setEmulatedMedia", { features: [] }).catch(() => {});
+    await p.close();
+  },
+
   async editorfind(b, check) {
     // Find & replace in the open note: Ctrl/⌘+F, count, next/previous, Replace, Replace all (one undo), Esc.
     const p = await b.openPage();
@@ -873,6 +876,9 @@ const suites = {
     check("Find: ⋯ → Find and replace opens with Replace and the selected text", (await p.eval(`document.querySelector('[data-testid="find-input"]')?.value`)) === "Concat" && (await p.eval(`!!document.querySelector('[data-testid="replace-input"]')`)) && (await count()) === "1 of 1", String(await count()));
     await p.key("Escape");
     await sleep(200);
+    await p.close();
+  },
+
   async codeblocks(b, check) {
     // Code blocks: colours, language picker, Copy, Markdown fences — and the old ways in (/, ```, {}, Turn into) still work.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");
