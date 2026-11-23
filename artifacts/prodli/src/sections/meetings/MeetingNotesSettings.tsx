@@ -3,10 +3,11 @@
 
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { storageGet, storageSet } from "../../lib/storage";
-import { DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, SUMMARY_LANGUAGE_STORAGE_KEY, SUMMARY_LANGUAGES, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
+import { AUTO_POST_DISCLOSURE_STORAGE_KEY, DEFAULT_DISCLOSURE, DISCLOSURE_STORAGE_KEY, MEETING_TEMPLATE_STORAGE_KEY, MEETING_TEMPLATES, parseVocabulary, SUMMARY_LANGUAGE_STORAGE_KEY, SUMMARY_LANGUAGES, VOCABULARY_STORAGE_KEY, type CustomTemplateRef, type MeetingTemplate } from "../../recorder/types";
 import { ProBadge } from "../../components/Pro";
 import { CustomTemplates, useCustomTemplates } from "./CustomTemplates";
 import { TemplateRules } from "./TemplateRules";
+import { AUDIO_RETENTION_CHOICES, cleanRetention, DEFAULT_RETENTION, MEETING_RETENTION_CHOICES, RETENTION_KEY, type MeetingRetention } from "../../recorder/retention";
 
 const field: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontFamily: "inherit", fontSize: 12, padding: "5px 6px", width: "100%", boxSizing: "border-box" };
 const label: CSSProperties = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7 };
@@ -31,12 +32,16 @@ export function MeetingNotesSettings() {
   const [words, setWords] = useState("");
   const [message, setMessage] = useState(DEFAULT_DISCLOSURE);
   const [copied, setCopied] = useState(false);
+  const [autoPost, setAutoPost] = useState(false);
+  const [retention, setRetention] = useState<MeetingRetention>(DEFAULT_RETENTION);
 
   useEffect(() => {
     void storageGet<MeetingTemplate | CustomTemplateRef>(MEETING_TEMPLATE_STORAGE_KEY, "general").then(setTemplate);
     void storageGet<string[]>(VOCABULARY_STORAGE_KEY, []).then((w) => setWords(w.join(", ")));
     void storageGet<string>(SUMMARY_LANGUAGE_STORAGE_KEY, "").then(setLanguage);
     void storageGet<string>(DISCLOSURE_STORAGE_KEY, "").then((m) => setMessage(m || DEFAULT_DISCLOSURE));
+    void storageGet<boolean>(AUTO_POST_DISCLOSURE_STORAGE_KEY, false).then(setAutoPost);
+    void storageGet<MeetingRetention>(RETENTION_KEY, DEFAULT_RETENTION).then((r) => setRetention(cleanRetention(r)));
   }, []);
 
   const saveWords = () => {
@@ -112,6 +117,60 @@ export function MeetingNotesSettings() {
       >
         {copied ? "Copied ✓" : "Copy heads-up"}
       </button>
+      <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12, marginTop: 8, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={autoPost}
+          data-testid="auto-post-disclosure"
+          onChange={(e) => {
+            setAutoPost(e.target.checked);
+            saveMessage();
+            void storageSet(AUTO_POST_DISCLOSURE_STORAGE_KEY, e.target.checked);
+          }}
+        />
+        <span>Post it in the Google Meet chat when I start recording. (Zoom and Teams: use Copy heads-up.)</span>
+      </label>
+
+      <div style={{ ...sub, marginTop: 14 }}>Auto-delete</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <label style={{ fontSize: 11 }}>
+          Recordings (audio)
+          <select
+            value={retention.audioDays}
+            data-testid="retention-audio"
+            onChange={(e) => {
+              const next = { ...retention, audioDays: Number(e.target.value) };
+              setRetention(next);
+              void storageSet(RETENTION_KEY, next);
+            }}
+            style={{ ...field, marginTop: 3 }}
+          >
+            {AUDIO_RETENTION_CHOICES.map((d) => (
+              <option key={d} value={d}>{d ? `Delete after ${d} days` : "Keep"}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ fontSize: 11 }}>
+          Whole meetings
+          <select
+            value={retention.meetingDays}
+            data-testid="retention-meetings"
+            onChange={(e) => {
+              const next = { ...retention, meetingDays: Number(e.target.value) };
+              setRetention(next);
+              void storageSet(RETENTION_KEY, next);
+            }}
+            style={{ ...field, marginTop: 3 }}
+          >
+            {MEETING_RETENTION_CHOICES.map((d) => (
+              <option key={d} value={d}>{d ? `Delete after ${d === 365 ? "1 year" : `${d} days`}` : "Keep"}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div style={{ fontSize: 11, opacity: 0.8, marginTop: 3 }}>
+        Off by default. Deleting recordings keeps transcripts and notes. Deleting whole meetings also removes them from your other devices. Shared links stay until you stop sharing them.
+      </div>
     </div>
   );
 }

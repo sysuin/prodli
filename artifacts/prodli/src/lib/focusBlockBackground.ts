@@ -4,7 +4,7 @@
 // change). Background tabs aren't touched until you switch to them, so a video
 // or form you left open isn't lost the moment a session starts.
 
-import { blockingNow, blockReason, DEFAULT_FOCUS_BLOCK, domainOf, FOCUS_BLOCK_KEY, FOCUS_PASSES_KEY, FOCUS_STATS_KEY, pausePageUrl, type FocusBlockSettings } from "./focusBlock";
+import { blockingNow, blockReason, DEFAULT_FOCUS_BLOCK, domainOf, pathOf, FOCUS_BLOCK_KEY, FOCUS_PASSES_KEY, FOCUS_STATS_KEY, pausePageUrl, type FocusBlockSettings } from "./focusBlock";
 import { TIMER_KEY, type TimerState } from "./pomodoroCore";
 import type { FocusRule, TrackerSettings } from "../types";
 
@@ -58,7 +58,7 @@ export async function checkTab(tabId: number, url: string | undefined): Promise<
   const domain = domainOf(url);
   if (!domain || !url) return false;
   const [s, focus, limits, p] = await Promise.all([settings(), pomodoroFocus(), limitsReached(), passes()]);
-  const reason = blockReason(domain, s, { pomodoroFocus: focus, limitReached: limits, passes: p });
+  const reason = blockReason(domain, s, { pomodoroFocus: focus, limitReached: limits, passes: p, path: pathOf(url) });
   if (!reason) return false;
   try {
     await chrome.tabs.update(tabId, { url: pausePageUrl(chrome.runtime.getURL("index.html"), url, reason) });

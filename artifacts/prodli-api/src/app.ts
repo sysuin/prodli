@@ -23,6 +23,7 @@ import {
   deviceLabel,
   listSessions,
   SESSION_TTL,
+  trialDays,
   upsertUser,
   type Authenticated,
   type Client,
@@ -71,6 +72,8 @@ export interface Env extends BillingVars {
   ASSETS?: Fetcher;
   /** Local end-to-end tests only: `wrangler dev --var DEV_FAKE_GOOGLE:true`. Ignored unless ENV is "development". */
   DEV_FAKE_GOOGLE?: string;
+  /** Days of free Pro for new accounts (reverse trial). Unset or 0 = no trial. */
+  TRIAL_DAYS?: string;
 }
 
 export interface Deps {
@@ -268,7 +271,7 @@ export function createApp(deps: Deps = realDeps) {
     }
 
     const now = deps.now();
-    const user = await upsertUser(c.env.DB, identity, now);
+    const user = await upsertUser(c.env.DB, identity, now, trialDays(c.env.TRIAL_DAYS));
     const client: Client = kind;
     const device = kind === "mobile" ? mobileDeviceLabel(body?.platform) : deviceLabel(c.req.header("User-Agent"));
     const { token, session } = await createSession(c.env.DB, user.id, client, device, now);
@@ -449,6 +452,8 @@ export function createApp(deps: Deps = realDeps) {
     const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan] });
     return c.json({
       plan: auth.user.plan === "pro" ? "pro" : "free",
+      /** The free Pro trial, while it runs (plan is "pro" then, but there's no subscription). */
+      trial: auth.user.trialEndsAt ? { endsAt: auth.user.trialEndsAt } : null,
       onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
       // Pro-only features (custom meeting templates, links that never expire) are open to everyone until Pro is on sale.
       earlyAccess: !products,
@@ -467,7 +472,7 @@ export function createApp(deps: Deps = realDeps) {
     const products = productsOnSale(c.env);
     if (!products) return c.json({ error: "billing_unavailable" }, 503);
     if (!interval || !products[interval]) return c.json({ error: "bad_request" }, 400);
-    if (auth.user.plan === "pro") return c.json({ error: "already_pro" }, 409);
+    if (auth.user.plan === "pro" && !auth.user.trialEndsAt) return c.json({ error: "already_pro" }, 409);
     try {
       const client = dodo(c);
       let customerId = await getCustomerId(c.env.DB, auth.user.id);

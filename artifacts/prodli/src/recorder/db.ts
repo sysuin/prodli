@@ -118,6 +118,13 @@ export async function deleteMeeting(id: string, { tombstone = true }: { tombston
   announceChange();
 }
 
+/** Removes a meeting's recording but keeps its transcript and notes (auto-delete, recorder/retention.ts). */
+export async function deleteMeetingAudio(id: string): Promise<void> {
+  await tx(AUDIO, "readwrite", (t) => reqToPromise(t.objectStore(AUDIO).delete(id)));
+  await deleteChunks(id);
+  await updateMeeting(id, () => ({ hasAudio: false, audioMimeType: null }));
+}
+
 // ── Audio ─────────────────────────────────────────────────────────────────────
 
 export async function appendAudioChunk(meetingId: string, seq: number, data: Blob): Promise<void> {

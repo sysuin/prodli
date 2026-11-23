@@ -144,6 +144,29 @@ describe("ProdLi Pro", () => {
     expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ plan: "pro" });
   });
 
+  it("new accounts get a 14-day Pro trial (reverse trial); existing accounts don't; it ends by itself", async () => {
+    const clock = { now: Date.parse("2027-01-15T10:00:00Z") };
+    const { app } = makeApp(clock);
+    const old = await signIn(app, selling(), "old"); // created before trials existed
+    const env = { ...selling(), TRIAL_DAYS: "14" } as Env;
+    const fresh = await signIn(app, env, "new");
+    const endsAt = clock.now + 14 * 86_400_000;
+    expect(await (await app.request("/api/billing", { headers: fresh.headers }, env)).json()).toMatchObject({ plan: "pro", trial: { endsAt }, subscription: null });
+    expect(await (await app.request("/api/ai/usage", { headers: fresh.headers }, env)).json()).toMatchObject({ limit: AI_MONTHLY_LIMIT.pro });
+    expect(await (await app.request("/api/me", { headers: fresh.headers }, env)).json()).toMatchObject({ user: { plan: "pro", trialEndsAt: endsAt } });
+    // Trial users can still buy Pro.
+    expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, fresh.headers), env)).status).toBe(200);
+    // Signing in again doesn't restart it, and older accounts never get one.
+    const again = await signIn(app, env, "new");
+    expect(await (await app.request("/api/billing", { headers: again.headers }, env)).json()).toMatchObject({ trial: { endsAt } });
+    expect(await (await app.request("/api/billing", { headers: (await signIn(app, env, "old")).headers }, env)).json()).toMatchObject({ plan: "free", trial: null });
+    expect(old.userId).toBeTruthy();
+    // After 14 days it's the free plan.
+    clock.now = endsAt + 1;
+    expect(await (await app.request("/api/billing", { headers: fresh.headers }, env)).json()).toMatchObject({ plan: "free", trial: null });
+    expect(await (await app.request("/api/ai/usage", { headers: fresh.headers }, env)).json()).toMatchObject({ limit: AI_MONTHLY_LIMIT.free });
+  });
+
   it("after checkout, Dodo returns to a thank-you page with the email taken out of the URL", async () => {
     const { app } = makeApp();
     const back = await app.request("/pro/done?from=checkout&subscription_id=sub_1&status=active&email=a%40example.com", {}, selling());

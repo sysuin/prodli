@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addTask } from "../lib/capture";
+import { storageGet, storageSet } from "../lib/storage";
 import { parseTask } from "../lib/taskParse";
 import { linesFromDump, listen, MAX_DUMP_CHARS, speechSupported } from "../lib/voiceTasks";
 
@@ -23,13 +24,16 @@ const btn = (primary = false, disabled = false): CSSProperties => ({
 
 type Step = { kind: "input" } | { kind: "thinking" } | { kind: "review"; lines: { text: string; on: boolean }[]; note?: string };
 
-export function VoiceTasksModal({ onClose, onDone }: { onClose: () => void; onDone: (message: string) => void }) {
+const PLAN_TODAY_KEY = "voiceTasksPlanToday";
+
+export function VoiceTasksModal({ onClose, onDone, autoListen = false }: { onClose: () => void; onDone: (message: string) => void; autoListen?: boolean }) {
   const [text, setText] = useState("");
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState<Step>({ kind: "input" });
   const [adding, setAdding] = useState(false);
+  const [planToday, setPlanToday] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
   const baseRef = useRef("");
 
@@ -65,6 +69,13 @@ export function VoiceTasksModal({ onClose, onDone }: { onClose: () => void; onDo
     );
   };
 
+  useEffect(() => {
+    void storageGet<boolean>(PLAN_TODAY_KEY, false).then(setPlanToday);
+    // Opened by the dictation shortcut: start listening right away.
+    if (autoListen && speechSupported()) void toggleMic();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const makeTasks = async () => {
     stopRef.current?.();
     setStep({ kind: "thinking" });
@@ -76,9 +87,9 @@ export function VoiceTasksModal({ onClose, onDone }: { onClose: () => void; onDo
     if (step.kind !== "review") return;
     setAdding(true);
     const chosen = step.lines.filter((l) => l.on && l.text.trim());
-    for (const l of chosen) await addTask({ title: l.text, smart: true });
+    for (const l of chosen) await addTask({ title: l.text, smart: true, planToday });
     setAdding(false);
-    onDone(`Added ${chosen.length} task${chosen.length === 1 ? "" : "s"}`);
+    onDone(`Added ${chosen.length} task${chosen.length === 1 ? "" : "s"}${planToday ? " to today's plan" : ""}`);
     onClose();
   };
 
@@ -146,6 +157,18 @@ export function VoiceTasksModal({ onClose, onDone }: { onClose: () => void; onDo
                 })}
               </ul>
             )}
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 700, marginTop: 10, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={planToday}
+                data-testid="voice-plan-today"
+                onChange={(e) => {
+                  setPlanToday(e.target.checked);
+                  void storageSet(PLAN_TODAY_KEY, e.target.checked);
+                }}
+              />
+              Plan these for today
+            </label>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
               <button style={btn()} onClick={() => setStep({ kind: "input" })}>Back</button>
               <button style={btn(true, adding || !step.lines.some((l) => l.on))} disabled={adding || !step.lines.some((l) => l.on)} onClick={() => void addAll()}>

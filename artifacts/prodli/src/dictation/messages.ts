@@ -27,6 +27,8 @@ export interface FieldInfo {
   selection: string;
   /** Single-line field: newlines become spaces. */
   singleLine: boolean;
+  /** ProdLi's own page with no text field focused: Speak tasks opened instead, so there's nothing to dictate. */
+  handoff?: "voice-tasks";
 }
 
 export type PillState =

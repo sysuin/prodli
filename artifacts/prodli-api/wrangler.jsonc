@@ -52,6 +52,8 @@
       "workers_dev": true,
       "vars": {
         "ENV": "staging",
+        // New accounts get 14 days of Pro (src/accounts.ts trialDays).
+        "TRIAL_DAYS": "14",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo test mode (test cards, no real money): ProdLi brand → products (pdt_…).
@@ -82,6 +84,8 @@
       "routes": [{ "pattern": "app.prodli.com", "custom_domain": true }],
       "vars": {
         "ENV": "production",
+        // New accounts get 14 days of Pro (src/accounts.ts trialDays).
+        "TRIAL_DAYS": "14",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo live mode. Empty = Pro not on sale yet.

@@ -27,6 +27,9 @@ import {
   SPEECH_ENABLED_STORAGE_KEY,
   SPEECH_LANG_STORAGE_KEY,
   SHOW_INDICATOR_STORAGE_KEY,
+  DEFAULT_DISCLOSURE,
+  DISCLOSURE_STORAGE_KEY,
+  AUTO_POST_DISCLOSURE_STORAGE_KEY,
   RECORDER_PERMISSIONS,
   RECORDING_STATE_KEY,
   type BackgroundMessage,
@@ -250,7 +253,9 @@ async function startRecording(tab: chrome.tabs.Tab & { id: number }, call: CallI
     if (call.platform === "google-meet") {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["meet-captions.js"] });
       const showIndicator = await getLocal<boolean>(SHOW_INDICATOR_STORAGE_KEY, false);
-      const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime(), showIndicator };
+      const autoPost = await getLocal<boolean>(AUTO_POST_DISCLOSURE_STORAGE_KEY, false);
+      const disclosure = autoPost ? (await getLocal<string>(DISCLOSURE_STORAGE_KEY, "")).trim() || DEFAULT_DISCLOSURE : null;
+      const captionsCmd: ContentCommand = { target: "captions", type: "start", meetingId, startedAtMs: startedAt.getTime(), showIndicator, disclosure };
       await chrome.tabs.sendMessage(tab.id, captionsCmd);
     }
 

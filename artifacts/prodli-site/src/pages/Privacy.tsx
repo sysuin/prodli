@@ -8,7 +8,7 @@ import { Logo } from "../components/Logo";
  * changes, update this text and the review notes together. Items in
  * [square brackets] must be filled in before publishing.
  */
-export const LAST_UPDATED = "20 November 2026";
+export const LAST_UPDATED = "23 November 2026";
 
 export const PRIVACY_SECTIONS: { title: string; body: string }[] = [
   {
@@ -59,7 +59,7 @@ For each signed-in device we keep a session: a random sign-in token (we store on
 • your Today page: each day's focus, reflection and daily brief, and your weekly reviews and notes on each week
 Settings (including site categories, focus blocking and Ask ProdLi saved prompts) are never uploaded. Each account's data is kept in its own separate database.
 
-You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it.
+You can stop a computer from uploading the meetings it records (account window → Sync). Meeting transcripts contain what other participants said. You are responsible for telling them that you take notes and for getting their consent where the law requires it. To help, ProdLi can post your heads-up message in the Google Meet chat when you start recording (off by default; Meetings → Setup), and can delete old recordings or whole meetings automatically after a period you choose (off by default; Meetings → Setup → Auto-delete). Deleting a meeting also deletes its synced copy.
 
 If you used ProdLi's earlier Google Drive sync, the copy in your Drive is merged into your account once, the first time you sign in, and Drive sync then turns off.`,
   },
@@ -139,7 +139,9 @@ These providers process data only to provide their services to us, under data pr
 • Backups: we back up synced data nightly. Each copy is deleted automatically after 30 days. Our hosting provider's automatic recovery points also expire within 30 days.
 • "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, shared meeting notes, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
 • Subscription records (ProdLi Pro): while you have the account. Dodo Payments keeps payment and tax records as the law requires; deleting your ProdLi account cancels your subscription.
-• Signing out keeps your data on that device. Data stored only in your browser stays until you delete it.`,
+• Signing out keeps your data on that device. Data stored only in your browser stays until you delete it.
+• Meetings: until you delete them, or automatically after the period you set in Meetings → Setup → Auto-delete (recordings and whole meetings separately; off by default).
+• Your data is yours: you can download every note, meeting and to-do as plain Markdown files, offline and without an account (Settings → Backup & data). If ProdLi ever shuts down, we'll give at least 60 days' notice so you can download everything first.`,
   },
   {
     title: "Security",
@@ -213,6 +215,8 @@ You're responsible for your content. In particular, if you record or transcribe 
   {
     title: "ProdLi Pro (paid plan)",
     body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 1,000 Ask ProdLi questions, 2,000 writing-help uses and 1,500 minutes of audio transcription per month) and adds features shown in the app as Pro (currently your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series history, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries that use your own notes, a decision log, meeting type rules, dictation Command Mode and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
+
+New accounts get a free 14-day Pro trial. It starts when you create your account, needs no card and ends by itself: afterwards you're on the free plan, nothing you saved is deleted, and only the Pro features and higher limits stop. You can buy Pro during the trial.
 
 Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Dodo Payments' terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },

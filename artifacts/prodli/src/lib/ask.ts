@@ -157,6 +157,15 @@ export function sourcesFrom(numbers: number[], snippets: Snippet[]): AskSource[]
 
 export const SUGGESTIONS = ["What should I focus on now?", "What's overdue?", "Summarize my last meeting", "Plan my afternoon", "What did I get done yesterday?"];
 
+/** Starter recipes over meetings and notes: run once, or ☆ save to reuse or schedule (lib/askPrompts.ts). */
+export const RECIPES = [
+  "What did I promise people this week?",
+  "Open action items from this week's meetings",
+  "Recap my last one-on-one: decisions, follow-ups, open questions",
+  "What decisions did we make this week, and in which meetings?",
+  "Prep me for my next meeting with the same people",
+];
+
 /** Opens the Ask ProdLi panel from anywhere in the app (App.tsx listens), optionally asking right away. */
 export const ASK_EVENT = "prodli-ask";
 export function openAsk(question?: string): void {

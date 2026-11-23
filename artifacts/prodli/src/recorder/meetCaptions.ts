@@ -375,7 +375,77 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     updateBadge();
   }
 
-  function begin(id: string, startMs: number, withIndicator: boolean): void {
+  // ── Heads-up in the chat (opt-in: Setup → Meeting notes) ─────────────────────
+  // Opens Meet's chat if needed, types the message and sends it. Works by labels
+  // in English and by Meet's icon names in other languages. If Meet's page has
+  // changed and it can't, it says so on the page (only the recorder sees it).
+
+  const visible = (el: Element) => (el as HTMLElement).offsetParent !== null || (el as HTMLElement).getClientRects().length > 0;
+
+  function chatInput(): HTMLTextAreaElement | null {
+    for (const t of document.querySelectorAll<HTMLTextAreaElement>("textarea")) {
+      const label = `${t.getAttribute("aria-label") ?? ""} ${t.getAttribute("placeholder") ?? ""}`;
+      if (visible(t) && !t.closest("[data-prodli-badge]") && (/message|chat/i.test(label) || t.closest('[role="complementary"], aside'))) return t;
+    }
+    return null;
+  }
+
+  function chatButton(): HTMLButtonElement | null {
+    for (const b of document.querySelectorAll<HTMLButtonElement>("button")) {
+      const label = b.getAttribute("aria-label") ?? "";
+      if (/chat with everyone|^chat\b|open chat|show everyone/i.test(label) || hasIcon(b, ["chat", "chat_bubble", "forum"])) return b;
+    }
+    return null;
+  }
+
+  function sendButton(input: HTMLTextAreaElement): HTMLButtonElement | null {
+    const scope = input.closest("form, [role='complementary'], aside") ?? document;
+    for (const b of scope.querySelectorAll<HTMLButtonElement>("button")) {
+      if (/send/i.test(b.getAttribute("aria-label") ?? "") || hasIcon(b, ["send"])) return b;
+    }
+    return null;
+  }
+
+  function showChatNote(text: string): void {
+    const note = document.createElement("div");
+    note.setAttribute("data-prodli-chat-note", "");
+    note.setAttribute("role", "status");
+    Object.assign(note.style, { position: "fixed", left: "12px", bottom: "160px", zIndex: "2147483647", maxWidth: "320px", padding: "8px 12px", background: "#F59E0B", color: "#000", borderRadius: "10px", font: "600 12px/1.4 system-ui, sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.3)" });
+    note.textContent = text;
+    document.body.appendChild(note);
+    window.setTimeout(() => note.remove(), 12_000);
+  }
+
+  async function postToChat(message: string): Promise<boolean> {
+    let input = chatInput();
+    if (!input) {
+      chatButton()?.click();
+      for (let i = 0; i < 15 && !input; i++) {
+        await new Promise((r) => window.setTimeout(r, 200));
+        input = chatInput();
+      }
+    }
+    if (!input) return false;
+    input.focus();
+    // Set the value the way React-style pages notice it.
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    if (setter) setter.call(input, message);
+    else input.value = message;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => window.setTimeout(r, 150));
+    const send = sendButton(input);
+    if (send && !send.disabled) send.click();
+    else input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
+    await new Promise((r) => window.setTimeout(r, 300));
+    return input.value.trim() !== message.trim();
+  }
+
+  async function postDisclosure(message: string): Promise<void> {
+    const ok = await postToChat(message).catch(() => false);
+    if (!ok) showChatNote("ProdLi couldn't post your heads-up in the chat. Please paste it yourself (Setup → Meeting notes → Copy heads-up).");
+  }
+
+  function begin(id: string, startMs: number, withIndicator: boolean, disclosure?: string | null): void {
     if (meetingId === id) return;
     meetingId = id;
     startedAtMs = startMs;
@@ -391,6 +461,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
     sendTimer = window.setInterval(() => flush(), SEND_EVERY_MS);
     scan();
     flush(true);
+    if (disclosure) void postDisclosure(disclosure);
   }
 
   function teardown(): void {
@@ -408,7 +479,7 @@ import type { BackgroundMessage, ContentCommand, TranscriptEntry } from "./types
   function onMessage(msg: ContentCommand, _sender: chrome.runtime.MessageSender, sendResponse: (r: unknown) => void) {
     if (msg?.target !== "captions") return undefined;
     if (msg.type === "start") {
-      begin(msg.meetingId, msg.startedAtMs, !!msg.showIndicator);
+      begin(msg.meetingId, msg.startedAtMs, !!msg.showIndicator, msg.disclosure);
       sendResponse({ ok: true });
     } else if (msg.type === "stop") {
       scan();

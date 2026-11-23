@@ -36,7 +36,7 @@ import {
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
 import { desktop } from "../lib/desktop";
-import { checkout, formatBytes, formatPrice, getBilling, openPortal, type Billing, type Interval } from "../lib/billing";
+import { checkout, formatBytes, formatPrice, getBilling, openPortal, trialDaysLeft, type Billing, type Interval } from "../lib/billing";
 
 function PlanBox({ user }: { user: ProdliUser }) {
   const [billing, setBilling] = useState<Billing | null | undefined>(undefined);
@@ -77,7 +77,9 @@ function PlanBox({ user }: { user: ProdliUser }) {
   };
 
   if (!billing) return null; // loading, or an older server without billing
-  const pro = billing.plan === "pro";
+  const trial = billing.trial ?? null;
+  // During the free trial the plan is "pro" but there's nothing to manage yet: show the upgrade options.
+  const pro = billing.plan === "pro" && !trial;
   const fmtDate = (t: number | null) => (t ? new Date(t).toLocaleDateString([], { dateStyle: "medium" }) : "");
   const priceText = (i: Interval) => {
     const p = billing.prices[i];
@@ -95,7 +97,12 @@ function PlanBox({ user }: { user: ProdliUser }) {
 
   return (
     <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }} data-testid="plan-box">
-      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{pro ? "⭐ ProdLi Pro" : "Your plan: Free"}</div>
+      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{pro ? "⭐ ProdLi Pro" : trial ? `⭐ Pro trial: ${trialDaysLeft(trial.endsAt)} ${trialDaysLeft(trial.endsAt) === 1 ? "day" : "days"} left` : "Your plan: Free"}</div>
+      {trial && (
+        <div style={{ fontSize: 13, lineHeight: 1.6 }} data-testid="trial-note">
+          You have every Pro feature free until {fmtDate(trial.endsAt)}. No card needed. After that you're on the free plan below: nothing is deleted, the Pro features and higher AI limits stop. Upgrade any time to keep them.
+        </div>
+      )}
       {pro ? (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6 }}>
@@ -507,7 +514,7 @@ function ProdliAccountSection() {
           <div style={{ fontWeight: 900, fontSize: 16 }}>{user.name || user.email}</div>
           <div style={{ fontSize: 13, opacity: 0.75, overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
         </div>
-        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", background: user.plan === "pro" ? "#FFD700" : "transparent", color: user.plan === "pro" ? "#000" : undefined }}>{user.plan === "pro" ? "Pro" : "Free"}</span>
+        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", background: user.plan === "pro" ? "#FFD700" : "transparent", color: user.plan === "pro" ? "#000" : undefined }}>{user.plan === "pro" ? (user.trialEndsAt ? "Pro trial" : "Pro") : "Free"}</span>
       </div>
 
       <div style={{ ...box, gridTemplateColumns: "1fr auto", alignItems: "center" }}>

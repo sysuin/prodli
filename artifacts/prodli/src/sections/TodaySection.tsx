@@ -21,6 +21,7 @@ import type { DailyBrief, DayRecord, Habit, Todo, TodaySettings } from "../types
 import { toggleTodo as toggleCompletion } from "../lib/recurrence";
 import { TabSessions } from "./today/TabSessions";
 import { QuickLinks } from "./today/QuickLinks";
+import { ValueRecap } from "./today/ValueRecap";
 import { ReadLater } from "./today/ReadLater";
 import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
 import { DayView } from "./today/DayView";
@@ -247,6 +248,8 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
         </header>
 
         <QuickLinks />
+
+        <ValueRecap trialEndsAt={proAccess?.trialEndsAt} />
 
 
         {daysLoaded && reviewDue(days) && (
