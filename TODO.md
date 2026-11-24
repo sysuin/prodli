@@ -65,7 +65,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 **Additions from the install research** (2026-11-23; ranked, best first; why: [docs/research/2026-11-most-installed-apps-and-extensions.md](docs/research/2026-11-most-installed-apps-and-extensions.md))
 - [ ] **A1. Desktop menu-bar timer** (2–4 days, desktop): Pomodoro countdown, next meeting and top task in the tray; keep-awake toggle, and automatic keep-awake while recording or focusing.
 - [ ] **A2. Habit streak freeze and milestone moments** (2–3 days, web + phone).
-- [ ] **A3. Screenshot to note or task** (5–8 days, +3–4 for full-page; extension, then paste in the web app): visible area or region, annotate, AI pulls out the text. No new permission.
+- [x] **A3. Screenshot to note or task** — *done 2026-11-24:* right-click → Screenshot to ProdLi, or 📸 in Quick add (Alt+Shift+A); crop, box, arrow, highlight, undo; save as a note or a to-do linked to its note; ✨ Pull out the text (`/api/ai/ocr`, writing allowance) so Ask finds it. activeTab only, no new permission. Full-page capture not built. Was: (5–8 days, +3–4 for full-page; extension, then paste in the web app): visible area or region, annotate, AI pulls out the text. No new permission.
 - [ ] **A4. One palette with prefixes** (4–6 days, desktop + extension): "t" to-do, "n" note, "h" habit, "p 25" Pomodoro, "?" Ask — shared by Quick add and Cmd+K.
 - [ ] **A5. Phone widgets** (2–3 weeks): habit check-off with streak, today's to-dos, next meeting (replaces part of Tier 3 #16).
 - [ ] **A6. Phone share sheet** (1–2 weeks): link, text or image to a note, task or Read later.

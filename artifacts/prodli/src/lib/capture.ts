@@ -35,7 +35,7 @@ export function safeUrl(url: string | undefined): string | undefined {
 }
 
 /** `smart`: the user typed it, so words like "tomorrow" or "!high" set the date and priority. */
-export async function addTask(input: CaptureInput & { planToday?: boolean; smart?: boolean }): Promise<Todo> {
+export async function addTask(input: CaptureInput & { planToday?: boolean; smart?: boolean; noteId?: string }): Promise<Todo> {
   const now = new Date().toISOString();
   let title = clean(input.title, 300) || clean(input.text, 300) || "New task";
   const p = input.smart ? parseTask(title) : null;
@@ -61,6 +61,7 @@ export async function addTask(input: CaptureInput & { planToday?: boolean; smart
   if (p?.repeat) todo.repeat = p.repeat;
   if (p?.labels?.length) todo.labels = [...new Set(p.labels.map(normLabel))];
   if (p?.listName) todo.listId = await ensureListStored(p.listName);
+  if (input.noteId) todo.noteId = input.noteId;
   const todos = await storageGet<Todo[]>("todos", []);
   await storageSet("todos", [todo, ...todos]);
   return todo;
@@ -75,12 +76,13 @@ export function noteHtml(input: CaptureInput): string {
   return parts.join("") || "<p></p>";
 }
 
-export async function addNote(input: CaptureInput): Promise<Note> {
+/** `html`: the note's content as ready-made Editor HTML (screenshots), instead of the text. */
+export async function addNote(input: CaptureInput & { html?: string }): Promise<Note> {
   const now = new Date().toISOString();
   const note: Note = {
     id: generateId(),
     title: clean(input.title, 120) || clean(input.text, 60) || "Saved from the web",
-    content: noteHtml(input),
+    content: input.html ?? noteHtml(input),
     createdAt: now,
     updatedAt: now,
     autoTitle: false,

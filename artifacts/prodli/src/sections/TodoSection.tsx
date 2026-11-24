@@ -28,6 +28,7 @@ import { TodoNav, sameSelection, selectionQuery, selectionTitle, type Selection 
 import { findList, isList, LIST_EMOJIS, matchesQuery, normLabel } from "../lib/taskLists";
 import type { ListItem, Repeat, TaskQuery, Todo } from "../types";
 import { BoardView } from "./todo/BoardView";
+import { openSource } from "../lib/askOpen";
 
 type Priority = "high" | "medium" | "low" | "none";
 type Filter = "all" | "active" | "completed" | "high" | "medium" | "low";
@@ -214,6 +215,9 @@ function SortableTodo({ todo, onToggle, onDelete, onEdit, onAddSubtask, onToggle
           {(todo.labels ?? []).map((l) => (
             <span key={l} data-testid="label-chip" style={{ fontSize: 10, fontWeight: 800, color: "#6D28D9", flexShrink: 0 }} className="todo-label">@{l}</span>
           ))}
+          {todo.noteId && (
+            <button onClick={() => void openSource({ kind: "note", id: todo.noteId!, title: todo.title })} aria-label={`Open note: ${todo.title}`} title="Open the note with the screenshot" style={{ border: "var(--nb-border)", background: "hsl(var(--card))", height: 20, padding: "0 4px", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>🖼</button>
+          )}
           {todo.repeat && (
             <span data-testid="repeat-badge" title={repeatLabel(todo.repeat)} aria-label={repeatLabel(todo.repeat)} style={{ fontSize: 11, fontWeight: 800, flexShrink: 0, color: "hsl(var(--muted-foreground))" }}>🔁</span>
           )}

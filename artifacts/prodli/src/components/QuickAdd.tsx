@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addNote, addTask, type CaptureInput } from "../lib/capture";
 import { parseTask } from "../lib/taskParse";
 import { addReadLater } from "../lib/readLater";
+import { SCREENSHOT_MESSAGE } from "../lib/screenshotCore";
 
 const field: CSSProperties = { border: "var(--nb-border)", padding: "8px 10px", fontFamily: "inherit", fontSize: 14, background: "hsl(var(--background))", color: "hsl(var(--foreground))", width: "100%", boxSizing: "border-box" };
 
@@ -132,6 +133,43 @@ export function QuickAddModal({ initial, onClose, onSaved }: { initial?: Capture
   );
 }
 
+/**
+ * 📸 in the Quick add window: the background screenshots the tab the shortcut
+ * was pressed on (activeTab) and opens the annotator. Extension only: the
+ * window's address carries that tab (index.html#quick-add?…&tab=ID).
+ */
+function ScreenshotButton() {
+  const tabId = Number(new URLSearchParams(location.hash.slice(location.hash.indexOf("?") + 1)).get("tab"));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!tabId || typeof chrome === "undefined" || !chrome.runtime?.id) return null;
+  const take = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = (await chrome.runtime.sendMessage({ target: SCREENSHOT_MESSAGE, tabId })) as { ok: boolean; error?: string } | undefined;
+      if (r?.ok) return window.close();
+      setError(r?.error ?? "ProdLi couldn't take a screenshot of this page.");
+    } catch {
+      setError("ProdLi couldn't take a screenshot of this page.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" onClick={() => void take()} disabled={busy} style={{ ...btn(false, busy), padding: "5px 10px", textTransform: "none" }}>
+        {busy ? "Taking…" : "📸 Screenshot this page"}
+      </button>
+      {error && (
+        <div role="alert" style={{ position: "fixed", left: 18, right: 18, bottom: 12, border: "var(--nb-border)", background: "hsl(var(--card))", padding: "8px 10px", fontSize: 12, fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** The extension's Quick add window (Alt+Shift+A). */
 export function QuickAddWindow({ initial }: { initial?: CaptureInput }) {
   const [done, setDone] = useState<string | null>(null);
@@ -143,7 +181,10 @@ export function QuickAddWindow({ initial }: { initial?: CaptureInput }) {
   }, []);
   return (
     <main style={{ padding: 18, minHeight: "100vh", boxSizing: "border-box", background: "hsl(var(--background))", color: "hsl(var(--foreground))", fontFamily: "Space Grotesk, Inter, sans-serif" }}>
-      <div style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>➕ Add to ProdLi</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+        <div style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>➕ Add to ProdLi</div>
+        {!done && <ScreenshotButton />}
+      </div>
       {done ? (
         <div role="status" style={{ fontWeight: 700 }}>✓ {done}</div>
       ) : (

@@ -21,6 +21,8 @@ export default defineConfig({
         main: path.resolve(import.meta.dirname, "index.extension.html"),
         background: path.resolve(import.meta.dirname, "src/background.ts"),
         offscreen: path.resolve(import.meta.dirname, "offscreen.html"),
+        // Screenshot to ProdLi: crop, mark up and save (opened in its own small window).
+        screenshot: path.resolve(import.meta.dirname, "screenshot.html"),
         // Injected into meet.google.com with chrome.scripting — must stay
         // self-contained (type-only imports), since content scripts can't use ES imports.
         "meet-captions": path.resolve(import.meta.dirname, "src/recorder/meetCaptions.ts"),
