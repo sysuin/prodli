@@ -10,7 +10,7 @@ import { z } from "zod/v4";
 import { AI_MODEL, AiError } from "./ai";
 import { tasksLanguageText, VOICE_LANGUAGES } from "./languages";
 
-export const WRITE_MONTHLY_LIMIT = { free: 200, pro: 2000 } as const;
+export const WRITE_MONTHLY_LIMIT = { free: 200, pro: 1000, plus: 2500 } as const;
 /** About 1,000 words. The app checks the same limit before sending. */
 export const MAX_REWRITE_CHARS = 6000;
 

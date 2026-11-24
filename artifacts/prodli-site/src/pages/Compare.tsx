@@ -27,7 +27,7 @@ interface Comparison {
   sources: [string, string][];
 }
 
-const PRODLI_PRICE = "Free plan; Pro $5 a month, or $48 a year (plus tax where it applies)";
+const PRODLI_PRICE = "Free plan; Pro $5 a month or $48 a year; Pro Plus $12 a month or $120 a year (plus tax where it applies)";
 
 const COMPARISONS: Record<Competitor, Comparison> = {
   granola: {

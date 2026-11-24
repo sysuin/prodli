@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 
 export const AI_MODEL = "claude-haiku-5-5";
 /** Summaries per calendar month (UTC). */
-export const AI_MONTHLY_LIMIT = { free: 20, pro: 300 } as const;
+export const AI_MONTHLY_LIMIT = { free: 20, pro: 300, plus: 900 } as const;
 /** ~150K tokens: far more than a long meeting, well inside the model's context. */
 export const MAX_TRANSCRIPT_CHARS = 600_000;
 

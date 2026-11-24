@@ -8,7 +8,7 @@ import { Logo } from "../components/Logo";
  * changes, update this text and the review notes together. Items in
  * [square brackets] must be filled in before publishing.
  */
-export const LAST_UPDATED = "23 November 2026";
+export const LAST_UPDATED = "24 November 2026";
 
 export const PRIVACY_SECTIONS: { title: string; body: string }[] = [
   {
@@ -233,12 +233,12 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
 You're responsible for your content. In particular, if you record or transcribe meetings, you must tell participants and get their consent where the law requires it, and you must only share meeting notes by link with people who should see them.`,
   },
   {
-    title: "ProdLi Pro (paid plan)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 1,000 Ask ProdLi questions, 2,000 writing-help uses and 1,500 minutes of audio transcription per month) and adds features shown in the app as Pro (currently your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series history, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries that use your own notes, a decision log, meeting type rules, dictation Command Mode and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
+    title: "ProdLi Pro and Pro Plus (paid plans)",
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 500 Ask ProdLi questions, 1,000 writing-help uses, 3,000 dictation clean-ups and 1,500 minutes of audio transcription per month). ProdLi Pro Plus includes everything in Pro with higher limits (currently 10 GB of synced data, 900 AI meeting summaries, 400 AI daily briefs or weekly reviews, 1,200 Ask ProdLi questions, 2,500 writing-help uses, 6,000 dictation clean-ups and 4,500 minutes of audio transcription per month). Both plans add features shown in the app as Pro (currently your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series history, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries that use your own notes, a decision log, meeting type rules, dictation Command Mode and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
 
 New accounts get a free 14-day Pro trial. It starts when you create your account, needs no card and ends by itself: afterwards you're on the free plan, nothing you saved is deleted, and only the Pro features and higher limits stop. You can buy Pro during the trial.
 
-Pro is a subscription, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renews automatically until you cancel. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Dodo Payments' terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
+Pro and Pro Plus are subscriptions, billed monthly or yearly in advance at the price shown at checkout (including any tax), and renew automatically until you cancel. You can switch plans in Settings → Plan & usage: moving to a higher plan (or from monthly to yearly) starts right away, and the unused part of your current period is credited against the new price; moving to a lower plan starts at your next renewal. You can cancel any time in Account → Manage subscription; Pro then stays on until the end of the period you've paid for, and you won't be charged again. Refunds follow Dodo Payments' terms and the law where you live. If we change the price, we'll tell you before your next renewal, and you can cancel before it applies. If a payment fails, Pro may stop until it's paid. Deleting your account cancels your subscription.`,
   },
   {
     title: "Acceptable use",

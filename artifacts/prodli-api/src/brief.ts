@@ -13,7 +13,7 @@ import { AI_MODEL, AiError } from "./ai";
 import { briefLanguageText, VOICE_LANGUAGES } from "./languages";
 
 /** Brief generations per month (UTC): two a day on the free plan. */
-export const BRIEF_MONTHLY_LIMIT = { free: 62, pro: 200 } as const;
+export const BRIEF_MONTHLY_LIMIT = { free: 62, pro: 200, plus: 400 } as const;
 export const MAX_BRIEF_CONTEXT_CHARS = 40_000;
 
 const hhmm = z.string().regex(/^\d{2}:\d{2}$/);

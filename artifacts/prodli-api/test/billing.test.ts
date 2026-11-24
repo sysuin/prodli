@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AI_MONTHLY_LIMIT } from "../src/ai";
+import { ASK_MONTHLY_LIMIT } from "../src/ask";
+import { QUOTA_BYTES } from "../src/syncStore";
 import { signWebhook, verifyWebhook } from "../src/billing";
 import type { Env } from "../src/app";
 import { EXT_ORIGIN, json, makeApp, makeEnv } from "./helpers";
@@ -14,7 +16,7 @@ beforeEach(async () => {
 
 // A Standard Webhooks secret: "whsec_" + base64 key.
 const SECRET = `whsec_${btoa("prodli-test-webhook-key-32-bytes!")}`;
-const selling = () => ({ ...base, DODO_ENV: "test", DODO_PRODUCT_MONTHLY: "pdt_month", DODO_PRODUCT_YEARLY: "pdt_year", DODO_WEBHOOK_SECRET: SECRET, DODO_API_KEY: "dodo_test_key", ANTHROPIC_API_KEY: "sk-test" }) as Env;
+const selling = () => ({ ...base, DODO_ENV: "test", DODO_PRODUCT_MONTHLY: "pdt_month", DODO_PRODUCT_YEARLY: "pdt_year", DODO_PRODUCT_PLUS_MONTHLY: "pdt_plus_month", DODO_PRODUCT_PLUS_YEARLY: "pdt_plus_year", DODO_WEBHOOK_SECRET: SECRET, DODO_API_KEY: "dodo_test_key", ANTHROPIC_API_KEY: "sk-test" }) as Env;
 
 async function signIn(app: ReturnType<typeof makeApp>["app"], env: Env, who = "a") {
   const res = await app.request("/api/auth/google", json({ kind: "extension", accessToken: `good:sub-${who}:${who}@example.com:${who}` }, { Origin: EXT_ORIGIN }), env);
@@ -90,7 +92,7 @@ describe("ProdLi Pro", () => {
     expect(await r1.json()).toEqual({ url: "https://checkout.dodopayments.com/session/pdt_year" });
     await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), env);
     expect(calls.filter((c) => c.kind === "dodo-customer")).toEqual([{ kind: "dodo-customer", clientId: `test:a@example.com:${userId}` }]);
-    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`]);
+    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout&plan=pro`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout&plan=pro`]);
     expect((await app.request("/api/billing/checkout", json({ interval: "weekly" }, headers), env)).status).toBe(400);
     expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), { ...env, DODO_API_KEY: "FAIL" } as Env)).status).toBe(502);
   });
@@ -105,7 +107,7 @@ describe("ProdLi Pro", () => {
     expect(await (await deliver(app, env, subEvent("subscription.active", customer), clock.now)).json()).toEqual({ ok: true, applied: true });
     expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ plan: "pro", canManage: true, subscription: { status: "active", interval: "month", renewsAt: Date.parse("2027-02-15T10:00:00Z"), endsAt: null } });
     expect(await (await app.request("/api/ai/usage", { headers }, env)).json()).toMatchObject({ limit: AI_MONTHLY_LIMIT.pro });
-    expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), env)).status).toBe(409); // already Pro
+    expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), env)).status).toBe(409); // already Pro: switch instead
 
     // Cancelled at the end of the period: still Pro until then.
     clock.now += 60_000;
@@ -182,6 +184,53 @@ describe("ProdLi Pro", () => {
     expect(await (await app.request("/pro/done?from=portal", {}, selling())).text()).toContain("You're all set");
     const odd = await app.request("/pro/done?from=checkout&payment_id=p&status=%3Cb%3E", {}, selling());
     expect(odd.headers.get("location")).toBe("/pro/done?from=checkout");
+  });
+
+  it("Pro Plus: its own prices, checkout, higher limits; apps from before it still see Pro", async () => {
+    const clock = { now: Date.parse("2027-01-15T10:00:05Z") };
+    const { app, calls } = makeApp(clock);
+    const env = selling();
+    // Anyone can see the plans (the picker before signing in).
+    const plans = (await (await app.request("/api/billing/plans", {}, env)).json()) as { plans: Record<string, unknown>; limits: Record<string, { asks: number; storageBytes: number }> };
+    expect(plans.plans).toMatchObject({ pro: { onSale: { monthly: true, yearly: true }, prices: { yearly: { amount: 4800 } } }, plus: { onSale: { monthly: true, yearly: true }, prices: { monthly: { amount: 1200 }, yearly: { amount: 12000 } } } });
+    expect(plans.limits.plus.asks).toBe(ASK_MONTHLY_LIMIT.plus);
+    expect(plans.limits.plus.storageBytes).toBe(QUOTA_BYTES.plus);
+    expect(ASK_MONTHLY_LIMIT.plus).toBeGreaterThan(ASK_MONTHLY_LIMIT.pro);
+
+    const { headers } = await signIn(app, env);
+    const r = await app.request("/api/billing/checkout", json({ plan: "plus", interval: "yearly" }, headers), env);
+    expect(await r.json()).toEqual({ url: "https://checkout.dodopayments.com/session/pdt_plus_year" });
+    expect((await app.request("/api/billing/checkout", json({ plan: "max", interval: "yearly" }, headers), env)).status).toBe(400);
+    const customer = (await env.DB.prepare("SELECT customer_id FROM billing_customers").first<{ customer_id: string }>())!.customer_id;
+    await deliver(app, env, subEvent("subscription.active", customer, { product_id: "pdt_plus_year", payment_frequency_interval: "Year" }), clock.now);
+    expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ plan: "pro", tier: "plus", subscription: { plan: "plus", interval: "year" } });
+    expect(await (await app.request("/api/ai/usage", { headers }, env)).json()).toMatchObject({ asks: { limit: ASK_MONTHLY_LIMIT.plus } });
+    expect(await (await app.request("/api/me", { headers }, env)).json()).toMatchObject({ user: { plan: "pro", tier: "plus" } });
+    expect(await (await app.request("/api/sync/usage", { headers }, env)).json()).toMatchObject({ quota: QUOTA_BYTES.plus });
+    expect(calls.some((c) => c.kind === "dodo-checkout" && c.clientId.startsWith("pdt_plus_year:"))).toBe(true);
+    expect(calls.find((c) => c.kind === "dodo-checkout")?.clientId).toContain("/pro/done?from=checkout&plan=plus");
+    expect(await (await app.request("/pro/done?from=checkout&plan=plus&status=succeeded", {}, env)).text()).toContain("You're on ProdLi Pro Plus");
+  });
+
+  it("switching plans: up now, down at renewal, never a second subscription", async () => {
+    const clock = { now: Date.parse("2027-01-15T10:00:05Z") };
+    const { app, calls } = makeApp(clock);
+    const env = selling();
+    const { headers } = await signIn(app, env);
+    expect((await app.request("/api/billing/change", json({ plan: "plus", interval: "monthly" }, headers), env)).status).toBe(404); // nothing to switch yet
+    const customer = await checkoutCustomer(app, env, headers);
+    await deliver(app, env, subEvent("subscription.active", customer), clock.now); // Pro monthly
+    expect(await (await app.request("/api/billing/change", json({ plan: "pro", interval: "monthly" }, headers), env)).json()).toMatchObject({ error: "same_plan" });
+    expect(await (await app.request("/api/billing/change", json({ plan: "plus", interval: "monthly" }, headers), env)).json()).toEqual({ change: "now" });
+    expect(await (await app.request("/api/billing/change", json({ plan: "pro", interval: "yearly" }, headers), env)).json()).toEqual({ change: "now" }); // monthly → yearly
+    expect(calls.filter((c) => c.kind === "dodo-change").map((c) => c.clientId)).toEqual(["sub_01:pdt_plus_month:now", "sub_01:pdt_year:now"]);
+    // Dodo confirms the move to Plus.
+    clock.now += 60_000;
+    await deliver(app, env, subEvent("subscription.plan_changed", customer, { product_id: "pdt_plus_month" }, "2027-01-15T10:01:00.000Z"), clock.now);
+    expect(await (await app.request("/api/billing", { headers }, env)).json()).toMatchObject({ tier: "plus" });
+    expect(await (await app.request("/api/billing/change", json({ plan: "pro", interval: "monthly" }, headers), env)).json()).toEqual({ change: "at_renewal" });
+    expect(calls.at(-1)).toEqual({ kind: "dodo-change", clientId: "sub_01:pdt_month:renewal" });
+    expect((await app.request("/api/billing/change", json({ plan: "plus", interval: "yearly" }, headers), { ...env, DODO_API_KEY: "FAIL" } as Env)).status).toBe(502);
   });
 
   it("opens Dodo's customer portal for subscribers", async () => {

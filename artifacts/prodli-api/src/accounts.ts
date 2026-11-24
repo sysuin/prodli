@@ -9,11 +9,20 @@ export interface User {
   email: string;
   name: string;
   picture: string | null;
-  /** Effective plan: "pro" for subscribers and during the free trial. */
+  /** Effective plan: "pro" or "plus" for subscribers, "pro" during the free trial. */
   plan: string;
   createdAt: number;
   /** When the free Pro trial ends (ms), while it's running; null otherwise (never had one, ended, or subscribed). */
   trialEndsAt: number | null;
+}
+
+/**
+ * The user as sent to the apps. `plan` stays "free" | "pro" so app versions from
+ * before Pro Plus keep working (Pro Plus includes everything Pro has); `tier` is
+ * the exact plan: "free" | "pro" | "plus".
+ */
+export function clientUser(u: User): User & { tier: string } {
+  return { ...u, plan: u.plan === "free" ? "free" : "pro", tier: u.plan };
 }
 
 export interface SessionInfo {
@@ -47,7 +56,7 @@ export function trialDays(value: string | undefined): number {
 }
 
 const toUser = (r: UserRow, now: number): User => {
-  const trial = r.plan !== "pro" && r.trial_ends_at != null && r.trial_ends_at > now;
+  const trial = r.plan === "free" && r.trial_ends_at != null && r.trial_ends_at > now;
   return { id: r.id, email: r.email, name: r.name, picture: r.picture, plan: trial ? "pro" : r.plan, createdAt: r.created_at, trialEndsAt: trial ? r.trial_ends_at : null };
 };
 

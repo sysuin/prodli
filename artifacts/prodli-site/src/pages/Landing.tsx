@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Logo } from "../components/Logo";
 import { CHROME_STORE_URL, SiteFooter } from "../components/Shell";
 
@@ -26,9 +27,13 @@ const STEPS = [
   { n: "03", title: "Wake up to a plan", desc: "Action items become to-dos, and each morning's brief plans your day around them and your calendar." },
 ];
 
-const PLANS = [
-  { name: "Free", price: "Free", note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "62 AI daily briefs & weekly reviews", "100 Ask ProdLi questions", "300 min of AI audio transcription", "Voice dictation in any text box (1,000 AI clean-ups)", "100 MB of synced data", "Share meeting notes by link (7 or 30 days)"], cta: true },
-  { name: "Pro", price: "$5 / month", note: "Or $48 a year. For people with lots of meetings.", rows: ["300 AI meeting summaries", "200 AI daily briefs & weekly reviews", "1,000 Ask ProdLi questions", "1,500 min of AI audio transcription", "2 GB of synced data", "Your own meeting templates", "Talk-time insights", "Action items across meetings", "AI meeting prep", "Focus trends", "Your writing style", "Meeting series history", "Notes in your language", "Prep reminders", "Key moments in summaries", "Meeting insights", "AI meeting coach", "Summaries from your notes", "Decision log", "Meeting type rules", "Dictation Command Mode", "Shared links that never expire"], cta: false },
+// Keep in step with the server's limits (prodli-api: ai.ts, ask.ts, brief.ts, write.ts, transcribe.ts, dictate.ts, syncStore.ts).
+const PRO_FEATURES = ["Your own meeting templates", "Talk-time insights", "Action items across meetings", "AI meeting prep", "Focus trends", "Your writing style", "Meeting series history", "Notes in your language", "Prep reminders", "Key moments in summaries", "Meeting insights", "AI meeting coach", "Summaries from your notes", "Decision log", "Meeting type rules", "Dictation Command Mode", "Shared links that never expire"];
+type Period = "monthly" | "yearly";
+const PLANS: { key: "free" | "pro" | "plus"; name: string; price: Record<Period, string>; billed: Record<Period, string>; note: string; rows: string[]; extra?: string }[] = [
+  { key: "free", name: "Free", price: { monthly: "$0", yearly: "$0" }, billed: { monthly: "Forever", yearly: "Forever" }, note: "Everything in ProdLi, with monthly AI allowances.", rows: ["20 AI meeting summaries", "5 h of AI audio transcription", "100 Ask ProdLi questions", "62 AI daily briefs & weekly reviews", "200 writing-help uses", "Voice dictation in any text box (1,000 AI clean-ups)", "100 MB of synced data", "Share meeting notes by link (7 or 30 days)"] },
+  { key: "pro", name: "Pro", price: { monthly: "$5", yearly: "$4" }, billed: { monthly: "Billed monthly", yearly: "$48 billed yearly" }, note: "For people with lots of meetings.", rows: ["300 AI meeting summaries", "25 h of AI audio transcription", "500 Ask ProdLi questions", "200 AI daily briefs & weekly reviews", "1,000 writing-help uses", "3,000 dictation AI clean-ups", "2 GB of synced data"], extra: "Plus every Pro feature:" },
+  { key: "plus", name: "Pro Plus", price: { monthly: "$12", yearly: "$10" }, billed: { monthly: "Billed monthly", yearly: "$120 billed yearly" }, note: "For meeting-heavy days and heavy AI use.", rows: ["900 AI meeting summaries", "75 h of AI audio transcription", "1,200 Ask ProdLi questions", "400 AI daily briefs & weekly reviews", "2,500 writing-help uses", "6,000 dictation AI clean-ups", "10 GB of synced data"], extra: "Everything in Pro:" },
 ];
 
 const FAQ = [
@@ -39,7 +44,10 @@ const FAQ = [
   { q: "Does it work on my phone?", a: "Yes — open app.prodli.com and add it to your home screen. The Chrome extension adds the new tab, meeting notes, quick add from any page and time tracking." },
 ];
 
+const APP_URL = "https://app.prodli.com";
+
 export function Landing() {
+  const [period, setPeriod] = useState<Period>("yearly");
   return (
     <div style={{ fontFamily: "var(--font)", background: "var(--bg)", minHeight: "100vh" }}>
 
@@ -248,31 +256,59 @@ export function Landing() {
 
       {/* ── PRICING ──────────────────────────────────────────────────────── */}
       <section id="pricing" className="site-section" style={{ padding: "72px 40px", borderBottom: "var(--border)" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1040, margin: "0 auto" }}>
           <div className="section-label" style={{ marginBottom: 12 }}>Pricing</div>
-          <h2 style={{ fontWeight: 900, fontSize: "clamp(24px, 4vw, 40px)", letterSpacing: "-0.02em", marginBottom: 40 }}>Free to use. Pro when you need more AI.</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
+            <h2 style={{ fontWeight: 900, fontSize: "clamp(24px, 4vw, 40px)", letterSpacing: "-0.02em", margin: 0 }}>Free to use. Pay when you need more AI.</h2>
+            <div role="radiogroup" aria-label="Billing period" style={{ display: "inline-flex", border: "var(--border)", background: "#fff" }}>
+              {(["monthly", "yearly"] as const).map((p) => (
+                <button key={p} role="radio" aria-checked={period === p} onClick={() => setPeriod(p)} style={{ border: "none", padding: "10px 16px", fontWeight: 900, fontSize: 13, cursor: "pointer", fontFamily: "inherit", background: period === p ? "#000" : "transparent", color: period === p ? "var(--yellow)" : "#000" }}>
+                  {p === "monthly" ? "Monthly" : "Yearly"}
+                  {p === "yearly" && <span style={{ marginLeft: 6, background: "var(--yellow)", color: "#000", padding: "1px 6px", fontSize: 11 }}>save up to 20%</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
             {PLANS.map((plan) => (
-              <div key={plan.name} className="nb-card" style={{ padding: "26px 26px 24px", boxShadow: "var(--shadow)", background: plan.name === "Pro" ? "var(--yellow)" : undefined }}>
+              <div key={plan.key} className="nb-card" style={{ padding: "26px 26px 24px", boxShadow: "var(--shadow)", background: plan.key === "pro" ? "var(--yellow)" : undefined, position: "relative" }}>
+                {plan.key === "pro" && <span style={{ position: "absolute", top: -12, left: 20, background: "#000", color: "var(--yellow)", fontSize: 11, fontWeight: 900, padding: "3px 10px", letterSpacing: "0.08em", textTransform: "uppercase" }}>Most popular</span>}
                 <div style={{ fontWeight: 900, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.1em" }}>{plan.name}</div>
-                <div style={{ fontWeight: 900, fontSize: 32, letterSpacing: "-0.02em", margin: "6px 0 4px", color: "#000" }}>{plan.price}</div>
+                <div style={{ fontWeight: 900, fontSize: 36, letterSpacing: "-0.02em", margin: "6px 0 0", color: "#000" }}>
+                  {plan.price[period]}
+                  <span style={{ fontSize: 14, fontWeight: 700 }}> / month</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#5a3e20", marginBottom: 8 }}>{plan.billed[period]}</div>
                 <p style={{ fontSize: 13, color: "#5a3e20", marginBottom: 14 }}>{plan.note}</p>
+                {plan.key === "free" ? (
+                  <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 12, padding: "10px 20px", marginBottom: 18, display: "inline-block" }}>
+                    Add to Chrome →
+                  </a>
+                ) : (
+                  <a href={`${APP_URL}/?plan=${plan.key}&period=${period}`} className="nb-btn" style={{ fontSize: 12, padding: "10px 20px", marginBottom: 18, display: "inline-block", background: plan.key === "pro" ? "#000" : undefined, color: plan.key === "pro" ? "var(--yellow)" : undefined }}>
+                    Get {plan.name} →
+                  </a>
+                )}
                 <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", marginBottom: 6 }}>Every month</div>
-                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px", display: "grid", gap: 6 }}>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
                   {plan.rows.map((r) => (
                     <li key={r} style={{ fontSize: 14, fontWeight: 600 }}>✓ {r}</li>
                   ))}
                 </ul>
-                {plan.cta ? (
-                  <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" className="nb-btn" style={{ fontSize: 12, padding: "10px 20px" }}>
-                    Add to Chrome →
-                  </a>
-                ) : (
-                  <span style={{ fontSize: 12, fontWeight: 700 }}>Upgrade in the app (avatar › Upgrade to Pro). Plus tax where it applies. Cancel any time.</span>
+                {plan.extra && (
+                  <details style={{ marginTop: 12 }}>
+                    <summary style={{ fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{plan.extra} {PRO_FEATURES.length} features</summary>
+                    <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "grid", gap: 4 }}>
+                      {PRO_FEATURES.map((r) => (
+                        <li key={r} style={{ fontSize: 13 }}>✓ {r}</li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </div>
             ))}
           </div>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#5a3e20", marginTop: 20 }}>Prices in US dollars, plus tax where it applies; checkout shows your local price. Sign in with Google, pay on one page, and the plan turns on by itself on every device. Cancel any time. Payments by Dodo Payments (merchant of record).</p>
         </div>
       </section>
 

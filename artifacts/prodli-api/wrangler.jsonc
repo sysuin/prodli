@@ -61,7 +61,9 @@
         // Dodo test mode (test cards, no real money): ProdLi brand → products (pdt_…).
         "DODO_ENV": "test",
         "DODO_PRODUCT_MONTHLY": "pdt_0Nrhskgoru9SBqjRagidr",
-        "DODO_PRODUCT_YEARLY": "pdt_0NrhszgAdnghjeQRShn7u"
+        "DODO_PRODUCT_YEARLY": "pdt_0NrhszgAdnghjeQRShn7u",
+        "DODO_PRODUCT_PLUS_MONTHLY": "pdt_0NscNWBlygXD2Z8IFNSQU",
+        "DODO_PRODUCT_PLUS_YEARLY": "pdt_0NscNiMZcdNKW7eMRmMSO"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core-staging", "database_id": "b599423c-7434-45eb-b9e1-79aa69458b01", "migrations_dir": "migrations" }
@@ -93,7 +95,9 @@
         // Dodo live mode. Empty = Pro not on sale yet.
         "DODO_ENV": "live",
         "DODO_PRODUCT_MONTHLY": "pdt_0NsQmaoynGpbLkII9UlW0",
-        "DODO_PRODUCT_YEARLY": "pdt_0NsQmag3mV5vpOWnPiT6N"
+        "DODO_PRODUCT_YEARLY": "pdt_0NsQmag3mV5vpOWnPiT6N",
+        "DODO_PRODUCT_PLUS_MONTHLY": "pdt_0NscNqMoBSbttL6KZtAAp",
+        "DODO_PRODUCT_PLUS_YEARLY": "pdt_0NscNqHcM1KzjyfRpnn4z"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "prodli-core", "database_id": "58116cae-079a-4a3f-aeeb-20f905a37cd1", "migrations_dir": "migrations" }

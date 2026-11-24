@@ -7,8 +7,9 @@ import { DesktopSettingsSection } from "./DesktopSettings";
 import { isDesktop } from "../lib/desktop";
 import { lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { PomodoroSettings } from "../lib/usePomodoroTimer";
-import { accountsEnabled } from "../lib/prodliAccount";
-import { onStorageChange, storageSet } from "../lib/storage";
+import { accountsEnabled, onProdliAccountChange } from "../lib/prodliAccount";
+import { onStorageChange, storageGet, storageSet } from "../lib/storage";
+import { PENDING_UPGRADE_KEY, pendingUpgradeFresh, type PendingUpgrade } from "../lib/billing";
 import { DEFAULT_TODAY_SETTINGS, getTodaySettings, TODAY_SETTINGS_KEY } from "../lib/today";
 import type { TodaySettings } from "../types";
 import { AccountDataSection, AccountPanel, PlanPanel, box, sectionTitle } from "./AccountModal";
@@ -265,6 +266,15 @@ export function SettingsModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Picked a plan, then signed in: back to the plans, which carry on to the checkout (PlanPicker).
+  useEffect(
+    () =>
+      onProdliAccountChange((user) => {
+        if (user) void storageGet<PendingUpgrade | null>(PENDING_UPGRADE_KEY, null).then((p) => pendingUpgradeFresh(p) && onTab("plan"));
+      }),
+    [onTab],
+  );
 
   const goSignIn = () => onTab("account");
   const groups = [...new Set(tabs.map((t) => t.group))];

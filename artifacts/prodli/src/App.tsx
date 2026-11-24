@@ -6,7 +6,7 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { ProfileMenu } from "./components/ProfileMenu";
 import { SETTINGS_EVENT, SettingsModal, type SettingsTab } from "./components/Settings";
 import { Logo } from "./components/Logo";
-import { UPGRADE_EVENT } from "./lib/billing";
+import { PENDING_UPGRADE_KEY, UPGRADE_EVENT, type PendingUpgrade } from "./lib/billing";
 import { accountsEnabled } from "./lib/prodliAccount";
 import { startSync } from "./lib/prodliSync";
 import { dayKey, getTodaySettings } from "./lib/today";
@@ -237,6 +237,16 @@ export default function App() {
     // Dodo replaces our return URL's query with its own (subscription_id, payment_id,
     // status, email): show the plan, and take those (incl. the email) out of the address bar.
     const params = new URLSearchParams(window.location.search);
+    // A plan picked on prodli.com (app.prodli.com/?plan=plus&period=yearly): the plans open and carry on to the checkout.
+    const picked = params.get("plan");
+    if (picked === "pro" || picked === "plus") {
+      void storageSet(PENDING_UPGRADE_KEY, { plan: picked, interval: params.get("period") === "monthly" ? "monthly" : "yearly", at: Date.now() } satisfies PendingUpgrade);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("plan");
+      url.searchParams.delete("period");
+      window.history.replaceState(null, "", url.toString());
+      open();
+    }
     const BILLING_PARAMS = ["pro", "subscription_id", "payment_id", "status", "email"];
     if (params.has("pro") || params.has("subscription_id")) {
       const url = new URL(window.location.href);

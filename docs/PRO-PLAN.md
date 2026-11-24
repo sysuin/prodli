@@ -1,4 +1,4 @@
-# ProdLi Pro: setting up payments (Dodo Payments)
+# ProdLi Pro and Pro Plus: setting up payments (Dodo Payments)
 
 ProdLi Pro is sold through **Dodo Payments**, a *merchant of record*: Dodo is the seller in each sale. It takes the payment, charges and pays sales tax / VAT / GST, sends invoices and handles refunds and chargebacks. ProdLi never sees card details.
 
@@ -6,17 +6,19 @@ ProdLi is a **brand** under your existing, verified Dodo business (JobScanner), 
 
 Until the settings below are filled in, the app shows "ProdLi Pro is coming soon" and nothing can be bought.
 
-## What Pro includes
+## Plans
 
-| Per month | Free | Pro |
-|---|---|---|
-| AI meeting summaries | 20 | 300 |
-| AI daily briefs & weekly reviews | 62 | 200 |
-| Ask ProdLi questions | 100 | 1,000 |
-| Writing help (✨ Improve in Notes) | 200 | 2,000 |
-| AI audio transcription | 300 min | 1,500 min |
-| Voice dictation AI clean-ups (the audio counts as transcription) | 1,000 | 10,000 |
-| Synced storage | 100 MB | 2 GB |
+Three plans (2026-11-24): **Free**, **Pro** ($5/month or $48/year) and **Pro Plus** ($12/month or $120/year, everything in Pro with higher limits). Pro's limits were lowered the same day so a Pro user who uses everything costs about $6 a month at most (Claude Haiku 5.5 $0.10/$0.50 per million tokens, Whisper on Workers AI $0.0005 per audio minute); a Pro Plus user at most about $15. Real use is usually 10–20% of the limits.
+
+| Per month | Free | Pro | Pro Plus |
+|---|---|---|---|
+| AI meeting summaries | 20 | 300 | 900 |
+| AI daily briefs & weekly reviews | 62 | 200 | 400 |
+| Ask ProdLi questions | 100 | 500 | 1,200 |
+| Writing help (✨ Improve, follow-ups, screenshot text) | 200 | 1,000 | 2,500 |
+| AI audio transcription | 300 min | 1,500 min | 4,500 min |
+| Voice dictation AI clean-ups (the audio counts as transcription) | 1,000 | 3,000 | 6,000 |
+| Synced storage | 100 MB | 2 GB | 10 GB |
 | Your own meeting templates | — | ✓ |
 | Talk-time insights | — | ✓ |
 | Action items across all meetings | — | ✓ |
@@ -86,6 +88,16 @@ In the Dodo dashboard, switch to **Test Mode** (bottom left), then:
    pnpm --filter @workspace/prodli-api run deploy:production
    ```
    (The deploy applies migration `0007_billing_customers.sql`.)
+
+## Pro Plus (2026-11-24)
+
+Products created in Test Mode and imported to Live (brand ProdLi, tax category SaaS, prices tax-exclusive like Pro), already in `wrangler.jsonc`:
+- Test: ProdLi Pro Plus (Monthly) `pdt_0NscNWBlygXD2Z8IFNSQU` $12/month · ProdLi Pro Plus (Yearly) `pdt_0NscNiMZcdNKW7eMRmMSO` $120/year
+- Live: ProdLi Pro Plus (Monthly) `pdt_0NscNqMoBSbttL6KZtAAp` $12/month · ProdLi Pro Plus (Yearly) `pdt_0NscNqHcM1KzjyfRpnn4z` $120/year
+
+The existing webhook endpoints already send every `subscription.*` event (including `plan_changed`), so nothing else changes in Dodo.
+
+**Buying and switching:** Settings → Plan & usage shows the three plans with a Monthly / Yearly switch. One click opens Dodo's one-page checkout (card and postcode, saved cards offered, no phone number) and comes straight back. Signed out, the button signs in first and then carries on to the checkout; prodli.com's pricing buttons link to `app.prodli.com/?plan=pro|plus&period=monthly|yearly`, which does the same. Subscribers switch with `POST /api/billing/change` (Dodo's change-plan): a higher plan, or monthly → yearly, starts now with the unused time credited (`prorated_immediately`); a lower plan starts at the next renewal. Apps from before Pro Plus see Pro Plus as `plan: "pro"`; the exact plan is `tier`.
 
 ## How it works
 
