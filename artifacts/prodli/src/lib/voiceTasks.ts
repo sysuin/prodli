@@ -7,6 +7,7 @@
 import { accountRequest, accountsEnabled, getProdliAccount, AccountError } from "./prodliAccount";
 import { storageGet } from "./storage";
 import { isList } from "./taskLists";
+import { aiLanguage, getVoiceLanguage } from "./voiceLanguage";
 import type { ListItem } from "../types";
 
 export const MAX_DUMP_CHARS = 4000;
@@ -22,20 +23,21 @@ export function splitLocally(text: string): string[] {
     .slice(0, 30);
 }
 
-type Stub = (text: string, lists: string[]) => Promise<{ lines: string[] }>;
+type Stub = (text: string, lists: string[], language?: string) => Promise<{ lines: string[] }>;
 
-/** Lines to add (and why AI wasn't used, if it wasn't). */
+/** Lines to add (and why AI wasn't used, if it wasn't). Titles stay in the chosen language (Settings → Language). */
 export async function linesFromDump(text: string): Promise<{ lines: string[]; ai: boolean; note?: string }> {
   const t = text.trim().slice(0, MAX_DUMP_CHARS);
   if (!t) return { lines: [], ai: false };
   const lists = (await storageGet<ListItem[]>("lists", [])).filter(isList).map((l) => l.name);
+  const language = aiLanguage(await getVoiceLanguage());
   if (import.meta.env.VITE_E2E === "1") {
     const stub = (globalThis as { __prodliExtractStub?: Stub }).__prodliExtractStub;
-    if (stub) return { ...(await stub(t, lists)), ai: true };
+    if (stub) return { ...(await stub(t, lists, language)), ai: true };
   }
   if (!accountsEnabled() || !(await getProdliAccount())) return { lines: splitLocally(t), ai: false, note: "Split into sentences on this device. Sign in (free) for smarter task splitting." };
   try {
-    const r = await accountRequest<{ lines: string[] }>("/api/ai/extract-tasks", { method: "POST", body: JSON.stringify({ text: t, lists }) }, { write_quota_exceeded: "You've used this month's writing help." });
+    const r = await accountRequest<{ lines: string[] }>("/api/ai/extract-tasks", { method: "POST", body: JSON.stringify({ text: t, lists, ...(language ? { language } : {}) }) }, { write_quota_exceeded: "You've used this month's writing help." });
     return { lines: r.lines, ai: true };
   } catch (err) {
     return { lines: splitLocally(t), ai: false, note: `${err instanceof AccountError ? err.message : "AI didn't work this time."} Split into sentences instead.` };

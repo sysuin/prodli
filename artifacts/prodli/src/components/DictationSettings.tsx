@@ -24,6 +24,7 @@ import {
   type Snippet,
 } from "../dictation/core";
 import { ProBadge, ProNote, useProAccess } from "./Pro";
+import { LanguageSettings } from "./LanguageSettings";
 
 const card: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", padding: "12px 14px", display: "grid", gap: 8 };
 const h: CSSProperties = { fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 };
@@ -165,7 +166,8 @@ export function DictationSettings() {
       </section>
 
       <section style={card} aria-labelledby={`${id}-polish`}>
-        <h3 id={`${id}-polish`} style={h}>2 · Clean-up and style</h3>
+        <h3 id={`${id}-polish`} style={h}>2 · Language, clean-up and style</h3>
+        <LanguageSettings compact />
         <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={settings.polish} onChange={(e) => save({ polish: e.target.checked })} style={{ marginTop: 3 }} />
           <span>
@@ -212,6 +214,9 @@ export function DictationSettings() {
       <section style={card} aria-labelledby={`${id}-snippets`}>
         <h3 id={`${id}-snippets`} style={h}>5 · Snippets</h3>
         <p style={muted}>Say a short cue to type saved text — say just the cue, or use it inside a sentence.</p>
+        <p style={muted} data-testid="snippet-picker-help">
+          Or pick one without talking: right-click in any text box → <b>Insert a ProdLi snippet</b>, or set a shortcut for it in <code>chrome://extensions/shortcuts</code>. In ProdLi, press Ctrl/⌘+K and type “s ”. <code>{"{date}"}</code>, <code>{"{time}"}</code> and <code>{"{day}"}</code> are filled in when a snippet is picked.
+        </p>
         {snippets.length > 0 && (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {snippets.map((s) => (

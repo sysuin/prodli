@@ -246,6 +246,18 @@ export default function App() {
 
   // Any section can open Ask ProdLi with a question (lib/ask.ts openAsk).
   useEffect(() => {
+    // index.html#ask=… (the Quick add window's "? …").
+    const hashAsk = /^#ask=(.*)$/.exec(window.location.hash)?.[1];
+    if (hashAsk !== undefined) {
+      let question = "";
+      try {
+        question = decodeURIComponent(hashAsk);
+      } catch {
+        /* a malformed link: just open Ask */
+      }
+      setAsk({ open: true, question: question.slice(0, 2000) || undefined });
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
     const onAsk = (e: Event) => setAsk({ open: true, question: (e as CustomEvent<{ question?: string }>).detail?.question });
     window.addEventListener(ASK_EVENT, onAsk);
     return () => window.removeEventListener(ASK_EVENT, onAsk);
@@ -462,6 +474,7 @@ export default function App() {
     backup: () => setSettingsTab("data"),
     help: () => setSettingsTab("help"),
     settings: () => setSettingsTab("account"),
+    flash: (m: string) => flash(m),
   };
 
   if (!loaded) {

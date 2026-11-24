@@ -64,9 +64,9 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 
 **Additions from the install research** (2026-11-23; ranked, best first; why: [docs/research/2026-11-most-installed-apps-and-extensions.md](docs/research/2026-11-most-installed-apps-and-extensions.md))
 - [ ] **A1. Desktop menu-bar timer** (2–4 days, desktop): Pomodoro countdown, next meeting and top task in the tray; keep-awake toggle, and automatic keep-awake while recording or focusing.
-- [ ] **A2. Habit streak freeze and milestone moments** (2–3 days, web + phone).
-- [ ] **A3. Screenshot to note or task** (5–8 days, +3–4 for full-page; extension, then paste in the web app): visible area or region, annotate, AI pulls out the text. No new permission.
-- [ ] **A4. One palette with prefixes** (4–6 days, desktop + extension): "t" to-do, "n" note, "h" habit, "p 25" Pomodoro, "?" Ask — shared by Quick add and Cmd+K.
+- [x] **A2. Habit streak freeze and milestone moments** — *done 2026-11-24:* a freeze is earned every 7 days of streak (hold up to 2) and covers a missed day automatically (light blue on the heatmap); milestones (3, 7, 14, 30, 100… days) get a celebration. Web, Today and the phone app. Was: (2–3 days, web + phone).
+- [x] **A3. Screenshot to note or task** — *done 2026-11-24:* right-click → Screenshot to ProdLi, or 📸 in Quick add (Alt+Shift+A); crop, box, arrow, highlight, undo; save as a note or a to-do linked to its note; ✨ Pull out the text (`/api/ai/ocr`, writing allowance) so Ask finds it. activeTab only, no new permission. Full-page capture not built. Was: (5–8 days, +3–4 for full-page; extension, then paste in the web app): visible area or region, annotate, AI pulls out the text. No new permission.
+- [x] **A4. One palette with prefixes** — *done 2026-11-24:* ⌘K and Quick add (extension window, desktop global shortcut) read t / n / h / p 25 / ? (and s for snippets in the extension). Was: (4–6 days, desktop + extension): "t" to-do, "n" note, "h" habit, "p 25" Pomodoro, "?" Ask — shared by Quick add and Cmd+K.
 - [ ] **A5. Phone widgets** (2–3 weeks): habit check-off with streak, today's to-dos, next meeting (replaces part of Tier 3 #16).
 - [ ] **A6. Phone share sheet** (1–2 weeks): link, text or image to a note, task or Read later.
 - [x] **A7. Read aloud** (done with item 13) (2–3 days, all): Read later items, summaries and notes (`tts` permission, no warning).
@@ -74,8 +74,8 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **A9. Morning brief and scheduled-prompt answers as phone notifications** (2–4 days).
 - [ ] **A10. System-wide dictation into any app** (3–5 weeks, desktop): moved up from Tier 3 #14 to the first desktop feature once the app is signed.
 - [ ] **A11. Document scan to a note with OCR**, searchable in Ask (1–2 weeks, phone).
-- [ ] **A12. Hindi and other Indian languages** for dictation, Speak tasks and the daily brief (3–7 days).
-- [ ] **A13. Snippet picker** (3–5 days, extension): a shortcut or palette opens saved snippets and inserts into the focused field (no all-sites permission). All four Chrome shortcut slots are used, so it goes in the palette.
+- [x] **A12. Hindi and other Indian languages** — *done 2026-11-24:* Settings → Language (Automatic, English, Hindi, Hinglish, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Punjabi, Urdu), free. Dictation tells Whisper the language (`language`, ISO 639-1) and the clean-up keeps the script; Hinglish goes to Whisper as Hindi and the clean-up writes Latin letters. Speak tasks listens in hi-IN etc. and keeps titles in that language with English date words; the brief is written in it. Left: a check with real speech. Was: for dictation, Speak tasks and the daily brief (3–7 days).
+- [x] **A13. Snippet picker** — *done 2026-11-24:* right-click any text box → Insert a ProdLi snippet, or an optional shortcut (chrome://extensions/shortcuts); searchable, types into the field, fills {date}/{time}/{day}; "s" in ⌘K copies one. Uses the dictation snippets. Was: (3–5 days, extension): a shortcut or palette opens saved snippets and inserts into the focused field (no all-sites permission). All four Chrome shortcut slots are used, so it goes in the palette.
 - [ ] **A14. Clipboard history** (2–3 weeks, desktop): send to note or task, AI transforms, skips password-manager copies.
 - [ ] **A15. Follow-ons** (desktop + phone): desktop region screenshot with OCR (reuses A3), Pomodoro on the phone lock screen (Live Activity).
 - [ ] *Cheap extra:* list ProdLi on Edge Add-ons with the same package (~1 day).

@@ -3045,6 +3045,113 @@ const suites = {
     await p.close();
   },
 
+  async quickwins(b, check) {
+    // Streak freezes and milestones (A2), palette prefixes in ⌘K and Quick add (A4), "s" snippets (A13).
+    const p = await b.openPage();
+    const dayKey = (offset) => p.eval(`(() => { const d = new Date(); d.setDate(d.getDate() + (${offset})); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    const today = await dayKey(0);
+    const daysAgo = async (from, to) => { const out = []; for (let i = from; i >= to; i--) out.push(await dayKey(-i)); return out; };
+    const habits = async () => (await p.storage(["habits"])).habits ?? [];
+    const created = "new Date(Date.now() - 20 * 864e5).toISOString()";
+    // Run: done 7..2 days ago, missed yesterday, one freeze in hand. Write: 6 days in a row, no freeze yet.
+    await p.eval(`chrome.storage.local.set({ habits: [
+      { id: "run", name: "Run", emoji: "🏃", color: "#66BB6A", completedDays: ${JSON.stringify(await daysAgo(7, 2))}, createdAt: ${created}, archived: false, freezes: 1 },
+      { id: "write", name: "Write", emoji: "✍️", color: "#FFD700", completedDays: ${JSON.stringify(await daysAgo(6, 1))}, createdAt: ${created}, archived: false },
+      { id: "med", name: "Meditate", emoji: "🧘", color: "#00BCD4", completedDays: [], createdAt: ${created}, archived: false },
+    ], todos: [], dictationSnippets: [{ id: "s1", cue: "my address", text: "12 Park Road, Pune" }] })`);
+    await p.goto("habits");
+    await sleep(800);
+    let run = (await habits()).find((h) => h.id === "run");
+    const yesterday = await dayKey(-1);
+    check("Freeze: a missed day is covered automatically and the freeze is used", run?.frozen?.includes(yesterday) && (run?.freezes ?? 0) === 0, JSON.stringify(run));
+    const runCard = () => p.eval(`[...document.querySelectorAll('button[aria-label^="Mark today: "], button[aria-label^="Unmark today: "]')].find(b => b.getAttribute("aria-label").endsWith(": Run"))?.closest('div[style*="box-shadow"]')?.innerText ?? ""`);
+    check("Freeze: the streak keeps going (🔥 6)", (await runCard()).includes("🔥 6"), await runCard());
+    await p.eval(`document.querySelector('button[aria-label="Mark today: Write"]').click()`);
+    await sleep(500);
+    const write = (await habits()).find((h) => h.id === "write");
+    const moment = await p.eval(`document.querySelector('[data-testid="streak-moment"]')?.innerText ?? ""`);
+    check("Freeze: 7 days in a row earns one, with a celebration", write?.freezes === 1 && write?.freezeEarnedOn === today && moment.includes("7-day streak") && moment.includes("streak freeze"), JSON.stringify({ write, moment }));
+    check("Freeze: the card shows the freeze in hand", (await p.eval(`[...document.querySelectorAll('[data-testid="habit-freezes"]')].map(e => e.textContent.trim())`)).includes("🧊 1"));
+    await p.shot("streak-moment");
+    await p.eval(`document.querySelector('button[aria-label="Unmark today: Write"]').click()`);
+    await sleep(400);
+    check("Freeze: unmarking the same day gives it back", ((await habits()).find((h) => h.id === "write")?.freezes ?? 0) === 0);
+
+    // ── ⌘K prefixes ───────────────────────────────────────────────────────────
+    const setValue = (sel, text) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const PAL = 'input[aria-label="Search commands"]';
+    const palette = async (text) => {
+      if (!(await p.eval(`!!document.querySelector('${PAL}')`))) {
+        await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+        await sleep(300);
+      }
+      await setValue(PAL, text);
+      await sleep(250);
+      return p.eval(`[...document.querySelectorAll('#palette-list [role="option"]')].map(e => e.innerText.replace(/\\s+/g, " ").trim())`);
+    };
+    const choose = async () => {
+      await p.eval(`document.querySelector('${PAL}').dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))`);
+      await sleep(700);
+    };
+    await palette("");
+    check("⌘K: the prefixes are shown when nothing's typed", ((await p.eval(`document.querySelector('[data-testid="palette-prefix-help"]')?.innerText ?? ""`)) || "").includes("p 25 Pomodoro"));
+    let opts = await palette("p 15 Deep work");
+    check("⌘K: p 15 offers a 15-min Pomodoro", opts[0]?.includes("Start a 15-min Pomodoro: Deep work"), JSON.stringify(opts));
+    await choose();
+    const timer = (await p.storage(["pomodoroTimer"])).pomodoroTimer;
+    check("⌘K: … and starts it", timer?.running === true && timer.label === "Deep work" && Math.abs((timer.endsAt - Date.now()) / 1000 - 900) < 30, JSON.stringify(timer));
+    await p.eval(`chrome.storage.local.get("pomodoroTimer").then(({ pomodoroTimer: t }) => chrome.storage.local.set({ pomodoroTimer: { ...t, running: false, endsAt: null, remaining: 1500, label: "" } }))`);
+    opts = await palette("h med");
+    await p.shot("palette-habit-prefix");
+    check("⌘K: h finds today's habit", opts.length === 1 && opts[0].includes("Check off: Meditate"), JSON.stringify(opts));
+    await choose();
+    check("⌘K: … and checks it off", (await habits()).find((h) => h.id === "med")?.completedDays.includes(today));
+    opts = await palette("t Buy milk tomorrow");
+    check("⌘K: t reads the to-do like quick add", opts.length === 1 && opts[0].includes("Add to-do: “Buy milk”"), JSON.stringify(opts));
+    await choose();
+    const milk = ((await p.storage(["todos"])).todos ?? []).find((t) => t.title === "Buy milk");
+    check("⌘K: … and adds it", !!milk?.dueDate && milk.dueDate > today, JSON.stringify(milk));
+    opts = await palette("s addr");
+    check("⌘K: s finds a snippet", opts.length === 1 && opts[0].includes("Copy: my address"), JSON.stringify(opts));
+    opts = await palette("? what's due");
+    check("⌘K: ? asks ProdLi", opts.length === 1 && opts[0].includes("Ask ProdLi: “what's due”"), JSON.stringify(opts));
+    opts = await palette("today");
+    check("⌘K: plain words aren't prefixes", opts.some((o) => o.includes("Go to Today")), JSON.stringify(opts));
+    opts = await palette("n Trip ideas");
+    await choose();
+    await sleep(600);
+    const notes = (await p.storage(["notes", "activeNoteId"]));
+    const trip = (notes.notes ?? []).find((n) => n.title === "Trip ideas");
+    check("⌘K: n creates the note and opens it", !!trip && notes.activeNoteId === trip.id && (await p.eval(`!!document.querySelector(".ProseMirror")`)), JSON.stringify({ trip: trip?.id, active: notes.activeNoteId }));
+
+    // ── Quick add window prefixes ─────────────────────────────────────────────
+    await p.goto("today");
+    await sleep(500);
+    await p.eval(`document.querySelector('button[title="Quick add a to-do or note"]').click()`);
+    await sleep(300);
+    await setValue('input[aria-label="Title"]', "n Groceries");
+    await sleep(150);
+    check("Quick add: n switches to a note", (await p.eval(`document.querySelector('[role="radio"][aria-checked="true"]')?.textContent ?? ""`)).includes("Note") && (await p.eval(`document.querySelector('input[aria-label="Title"]').value`)) === "Groceries");
+    await setValue('input[aria-label="Title"]', "p 10");
+    await sleep(150);
+    await p.shot("quickadd-pomodoro-prefix");
+    check("Quick add: p 10 offers a Pomodoro", (await p.eval(`document.querySelector('[data-testid="quickadd-action"]')?.innerText ?? ""`)).includes("Start a 10-min Pomodoro"));
+    await setValue('input[aria-label="Title"]', "h wri");
+    await sleep(150);
+    check("Quick add: h lists matching habits", (await p.eval(`document.querySelector('[data-testid="quickadd-action"]')?.innerText ?? ""`)).includes("Check off: Write"));
+    await p.eval(`document.querySelector('[data-testid="quickadd-action"] button').click()`);
+    await sleep(600);
+    check("Quick add: … and logs it", (await habits()).find((h) => h.id === "write")?.completedDays.includes(today));
+    await p.close();
+
+    // ── index.html#ask=… opens Ask ProdLi (the Quick add window's "? …") ──────
+    const a = await b.openPage(`chrome-extension://${b.extId}/index.html#ask=`);
+    await sleep(1200);
+    check("#ask= opens Ask ProdLi and cleans the address", (await a.eval(`!!document.querySelector('[role="dialog"][aria-label="Ask ProdLi"]')`)) && !(await a.eval(`location.hash`)));
+    await a.eval(`chrome.storage.local.set({ habits: [], todos: [], dictationSnippets: [] })`);
+    await a.close();
+  },
+
   async a11y(b, check) {
     // Automated accessibility audit (axe-core, WCAG 2 A/AA) of every tab, light and dark.
     const axeSource = readFileSync(path.resolve(path.dirname(EXT), "node_modules/axe-core/axe.min.js"), "utf8");

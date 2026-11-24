@@ -4,7 +4,7 @@
 // habit streaks, same smart add. Change them there, and both apps follow.
 export * from "../../../prodli/src/lib/syncCore";
 export { nextOccurrence, nextDue, firstOccurrence, repeatLabel, toggleTodo, reminderAt, timeLabel } from "../../../prodli/src/lib/recurrence";
-export { kindOf, isScheduled, amountOn, targetOf, isDone, currentStreak, bestStreak, setAmount, addAmount, toggleCheck, toggleSkip, progressLabel, dayLevel, type HabitKind } from "../../../prodli/src/lib/habits";
+export { kindOf, isScheduled, amountOn, targetOf, isDone, currentStreak, bestStreak, setAmount, addAmount, toggleCheck, toggleSkip, progressLabel, dayLevel, afterLog, freezesOf, momentText, settleAllFreezes, type HabitKind, type StreakMoment } from "../../../prodli/src/lib/habits";
 export { parseTask, type ParsedTask } from "../../../prodli/src/lib/taskParse";
 export { boardColumn, quadrant, isImportant, isUrgent, moveToColumn, moveToQuadrant, describeMove, BOARD_COLUMNS, QUADRANTS, type BoardColumn, type Quadrant } from "../../../prodli/src/lib/todoBoards";
 export { getDayKey, generateId } from "../../../prodli/src/lib/utils";

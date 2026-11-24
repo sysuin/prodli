@@ -127,6 +127,7 @@ The policy and terms were updated for the features added on 18–20 November. Ea
 | Audio transcription (🌐 on a meeting; **automatic after Zoom and Teams calls, on by default**, can be turned off) | WAV pieces of the recording (silence skipped), the word list as a hint | Cloudflare Workers AI (Whisper) | no; minutes counted in D1 `transcribe_usage` |
 | Page summaries (right-click) | page title, address, up to 24,000 characters of page text | Anthropic | no |
 | Speak tasks | the spoken text (up to 4,000 characters) and the user's list names | Anthropic | no |
+| Screenshot → ✨ Pull out the text (extension, on click only) | the cropped screenshot (WebP, ≤ 300 KB; server cap 1.5 MB) | Anthropic | no (the text goes into the user's note; count in D1 `write_usage`) |
 | Daily brief (meeting prep, focus score) | for matched meetings: title, time, last-met date, last summary overview, open action items, related to-do titles; yesterday's focus score | Anthropic | no (the brief is saved with the day) |
 | Weekly review (categories) | the week's focus score and minutes per site category | Anthropic | no |
 | Scheduled Ask prompts | as Ask ProdLi, sent by the extension in the background at the chosen times | Anthropic | no (answer kept on the device) |

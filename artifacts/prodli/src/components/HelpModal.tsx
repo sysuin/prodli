@@ -117,6 +117,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           <Section emoji="📚" title="Read later & page summaries">
             <Row label={<Tag>Read later</Tag>} desc="Right-click a page or link → Read later in ProdLi (or pick 📚 Later in Quick add, or paste a link on Today). Opening it marks it read." />
             <Row label={<Tag>Summarize page</Tag>} desc="Right-click a page → Summarize page to ProdLi notes: a note with the source, a short summary and key points (uses writing help; signed out, you get an excerpt). ProdLi reads only that page, only when you click." />
+            <Row label={<Tag>Screenshot</Tag>} desc="Right-click a page → Screenshot to ProdLi (or 📸 in Quick add, Alt+Shift+A). Crop it, add boxes, arrows or highlights, then save it as a note or a to-do. ✨ Pull out the text adds its text to the note so Ask can find it (uses writing help). Extension only." />
             <Row label={<Tag>Save highlight</Tag>} desc="Select text on a page, right-click → Save highlight to ProdLi. It's added as a quote with a link to that page's note (its summary note, or a new Highlights note)." />
             <Row label={<Tag>+ To-do</Tag>} desc="On a Read later item, + To-do adds “Read: page title” with the link to your to-dos." />
             <Row label={<Tag>Listen</Tag>} desc="▶ on a Read later item with a saved note, or ⋯ → Listen in any note, reads it aloud with your browser's voices. Pick the voice and speed (0.75–2×); it stops when you leave the note." />
@@ -129,8 +130,9 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           <Section emoji="🎙" title="Voice dictation">
             <Row label={<Tag>Alt+Shift+D</Tag>} desc="In any text box on any website (or in ProdLi): hold the shortcut and talk, then let go — or tap it to start and tap again (or ✓) to finish. Esc cancels. ProdLi writes what you said where your cursor is, cleaned up: no “um”s or false starts, your corrections applied (“Tuesday — no, Wednesday”), punctuation and lists added. Turn it on in Settings → Dictation." />
             <Row label={<Tag>Styles</Tag>} desc="Each kind of website gets its own tone: formal for email, casual for work chat, very casual for personal messages (Settings → Dictation)." />
+            <Row label={<Tag>Language</Tag>} desc="Speak Hindi, Hinglish, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Punjabi, Urdu or English: pick it in Settings → Language for dictation, 🎙 Speak tasks and the daily brief. Automatic works it out." />
             <Row label={<Tag>Command Mode · Pro</Tag>} desc="Select text, press the shortcut and say what to do: “make this more formal”, “turn this into bullet points”, “translate to Spanish”. ProdLi replaces the selection." />
-            <Row label={<Tag>Dictionary & snippets</Tag>} desc="Names and terms are spelled as in your word list (shared with meeting notes). Snippets: say a cue like “my calendar link” to type saved text." />
+            <Row label={<Tag>Dictionary & snippets</Tag>} desc="Names and terms are spelled as in your word list (shared with meeting notes). Snippets: say a cue like “my calendar link” to type saved text, or right-click any text box → Insert a ProdLi snippet (a shortcut can be set in chrome://extensions/shortcuts). {date}, {time} and {day} are filled in." />
             <Row label={<Tag>History</Tag>} desc="Settings → Dictation keeps your last 50 dictations on this device (copy any of them) and shows words this week, your speaking speed and time saved." />
           </Section>
 
@@ -201,6 +203,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
           <Section emoji="🎯" title="Habits">
             <Row label={<Tag>Types</Tag>} desc="Check off (done or not), Count (e.g. 8 glasses: tap +1), Timed (e.g. 20 minutes: +5m) or Quit / limit (log a slip; the streak is days kept)." />
             <Row label={<Tag>Days & Skip</Tag>} desc="Pick the days a habit is due (gym on Mon/Wed/Fri). Days off, and days you Skip, never break the streak. Year shows the past year as a heatmap." />
+            <Row label={<Tag>🧊 Streak freezes</Tag>} desc="Every 7 days of streak earns a streak freeze (you can hold 2). If you miss a day, a freeze covers it automatically and the streak keeps going (light blue on the heatmap). Milestones (3, 7, 14, 30, 100 days…) get a little celebration." />
             <Row label={<Tag>+ New Habit</Tag>} desc="Create a habit with a name, emoji icon, and color." />
             <Row label={<Tag>○ / ✓ button</Tag>} desc="Click to mark today as done (fills with the habit color). Click again to undo." />
             <Row label={<Tag>🔥 Streak</Tag>} desc="Counts consecutive days with a check-in. The streak badge appears once it reaches 2+ days." />
@@ -309,7 +312,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>Action</div>
               </div>
               <div style={{ padding: "4px 14px" }}>
-                <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Search & commands (go anywhere, add a to-do, ask ProdLi)" />
+                <ShortcutRow keys={["Ctrl / ⌘ + K"]} action="Search & commands (go anywhere, add a to-do, ask ProdLi). Type first: t to-do · n note · h habit · p 25 Pomodoro · ? ask · s snippet (also in Quick add)" />
                 <ShortcutRow keys={["Alt + Shift + A"]} action="Quick add a to-do or note from any page (extension)" />
                 {[...SECTIONS].sort((x, y) => x.shortcut.localeCompare(y.shortcut)).map((x) => (
                   <ShortcutRow key={x.key} keys={[`Ctrl / ⌘ + ${x.shortcut}`]} action={`Go to ${x.label}`} />

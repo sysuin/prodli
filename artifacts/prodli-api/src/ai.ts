@@ -84,7 +84,7 @@ export function cleanCustomTemplate(raw: unknown): CustomTemplate | null {
 /** Languages notes can be written in (Pro: "Notes language"), whatever was spoken. Keep in sync with the app (recorder/types.ts). */
 export const SUMMARY_LANGUAGES: Record<string, string> = {
   en: "English", es: "Spanish", fr: "French", de: "German", pt: "Portuguese", it: "Italian", nl: "Dutch", sv: "Swedish", pl: "Polish", tr: "Turkish",
-  ru: "Russian", uk: "Ukrainian", ar: "Arabic", hi: "Hindi", bn: "Bengali", ta: "Tamil", te: "Telugu", mr: "Marathi", ur: "Urdu", id: "Indonesian",
+  ru: "Russian", uk: "Ukrainian", ar: "Arabic", hi: "Hindi", bn: "Bengali", ta: "Tamil", te: "Telugu", mr: "Marathi", ur: "Urdu", gu: "Gujarati", kn: "Kannada", ml: "Malayalam", pa: "Punjabi", id: "Indonesian",
   ms: "Malay", fil: "Filipino", vi: "Vietnamese", th: "Thai", ja: "Japanese", ko: "Korean", zh: "Chinese (Simplified)",
 };
 export const isSummaryLanguage = (x: unknown): x is string => typeof x === "string" && Object.hasOwn(SUMMARY_LANGUAGES, x);

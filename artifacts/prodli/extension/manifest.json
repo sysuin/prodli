@@ -57,6 +57,9 @@
         "default": "Alt+Shift+A"
       },
       "description": "Quick add a to-do or note to ProdLi"
+    },
+    "insert-snippet": {
+      "description": "Insert a saved snippet into the text box you're typing in"
     }
   },
   "icons": {

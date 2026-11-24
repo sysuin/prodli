@@ -21,11 +21,15 @@ export default defineConfig({
         main: path.resolve(import.meta.dirname, "index.extension.html"),
         background: path.resolve(import.meta.dirname, "src/background.ts"),
         offscreen: path.resolve(import.meta.dirname, "offscreen.html"),
+        // Screenshot to ProdLi: crop, mark up and save (opened in its own small window).
+        screenshot: path.resolve(import.meta.dirname, "screenshot.html"),
         // Injected into meet.google.com with chrome.scripting — must stay
         // self-contained (type-only imports), since content scripts can't use ES imports.
         "meet-captions": path.resolve(import.meta.dirname, "src/recorder/meetCaptions.ts"),
         // Voice dictation's pill, injected into the page the user is typing in (same rule).
         "dictate-pill": path.resolve(import.meta.dirname, "src/dictation/pill.ts"),
+        // The snippet picker, injected into the page the user is typing in (same rule).
+        "snippet-picker": path.resolve(import.meta.dirname, "src/snippets/picker.ts"),
       },
       output: {
         entryFileNames: (chunk) =>
@@ -35,7 +39,9 @@ export default defineConfig({
               ? "meet-captions.js"
               : chunk.name === "dictate-pill"
                 ? "dictate-pill.js"
-                : "assets/[name]-[hash].js",
+                : chunk.name === "snippet-picker"
+                  ? "snippet-picker.js"
+                  : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },

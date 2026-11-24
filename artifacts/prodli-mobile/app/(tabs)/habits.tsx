@@ -1,7 +1,8 @@
 // Habits: today's progress, streaks and the last 7 days. Tap to log; long-press to edit.
+import { useEffect } from "react";
 import { router } from "expo-router";
-import { Pressable, Text, View } from "react-native";
-import { addAmount, bestStreak, currentStreak, getDayKey, isDone, isScheduled, kindOf, progressLabel, setAmount, amountOn, toggleCheck, type Habit } from "@/shared";
+import { Alert, Pressable, Text, View } from "react-native";
+import { addAmount, afterLog, settleAllFreezes, bestStreak, currentStreak, freezesOf, getDayKey, isDone, isScheduled, kindOf, momentText, progressLabel, setAmount, amountOn, toggleCheck, type Habit } from "@/shared";
 import { replaceHabit, useList } from "@/lib/data";
 import { haptic } from "@/lib/haptics";
 import { Button, Card, Empty, IconButton, P, Row, Screen, Title } from "@/ui/kit";
@@ -28,7 +29,13 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
   const days = lastDays(7, today);
   const log = () => {
     haptic(done ? "light" : "success");
-    replaceHabit(kind === "check" ? toggleCheck(h, today) : addAmount(h, today, kind === "timed" ? 5 : 1));
+    // Earns a streak freeze every 7 days, and celebrates milestones (lib/habits afterLog).
+    const { habit, moment } = afterLog(h, kind === "check" ? toggleCheck(h, today) : addAmount(h, today, kind === "timed" ? 5 : 1), today);
+    replaceHabit(habit);
+    if (moment) {
+      const m = momentText(moment, kind === "quit");
+      Alert.alert(m.title, `${h.emoji} ${h.name}${m.detail ? `\n\n${m.detail}` : ""}`);
+    }
   };
   return (
     <Card>
@@ -41,6 +48,7 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
             {restDay ? "not scheduled today" : progressLabel(h, today)}
             {streak ? ` · 🔥 ${streak} day${streak > 1 ? "s" : ""}` : ""}
             {` · best ${bestStreak(h, today)}`}
+            {freezesOf(h) ? ` · 🧊 ${freezesOf(h)}` : ""}
           </P>
         </Pressable>
         {kind === "check" ? (
@@ -58,10 +66,11 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
         {days.map((d) => {
           const on = isDone(h, d);
           const scheduled = isScheduled(h, d);
+          const frozen = !!h.frozen?.includes(d);
           return (
-            <View key={d} accessibilityLabel={`${d}: ${on ? "done" : scheduled ? "not done" : "not scheduled"}`} style={{ flex: 1, alignItems: "center", gap: 2 }}>
+            <View key={d} accessibilityLabel={`${d}: ${on ? "done" : frozen ? "covered by a streak freeze" : scheduled ? "not done" : "not scheduled"}`} style={{ flex: 1, alignItems: "center", gap: 2 }}>
               <Text style={{ fontSize: font.tiny, color: t.mutedFg, fontWeight: "700" }}>{new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { weekday: "narrow" })}</Text>
-              <View style={{ width: "100%", aspectRatio: 1, maxWidth: 30, borderWidth: 2, borderColor: t.border, backgroundColor: on ? h.color : scheduled ? "transparent" : t.muted, opacity: scheduled ? 1 : 0.5 }} />
+              <View style={{ width: "100%", aspectRatio: 1, maxWidth: 30, borderWidth: 2, borderColor: t.border, backgroundColor: on ? h.color : frozen ? "#90CAF9" : scheduled ? "transparent" : t.muted, opacity: scheduled || frozen ? 1 : 0.5 }} />
             </View>
           );
         })}
@@ -73,6 +82,11 @@ function HabitCard({ h, today }: { h: Habit; today: string }) {
 export default function HabitsScreen() {
   const habits = useList<Habit>("habits");
   const today = getDayKey();
+  // Missed days are covered by streak freezes as soon as the habits load.
+  useEffect(() => {
+    const settled = settleAllFreezes(habits, today);
+    settled?.forEach((h, i) => h !== habits[i] && replaceHabit(h));
+  }, [habits, today]);
   const active = habits.filter((h) => !h.archived);
   const doneCount = active.filter((h) => isScheduled(h, today) && isDone(h, today)).length;
   const scheduled = active.filter((h) => isScheduled(h, today)).length;

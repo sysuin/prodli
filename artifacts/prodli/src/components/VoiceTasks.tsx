@@ -7,6 +7,7 @@ import { addTask } from "../lib/capture";
 import { storageGet, storageSet } from "../lib/storage";
 import { parseTask } from "../lib/taskParse";
 import { linesFromDump, listen, MAX_DUMP_CHARS, speechSupported } from "../lib/voiceTasks";
+import { getVoiceLanguage, speechLocale } from "../lib/voiceLanguage";
 
 const btn = (primary = false, disabled = false): CSSProperties => ({
   border: "var(--nb-border)",
@@ -55,7 +56,7 @@ export function VoiceTasksModal({ onClose, onDone, autoListen = false }: { onClo
     baseRef.current = text ? `${text.trim()} ` : "";
     setListening(true);
     stopRef.current = await listen(
-      navigator.language || "en-US",
+      speechLocale(await getVoiceLanguage()),
       (final, live) => {
         setText((baseRef.current + final).slice(0, MAX_DUMP_CHARS));
         setInterim(live);

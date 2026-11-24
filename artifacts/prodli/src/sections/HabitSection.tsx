@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { storageSet } from "../lib/storage";
 import { useSyncedList } from "../lib/syncedList";
 import { generateId, getDayKey } from "../lib/utils";
 import type { Habit } from "../types";
-import { addAmount, amountOn, bestStreak, currentStreak, dayLevel, isDone, isScheduled, kindOf, progressLabel, setAmount, targetOf, toggleCheck, toggleSkip } from "../lib/habits";
+import { addAmount, afterLog, amountOn, bestStreak, currentStreak, dayLevel, FREEZE_EVERY, freezesOf, isDone, isScheduled, kindOf, MAX_FREEZES, progressLabel, setAmount, settleAllFreezes, targetOf, toggleCheck, toggleSkip, type StreakMoment } from "../lib/habits";
+import { StreakMomentToast } from "../components/StreakMomentToast";
 
 const EMOJI_OPTIONS = ["💪", "📚", "🧘", "🏃", "💧", "🥦", "✍️", "🎯", "🎨", "🎵", "🧹", "💊", "😴", "🌅", "🧠"];
 const COLOR_OPTIONS = ["#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FF8C94", "#A8E6CF", "#FFD3B6", "#D4A5A5", "#9B5DE5"];
@@ -11,6 +12,8 @@ const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 type HeatmapView = "week" | "month" | "year";
+/** Days a streak freeze covered. */
+const FROZEN = "#90CAF9";
 
 /** The last 53 weeks, one square per day, shaded by how much of the target was reached. */
 function YearHeatmap({ habit }: { habit: Habit }) {
@@ -32,7 +35,8 @@ function YearHeatmap({ habit }: { habit: Habit }) {
             {w.map((d) => {
               const key = getDayKey(d);
               const level = isScheduled(habit, key) ? dayLevel(habit, key) : 0;
-              return <div key={key} title={`${key}: ${progressLabel(habit, key)}`} style={{ width: 9, height: 9, background: level ? habit.color : "hsl(var(--muted))", opacity: level ? 0.35 + 0.65 * level : 1, border: "1px solid var(--nb-section-border)" }} />;
+              const frozen = !!habit.frozen?.includes(key);
+              return <div key={key} title={`${key}: ${frozen ? "🧊 covered by a streak freeze" : progressLabel(habit, key)}`} style={{ width: 9, height: 9, background: frozen ? FROZEN : level ? habit.color : "hsl(var(--muted))", opacity: level ? 0.35 + 0.65 * level : 1, border: "1px solid var(--nb-section-border)" }} />;
             })}
           </div>
         ))}
@@ -41,7 +45,7 @@ function YearHeatmap({ habit }: { habit: Habit }) {
   );
 }
 
-function MonthlyHeatmap({ completedDays, color }: { completedDays: string[]; color: string }) {
+function MonthlyHeatmap({ completedDays, color, frozen = [] }: { completedDays: string[]; color: string; frozen?: string[] }) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -70,15 +74,16 @@ function MonthlyHeatmap({ completedDays, color }: { completedDays: string[]; col
           if (!day) return <div key={`pad-${i}`} />;
           const dayKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const done = completedDays.includes(dayKey);
+          const iced = frozen.includes(dayKey);
           const isToday = dayKey === todayStr;
           const isFuture = new Date(year, month, day) > now;
           return (
             <div
               key={dayKey}
-              title={dayKey}
+              title={iced ? `${dayKey}: 🧊 covered by a streak freeze` : dayKey}
               style={{
                 height: 20,
-                background: done ? color : "hsl(var(--muted))",
+                background: done ? color : iced ? FROZEN : "hsl(var(--muted))",
                 border: isToday ? "var(--nb-border)" : "1px solid transparent",
                 display: "flex",
                 alignItems: "center",
@@ -96,7 +101,7 @@ function MonthlyHeatmap({ completedDays, color }: { completedDays: string[]; col
   );
 }
 
-function WeekStrip({ completedDays }: { completedDays: string[] }) {
+function WeekStrip({ completedDays, frozen = [] }: { completedDays: string[]; frozen?: string[] }) {
   const days = Array.from({ length: 35 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (34 - i));
@@ -110,12 +115,12 @@ function WeekStrip({ completedDays }: { completedDays: string[] }) {
         {days.map(day => (
           <div
             key={day}
-            title={day}
+            title={frozen.includes(day) ? `${day}: 🧊 covered by a streak freeze` : day}
             style={{
               height: 14,
               border: day === todayStr ? "var(--nb-border)" : "1px solid var(--nb-section-border)",
-              background: completedDays.includes(day) ? "hsl(var(--foreground))" : "transparent",
-              opacity: completedDays.includes(day) ? 1 : 0.3,
+              background: completedDays.includes(day) ? "hsl(var(--foreground))" : frozen.includes(day) ? FROZEN : "transparent",
+              opacity: completedDays.includes(day) || frozen.includes(day) ? 1 : 0.3,
             }}
           />
         ))}
@@ -152,6 +157,7 @@ function LastWeek({ habit, onToggle, onSetAmount }: { habit: Habit; onToggle: (i
         const key = getDayKey(d);
         const done = isDone(habit, key) && isScheduled(habit, key);
         const off = !isScheduled(habit, key);
+        const iced = !!habit.frozen?.includes(key);
         const name = d.toLocaleDateString("en-US", { weekday: "short" });
         return (
           <button
@@ -159,11 +165,11 @@ function LastWeek({ habit, onToggle, onSetAmount }: { habit: Habit; onToggle: (i
             onClick={() => pick(key, d.toLocaleDateString([], { weekday: "long" }))}
             aria-pressed={k === "check" ? done : undefined}
             title={key === today ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
-            style={{ flex: 1, minWidth: 0, border: key === today ? "var(--nb-border)" : "1px solid var(--nb-section-border)", background: done ? habit.color : "transparent", color: done ? "#000" : "hsl(var(--foreground))", cursor: "pointer", padding: "3px 0", fontFamily: "inherit", lineHeight: 1.2 }}
+            style={{ flex: 1, minWidth: 0, border: key === today ? "var(--nb-border)" : "1px solid var(--nb-section-border)", background: done ? habit.color : iced ? FROZEN : "transparent", color: done || iced ? "#000" : "hsl(var(--foreground))", cursor: "pointer", padding: "3px 0", fontFamily: "inherit", lineHeight: 1.2 }}
           >
             <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", opacity: 0.8 }}>{name.slice(0, 2)}</div>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: off ? 0.4 : 1 }}>{off ? "–" : k === "check" ? (done ? "✓" : d.getDate()) : k === "quit" ? (done ? "✓" : "✗") : amountOn(habit, key) || d.getDate()}</div>
-            <span style={SR_ONLY}> {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {habit.name}: {off ? "not scheduled" : progressLabel(habit, key)}</span>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: off && !iced ? 0.4 : 1 }}>{iced ? "🧊" : off ? "–" : k === "check" ? (done ? "✓" : d.getDate()) : k === "quit" ? (done ? "✓" : "✗") : amountOn(habit, key) || d.getDate()}</div>
+            <span style={SR_ONLY}> {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {habit.name}: {iced ? "covered by a streak freeze" : off ? "not scheduled" : progressLabel(habit, key)}</span>
           </button>
         );
       })}
@@ -219,6 +225,16 @@ function HabitCard({ habit, onToggle, onDelete, onEdit, onAmount, onSetAmount, o
             {streak > 1 && (
               <span style={{ border: "2px solid #C62828", background: "#C62828", color: "white", fontSize: 10, fontWeight: 900, padding: "1px 6px", flexShrink: 0 }}>
                 {kind === "quit" ? `🛡 ${streak} days kept` : `🔥 ${streak}`}
+              </span>
+            )}
+            {freezesOf(habit) > 0 && (
+              <span data-testid="habit-freezes" title={`${freezesOf(habit)} streak freeze${freezesOf(habit) > 1 ? "s" : ""}: a missed day is covered automatically, so the streak keeps going`} aria-label={`${freezesOf(habit)} streak freeze${freezesOf(habit) > 1 ? "s" : ""}`} style={{ border: "2px solid #1E88E5", background: "#E3F2FD", color: "#0D47A1", fontSize: 10, fontWeight: 900, padding: "1px 6px", flexShrink: 0 }}>
+                🧊 {freezesOf(habit)}
+              </span>
+            )}
+            {streak > 0 && streak < FREEZE_EVERY && freezesOf(habit) < MAX_FREEZES && kind !== "quit" && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "hsl(var(--muted-foreground))" }} title="Every 7 days of streak earns a streak freeze">
+                🧊 in {FREEZE_EVERY - streak} day{FREEZE_EVERY - streak > 1 ? "s" : ""}
               </span>
             )}
           </div>
@@ -323,9 +339,9 @@ function HabitCard({ habit, onToggle, onDelete, onEdit, onAmount, onSetAmount, o
         </div>
 
         {heatmapView === "week" ? (
-          <WeekStrip completedDays={doneDays(habit)} />
+          <WeekStrip completedDays={doneDays(habit)} frozen={habit.frozen} />
         ) : heatmapView === "month" ? (
-          <MonthlyHeatmap completedDays={doneDays(habit)} color={habit.color} />
+          <MonthlyHeatmap completedDays={doneDays(habit)} color={habit.color} frozen={habit.frozen} />
         ) : (
           <YearHeatmap habit={habit} />
         )}
@@ -530,7 +546,26 @@ export function HabitSection() {
     setEditingHabit(null);
   };
 
-  const update = (id: string, fn: (h: Habit) => Habit) => save(habits.map((h) => (h.id === id ? fn(h) : h)));
+  const [moment, setMoment] = useState<StreakMoment | null>(null);
+  const closeMoment = useCallback(() => setMoment(null), []);
+  // Missed days are covered by streak freezes as soon as the habits load.
+  useEffect(() => {
+    if (!loaded) return;
+    const settled = settleAllFreezes(habits);
+    if (settled) save(settled);
+  }, [loaded, habits, save]);
+
+  /** Every change to a habit: earns freezes on streak days, and celebrates milestones. */
+  const update = (id: string, fn: (h: Habit) => Habit) =>
+    save(
+      habits.map((h) => {
+        if (h.id !== id) return h;
+        const { habit, moment: m } = afterLog(h, fn(h));
+        if (m) setMoment(m);
+        else setMoment((cur) => (cur?.habitId === id ? null : cur));
+        return habit;
+      }),
+    );
   const toggle = (id: string, day = getDayKey()) => update(id, (h) => toggleCheck(h, day));
   const amount = (id: string, delta: number) => update(id, (h) => addAmount(h, getDayKey(), delta));
   const setDayAmount = (id: string, day: string, value: number) => update(id, (h) => setAmount(h, day, value));
@@ -555,6 +590,7 @@ export function HabitSection() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {moment && <StreakMomentToast moment={moment} quit={kindOf(habits.find((h) => h.id === moment.habitId) ?? ({} as Habit)) === "quit"} onClose={closeMoment} />}
       {/* Header */}
       <div style={{ borderBottom: "var(--nb-border)", padding: "16px 24px", background: "hsl(var(--muted))", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>

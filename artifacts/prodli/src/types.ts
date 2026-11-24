@@ -108,6 +108,8 @@ export interface Todo {
   /** Imported from another app (Settings → Backup & data → Import): that app and the task's id there
    *  (or a hash of list + title + due date), so importing the same file again skips it. */
   importedFrom?: { app: string; id: string };
+  /** A note that goes with it (a screenshot saved as a to-do), opened with 🖼 on the to-do. */
+  noteId?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -134,6 +136,12 @@ export interface Habit {
   days?: number[];
   /** Days skipped on purpose (sick, travel): they don't break a streak. */
   skipped?: string[];
+  /** Streak freezes in hand (0–2): one is earned every 7 days of streak, and one is used up automatically for a missed day. */
+  freezes?: number;
+  /** Missed days a streak freeze covered: like skipped days, they don't break the streak. */
+  frozen?: string[];
+  /** The day the last freeze was earned (so unmarking that day gives it back). */
+  freezeEarnedOn?: string;
 }
 
 /** One record per day (Today section): focus, the AI brief, the evening reflection. Synced. */
