@@ -2201,7 +2201,8 @@ const suites = {
     const t1 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
     await sleep(2100);
     const t2 = await p.eval(`document.querySelector('[data-testid="now-countdown"]').textContent`);
-    check("Now card: the countdown runs (about 25 minutes left)", /^2[45]:\d\d$/.test(t1) && t1 !== t2, `${t1} → ${t2}`);
+    // The block started 5:00–5:59 ago (its start is rounded down to the minute) plus page load, so 23:xx–25:00 left.
+    check("Now card: the countdown runs (about 25 minutes left)", /^2[345]:\d\d$/.test(t1) && t1 !== t2, `${t1} → ${t2}`);
     await p.eval(`document.querySelector('[data-testid="now-done"]').click(); true`);
     await sleep(800);
     const todos = (await p.storage(["todos"])).todos;
