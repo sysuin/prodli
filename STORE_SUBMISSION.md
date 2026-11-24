@@ -167,22 +167,22 @@ No account is needed: every section works offline after install. To try the AI f
 
 Every run first type-checks and runs the extension's unit tests. It checks the zip has Google sign-in and no `key` field. The manifest version must be higher than the store's.
 
-### One-time setup (on the Mac, about 20 minutes)
+### One-time setup (on the Mac, about 10 minutes)
 
-1. **A separate Google Cloud project for releasing** (for example "prodli-release"). Keep it apart from the `prodli` project, so its consent screen and the Calendar verification aren't touched.
-   - APIs & Services → Library → enable **Chrome Web Store API**.
-   - Google Auth Platform → Branding: an app name and your email. Audience: External, then **Publish app**. In Testing mode Google expires the refresh token after 7 days. It stays unverified, which is fine for your own account: when you sign in, Google warns "Google hasn't verified this app". Choose Advanced → continue.
-   - Clients → Create client → **Desktop app**. Copy the client ID and client secret.
-2. **The refresh token.** In the repo on the Mac:
-   ```bash
-   CWS_CLIENT_ID="…" CWS_CLIENT_SECRET="…" node artifacts/prodli/scripts/chrome-store-token.mjs
-   ```
-   Sign in with the Google account that owns the ProdLi store item. The script prints the refresh token. Copy it, then clear the terminal.
-3. **The publisher ID** is in the Developer Dashboard's address (https://chrome.google.com/webstore/devconsole/…) once you're signed in.
+The workflow signs in to the store as a **service account**: a robot Google account that only you control. Nothing expires, no consent screen is involved, and it can be removed in one click.
+
+1. **Google Cloud console**, project `prodli` (the same one as sign-in; a service account doesn't touch the consent screen or the Calendar verification):
+   - APIs & Services → Library → search "Chrome Web Store API" → **Enable**.
+   - IAM & Admin → Service accounts → **Create service account**, for example "chrome-web-store". Skip the optional roles and access steps: it needs no Cloud permissions.
+   - Open it → Keys → Add key → Create new key → **JSON**. A `.json` file downloads; it's the account's password.
+2. **Chrome Web Store Developer Dashboard** → Account → service account: add the service account's email (`chrome-web-store@prodli….iam.gserviceaccount.com`). A publisher can have one service account. Your Google account needs 2-step verification on to publish.
+3. **Publisher ID:** Developer Dashboard → Publisher → Settings.
 4. **GitHub** → the repo → Settings → Secrets and variables → Actions:
-   - Secrets: `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, and `PRODLI_GOOGLE_CLIENT_ID` (the extension's sign-in client ID from `.env.local`; CI uses it too, so it may be there already).
+   - Secrets: `CWS_SERVICE_ACCOUNT` (paste the whole JSON file's text) and `PRODLI_GOOGLE_CLIENT_ID` (the extension's sign-in client ID from `.env.local`; CI uses it too, so it may be there already).
    - Variables tab: `CWS_PUBLISHER_ID`.
+   - Then delete the downloaded `.json` file from the Mac.
 5. **Try it:** run the workflow with **build**, download the zip from the run and compare it with one built on the Mac. Then use **upload** for the next real release.
 
-If a run says the keys are invalid or expired, make a new refresh token (step 2) and replace the secret. `node artifacts/prodli/scripts/chrome-store.mjs status`, run with the same settings in the environment, shows the item's upload and review state.
+If a run says Google refused the service account, create a new JSON key (step 1), replace the secret, and delete the old key in the console. To stop the workflow from reaching the store at any time, remove the service account in the Developer Dashboard, or delete its key. `node artifacts/prodli/scripts/chrome-store.mjs status`, run with the same settings in the environment, shows the item's upload and review state.
 
+Google's guide: https://developer.chrome.com/docs/webstore/using-api and https://developer.chrome.com/docs/webstore/service-accounts (API v2; checked 2026-11-24). Notes from it: the API can't create items or change the listing; the manifest version must go up; publishing uses the item's current visibility settings (after changing them in the dashboard, publish once by hand first).

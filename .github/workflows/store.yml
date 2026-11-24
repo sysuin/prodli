@@ -11,8 +11,8 @@
 # Only you start it (manual runs need write access) and only from main. The
 # version in artifacts/prodli/extension/manifest.json must be higher than the
 # store's. Setup (one time, on the Mac): STORE_SUBMISSION.md → "Releasing from GitHub".
-# Secrets: PRODLI_GOOGLE_CLIENT_ID (sign-in, also used by CI), CWS_CLIENT_ID,
-# CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN. Variable: CWS_PUBLISHER_ID.
+# Secrets: PRODLI_GOOGLE_CLIENT_ID (sign-in, also used by CI) and
+# CWS_SERVICE_ACCOUNT (the service account's JSON key). Variable: CWS_PUBLISHER_ID.
 name: Store
 
 on:
@@ -56,13 +56,11 @@ jobs:
         env:
           ACTION: ${{ inputs.action }}
           PRODLI_GOOGLE_CLIENT_ID: ${{ secrets.PRODLI_GOOGLE_CLIENT_ID }}
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_SERVICE_ACCOUNT: ${{ secrets.CWS_SERVICE_ACCOUNT }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
         run: |
           need="PRODLI_GOOGLE_CLIENT_ID"
-          [ "$ACTION" = build ] || need="$need CWS_CLIENT_ID CWS_CLIENT_SECRET CWS_REFRESH_TOKEN CWS_PUBLISHER_ID"
+          [ "$ACTION" = build ] || need="$need CWS_SERVICE_ACCOUNT CWS_PUBLISHER_ID"
           missing=""
           for n in $need; do [ -n "${!n}" ] || missing="$missing $n"; done
           if [ -n "$missing" ]; then
@@ -89,9 +87,7 @@ jobs:
       - name: ${{ inputs.action == 'submit' && 'Upload and submit for review' || 'Upload as a draft' }}
         if: inputs.action != 'build'
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_SERVICE_ACCOUNT: ${{ secrets.CWS_SERVICE_ACCOUNT }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
           ACTION: ${{ inputs.action }}
         run: node artifacts/prodli/scripts/chrome-store.mjs "$ACTION" prodli-extension-store.zip
