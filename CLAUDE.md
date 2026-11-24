@@ -25,7 +25,7 @@ ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new
 
 - **Batch related changes on one branch, one PR per batch** (one commit per change). Urgent fixes (a broken build, legal wording) get their own small PR. Each CI run takes about 15–18 minutes and Actions minutes are limited.
 - **Run the unit tests and the affected e2e suites before opening a PR.** Run the full `test:e2e` (and `test:e2e:server` for billing/accounts changes) before big merges.
-- **Merge after CI without asking**, but only when CI actually passed: `if gh pr checks N --watch --fail-fast; then gh pr merge N --merge; else echo "CI FAILED - NOT MERGED"; fi`. Never merge a red PR. (On the owner's Mac, `gh auth switch -u sysuin` first.)
+- **Merge after CI without asking**, but only when CI actually passed: `scripts/pr.sh merge-after-ci <number>` waits for every check on the PR's latest commit and merges only if all passed (docs-only PRs get no CI and merge directly). Open PRs with `scripts/pr.sh create <branch> "<title>" <body-file>`. Both use GitHub's REST API, which works in cloud sessions (GraphQL, and so `gh pr checks/merge/create/list`, is blocked there). Never merge a red PR. (On the owner's Mac, `gh auth switch -u sysuin` first.)
 - **Always ask first** before: deploying production, uploading to the Chrome Web Store, changing Dodo/billing settings or prices, changing Google Cloud settings, or publishing anything outside the normal merge → deploy flow. An explicit "deploy" in the request counts as the yes.
 - Keep TODO.md current: tick items with a short dated "done" note in the existing style; add new open items where they belong.
 - Write UI text, docs and messages plainly and briefly.
@@ -57,5 +57,6 @@ ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new
 ## Cloud sessions
 
 - Set up with `bash scripts/cloud-setup.sh` (Node 22, pnpm, dependencies, Google Chrome for the e2e tests). The environment needs network access to the npm registry and dl.google.com; it needs no secrets.
-- Work on a branch, push, open a PR, let CI run, and merge after CI as above. Deploy production only through the GitHub workflow, and only with the owner's yes.
+- Work on a branch, push, open a PR, let CI run, and merge after CI as above. Deploy production only through the GitHub workflow, and only with the owner's yes; it then waits for the owner's approval in GitHub.
+- Checked on 2026-11-24 in the **ProdLi** environment: Node 22 and pnpm are preinstalled, Chrome is at `/usr/bin/google-chrome`, the repo is at `/home/user/prodli`, and typecheck, unit tests, the extension build and e2e suites pass. `gh auth status` reports an invalid token; that's expected (a proxy adds the login), and `gh api` REST calls and `git push` work.
 - If something needs the Mac (list above), say so in the PR or TODO.md instead of working around it.
