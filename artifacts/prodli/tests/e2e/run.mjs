@@ -2655,6 +2655,26 @@ const suites = {
     }
     check("Upload: Retry transcribes it", retried?.transcript[0] === "Speaker: Retry worked." && !retried.error, JSON.stringify(retried));
 
+    // Failing part-way: Retry carries on, sending only the pieces that weren't transcribed (no minutes counted twice).
+    await p.eval(`(() => { globalThis.__sent = []; globalThis.__prodliTranscribeStub = async (wav, startMs) => { __sent.push(startMs); if (__sent.length > 1) throw new Error("offline"); return { text: "First part.", segments: [], language: "en" }; }; return true; })()`);
+    await uploadFile("speech-en-3x.wav", "Half upload");
+    const half = await waitReady("Half upload");
+    await sleep(400);
+    const firstSent = await p.eval("__sent.slice().sort((a, b) => a - b)");
+    const kept = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? [])`);
+    check("Upload: a part-way failure keeps the finished pieces and says Retry carries on", firstSent.length >= 2 && kept.length === 1 && kept[0].startMs === firstSent[0] && /carries on from where it stopped/.test(half?.error ?? ""), JSON.stringify({ firstSent, kept: kept.map((k) => k.startMs), error: half?.error }));
+    await p.eval(`(() => { globalThis.__sent = []; globalThis.__prodliTranscribeStub = async (wav, startMs) => { __sent.push(startMs); return { text: "Second part.", segments: [], language: "en" }; }; return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="upload-retry"] button').click()`);
+    let resumed;
+    for (let i = 0; i < 40; i++) {
+      await sleep(250);
+      resumed = (await readMeetings()).find((x) => x.title === "Half upload");
+      if (resumed?.transcript.length && resumed.status === "ready") break;
+    }
+    const retrySent = await p.eval("__sent.slice().sort((a, b) => a - b)");
+    const leftover = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? null)`);
+    check("Upload: Retry sends only the missing pieces and joins the transcript in order", !retrySent.includes(firstSent[0]) && retrySent.length >= 1 && resumed?.transcript[0] === "Speaker: First part." && resumed.transcript.slice(1).every((t) => t === "Speaker: Second part.") && leftover === null, JSON.stringify({ retrySent, firstSent, transcript: resumed?.transcript, leftover }));
+
     // Not audio: the panel explains instead of uploading.
     await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
     await sleep(500);
@@ -3150,6 +3170,71 @@ const suites = {
     check("#ask= opens Ask ProdLi and cleans the address", (await a.eval(`!!document.querySelector('[role="dialog"][aria-label="Ask ProdLi"]')`)) && !(await a.eval(`location.hash`)));
     await a.eval(`chrome.storage.local.set({ habits: [], todos: [], dictationSnippets: [] })`);
     await a.close();
+  },
+
+  async webdictation(b, check) {
+    // Dictation in the web and desktop apps (WebDictation.tsx), turned on in this test build with a storage flag.
+    // A beeping tone stands in for the microphone; stubs stand in for Whisper and the clean-up.
+    const p = await b.openPage();
+    await p.eval(`chrome.storage.local.set({ e2eWebDictation: true, voiceLanguage: "hi" })`);
+    await p.goto("todos");
+    await p.eval("location.reload()");
+    await sleep(1500);
+    const setup = `(() => {
+      navigator.mediaDevices.getUserMedia = async () => { const ctx = new AudioContext(); const o = ctx.createOscillator(); o.frequency.value = 300; const g = ctx.createGain(); g.gain.value = 0; o.connect(g); const d = ctx.createMediaStreamDestination(); g.connect(d); o.start(); let on = false; setInterval(() => { on = !on; g.gain.setValueAtTime(on ? 0.3 : 0, ctx.currentTime); }, 700); return d.stream; };
+      globalThis.__wd = { pieces: [], bodies: [] };
+      globalThis.__prodliTranscribeStub = async (wav, startMs, vocabulary, language) => { __wd.pieces.push(language); return { text: "um buy oat milk", segments: [], language: "en" }; };
+      globalThis.__prodliDictateStub = async (body) => { __wd.bodies.push(body); return { text: body.mode === "command" ? "OAT" : "Buy oat milk." }; };
+      return true; })()`;
+    await p.eval(setup);
+    const altShiftD = () => p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "D", code: "KeyD", altKey: true, shiftKey: true, bubbles: true }))`);
+    const pill = () => p.eval(`document.querySelector('[data-testid="web-dictate-pill"]')?.innerText ?? ""`);
+    const INPUT = 'input[placeholder="Add a new task..."]';
+    await p.eval(`document.querySelector('${INPUT}').focus()`);
+    await sleep(200);
+    check("Web dictation: a 🎙 button shows on the text box you're in", await p.eval(`!!document.querySelector('[data-testid="web-dictate-button"]')`));
+    await altShiftD();
+    await sleep(600);
+    check("Web dictation: Alt+Shift+D starts listening", /Listening/.test(await pill()), await pill());
+    await sleep(2600);
+    await altShiftD();
+    let typed = "";
+    for (let i = 0; i < 40 && !typed; i++) {
+      await sleep(100);
+      typed = await p.eval(`document.querySelector('${INPUT}').value`);
+    }
+    check("Web dictation: pressing it again types the cleaned-up text into the box", typed === "Buy oat milk.", JSON.stringify(typed));
+    const wd = await p.eval("__wd");
+    check("Web dictation: Whisper is told the chosen language and the clean-up gets it too", wd.pieces.length >= 1 && wd.pieces.every((l) => l === "hi") && wd.bodies[0]?.mode === "polish" && wd.bodies[0]?.language === "hi" && wd.bodies[0]?.field === "other" && /buy oat milk/.test(wd.bodies[0]?.text ?? ""), JSON.stringify(wd));
+    check("Web dictation: the pill says what happened", /Typed 3 words/.test(await pill()), await pill());
+
+    // Esc cancels without typing.
+    await sleep(1800);
+    await p.eval(`(() => { const i = document.querySelector('${INPUT}'); i.focus(); return true; })()`);
+    await altShiftD();
+    await sleep(800);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
+    await sleep(500);
+    check("Web dictation: Esc cancels and types nothing", (await p.eval(`document.querySelector('${INPUT}').value`)) === "Buy oat milk." && /Cancelled/.test(await pill()), await pill());
+
+    // Selected text + speech = an edit (Command Mode), here in a text box with a selection.
+    await sleep(1200);
+    await p.eval(`(() => { const i = document.querySelector('${INPUT}'); i.focus(); i.setSelectionRange(4, 7); return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="web-dictate-button"]').click()`);
+    await sleep(600);
+    check("Web dictation: with text selected it asks how to change it", /change the selection/.test(await pill()), await pill());
+    await sleep(2200);
+    await p.eval(`document.querySelector('.web-dictate-pill button.ok').click()`);
+    let edited = "";
+    for (let i = 0; i < 40; i++) {
+      await sleep(100);
+      edited = await p.eval(`document.querySelector('${INPUT}').value`);
+      if (edited !== "Buy oat milk.") break;
+    }
+    const last = (await p.eval("__wd.bodies")).at(-1);
+    check("Web dictation: ✓ applies the spoken edit to the selection", edited === "Buy OAT milk." && last?.mode === "command" && last?.selection === "oat", JSON.stringify({ edited, last }));
+    await p.eval(`chrome.storage.local.set({ e2eWebDictation: false, voiceLanguage: "auto" })`);
+    await p.close();
   },
 
   async a11y(b, check) {

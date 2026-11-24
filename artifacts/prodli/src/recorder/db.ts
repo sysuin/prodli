@@ -4,6 +4,7 @@
 
 import type { Meeting } from "./types";
 import { recordDeletions } from "../lib/tombstones";
+import { storageRemove } from "../lib/storage";
 
 const DB_NAME = "prodli-meetings";
 const DB_VERSION = 1;
@@ -114,6 +115,8 @@ export async function deleteMeeting(id: string, { tombstone = true }: { tombston
     await reqToPromise(t.objectStore(AUDIO).delete(id));
   });
   await deleteChunks(id);
+  // An upload's half-done transcription (recorder/upload.ts piecesKey).
+  await storageRemove(`uploadPieces_${id}`).catch(() => {});
   if (tombstone) await recordDeletions("meetings", [id]).catch(() => {});
   announceChange();
 }

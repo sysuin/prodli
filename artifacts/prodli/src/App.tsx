@@ -15,7 +15,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { AskPanel } from "./components/AskPanel";
 import { QuickAddModal } from "./components/QuickAdd";
 import { addTask, captureFromUrl, type CaptureInput } from "./lib/capture";
-import { saveAndCloseWindow } from "./lib/tabSessions";
+import { isExtension, saveAndCloseWindow } from "./lib/tabSessions";
 import { requestDailyNote } from "./lib/noteTemplates";
 import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
 import { VoiceTasksModal } from "./components/VoiceTasks";
@@ -86,6 +86,7 @@ function rememberSectionHint(s: Section) {
 })();
 
 // Import from other apps: loaded only when opened.
+const WebDictationLazy = lazy(() => import("./components/WebDictation").then((m) => ({ default: m.WebDictation })));
 const ImportTasksModal = lazy(() => import("./components/ImportTasks").then((m) => ({ default: m.ImportTasksModal })));
 const TodaySection = lazy(() => importers.today().then(m => ({ default: m.TodaySection })));
 const ReviewSection = lazy(() => importers.review().then(m => ({ default: m.ReviewSection })));
@@ -132,6 +133,11 @@ export default function App() {
   }, []);
   const [quickAdd, setQuickAdd] = useState<{ open: boolean; initial?: CaptureInput }>({ open: false });
   const [showMore, setShowMore] = useState(false);
+  // Voice dictation in the web and desktop apps (the extension has its own, dictation/background.ts).
+  const [webDictation, setWebDictation] = useState(() => !isExtension() && accountsEnabled());
+  useEffect(() => {
+    if (import.meta.env.VITE_E2E === "1" && isExtension()) void storageGet<boolean>("e2eWebDictation", false).then((v) => v && setWebDictation(true));
+  }, []);
   const [toast, setToast] = useState<{ message: string; action?: { label: string; run: () => void } } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [collapsed, setCollapsed] = useState(() => {
@@ -620,6 +626,11 @@ export default function App() {
             </button>
           )}
         </div>
+      )}
+      {webDictation && (
+        <Suspense fallback={null}>
+          <WebDictationLazy />
+        </Suspense>
       )}
       {showPalette && <CommandPalette actions={paletteActions} onClose={() => setShowPalette(false)} isDark={isDark} />}
       {ask.open && <AskPanel onClose={closeAsk} initialQuestion={ask.question} initialTurns={ask.turns} />}

@@ -10,12 +10,12 @@
 // audio and offers Retry.
 
 import { getAudio, getMeeting, listMeetings, putAudio, putMeeting, updateMeeting } from "./db";
-import { transcribeRecording, TranscribeError, TRANSCRIBE_QUOTA_MESSAGE, type TranscribeProgress } from "./audioTranscribe";
+import { transcribeRecording, TranscribeError, TRANSCRIBE_QUOTA_MESSAGE, type DonePiece, type TranscribeProgress } from "./audioTranscribe";
 import { canUseProdliAi, summarizeMeeting } from "./summarize";
 import { readMp4Audio, readWavInfo, sniffFormat, type MediaFormat, type ReadAt } from "./mediaFormats";
 import { uploadMimeType, uploadProblem } from "./uploadFile";
 import { accountsEnabled, getAiUsage } from "../lib/prodliAccount";
-import { storageGet } from "../lib/storage";
+import { storageGet, storageRemove, storageSet } from "../lib/storage";
 import { AUTO_SUMMARIZE_STORAGE_KEY, type Meeting } from "./types";
 
 export const SIGN_IN_TO_TRANSCRIBE_UPLOAD = "Saved as audio. Transcribing it needs a free ProdLi account: sign in (👤), then press Transcribe below.";
@@ -67,6 +67,43 @@ async function withLock(name: string, fn: () => Promise<void>): Promise<boolean>
   });
 }
 const lockName = (id: string) => `prodli-upload-${id}`;
+
+// ── Pieces already transcribed (Retry continues instead of starting over) ─────
+
+/** Where an upload's finished pieces wait until the whole recording is transcribed (this device only; not synced or backed up). */
+export const piecesKey = (meetingId: string) => `uploadPieces_${meetingId}`;
+export const loadDonePieces = (meetingId: string) => storageGet<DonePiece[]>(piecesKey(meetingId), []);
+export const clearDonePieces = (meetingId: string) => storageRemove(piecesKey(meetingId));
+
+/** Keeps finished pieces as they arrive, writing at most every second. */
+function pieceSaver(meetingId: string, start: DonePiece[]) {
+  const all = new Map(start.map((d) => [d.startMs, d]));
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let writing: Promise<void> = Promise.resolve();
+  const write = () => {
+    timer = null;
+    const list = [...all.values()];
+    writing = writing.then(() => storageSet(piecesKey(meetingId), list)).catch(() => {});
+  };
+  return {
+    add(d: DonePiece) {
+      all.set(d.startMs, d);
+      timer ??= setTimeout(write, 1000);
+    },
+    /** Writes what's pending now (before reporting a failure). */
+    async flush() {
+      if (timer) {
+        clearTimeout(timer);
+        write();
+      }
+      await writing;
+    },
+    cancel() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
 
 // ── Checking the file ─────────────────────────────────────────────────────────
 
@@ -198,28 +235,40 @@ export async function processUpload(meetingId: string): Promise<UploadResult> {
       if (!meeting) return;
       const signedIn = await canUseProdliAi();
       if (!signedIn && !stubbed()) return fail(accountsEnabled() ? SIGN_IN_TO_TRANSCRIBE_UPLOAD : NOT_AVAILABLE, "notice");
+      // Pieces a failed or stopped run already transcribed: not sent (or counted) again.
+      const earlier = await loadDonePieces(meetingId);
+      const earlierMs = earlier.reduce((n, d) => n + d.durationMs, 0);
       // Out of minutes: say so before sending anything.
       if (signedIn && !stubbed()) {
         const usage = await getAiUsage().catch(() => null);
         const t = usage?.transcribeSeconds;
-        if (t && t.limit - t.used < Math.min(meeting.durationSec || 60, 60)) return fail(TRANSCRIBE_QUOTA_MESSAGE);
+        const left = Math.max(0, (meeting.durationSec || 60) - earlierMs / 1000);
+        if (t && t.limit - t.used < Math.min(left || 60, 60)) return fail(TRANSCRIBE_QUOTA_MESSAGE);
       }
       await updateMeeting(meetingId, () => ({ status: "processing", error: null, notice: null }));
       const blob = await getAudio(meetingId);
       if (!blob) return fail("The recording isn't on this device any more.");
       let r: Awaited<ReturnType<typeof transcribeRecording>>;
+      const saver = pieceSaver(meetingId, earlier);
       try {
         r = await transcribeRecording(blob, meeting.audioMimeType, {
           signal: job.abort.signal,
+          resume: earlier,
+          onPiece: (d) => saver.add(d),
           onProgress: (p) => {
             job.progress = p;
             notify();
           },
         });
       } catch (err) {
-        if (job.abort.signal.aborted) return fail("Transcription was stopped. Press Retry to start again.", "notice");
-        return fail(`Couldn't transcribe this recording: ${err instanceof TranscribeError || err instanceof Error ? err.message : "something went wrong."}`);
+        await saver.flush();
+        const kept = (await loadDonePieces(meetingId)).length;
+        const resumeNote = kept ? " Retry carries on from where it stopped; the minutes already used aren't counted again." : "";
+        if (job.abort.signal.aborted) return fail(`Transcription was stopped.${kept ? resumeNote : " Press Retry to start again."}`, "notice");
+        return fail(`Couldn't transcribe this recording: ${err instanceof TranscribeError || err instanceof Error ? err.message : "something went wrong."}${resumeNote}`);
       }
+      saver.cancel();
+      await clearDonePieces(meetingId);
       const last = r.entries[r.entries.length - 1];
       await updateMeeting(meetingId, (m) => ({
         transcript: r.entries,

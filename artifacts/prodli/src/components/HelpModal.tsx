@@ -4,7 +4,7 @@ import { accountsEnabled } from "../lib/prodliAccount";
 import { SECTIONS } from "../sections/registry";
 
 /** The extension's version (or the web app's, which ships with the same code). */
-export const version = () => (typeof chrome !== "undefined" && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : "1.4.0");
+export const version = () => (typeof chrome !== "undefined" && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : "1.5.0");
 
 interface HelpModalProps {
   /** Inside Settings: just the content, no window around it. */
@@ -319,6 +319,7 @@ export function HelpModal({ onClose = () => {}, embedded = false }: HelpModalPro
                 ))}
                 <ShortcutRow keys={["?"]} action="Help & shortcuts" />
                 <ShortcutRow keys={["Alt + Shift + R"]} action="Start / stop recording (on a Google Meet tab)" />
+                <ShortcutRow keys={["Alt + Shift + D"]} action="Dictate into the text box you're in (any website in the extension; ProdLi's own boxes on app.prodli.com and in the desktop app, or the 🎙 on the box)" />
                 <ShortcutRow keys={["Space"]} action="Start / Pause Pomodoro timer (when on Pomodoro tab, no input focused)" />
                 <ShortcutRow keys={["Escape"]} action="Close a window (Settings, Ask, Quick add…)" />
               </div>
