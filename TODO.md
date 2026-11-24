@@ -33,6 +33,13 @@ Day-to-day building runs in Claude Code cloud sessions; the guide for them is [C
 - [x] **First cloud session (check):** *passed 2026-11-24* ("ProdLi environment verification"): setup, typecheck, all unit tests, extension build and e2e suites (smoke, quickwins, habits, snippets). Fixed after it: the environment's setup script now finds the repo at `/home/user/prodli`, and merging uses `scripts/pr.sh` (REST) because GraphQL `gh pr …` commands are blocked in cloud sessions.
 - [ ] **Your preferences travel in CLAUDE.md** (batch PRs, merge after CI, ask before deploys/store/billing). Edit it there, not in a session's local memory.
 
+## Before 1 Dec 2026 (found by the first cloud session, 2026-11-24)
+
+- [ ] **GitHub Actions minutes:** `.github/workflows/uptime.yml` runs every 15 minutes; once the repo is private again (1 Dec), each run bills at least 1 minute, about 2,900 minutes a month, more than GitHub Free's 2,000 before any CI run (15–18 minutes each). Lengthen the interval (e.g. hourly or every 6 hours) or move the uptime check off Actions (e.g. a Cloudflare cron or a free uptime monitor) before 1 Dec.
+- [ ] **Store kit out of date:** `STORE_SUBMISSION.md` still says Google Calendar access is read-only (description and the `identity` permission note), but 1.5.0 also writes to a "ProdLi" calendar (`calendar.app.created`; the Privacy page already says so). The "Before you submit" checklist still lists 1.4.0 items. Fix both before uploading 1.5.0.
+- [ ] **Calendar verification status (you):** check Google's Verification Center: did the branding re-check (scheduled for 18 Nov) pass, and has the `calendar.readonly` request been submitted? Update the "Calendar verification" item above with the answer.
+- [ ] *Small:* `scripts/pr.sh` with no arguments prints one stray line (`set -euo pipefail`) after its help.
+
 ## Next — Claude can do
 
 - Nothing pending before launch.
