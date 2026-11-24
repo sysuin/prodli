@@ -65,3 +65,8 @@ site-dist/
 .wrangler/
 artifacts/prodli-api/app-dist/
 .admin-token-*
+
+# Claude Code (local only: worktrees, machine-specific preview config, personal settings)
+.claude/worktrees/
+.claude/launch.json
+.claude/settings.local.json

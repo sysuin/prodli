@@ -8,8 +8,9 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 - [x] **Google consent screen:** published (In production) on 2026-11-17; sign-in works for everyone. prodli.com verified in Search Console (TXT record in Cloudflare; keep it).
 - [ ] **Calendar verification:** branding re-verification is scheduled for 2026-11-18 (Google asks for a 24-hour wait after domain verification). After branding passes, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today).
-- [ ] **Chrome Web Store:** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit.
-- [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Left for you: one real purchase to confirm the live flow — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
+- [ ] **Chrome Web Store (1.5.0):** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit. Until then, extension users keep 1.4.0: the old plan box (Pro only; Pro Plus subscribers show as Pro), no screenshots, snippet picker or Indian languages. Build the zip on the Mac (it needs `.env.local`).
+- [ ] **Real purchase test (live Dodo):** on app.prodli.com → Settings → Plan & usage → Get Pro (yearly or monthly) → pay with a real card → check the plan turns on by itself; then "Switch to Pro Plus" (charged the difference) → check it says Pro Plus; then cancel in Manage subscription and refund yourself in the Dodo dashboard. Also try picking a plan on prodli.com while signed out (sign in → checkout opens by itself).
+- [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Pro Plus ($12/$120) and the lower Pro limits went live on 2026-11-24 (production version 3ba3d0ed) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [x] **Chrome Web Store: version number.** *done 2026-11-24:* raised to 1.5.0; `STORE_SUBMISSION.md` lists what's new and the screenshot data disclosure. Rebuild the zip from `main` right before uploading.
 - [ ] **Two-way calendar, first real run:** on Today, turn on "Show blocks in Google Calendar" with your real Google account; check a "ProdLi" calendar appears in Google Calendar, a block shows there, and moving/deleting the event moves/unblocks the task in ProdLi.
 - [ ] **Real-use checks:**
@@ -21,6 +22,15 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts; deploy the production API (phone sign-in); then `eas build` and a TestFlight / internal-testing beta. Listing text, screenshots and privacy answers are ready in [docs/MOBILE-STORE.md](docs/MOBILE-STORE.md). Ask the lawyer about the phone-app additions in `docs/legal/REVIEW-NOTES.md` §9.
 - [ ] **Desktop app (Mac + Windows):** production API with desktop sign-in is live (2026-11-21); next: Apple + Windows signing certificates and a download page — [docs/DESKTOP.md](docs/DESKTOP.md) → "Before shipping".
 - [x] **Cloudflare billing alerts:** budget alerts at $10 (auto-created) and $25 (added 2026-11-17), emailed to the account owner
+
+## Working in Claude Cloud (from 2026-11-24)
+
+Day-to-day building runs in Claude Code cloud sessions; the guide for them is [CLAUDE.md](CLAUDE.md). Some work still needs this Mac:
+
+- [ ] **On the Mac only:** Chrome Web Store builds and uploads (`.env.local` secrets), anything in your own Chrome (Dodo, Google Cloud console, Chrome Web Store dashboard, Search Console), desktop app builds and signing (macOS), and the desktop e2e/smoke scripts.
+- [ ] **Production deploys:** from GitHub, not a laptop — Actions → Deploy → Run workflow → `production-api`. It saves a database restore point first (shown in the run summary), deploys, and checks the health endpoint. Optional, recommended: GitHub → Settings → Environments → production → Required reviewers → you, so nothing reaches production without your click.
+- [ ] **Cloud environment (one-time, in claude.ai/code):** create an environment for `sysuin/prodli` with the setup script `bash scripts/cloud-setup.sh` and network access to the npm registry and Chrome downloads (see CLAUDE.md → "Cloud sessions"). No production secrets in it.
+- [ ] **Your preferences travel in CLAUDE.md** (batch PRs, merge after CI, ask before deploys/store/billing). Edit it there, not in a session's local memory.
 
 ## Next — Claude can do
 
