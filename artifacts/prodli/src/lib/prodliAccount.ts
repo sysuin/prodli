@@ -25,7 +25,10 @@ export interface ProdliUser {
   email: string;
   name: string;
   picture: string | null;
+  /** "free" | "pro" (Pro Plus subscribers are "pro" here too; see `tier`). */
   plan: string;
+  /** The exact plan: "free" | "pro" | "plus" (older servers don't send it). */
+  tier?: string;
   createdAt: number;
   /** When the free Pro trial ends, while it runs (older servers don't send it). */
   trialEndsAt?: number | null;
@@ -81,6 +84,8 @@ const friendly: Record<string, string> = {
   no_subscription: "There's no subscription on this account.",
   billing_unavailable: "Subscriptions can't be managed right now. Try again later.",
   billing_failed: "Couldn't open the subscription page. Try again.",
+  already_subscribed: "You already have a plan. Pick another plan to switch.",
+  same_plan: "You're already on this plan.",
   item_too_large: "One item is too large to sync.",
   too_large: "That's too much to send at once.",
   ai_quota_exceeded: "You've used this month's AI summaries. They reset on the 1st — or get more with ProdLi Pro (👤 Account).",

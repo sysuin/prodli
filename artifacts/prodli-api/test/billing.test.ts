@@ -92,7 +92,7 @@ describe("ProdLi Pro", () => {
     expect(await r1.json()).toEqual({ url: "https://checkout.dodopayments.com/session/pdt_year" });
     await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), env);
     expect(calls.filter((c) => c.kind === "dodo-customer")).toEqual([{ kind: "dodo-customer", clientId: `test:a@example.com:${userId}` }]);
-    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout`]);
+    expect(calls.filter((c) => c.kind === "dodo-checkout").map((c) => c.clientId)).toEqual([`pdt_year:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout&plan=pro`, `pdt_month:cus_${userId.slice(0, 8)}:http://localhost/pro/done?from=checkout&plan=pro`]);
     expect((await app.request("/api/billing/checkout", json({ interval: "weekly" }, headers), env)).status).toBe(400);
     expect((await app.request("/api/billing/checkout", json({ interval: "monthly" }, headers), { ...env, DODO_API_KEY: "FAIL" } as Env)).status).toBe(502);
   });
@@ -208,6 +208,8 @@ describe("ProdLi Pro", () => {
     expect(await (await app.request("/api/me", { headers }, env)).json()).toMatchObject({ user: { plan: "pro", tier: "plus" } });
     expect(await (await app.request("/api/sync/usage", { headers }, env)).json()).toMatchObject({ quota: QUOTA_BYTES.plus });
     expect(calls.some((c) => c.kind === "dodo-checkout" && c.clientId.startsWith("pdt_plus_year:"))).toBe(true);
+    expect(calls.find((c) => c.kind === "dodo-checkout")?.clientId).toContain("/pro/done?from=checkout&plan=plus");
+    expect(await (await app.request("/pro/done?from=checkout&plan=plus&status=succeeded", {}, env)).text()).toContain("You're on ProdLi Pro Plus");
   });
 
   it("switching plans: up now, down at renewal, never a second subscription", async () => {

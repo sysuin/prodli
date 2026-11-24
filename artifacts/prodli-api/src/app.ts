@@ -534,7 +534,7 @@ export function createApp(deps: Deps = realDeps) {
         customerId = await client.createCustomer({ email: auth.user.email, name: auth.user.name, userId: auth.user.id });
         await saveCustomerId(c.env.DB, auth.user.id, customerId, deps.now());
       }
-      return c.json({ url: await client.checkoutUrl({ productId, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/pro/done?from=checkout` }) });
+      return c.json({ url: await client.checkoutUrl({ productId, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/pro/done?from=checkout&plan=${plan}` }) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the checkout. Try again." }, 502);
       throw err;
@@ -1126,11 +1126,12 @@ export function createApp(deps: Deps = realDeps) {
     if (DODO_RETURN_PARAMS.some((k) => url.searchParams.has(k))) {
       const clean = new URL("/pro/done", url.origin);
       clean.searchParams.set("from", from);
+      if (url.searchParams.get("plan") === "plus") clean.searchParams.set("plan", "plus");
       const status = url.searchParams.get("status");
       if (status && /^[a-z_]{1,40}$/i.test(status)) clean.searchParams.set("status", status);
       return c.redirect(clean.pathname + clean.search, 303);
     }
-    return c.body(renderProPage(from, url.searchParams.get("status")), 200, SHARE_PAGE_HEADERS);
+    return c.body(renderProPage(from, url.searchParams.get("status"), url.searchParams.get("plan") === "plus" ? "plus" : "pro"), 200, SHARE_PAGE_HEADERS);
   });
 
   // ── Personal access tokens (src/apiTokens.ts) ──────────────────────────────

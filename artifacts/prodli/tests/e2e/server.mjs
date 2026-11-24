@@ -50,13 +50,14 @@ const fakeDodo = createServer((req, res) => {
     const send = (obj) => (res.writeHead(200, { "Content-Type": "application/json" }), res.end(JSON.stringify(obj)));
     if (req.method === "POST" && req.url === "/customers") return send({ customer_id: "cus_e2e" });
     if (req.method === "POST" && req.url === "/checkouts") return send({ session_id: "cks_e2e", checkout_url: `${DODO}/checkout/cks_e2e` });
-    if (req.method === "GET" && req.url.startsWith("/products/")) return send({ product_id: req.url.slice(10), price: { type: "recurring_price", price: req.url.includes("year") ? 4800 : 500, currency: "USD" } });
+    if (req.method === "GET" && req.url.startsWith("/products/")) return send({ product_id: req.url.slice(10), price: { type: "recurring_price", price: req.url.includes("plus") ? (req.url.includes("year") ? 12000 : 1200) : req.url.includes("year") ? 4800 : 500, currency: "USD" } });
+    if (req.method === "POST" && /^\/subscriptions\/[^/]+\/change-plan$/.test(req.url)) return send({});
     if (req.method === "POST" && req.url.startsWith("/customers/cus_e2e/customer-portal/session")) return send({ link: `${DODO}/portal/cus_e2e` });
     if (req.method === "GET" && req.url.startsWith("/checkout/")) return res.writeHead(200, { "Content-Type": "text/html" }), res.end("<title>Dodo checkout</title><h1>Pay for ProdLi Pro</h1>");
     res.writeHead(404).end("{}");
   });
 }).listen(DODO_PORT);
-const dodoVars = ["DODO_ENV:test", "DODO_PRODUCT_MONTHLY:pdt_month", "DODO_PRODUCT_YEARLY:pdt_year", "DODO_API_KEY:dodo_e2e_key", `DODO_WEBHOOK_SECRET:${DODO_SECRET}`, `DODO_API_BASE:${DODO}`].flatMap((v) => ["--var", v]);
+const dodoVars = ["DODO_ENV:test", "DODO_PRODUCT_MONTHLY:pdt_month", "DODO_PRODUCT_YEARLY:pdt_year", "DODO_PRODUCT_PLUS_MONTHLY:pdt_plus_month", "DODO_PRODUCT_PLUS_YEARLY:pdt_plus_year", "DODO_API_KEY:dodo_e2e_key", `DODO_WEBHOOK_SECRET:${DODO_SECRET}`, `DODO_API_BASE:${DODO}`].flatMap((v) => ["--var", v]);
 const server = spawn("pnpm", ["exec", "wrangler", "dev", "--port", String(PORT), "--persist-to", state, "--var", "DEV_FAKE_GOOGLE:true", ...dodoVars, "--log-level", "warn"], {
   cwd: api,
   detached: true,
@@ -394,10 +395,44 @@ try {
   await openAccount(p);
   await sleep(1000);
   check("Extension: shows signed out after a remote sign-out", (await p.text()).includes("Sign in to your ProdLi account"));
-  await p.click("Sign in with Google", { exact: false });
-  await sleep(1500);
   console.log("pro");
+  // Signed out, the plans show anyway; picking one signs in and goes straight on to the checkout.
+  await openAccount(p, "plan");
+  await sleep(1200);
+  t = await p.text();
+  check("Plans: signed out, Free, Pro and Pro Plus show with a yearly switch and prices", (await p.eval(`["free", "pro", "plus"].every((k) => !!document.querySelector('[data-testid="plan-card-' + k + '"]'))`)) && /save 20%/i.test(t) && /\$4\s*\/ month/.test(t) && /\$10\s*\/ month/.test(t) && /\$120 billed yearly/.test(t) && /sign in & get pro/i.test(t), t.slice(0, 700).replace(/\n/g, " | "));
+  await p.shot("plans-signed-out");
+  await p.eval(`[...document.querySelectorAll('[data-testid="period-toggle"] button')].find((b) => /Monthly/.test(b.textContent)).click()`);
+  await sleep(200);
+  t = await p.text();
+  check("Plans: Monthly shows the monthly prices", /\$5\s*\/ month/.test(t) && /\$12\s*\/ month/.test(t) && /billed monthly/i.test(t), t.slice(0, 500).replace(/\n/g, " | "));
+  await p.eval(`[...document.querySelectorAll('[data-testid="period-toggle"] button')].find((b) => /Yearly/.test(b.textContent)).click()`);
+  await sleep(200);
+  await p.eval(`document.querySelector('[data-testid="choose-pro"]').click()`);
+  await sleep(800);
+  check("Plans: picking Pro signed out asks to sign in first", (await p.text()).includes("Sign in to your ProdLi account"));
+  const before = new Set((await b.send("Target.getTargets")).targetInfos.map((x) => x.targetId));
+  await p.click("Sign in with Google", { exact: false });
+  let opened;
+  for (let i = 0; i < 20 && !opened; i++) {
+    await sleep(500);
+    opened = (await b.send("Target.getTargets")).targetInfos.find((x) => !before.has(x.targetId) && x.type === "page");
+  }
+  check("Plans: after signing in, Dodo's checkout opens by itself (no second click)", opened?.url === `${DODO}/checkout/cks_e2e`, opened?.url);
+  const checkoutCall = dodoCalls.find((c) => c.path === "/checkouts");
+  const { prodliSession: s2 } = await p.storage(["prodliSession"]);
+  const me = await (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${s2?.token ?? ""}`, Origin: "chrome-extension://x" } })).json();
+  check(
+    "Pro: the checkout is for the yearly product, this user's Dodo customer, and returns to ProdLi",
+    checkoutCall?.auth === "Bearer dodo_e2e_key" && checkoutCall.body.product_cart[0].product_id === "pdt_year" && checkoutCall.body.customer.customer_id === "cus_e2e" && checkoutCall.body.metadata.userId === me.user.id && checkoutCall.body.return_url === `${SERVER}/pro/done?from=checkout&plan=pro`,
+    JSON.stringify(checkoutCall?.body),
+  );
+  check("Pro: the checkout is one page (postcode only, saved cards, no phone) and comes straight back", checkoutCall?.body.feature_flags?.single_page === true && checkoutCall.body.feature_flags.redirect_immediately === true && checkoutCall.body.feature_flags.allow_phone_number_collection === false && checkoutCall.body.minimal_address === true && checkoutCall.body.show_saved_payment_methods === true, JSON.stringify(checkoutCall?.body));
+  check("Plans: the picked plan isn't remembered after use", !(await p.storage(["pendingUpgrade"])).pendingUpgrade);
+  if (opened) await b.send("Target.closeTarget", { targetId: opened.targetId });
   // Your own meeting templates: Pro is on sale, so a free account sees how to get them.
+  await p.eval(`document.querySelector('[aria-label="Close"]')?.click()`);
+  await sleep(300);
   await p.goto("meetings");
   await sleep(800);
   if (!(await p.eval(`!!document.querySelector('[data-testid="custom-templates"]')`))) await p.eval(`[...document.querySelectorAll("button")].find((x) => x.textContent.includes("Setup"))?.click()`);
@@ -406,24 +441,11 @@ try {
   await openAccount(p, "plan");
   await sleep(1200);
   t = await p.text();
-  check("Pro: a free account sees the plans, Dodo's prices and an upgrade button", /your plan: free/i.test(t) && /AI meeting summaries\s*20\s*300/i.test(t) && /\$48/.test(t) && /upgrade to pro/i.test(t), t.slice(0, 700).replace(/\n/g, " | "));
-  const before = new Set((await b.send("Target.getTargets")).targetInfos.map((x) => x.targetId));
-  await p.click("Upgrade to Pro", { exact: false });
-  await sleep(1500);
-  const opened = (await b.send("Target.getTargets")).targetInfos.find((x) => !before.has(x.targetId) && x.type === "page");
-  check("Pro: Upgrade opens Dodo's checkout page in a new tab (from the extension)", opened?.url === `${DODO}/checkout/cks_e2e`, opened?.url);
-  const checkoutCall = dodoCalls.find((c) => c.path === "/checkouts");
-  const { prodliSession: s2 } = await p.storage(["prodliSession"]);
-  const me = await (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${s2?.token ?? ""}`, Origin: "chrome-extension://x" } })).json();
-  check(
-    "Pro: the checkout is for the yearly product, this user's Dodo customer, and returns to ProdLi",
-    checkoutCall?.auth === "Bearer dodo_e2e_key" && checkoutCall.body.product_cart[0].product_id === "pdt_year" && checkoutCall.body.customer.customer_id === "cus_e2e" && checkoutCall.body.metadata.userId === me.user.id && checkoutCall.body.return_url === `${SERVER}/pro/done?from=checkout`,
-    JSON.stringify(checkoutCall?.body),
-  );
-  if (opened) await b.send("Target.closeTarget", { targetId: opened.targetId });
-  const webhook = async (type, status, at) => {
-    const raw = JSON.stringify({ business_id: "bus_e2e", type, timestamp: at, data: { payload_type: "Subscription", subscription_id: "sub_e2e", status, customer: { customer_id: "cus_e2e" }, metadata: {}, product_id: "pdt_year", payment_frequency_interval: "Year", next_billing_date: "2099-01-01T00:00:00.000Z", cancel_at_next_billing_date: false } });
-    const id = `msg_${type}_${status}`;
+  check("Pro: a free account sees its plan, the prices and a Get Pro button", /your plan: free/i.test(t) && /\$48 billed yearly/.test(t) && /get pro\b/i.test(t) && /get pro plus/i.test(t), t.slice(0, 700).replace(/\n/g, " | "));
+  // The checkout is still open in this window's eyes: the payment arrives by webhook.
+  const webhook = async (type, status, at, product = "pdt_year") => {
+    const raw = JSON.stringify({ business_id: "bus_e2e", type, timestamp: at, data: { payload_type: "Subscription", subscription_id: "sub_e2e", status, customer: { customer_id: "cus_e2e" }, metadata: {}, product_id: product, payment_frequency_interval: "Year", next_billing_date: "2099-01-01T00:00:00.000Z", cancel_at_next_billing_date: false } });
+    const id = `msg_${type}_${status}_${product}`;
     const ts = Math.floor(Date.now() / 1000);
     const sig = createHmac("sha256", Buffer.from(DODO_SECRET.slice(6), "base64")).update(`${id}.${ts}.${raw}`).digest("base64");
     return (await fetch(`${SERVER}/api/billing/webhook`, { method: "POST", headers: { "Content-Type": "application/json", "webhook-id": id, "webhook-timestamp": String(ts), "webhook-signature": `v1,${sig}` }, body: raw })).json();
@@ -435,15 +457,32 @@ try {
     await sleep(1200);
     return p.text();
   };
+  // Start a checkout from here (the open window then waits for the payment).
+  await p.eval(`document.querySelector('[data-testid="choose-pro"]').click()`);
+  await sleep(1500);
+  for (const x of (await b.send("Target.getTargets")).targetInfos) if (x.url.startsWith(`${DODO}/checkout/`)) await b.send("Target.closeTarget", { targetId: x.targetId });
   check("Pro: Dodo's signed webhook is accepted", (await webhook("subscription.active", "active", new Date().toISOString())).applied === true);
   await sleep(4000); // the open account window checks every 3 s
   t = await p.text();
-  check("Pro: the open account window notices the payment", /you're on prodli pro/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  check("Pro: the open account window notices the payment", /you're on prodli pro\b/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
   t = await reopen();
-  check("Pro: the account is Pro, with its renewal date", /prodli pro/i.test(t) && /renews/i.test(t) && /300 meeting summaries/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  await p.shot("plans-pro");
+  check("Pro: the account is Pro, with its renewal date and Pro Plus offered as a switch", /your plan: pro\b/i.test(t) && /renews/i.test(t) && /✓ your plan/i.test(t) && /switch to pro plus/i.test(t), t.slice(0, 700).replace(/\n/g, " | "));
   const unsigned = await fetch(`${SERVER}/api/billing/webhook`, { method: "POST", body: "{}" });
   check("Pro: unsigned webhooks are refused", unsigned.status === 401);
-  await webhook("subscription.cancelled", "cancelled", new Date(Date.now() + 1000).toISOString());
+  // Switching to Pro Plus moves the same subscription (no second checkout), charged now.
+  const checkoutsBefore = dodoCalls.filter((c) => c.path === "/checkouts").length;
+  await p.eval(`document.querySelector('[data-testid="choose-plus"]').click()`);
+  await sleep(1200);
+  const change = dodoCalls.find((c) => c.path === "/subscriptions/sub_e2e/change-plan");
+  check("Plus: switching asks Dodo to move the subscription now, with no new checkout", change?.body.product_id === "pdt_plus_year" && change.body.effective_at === "immediately" && change.body.proration_billing_mode === "prorated_immediately" && dodoCalls.filter((c) => c.path === "/checkouts").length === checkoutsBefore, JSON.stringify(change?.body));
+  await webhook("subscription.plan_changed", "active", new Date(Date.now() + 500).toISOString(), "pdt_plus_year");
+  await sleep(4000);
+  t = await p.text();
+  check("Plus: the window says you're on Pro Plus once Dodo confirms", /you're on pro plus/i.test(t), t.slice(0, 600).replace(/\n/g, " | "));
+  const plusMe = await (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${s2?.token ?? ""}`, Origin: "chrome-extension://x" } })).json();
+  check("Plus: the account is Pro Plus (and still \"pro\" for older app versions)", plusMe.user.tier === "plus" && plusMe.user.plan === "pro", JSON.stringify(plusMe.user));
+  await webhook("subscription.cancelled", "cancelled", new Date(Date.now() + 1000).toISOString(), "pdt_plus_year");
   t = await reopen();
   check("Pro: cancelling returns the account to Free", /your plan: free/i.test(t), t.slice(0, 300).replace(/\n/g, " | "));
 

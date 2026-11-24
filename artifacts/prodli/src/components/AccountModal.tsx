@@ -36,166 +36,7 @@ import {
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
 import { desktop } from "../lib/desktop";
-import { checkout, formatBytes, formatPrice, getBilling, openPortal, trialDaysLeft, type Billing, type Interval } from "../lib/billing";
-
-function PlanBox({ user }: { user: ProdliUser }) {
-  const [billing, setBilling] = useState<Billing | null | undefined>(undefined);
-  const [period, setPeriod] = useState<Interval>("yearly");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-  const waiting = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    getBilling().then(
-      (b) => {
-        setBilling(b);
-        if (b.onSale && !b.onSale.yearly) setPeriod("monthly");
-      },
-      () => setBilling(null),
-    );
-  }, [user.plan]);
-  useEffect(() => () => waiting.current?.abort(), []);
-
-  const buy = async (which: Interval) => {
-    setBusy(true);
-    setNote(null);
-    waiting.current?.abort();
-    const ctrl = new AbortController();
-    waiting.current = ctrl;
-    try {
-      const pending = checkout(which, ctrl.signal);
-      setNote({ tone: "ok", text: "Checkout opened in a new tab. Pro turns on here as soon as the payment goes through." });
-      const r = await pending;
-      if (ctrl.signal.aborted) return;
-      setBilling(await getBilling());
-      setNote(r === "pro" ? { tone: "ok", text: "🎉 You're on ProdLi Pro. Thank you!" } : { tone: "ok", text: "Finished paying? Pro turns on within a minute — reopen this window to check." });
-    } catch (err) {
-      setNote({ tone: "error", text: err instanceof Error ? err.message : "Something went wrong." });
-    } finally {
-      if (!ctrl.signal.aborted) setBusy(false);
-    }
-  };
-
-  if (!billing) return null; // loading, or an older server without billing
-  const trial = billing.trial ?? null;
-  // During the free trial the plan is "pro" but there's nothing to manage yet: show the upgrade options.
-  const pro = billing.plan === "pro" && !trial;
-  const fmtDate = (t: number | null) => (t ? new Date(t).toLocaleDateString([], { dateStyle: "medium" }) : "");
-  const priceText = (i: Interval) => {
-    const p = billing.prices[i];
-    return p ? formatPrice(p) : "";
-  };
-  const row = (labelText: string, free: string, proValue: string) => (
-    <tr>
-      <td style={{ padding: "3px 0", opacity: 0.85 }}>{labelText}</td>
-      <td style={{ padding: "3px 8px", textAlign: "right", fontWeight: 700 }}>{free}</td>
-      <td style={{ padding: "3px 0", textAlign: "right", fontWeight: 900 }}>{proValue}</td>
-    </tr>
-  );
-  const L = billing.limits;
-  const both = !!billing.onSale?.monthly && !!billing.onSale?.yearly;
-
-  return (
-    <div style={{ border: "var(--nb-border)", background: "hsl(var(--card))", padding: 14, display: "grid", gap: 10 }} data-testid="plan-box">
-      <div style={{ fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{pro ? "⭐ ProdLi Pro" : trial ? `⭐ Pro trial: ${trialDaysLeft(trial.endsAt)} ${trialDaysLeft(trial.endsAt) === 1 ? "day" : "days"} left` : "Your plan: Free"}</div>
-      {trial && (
-        <div style={{ fontSize: 13, lineHeight: 1.6 }} data-testid="trial-note">
-          You have every Pro feature free until {fmtDate(trial.endsAt)}. No card needed. After that you're on the free plan below: nothing is deleted, the Pro features and higher AI limits stop. Upgrade any time to keep them.
-        </div>
-      )}
-      {pro ? (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-            {billing.subscription?.endsAt
-              ? `Pro until ${fmtDate(billing.subscription.endsAt)} (cancelled — you won't be charged again).`
-              : billing.subscription?.status === "past_due"
-                ? "Your last payment didn't go through. Update your card to keep Pro."
-                : billing.subscription?.renewsAt
-                  ? `Renews ${fmtDate(billing.subscription.renewsAt)}${billing.subscription.interval ? ` (${billing.subscription.interval === "year" ? "yearly" : "monthly"})` : ""}.`
-                  : "Thanks for supporting ProdLi!"}
-            <br />
-            {L.pro.summaries} meeting summaries, {L.pro.briefs} briefs & reviews, {L.pro.asks} Ask ProdLi questions{L.pro.writes ? `, ${L.pro.writes} writing-help uses` : ""}{L.pro.transcribeMinutes ? `, ${L.pro.transcribeMinutes} minutes of audio transcription` : ""} a month, {formatBytes(L.pro.storageBytes)} of sync, your own meeting templates (and a ready-made gallery), talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules, dictation Command Mode and shared links that never expire.
-          </div>
-          {billing.canManage && (
-            <div>
-              <button style={btn(false, busy)} disabled={busy} onClick={() => void openPortal().catch((e: Error) => setNote({ tone: "error", text: e.message }))}>
-                Manage subscription
-              </button>
-              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>Change plan or card, download invoices, or cancel — on Dodo Payments' secure page.</div>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                <th style={{ textAlign: "left", fontWeight: 800 }}>Per month</th>
-                <th style={{ textAlign: "right", fontWeight: 800, padding: "0 8px" }}>Free</th>
-                <th style={{ textAlign: "right", fontWeight: 900 }}>Pro</th>
-              </tr>
-            </thead>
-            <tbody>
-              {row("AI meeting summaries", String(L.free.summaries), String(L.pro.summaries))}
-              {row("AI daily briefs & reviews", String(L.free.briefs), String(L.pro.briefs))}
-              {row("Ask ProdLi questions", String(L.free.asks), String(L.pro.asks))}
-              {L.free.writes !== undefined && L.pro.writes !== undefined && row("Writing help (✨ Improve)", String(L.free.writes), String(L.pro.writes))}
-              {L.free.transcribeMinutes !== undefined && L.pro.transcribeMinutes !== undefined && row("AI audio transcription", `${L.free.transcribeMinutes} min`, `${L.pro.transcribeMinutes} min`)}
-              {L.free.dictations !== undefined && L.pro.dictations !== undefined && row("Voice dictation AI clean-ups", L.free.dictations.toLocaleString(), L.pro.dictations.toLocaleString())}
-              {row("Synced storage", formatBytes(L.free.storageBytes), formatBytes(L.pro.storageBytes))}
-              {row("Your own meeting templates", "—", "✓")}
-              {row("Talk-time insights", "—", "✓")}
-              {row("Action items across all meetings", "—", "✓")}
-              {row("AI meeting prep", "—", "✓")}
-              {row("Focus trends (30 and 90 days)", "—", "✓")}
-              {row("Your writing style", "—", "✓")}
-              {row("Meeting series history", "—", "✓")}
-              {row("Notes in your language", "—", "✓")}
-              {row("Prep reminders before meetings", "—", "✓")}
-              {row("Key moments in summaries", "—", "✓")}
-              {row("Meeting insights", "—", "✓")}
-              {row("Meeting coach (AI feedback)", "—", "✓")}
-              {row("Dictation Command Mode (edit by voice)", "—", "✓")}
-              {row("Summaries that build on your notes", "—", "✓")}
-              {row("Decision log", "—", "✓")}
-              {row("Meeting type rules", "—", "✓")}
-              {row("Shared notes links that never expire", "7 or 30 days", "✓")}
-            </tbody>
-          </table>
-          {billing.earlyAccess && <div data-testid="pro-early-access-note" style={{ fontSize: 11, opacity: 0.8 }}>Until Pro goes on sale, the Pro features (your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries from your notes, a decision log, meeting type rules, dictation Command Mode and links that never expire) are free for everyone.</div>}
-          {billing.onSale ? (
-            <>
-              {both && (
-                <div role="radiogroup" aria-label="Billing period" style={{ display: "flex", gap: 6 }}>
-                  {(["monthly", "yearly"] as const).map((i) => (
-                    <button key={i} role="radio" aria-checked={period === i} onClick={() => setPeriod(i)} style={{ ...btn(period === i), flex: 1, textTransform: "none", fontSize: 13 }}>
-                      {i === "monthly" ? "Monthly" : "Yearly"}
-                      {priceText(i) ? ` · ${priceText(i)}` : ""}
-                      {i === "yearly" && <span style={{ display: "block", fontSize: 10, fontWeight: 700 }}>best value</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button style={{ ...btn(true, busy), fontSize: 14, padding: "10px 16px" }} disabled={busy} onClick={() => void buy(period)} data-testid="upgrade">
-                {busy ? "Waiting for payment…" : `⭐ Upgrade to Pro${priceText(period) ? ` — ${priceText(period)}/${period === "monthly" ? "month" : "year"}` : ""}`}
-              </button>
-              <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.5 }}>
-                Prices in US dollars; checkout shows your local price and any tax. Payments by Dodo Payments, our reseller (merchant of record): it handles tax and invoices. Cancel any time; Pro stays on until the end of the period you paid for.
-              </div>
-            </>
-          ) : (
-            <div style={{ fontSize: 12, opacity: 0.8 }}>ProdLi Pro is coming soon. Everything above stays free.</div>
-          )}
-        </>
-      )}
-      {note && (
-        <div role="status" style={{ border: "var(--nb-border)", padding: "8px 12px", fontSize: 13, fontWeight: 700, background: note.tone === "ok" ? "#D7F5D7" : "#FFCDD2", color: "#000" }}>
-          {note.text}
-        </div>
-      )}
-    </div>
-  );
-}
+import { PlanPicker } from "./PlanPicker";
 
 type Profile = Pick<GoogleAccount, "name" | "email" | "picture">;
 
@@ -514,7 +355,7 @@ function ProdliAccountSection() {
           <div style={{ fontWeight: 900, fontSize: 16 }}>{user.name || user.email}</div>
           <div style={{ fontSize: 13, opacity: 0.75, overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
         </div>
-        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", background: user.plan === "pro" ? "#FFD700" : "transparent", color: user.plan === "pro" ? "#000" : undefined }}>{user.plan === "pro" ? (user.trialEndsAt ? "Pro trial" : "Pro") : "Free"}</span>
+        <span style={{ border: "var(--nb-border)", padding: "2px 8px", fontSize: 11, fontWeight: 900, textTransform: "uppercase", background: user.plan === "pro" ? "#FFD700" : "transparent", color: user.plan === "pro" ? "#000" : undefined }}>{user.plan === "pro" ? (user.trialEndsAt ? "Pro trial" : user.tier === "plus" ? "Pro Plus" : "Pro") : "Free"}</span>
       </div>
 
       <div style={{ ...box, gridTemplateColumns: "1fr auto", alignItems: "center" }}>
@@ -536,7 +377,7 @@ function ProdliAccountSection() {
         <div style={{ ...sectionTitle, color: "#C62828" }}>Danger zone</div>
         {!confirmDelete ? (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, opacity: 0.8, flex: 1, minWidth: 200 }}>Delete your ProdLi account and everything synced to ProdLi’s servers{user.plan === "pro" ? " (your Pro subscription is cancelled too)" : ""}. Data saved on this device stays here.</span>
+            <span style={{ fontSize: 12, opacity: 0.8, flex: 1, minWidth: 200 }}>Delete your ProdLi account and everything synced to ProdLi’s servers{user.plan === "pro" && !user.trialEndsAt ? ` (your ${user.tier === "plus" ? "Pro Plus" : "Pro"} subscription is cancelled too)` : ""}. Data saved on this device stays here.</span>
             <button style={{ ...btn(false, !!busy), color: "#C62828" }} disabled={!!busy} onClick={() => setConfirmDelete(true)}>
               Delete account…
             </button>
@@ -669,10 +510,11 @@ function PlanSection({ onSignIn }: { onSignIn: () => void }) {
     void getSyncStatus().then(setSync);
   }, [user]);
   if (user === undefined) return <div style={{ fontSize: 13, opacity: 0.7 }}>Loading…</div>;
-  if (!user) return <SignInFirst what="Sign in to see your plan, this month's AI allowance and ProdLi Pro." onSignIn={onSignIn} />;
+  // Signed out: the plans anyway; picking one signs in and carries on to the checkout.
+  if (!user) return <PlanPicker user={null} onSignIn={onSignIn} />;
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <PlanBox user={user} />
+      <PlanPicker user={user} onSignIn={onSignIn} />
       {(ai || sync?.usage) && (
         <div style={box} data-testid="usage">
           <div style={sectionTitle}>This month</div>
