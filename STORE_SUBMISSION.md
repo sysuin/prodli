@@ -81,7 +81,7 @@ FREE
 The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses, 300 minutes of AI audio transcription and 1,000 voice-dictation clean-ups a month, plus 100 MB of synced data. ProdLi Pro raises these limits and adds your own meeting templates, talk-time insights, action items across all your meetings, AI meeting prep, 30- and 90-day focus trends, your own writing style for AI writing help, meeting series history, notes in your language, prep reminders before meetings, key moments you mark during a meeting, meeting-time insights, AI meeting coaching, summaries that build on your own notes, a decision log, automatic meeting types, dictation Command Mode and shared links that never expire.
 
 PRIVACY
-No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude (which doesn't train on it) or, for audio transcription, to an open speech model on Cloudflare. Google Calendar access is read-only and optional. Full policy: https://prodli.com/privacy
+No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude (which doesn't train on it) or, for audio transcription, to an open speech model on Cloudflare. Google Calendar is optional: ProdLi reads your events, and the only calendar it can change is a separate "ProdLi" calendar it creates for your time blocks, if you turn that on. Full policy: https://prodli.com/privacy
 ```
 
 **Category:** Productivity (Workflow & Planning) · **Language:** English · **Website:** https://prodli.com · **Support:** contact@prodli.com
@@ -104,12 +104,12 @@ ProdLi replaces the new tab page with a personal assistant that helps the user p
 | `idle` | Pauses time tracking while the user is away so idle time isn't counted. |
 | `alarms` | Schedules the time-tracking heartbeat, the end of Pomodoro sessions, the daily planning reminder, time-block and to-do reminders, focus-hour blocking, the user's scheduled Ask ProdLi questions and background sync. |
 | `notifications` | Tells the user when a Pomodoro session ends, a time block or to-do is due, a daily site limit is reached, meeting notes are ready, a scheduled Ask ProdLi answer arrives, or a call recording doesn't include their microphone. |
-| `identity` | Used only when the user chooses "Sign in with Google" (to sign in to their ProdLi account) or connects Google Calendar (read-only, to plan their day around their meetings). |
-| `contextMenus` | Adds "Add to ProdLi to-dos", "Save to ProdLi notes", "Read later in ProdLi" and "Summarize page to ProdLi notes" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
+| `identity` | Used only when the user chooses "Sign in with Google" (to sign in to their ProdLi account) or connects Google Calendar: read-only access to plan their day around their meetings and, only if they turn on "Show blocks in Google Calendar", access to a separate "ProdLi" calendar that ProdLi creates for their time blocks (scope `calendar.app.created`; it can't see or change their other calendars). |
+| `contextMenus` | Adds "Add to ProdLi to-dos", "Save to ProdLi notes", "Read later in ProdLi", "Summarize page to ProdLi notes", "Screenshot to ProdLi" and, in text boxes, "Insert a ProdLi snippet" to the right-click menu. The page title, address and selected text are read only when the user clicks one. |
 | `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in Chrome, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
 | `search` | The search box on ProdLi's new tab page sends what the user types to their default search engine through Chrome's Search API. ProdLi never changes the search engine and doesn't see the results. |
-| `activeTab` | When the user right-clicks a page and picks "Summarize page to ProdLi notes", ProdLi reads that one page's text to write the summary. When the user presses the dictation shortcut (Alt+Shift+D), ProdLi shows its listening pill in that tab and types the dictated text into the field the user is in. Access lasts only for that action and that tab. |
-| `scripting` | Used with `activeTab` to read the page's text for "Summarize page", to show the dictation pill and type the dictated text into the focused field after the user presses the dictation shortcut, and to start the Google Meet caption reader on a Meet tab when the user starts recording. |
+| `activeTab` | When the user right-clicks a page and picks "Summarize page to ProdLi notes", ProdLi reads that one page's text to write the summary. When the user presses the dictation shortcut (Alt+Shift+D), ProdLi shows its listening pill in that tab and types the dictated text into the field the user is in. When the user picks "Screenshot to ProdLi" (right-click, or 📸 in the Quick add window opened with Alt+Shift+A), ProdLi takes a picture of the visible part of that tab. When the user picks "Insert a ProdLi snippet" (right-click in a text box, or its optional shortcut), ProdLi shows a small snippet list in that tab and types the chosen snippet into the field. Access lasts only for that action and that tab. |
+| `scripting` | Used with `activeTab` to read the page's text for "Summarize page", to show the dictation pill and type the dictated text into the focused field after the user presses the dictation shortcut, to show the snippet list and type the chosen snippet when the user asks for one, and to start the Google Meet caption reader on a Meet tab when the user starts recording. |
 | `tabCapture` *(optional)* | Requested only when the user turns on the meeting recorder; captures the audio of the call's tab the user starts recording (Google Meet, Zoom, Teams, Webex, Slack, Discord, Jitsi, Whereby, or any tab if the user turns on "Record any website") (toolbar icon or Alt+Shift+R). The audio is saved on the device; it is sent to the AI provider for transcription only when the user asks (“Transcribe audio with AI”), or after a Zoom/Teams call when that setting is on (default) and the user is signed in. |
 | `offscreen` *(optional)* | Runs the meeting recorder's audio capture, and the microphone for voice dictation, in an offscreen document. Requested when the user turns on the recorder or dictation. |
 | `downloads` *(optional)* | Requested only with "Open files from anywhere": Chrome downloads some local files (such as CSV) instead of opening them; ProdLi cancels that download and shows the file in its viewer instead. |
@@ -145,16 +145,13 @@ No account is needed: every section works offline after install. To try the AI f
 
 ## 5. Before you submit
 
-- [x] Google consent screen published (17 Nov 2026). Calendar verification: branding re-check scheduled 18 Nov, then the Calendar request
-- [x] Production API deployed with the 1.4.0 server changes (20 Nov 2026)
-- [ ] Privacy policy on prodli.com updated for 1.4.0 (PR #71; lawyer review of the changes: `docs/legal/REVIEW-NOTES.md` §7)
-- [ ] 1.4.0 zip built from the latest `main` (`prodli-extension-store.zip`)
-- [ ] Recorder tested on a real Google Meet call
-- [ ] Recorder tested on real Zoom (web client), Teams, Webex and Slack huddle calls in the browser
-- [ ] Five screenshots and the promo tile uploaded; old screenshots removed
-- [ ] Description pasted
-- [ ] Single purpose and every permission justification pasted, including the changed `tabs`, `alarms`, `notifications`, `contextMenus` and host access rows
-- [ ] Optional: new screenshots of the 1.4.0 features (Day view, meeting prep, focus blocking, to-do lists) with `node scripts/store-screenshots.mjs`
-- [ ] The five data types ticked and the three statements checked
+- [x] Production API deployed with the 1.5.0 server changes (`/api/ai/ocr`, the language setting): deployed 24 Nov 2026 (version 3ba3d0ed); deploy again first if later server changes are needed
+- [ ] Google branding published (Google Auth Platform → Branding → Publish branding; verified 18 Nov, expires about 25 Nov)
+- [ ] 1.5.0 zip built on the Mac from the latest `main` (`pnpm run build:extension:store` → `prodli-extension-store.zip`)
+- [ ] Recorder checked on a real call (Meet, and Zoom or Teams in the browser), if not done yet (TODO → Real-use checks)
+- [ ] Five screenshots and the promo tile uploaded; old screenshots removed (regenerate first with `node scripts/store-screenshots.mjs` if the UI changed)
+- [ ] Description pasted (it now says how Google Calendar is used: read your events, and change only the separate "ProdLi" calendar)
+- [ ] Single purpose and every permission justification pasted. No permissions changed since 1.4.0; the `identity`, `contextMenus`, `activeTab` and `scripting` rows have new wording (two-way calendar, Screenshot to ProdLi, the snippet picker)
+- [ ] The five data types ticked (Website content now covers screenshots) and the three statements checked
 - [ ] Privacy policy URL set
-- [ ] Submit. The review can take longer than usual because of the tab-audio permission
+- [ ] Submit. Then check the listing shows 1.5.0 once it's approved

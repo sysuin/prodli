@@ -55,5 +55,5 @@ case "$cmd" in
     ;;
 
   *)
-    sed -n '2,12p' "$0"; exit 1 ;;
+    sed -n '2,11p' "$0"; exit 1 ;;
 esac
