@@ -10,6 +10,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 - [x] **Google branding:** verified 18 Nov and **published 24 Nov 2026** (Google Auth Platform → Branding: "Your branding has been verified and is being shown to users").
 - [ ] **Calendar verification:** after publishing the branding, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today). (`calendar.app.created`, for two-way calendar, needs no review.)
 - [ ] **Chrome Web Store (1.5.0):** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit. Until then, extension users keep 1.4.0: the old plan box (Pro only; Pro Plus subscribers show as Pro), no screenshots, snippet picker or Indian languages. Build the zip on the Mac (it needs `.env.local`).
+- [ ] **Store releases from GitHub, one-time setup** (about 20 min, on the Mac): a separate Google Cloud project with the Chrome Web Store API and a Desktop app OAuth client, a refresh token from `scripts/chrome-store-token.mjs`, then four secrets and one variable in GitHub ([STORE_SUBMISSION.md](STORE_SUBMISSION.md) → section 6). After that, store zips no longer need the Mac. Its first real upload is the real test: Google's API docs couldn't be read from the cloud session, so the calls follow the `chrome-webstore-upload` library (API v2).
 - [ ] **Real purchase test (live Dodo):** on app.prodli.com → Settings → Plan & usage → Get Pro (yearly or monthly) → pay with a real card → check the plan turns on by itself; then "Switch to Pro Plus" (charged the difference) → check it says Pro Plus; then cancel in Manage subscription and refund yourself in the Dodo dashboard. Also try picking a plan on prodli.com while signed out (sign in → checkout opens by itself).
 - [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Pro Plus ($12/$120) and the lower Pro limits went live on 2026-11-24 (production version 3ba3d0ed) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
 - [x] **Chrome Web Store: version number.** *done 2026-11-24:* raised to 1.5.0; `STORE_SUBMISSION.md` lists what's new and the screenshot data disclosure. Rebuild the zip from `main` right before uploading.
@@ -131,7 +132,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] Keep an eye on Meet page changes (the captions reader is tested against a simulated Meet page in English and Spanish)
 - [ ] Real-use checks for 1.4.0: a Zoom web call and a Teams web call (with "Include my microphone" on), and 🎙 Record in person on a phone (app.prodli.com)
 - [ ] Move inline styles into shared UI components (needed before a web/desktop app)
-- [ ] Optional: publish to the Chrome Web Store from CI (the Web Store API is free)
+- [x] Optional: publish to the Chrome Web Store from CI (the Web Store API is free) — *built 2026-11-24:* Actions → Store (`.github/workflows/store.yml`): build, upload as a draft, or submit for review. Needs the one-time setup below.
 - [ ] Decided against: auto-opening `.md` / `.json` from websites or `file://` links (needs the "all websites" permission; free extensions already do it)
 
 ## Roadmap
