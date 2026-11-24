@@ -3072,7 +3072,7 @@ const suites = {
     const moment = await p.eval(`document.querySelector('[data-testid="streak-moment"]')?.innerText ?? ""`);
     check("Freeze: 7 days in a row earns one, with a celebration", write?.freezes === 1 && write?.freezeEarnedOn === today && moment.includes("7-day streak") && moment.includes("streak freeze"), JSON.stringify({ write, moment }));
     check("Freeze: the card shows the freeze in hand", (await p.eval(`[...document.querySelectorAll('[data-testid="habit-freezes"]')].map(e => e.textContent.trim())`)).includes("🧊 1"));
-    await p.shot?.("streak-moment");
+    await p.shot("streak-moment");
     await p.eval(`document.querySelector('button[aria-label="Unmark today: Write"]').click()`);
     await sleep(400);
     check("Freeze: unmarking the same day gives it back", ((await habits()).find((h) => h.id === "write")?.freezes ?? 0) === 0);
@@ -3102,6 +3102,7 @@ const suites = {
     check("⌘K: … and starts it", timer?.running === true && timer.label === "Deep work" && Math.abs((timer.endsAt - Date.now()) / 1000 - 900) < 30, JSON.stringify(timer));
     await p.eval(`chrome.storage.local.get("pomodoroTimer").then(({ pomodoroTimer: t }) => chrome.storage.local.set({ pomodoroTimer: { ...t, running: false, endsAt: null, remaining: 1500, label: "" } }))`);
     opts = await palette("h med");
+    await p.shot("palette-habit-prefix");
     check("⌘K: h finds today's habit", opts.length === 1 && opts[0].includes("Check off: Meditate"), JSON.stringify(opts));
     await choose();
     check("⌘K: … and checks it off", (await habits()).find((h) => h.id === "med")?.completedDays.includes(today));
@@ -3133,6 +3134,7 @@ const suites = {
     check("Quick add: n switches to a note", (await p.eval(`document.querySelector('[role="radio"][aria-checked="true"]')?.textContent ?? ""`)).includes("Note") && (await p.eval(`document.querySelector('input[aria-label="Title"]').value`)) === "Groceries");
     await setValue('input[aria-label="Title"]', "p 10");
     await sleep(150);
+    await p.shot("quickadd-pomodoro-prefix");
     check("Quick add: p 10 offers a Pomodoro", (await p.eval(`document.querySelector('[data-testid="quickadd-action"]')?.innerText ?? ""`)).includes("Start a 10-min Pomodoro"));
     await setValue('input[aria-label="Title"]', "h wri");
     await sleep(150);

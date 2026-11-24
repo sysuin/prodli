@@ -93,7 +93,7 @@ export function QuickAddForm({ initial, onDone, onCancel, onAsk }: { initial?: C
       }}
       style={{ display: "grid", gap: 10 }}
     >
-      <div role="radiogroup" aria-label="Add as" style={{ display: "flex", gap: 6 }}>
+      <div role="radiogroup" aria-label="Add as" style={{ display: action ? "none" : "flex", gap: 6 }}>
         {(initial?.url ? (["todo", "note", "later"] as const) : (["todo", "note"] as const)).map((k) => (
           <button
             key={k}

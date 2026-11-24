@@ -73,6 +73,13 @@ describe("streak freezes: using them", () => {
     const old = { ...base, freezes: 1, completedDays: [...days(5, 9), ...days(11, 17)] }; // the gap is behind 7 check-ins
     expect(settleFreezes(old, today)).toBe(old);
   });
+  it("checking in on a covered day afterwards gives the freeze back", () => {
+    const h = settleFreezes({ ...base, freezes: 1, completedDays: [...days(10, 15), "2026-11-17"] }, today);
+    const back = toggleCheck(h, "2026-11-16");
+    expect(back.frozen).toEqual([]);
+    expect(freezesOf(back)).toBe(1);
+    expect(currentStreak(back, today)).toBe(8);
+  });
   it("settling is idempotent and only reports lists that changed", () => {
     const h = { ...base, freezes: 2, completedDays: [...days(10, 15), "2026-11-17"] };
     const once = settleAllFreezes([h, base], today)!;

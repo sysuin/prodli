@@ -67,7 +67,8 @@ export function bestStreak(h: Habit, today = getDayKey()): number {
 }
 
 /** Sets the amount for a day (count, timed, quit), keeping `completedDays` in step for count/timed. */
-export function setAmount(h: Habit, day: string, amount: number): Habit {
+export function setAmount(h0: Habit, day: string, amount: number): Habit {
+  const h = unfreeze(h0, day);
   const value = Math.max(0, Math.round(amount));
   const log = { ...(h.log ?? {}) };
   if (value) log[day] = value;
@@ -82,7 +83,13 @@ export function setAmount(h: Habit, day: string, amount: number): Habit {
 export const addAmount = (h: Habit, day: string, delta: number) => setAmount(h, day, amountOn(h, day) + delta);
 
 export function toggleCheck(h: Habit, day: string): Habit {
-  return { ...h, completedDays: h.completedDays.includes(day) ? h.completedDays.filter((d) => d !== day) : [...h.completedDays, day] };
+  return { ...unfreeze(h, day), completedDays: h.completedDays.includes(day) ? h.completedDays.filter((d) => d !== day) : [...h.completedDays, day] };
+}
+
+/** Logging a day a streak freeze covered gives the freeze back. */
+function unfreeze(h: Habit, day: string): Habit {
+  if (!h.frozen?.includes(day)) return h;
+  return { ...h, frozen: h.frozen.filter((d) => d !== day), freezes: Math.min(MAX_FREEZES, (h.freezes ?? 0) + 1) };
 }
 
 export function toggleSkip(h: Habit, day: string): Habit {

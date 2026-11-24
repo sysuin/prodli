@@ -101,7 +101,7 @@ function MonthlyHeatmap({ completedDays, color, frozen = [] }: { completedDays: 
   );
 }
 
-function WeekStrip({ completedDays }: { completedDays: string[] }) {
+function WeekStrip({ completedDays, frozen = [] }: { completedDays: string[]; frozen?: string[] }) {
   const days = Array.from({ length: 35 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (34 - i));
@@ -115,12 +115,12 @@ function WeekStrip({ completedDays }: { completedDays: string[] }) {
         {days.map(day => (
           <div
             key={day}
-            title={day}
+            title={frozen.includes(day) ? `${day}: 🧊 covered by a streak freeze` : day}
             style={{
               height: 14,
               border: day === todayStr ? "var(--nb-border)" : "1px solid var(--nb-section-border)",
-              background: completedDays.includes(day) ? "hsl(var(--foreground))" : "transparent",
-              opacity: completedDays.includes(day) ? 1 : 0.3,
+              background: completedDays.includes(day) ? "hsl(var(--foreground))" : frozen.includes(day) ? FROZEN : "transparent",
+              opacity: completedDays.includes(day) || frozen.includes(day) ? 1 : 0.3,
             }}
           />
         ))}
@@ -157,6 +157,7 @@ function LastWeek({ habit, onToggle, onSetAmount }: { habit: Habit; onToggle: (i
         const key = getDayKey(d);
         const done = isDone(habit, key) && isScheduled(habit, key);
         const off = !isScheduled(habit, key);
+        const iced = !!habit.frozen?.includes(key);
         const name = d.toLocaleDateString("en-US", { weekday: "short" });
         return (
           <button
@@ -164,11 +165,11 @@ function LastWeek({ habit, onToggle, onSetAmount }: { habit: Habit; onToggle: (i
             onClick={() => pick(key, d.toLocaleDateString([], { weekday: "long" }))}
             aria-pressed={k === "check" ? done : undefined}
             title={key === today ? "Today" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
-            style={{ flex: 1, minWidth: 0, border: key === today ? "var(--nb-border)" : "1px solid var(--nb-section-border)", background: done ? habit.color : "transparent", color: done ? "#000" : "hsl(var(--foreground))", cursor: "pointer", padding: "3px 0", fontFamily: "inherit", lineHeight: 1.2 }}
+            style={{ flex: 1, minWidth: 0, border: key === today ? "var(--nb-border)" : "1px solid var(--nb-section-border)", background: done ? habit.color : iced ? FROZEN : "transparent", color: done || iced ? "#000" : "hsl(var(--foreground))", cursor: "pointer", padding: "3px 0", fontFamily: "inherit", lineHeight: 1.2 }}
           >
             <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", opacity: 0.8 }}>{name.slice(0, 2)}</div>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: off ? 0.4 : 1 }}>{off ? "–" : k === "check" ? (done ? "✓" : d.getDate()) : k === "quit" ? (done ? "✓" : "✗") : amountOn(habit, key) || d.getDate()}</div>
-            <span style={SR_ONLY}> {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {habit.name}: {off ? "not scheduled" : progressLabel(habit, key)}</span>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: off && !iced ? 0.4 : 1 }}>{iced ? "🧊" : off ? "–" : k === "check" ? (done ? "✓" : d.getDate()) : k === "quit" ? (done ? "✓" : "✗") : amountOn(habit, key) || d.getDate()}</div>
+            <span style={SR_ONLY}> {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {habit.name}: {iced ? "covered by a streak freeze" : off ? "not scheduled" : progressLabel(habit, key)}</span>
           </button>
         );
       })}
@@ -338,7 +339,7 @@ function HabitCard({ habit, onToggle, onDelete, onEdit, onAmount, onSetAmount, o
         </div>
 
         {heatmapView === "week" ? (
-          <WeekStrip completedDays={doneDays(habit)} />
+          <WeekStrip completedDays={doneDays(habit)} frozen={habit.frozen} />
         ) : heatmapView === "month" ? (
           <MonthlyHeatmap completedDays={doneDays(habit)} color={habit.color} frozen={habit.frozen} />
         ) : (
@@ -561,6 +562,7 @@ export function HabitSection() {
         if (h.id !== id) return h;
         const { habit, moment: m } = afterLog(h, fn(h));
         if (m) setMoment(m);
+        else setMoment((cur) => (cur?.habitId === id ? null : cur));
         return habit;
       }),
     );
