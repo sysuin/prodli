@@ -24,6 +24,7 @@ import {
   type Snippet,
 } from "../dictation/core";
 import { ProBadge, ProNote, useProAccess } from "./Pro";
+import { LanguageSettings } from "./LanguageSettings";
 
 const card: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", padding: "12px 14px", display: "grid", gap: 8 };
 const h: CSSProperties = { fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 };
@@ -165,7 +166,8 @@ export function DictationSettings() {
       </section>
 
       <section style={card} aria-labelledby={`${id}-polish`}>
-        <h3 id={`${id}-polish`} style={h}>2 · Clean-up and style</h3>
+        <h3 id={`${id}-polish`} style={h}>2 · Language, clean-up and style</h3>
+        <LanguageSettings compact />
         <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
           <input type="checkbox" checked={settings.polish} onChange={(e) => save({ polish: e.target.checked })} style={{ marginTop: 3 }} />
           <span>

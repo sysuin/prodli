@@ -32,6 +32,7 @@ import {
   wholeSnippet,
 } from "./core";
 import type { FieldInfo, InsertResult, PillState, ToBackground, ToOffscreen, ToPill } from "./messages";
+import { aiLanguage, getVoiceLanguage, whisperLanguage, type VoiceLanguage } from "../lib/voiceLanguage";
 
 export const DICTATE_COMMAND = "dictate";
 /** Settings → Dictation in ProdLi (opened when something needs setting up). */
@@ -46,6 +47,8 @@ interface Session {
   info: FieldInfo | null;
   settings: DictationSettings;
   vocabulary: string[];
+  /** Settings → Language ("auto" = Whisper detects it). */
+  language: VoiceLanguage;
   pieces: Map<number, Promise<string>>;
   transcribeError: string | null;
   finishing: boolean;
@@ -115,10 +118,11 @@ export async function toggleDictation(tab: chrome.tabs.Tab | undefined): Promise
   }
 
   const page = !!tab.url?.startsWith(chrome.runtime.getURL(""));
-  const [settings, vocabulary, shortcut] = await Promise.all([
+  const [settings, vocabulary, shortcut, language] = await Promise.all([
     local<Partial<DictationSettings>>(DICTATION_SETTINGS_KEY, {}).then((s) => ({ ...DEFAULT_DICTATION_SETTINGS, ...s, styles: { ...DEFAULT_DICTATION_SETTINGS.styles, ...(s.styles ?? {}) } })),
     local<string[]>(VOCABULARY_STORAGE_KEY, []),
     shortcutLabel(),
+    getVoiceLanguage(),
   ]);
   const s: Session = {
     id: crypto.randomUUID(),
@@ -128,6 +132,7 @@ export async function toggleDictation(tab: chrome.tabs.Tab | undefined): Promise
     info: null,
     settings,
     vocabulary,
+    language,
     pieces: new Map(),
     transcribeError: null,
     finishing: false,
@@ -185,7 +190,7 @@ function onPiece(msg: Extract<ToBackground, { type: "piece" }>): void {
   if (!s || msg.session !== s.id) return;
   s.pieces.set(
     msg.seq,
-    sendWithRetry(base64ToBytes(msg.wav), msg.startMs, s.vocabulary).then(
+    sendWithRetry(base64ToBytes(msg.wav), msg.startMs, s.vocabulary, undefined, whisperLanguage(s.language)).then(
       (r) => r.text.trim(),
       (err: unknown) => {
         s.transcribeError = TRANSCRIBE_MESSAGES(err);
@@ -234,7 +239,8 @@ async function finish(): Promise<void> {
           const style = s.settings.styles[siteCategory(host)];
           const field = s.info ? fieldKind(host, s.info.field) : "other";
           try {
-            const r = await callDictate({ mode: "polish", text: raw, style, field, dictionary: s.vocabulary.slice(0, 100) });
+            const language = aiLanguage(s.language);
+            const r = await callDictate({ mode: "polish", text: raw, style, field, dictionary: s.vocabulary.slice(0, 100), ...(language ? { language } : {}) });
             text = r.text;
             polished = true;
           } catch (err) {

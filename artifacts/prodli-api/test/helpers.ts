@@ -62,8 +62,9 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       if (input.meeting.overview === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { subject: `Follow-up: ${input.meeting.title}`, body: `${input.tone} | ${input.meeting.actionItems.map((a) => a.task).join(", ")}`, model: "test" };
     },
-    transcribe: async (wav, _ai, vocabulary = []) => {
+    transcribe: async (wav, _ai, vocabulary = [], language) => {
       calls.push({ kind: "transcribe", clientId: vocabulary.length ? vocabulary.join("|") : String(wav.length) });
+      if (language) calls.push({ kind: "transcribe-language", clientId: language });
       if (wav[44] === 0x7f) throw new AiError("ai_busy", "Transcription is busy right now. Try again in a minute.");
       return { text: "Kumusta, let's start the review.", segments: [{ start: 0.4, end: 2.1, text: "Kumusta, let's start the review." }], language: "tl" };
     },
@@ -79,16 +80,19 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
     },
     extractTasks: async (input) => {
       calls.push({ kind: "extract", clientId: input.lists.join(",") });
+      if (input.language) calls.push({ kind: "extract-language", clientId: input.language });
       if (input.text === "FAIL") throw new AiError("ai_failed", "Something went wrong. Try again.");
       return { lines: input.text.split(" and ").map((x) => x.trim()), model: "test" };
     },
     brief: async (ctx) => {
       calls.push({ kind: "brief", clientId: ctx.date });
+      if (ctx.language) calls.push({ kind: "brief-language", clientId: ctx.language });
       if (ctx.focus === "FAIL") throw new AiError("ai_failed", "Couldn't write the brief. Try again.");
       return { headline: `Your ${ctx.weekday}`, summary: "s", priorities: ctx.tasks.slice(0, 3).map((t) => ({ title: t.title, reason: "r" })), schedule: [], watchouts: [], habits: [], prep: (ctx.meetingPrep ?? []).map((p) => ({ event: p.event, note: p.openItems[0] ?? "" })), tip: "t", model: "test", generatedAt: "2026-11-01T00:00:00.000Z" };
     },
     dictate: async (input) => {
       calls.push({ kind: `dictate-${input.mode}`, clientId: `${input.style}|${input.field}|${input.dictionary.join(",")}|${input.selection ?? ""}` });
+      if (input.language) calls.push({ kind: "dictate-language", clientId: input.language });
       if (input.text.includes("FAIL")) throw new AiError("ai_failed", "Couldn't clean up the dictation. Try again.");
       return { text: input.mode === "command" ? `[${input.text}] ${input.selection}` : input.text.replace(/\bum,?\s*/gi, "").trim() };
     },

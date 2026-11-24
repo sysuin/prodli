@@ -10,6 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod/v4";
 import { AI_MODEL, AiError } from "./ai";
+import { briefLanguageText, VOICE_LANGUAGES } from "./languages";
 
 /** Brief generations per month (UTC): two a day on the free plan. */
 export const BRIEF_MONTHLY_LIMIT = { free: 62, pro: 200 } as const;
@@ -19,6 +20,8 @@ const hhmm = z.string().regex(/^\d{2}:\d{2}$/);
 
 /** What the app sends (validated; long lists are capped). */
 export const BriefContextSchema = z.object({
+  /** Write the brief in this language (Settings → Language); absent or "en" = English. Free, like the brief itself. */
+  language: z.enum(VOICE_LANGUAGES).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   weekday: z.string().max(12),
   now: hhmm,
@@ -101,15 +104,23 @@ Rules:
 - Be brief and concrete. Use the user's own task wording. No motivational fluff.
 - If there's very little data, keep the brief short and suggest one simple way to start the day.`;
 
+/** The user message for one brief (exported for tests). The language is an instruction, not part of the day's data. */
+export function briefUserMessage(ctx: BriefContext): string {
+  const { language, ...day } = ctx;
+  const lang = briefLanguageText(language);
+  return `Here is my day as JSON:\n<day>\n${JSON.stringify(day)}\n</day>\n${lang ? `\n${lang}\n` : ""}\nWrite my daily brief.`;
+}
+
 export async function generateBrief(ctx: BriefContext, apiKey: string): Promise<Brief> {
   const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 60_000 });
   try {
     const response = await client.messages.parse({
       model: AI_MODEL,
-      max_tokens: 4000,
+      // Indian scripts take more tokens than English for the same brief.
+      max_tokens: ctx.language && ctx.language !== "en" ? 8000 : 4000,
       output_config: { effort: "low", format: zodOutputFormat(BriefSchema) },
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `Here is my day as JSON:\n<day>\n${JSON.stringify(ctx)}\n</day>\n\nWrite my daily brief.` }],
+      messages: [{ role: "user", content: briefUserMessage(ctx) }],
     });
     if (response.stop_reason === "refusal") throw new AiError("ai_refused", "Claude declined to write this brief.");
     if (response.stop_reason === "max_tokens") throw new AiError("ai_truncated", "The brief was cut off. Try again.");
