@@ -28,7 +28,8 @@ import { ReadLater } from "./today/ReadLater";
 import { MeetingPrepList, useMeetings } from "./today/MeetingPrep";
 import { DayView } from "./today/DayView";
 import { buildPrep } from "../lib/meetingPrep";
-import { addAmount, currentStreak, isDone, isScheduled, kindOf, progressLabel, toggleCheck } from "../lib/habits";
+import { addAmount, afterLog, currentStreak, isDone, isScheduled, kindOf, progressLabel, settleAllFreezes, toggleCheck, type StreakMoment } from "../lib/habits";
+import { StreakMomentToast } from "../components/StreakMomentToast";
 import { schedulePrepReminders } from "../lib/prepReminders";
 import { useProAccess } from "../components/Pro";
 
@@ -213,8 +214,20 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
     setBlockNote(null);
   };
   const toggleTodo = (t: Todo) => setTodos((list) => toggleCompletion(list, t.id));
-  const toggleHabit = (h: Habit) =>
-    setHabits((list) => list.map((x) => (x.id !== h.id ? x : kindOf(x) === "check" ? toggleCheck(x, today) : kindOf(x) === "quit" ? x : addAmount(x, today, kindOf(x) === "timed" ? 5 : 1))));
+  const [habitMoment, setHabitMoment] = useState<StreakMoment | null>(null);
+  const closeHabitMoment = useCallback(() => setHabitMoment(null), []);
+  const toggleHabit = (h: Habit) => {
+    if (kindOf(h) === "quit") return;
+    const next = kindOf(h) === "check" ? toggleCheck(h, today) : addAmount(h, today, kindOf(h) === "timed" ? 5 : 1);
+    const { habit, moment } = afterLog(h, next, today);
+    if (moment) setHabitMoment(moment);
+    setHabits((list) => list.map((x) => (x.id !== h.id ? x : habit)));
+  };
+  // Missed days are covered by streak freezes as soon as the habits load.
+  useEffect(() => {
+    const settled = settleAllFreezes(habits, today);
+    if (settled) setHabits(settled);
+  }, [habits, today, setHabits]);
   const addPriorityAsTask = (title: string) => {
     const existing = todos.find((t) => t.title.trim().toLowerCase() === title.trim().toLowerCase());
     if (existing) return updateTodo(existing.id, { plannedFor: today });
@@ -230,6 +243,7 @@ export function TodaySection({ onAsk }: { onAsk?: (question?: string) => void } 
 
   return (
     <div style={{ height: "100%", overflow: "auto", background: "hsl(var(--background))" }}>
+      {habitMoment && <StreakMomentToast moment={habitMoment} onClose={closeHabitMoment} />}
       <div className="today-page" style={{ maxWidth: 1080, margin: "0 auto", padding: "20px 24px 40px", display: "grid", gap: 16 }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
           <div>

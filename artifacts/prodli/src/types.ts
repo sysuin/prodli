@@ -134,6 +134,12 @@ export interface Habit {
   days?: number[];
   /** Days skipped on purpose (sick, travel): they don't break a streak. */
   skipped?: string[];
+  /** Streak freezes in hand (0–2): one is earned every 7 days of streak, and one is used up automatically for a missed day. */
+  freezes?: number;
+  /** Missed days a streak freeze covered: like skipped days, they don't break the streak. */
+  frozen?: string[];
+  /** The day the last freeze was earned (so unmarking that day gives it back). */
+  freezeEarnedOn?: string;
 }
 
 /** One record per day (Today section): focus, the AI brief, the evening reflection. Synced. */

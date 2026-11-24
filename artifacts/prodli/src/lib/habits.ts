@@ -2,7 +2,9 @@
 // review. Plain habits are done or not (`completedDays`). Count and timed
 // habits log an amount per day and count as done at their target. Quit habits
 // log slips: a day is kept while slips stay at or under the limit.
-// Habits on chosen weekdays, and skipped days, never break a streak.
+// Habits on chosen weekdays, skipped days and days covered by a streak freeze
+// never break a streak. Freezes are earned every 7 days of streak (at most 2
+// in hand) and used up automatically for missed days (settleFreezes).
 
 import { getDayKey } from "./utils";
 import type { Habit } from "../types";
@@ -17,7 +19,7 @@ const createdDay = (h: Habit) => (h.createdAt && !Number.isNaN(Date.parse(h.crea
 /** Is the habit expected on this day? (chosen weekdays, not skipped, not before it existed) */
 export function isScheduled(h: Habit, day: string): boolean {
   if (day < createdDay(h)) return false;
-  if (h.skipped?.includes(day)) return false;
+  if (h.skipped?.includes(day) || h.frozen?.includes(day)) return false;
   return !h.days?.length || h.days.includes(at(day).getDay());
 }
 
@@ -104,4 +106,102 @@ export function dayLevel(h: Habit, day: string): number {
   if (k === "check") return isDone(h, day) ? 1 : 0;
   if (k === "quit") return isDone(h, day) ? 1 : 0;
   return Math.min(1, amountOn(h, day) / targetOf(h));
+}
+
+// ── Streak freezes and milestones ────────────────────────────────────────────
+
+/** A streak freeze is earned every this many days of streak. */
+export const FREEZE_EVERY = 7;
+/** Most freezes a habit can hold. */
+export const MAX_FREEZES = 2;
+/** Streak lengths worth celebrating. */
+export const MILESTONES = [3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365, 500, 730, 1000];
+
+export const freezesOf = (h: Habit) => Math.max(0, Math.min(MAX_FREEZES, h.freezes ?? 0));
+
+/**
+ * Uses streak freezes for the most recent run of missed scheduled days (today
+ * doesn't count: it isn't over). Only when there was a streak to keep, every
+ * missed day can be covered, and the freezes were already in hand then. The
+ * run may sit behind up to two newer check-ins (made on another device before
+ * this one settled). Returns the same object when nothing changes.
+ */
+export function settleFreezes(h: Habit, today = getDayKey()): Habit {
+  const have = freezesOf(h);
+  if (!have || h.archived) return h;
+  const missed: string[] = [];
+  let doneAfter = 0;
+  let streakBefore = false;
+  for (let day = shift(today, -1), i = 0; i < 60; day = shift(day, -1), i++) {
+    if (day < createdDay(h)) break;
+    if (!isScheduled(h, day)) continue;
+    if (isDone(h, day)) {
+      if (missed.length) {
+        streakBefore = true;
+        break;
+      }
+      if (++doneAfter > 2) return h;
+      continue;
+    }
+    missed.push(day);
+    if (missed.length > have) return h;
+  }
+  if (!streakBefore || !missed.length) return h;
+  // A freeze earned after the miss can't cover it.
+  if (h.freezeEarnedOn && h.freezeEarnedOn >= missed[missed.length - 1]) return h;
+  return { ...h, freezes: have - missed.length, frozen: [...(h.frozen ?? []), ...missed].sort() };
+}
+
+/** settleFreezes for a whole list: the new list, or null when nothing changed. */
+export function settleAllFreezes(list: Habit[], today = getDayKey()): Habit[] | null {
+  let changed = false;
+  const next = list.map((h) => {
+    const s = settleFreezes(h, today);
+    if (s !== h) changed = true;
+    return s;
+  });
+  return changed ? next : null;
+}
+
+export interface StreakMoment {
+  habitId: string;
+  name: string;
+  emoji: string;
+  streak: number;
+  /** A streak freeze was earned with this check-in. */
+  earnedFreeze: boolean;
+  /** The streak reached a milestone (3, 7, 14, 30, 100…). */
+  milestone: boolean;
+}
+
+/**
+ * After logging today: earn a freeze every FREEZE_EVERY days of streak (taken
+ * back if today is unmarked again), and say whether it's a moment to celebrate.
+ */
+export function afterLog(before: Habit, after: Habit, today = getDayKey()): { habit: Habit; moment: StreakMoment | null } {
+  const wasDone = isScheduled(before, today) && isDone(before, today);
+  const nowDone = isScheduled(after, today) && isDone(after, today);
+  if (wasDone && !nowDone && after.freezeEarnedOn === today) {
+    const { freezeEarnedOn: _gone, ...rest } = after;
+    return { habit: { ...rest, freezes: Math.max(0, freezesOf(after) - 1) }, moment: null };
+  }
+  if (wasDone || !nowDone) return { habit: after, moment: null };
+  const streak = currentStreak(after, today);
+  let habit = after;
+  let earnedFreeze = false;
+  if (streak > 0 && streak % FREEZE_EVERY === 0 && after.freezeEarnedOn !== today && freezesOf(after) < MAX_FREEZES) {
+    habit = { ...after, freezes: freezesOf(after) + 1, freezeEarnedOn: today };
+    earnedFreeze = true;
+  }
+  const milestone = MILESTONES.includes(streak);
+  return { habit, moment: milestone || earnedFreeze ? { habitId: after.id, name: after.name, emoji: after.emoji, streak, earnedFreeze, milestone } : null };
+}
+
+/** "🔥 7-day streak!" and what goes with it. */
+export function momentText(m: StreakMoment, quit = false): { title: string; detail: string } {
+  const title = quit ? `🛡 ${m.streak} days kept!` : `🔥 ${m.streak}-day streak!`;
+  const parts: string[] = [];
+  if (m.milestone) parts.push(m.streak >= 100 ? "That's a habit for life." : m.streak >= 30 ? "A whole month. Seriously impressive." : m.streak >= 7 ? "A full week. Keep it rolling." : "Off to a great start.");
+  if (m.earnedFreeze) parts.push("You earned a 🧊 streak freeze: it covers a missed day automatically.");
+  return { title, detail: parts.join(" ") };
 }
