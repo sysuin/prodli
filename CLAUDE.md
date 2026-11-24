@@ -35,12 +35,12 @@ ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new
 - **Website and staging API:** automatic on every push to main (`.github/workflows/deploy.yml`).
 - **Production API + web app (app.prodli.com):** GitHub → Actions → Deploy → Run workflow → `production-api` (or `gh workflow run deploy.yml -f target=production-api`). It saves a D1 restore point (the restore command is in the run summary), applies migrations, deploys and checks `/api/health`. Ask the owner first. Sessions don't hold Cloudflare credentials; don't add them to a cloud environment.
 - After a production deploy, check `https://app.prodli.com/api/health` and the feature you shipped (for billing: `GET /api/billing/plans`).
-- The Chrome extension reaches users only through a Chrome Web Store upload (version in `artifacts/prodli/extension/manifest.json`; kit in STORE_SUBMISSION.md). The store zip is built on the owner's Mac (`pnpm run build:extension:store`, needs `.env.local`).
+- The Chrome extension reaches users only through a Chrome Web Store upload (version in `artifacts/prodli/extension/manifest.json`; kit in STORE_SUBMISSION.md). The store zip is built on GitHub (Actions → Store: `build`, `upload` as a draft, or `submit` for review; `gh workflow run store.yml -f action=…`) or on the owner's Mac (`pnpm run build:extension:store`, needs `.env.local`). `upload` and `submit` publish outside the repo: ask the owner first.
 
 ## Only on the owner's Mac (not in cloud sessions)
 
 - Anything in the owner's own Chrome: Dodo dashboard, Google Cloud console, Chrome Web Store dashboard, Search Console.
-- Store zip builds (`.env.local`), desktop app packaging/signing (macOS), and the desktop e2e/smoke scripts on macOS. Before running a freshly packaged unsigned build: `security delete-generic-password -s "ProdLi Safe Storage"`, and kill stale instances (`pkill -f "electron@.*Electron"`), or it looks like a hang.
+- Store zip builds with `.env.local` (GitHub's Store workflow does it without the Mac once its secrets are set), desktop app packaging/signing (macOS), and the desktop e2e/smoke scripts on macOS. Before running a freshly packaged unsigned build: `security delete-generic-password -s "ProdLi Safe Storage"`, and kill stale instances (`pkill -f "electron@.*Electron"`), or it looks like a hang.
 - Native phone builds go through EAS (needs the owner's Expo account); locally, check the phone app with typecheck, tests and `export:check`.
 
 ## Things that bite

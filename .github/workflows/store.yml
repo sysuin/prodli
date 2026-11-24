@@ -1,0 +1,111 @@
+# Chrome Web Store release: builds the store zip on GitHub (no laptop needed)
+# and, if asked, uploads it through the Chrome Web Store API.
+#
+#   Actions → Store → Run workflow (from main), choose:
+#     build   → just the zip, attached to the run (check it, or upload by hand)
+#     upload  → the zip goes to the store as a draft; review the listing in the
+#               Developer Dashboard and press "Submit for review" there
+#               (use this when the description or screenshots change too)
+#     submit  → upload and submit for review; Google publishes it once approved
+#
+# Only you start it (manual runs need write access) and only from main. The
+# version in artifacts/prodli/extension/manifest.json must be higher than the
+# store's. Setup (one time, on the Mac): STORE_SUBMISSION.md → "Releasing from GitHub".
+# Secrets: PRODLI_GOOGLE_CLIENT_ID (sign-in, also used by CI), CWS_CLIENT_ID,
+# CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN. Variable: CWS_PUBLISHER_ID.
+name: Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do with the zip
+        type: choice
+        default: build
+        options: [build, upload, submit]
+
+concurrency:
+  group: chrome-web-store
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this from main (it ran from ${{ github.ref }})."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Type check and unit tests (the extension and web app)
+        run: |
+          pnpm --filter @workspace/prodli run typecheck
+          pnpm --filter @workspace/prodli run test
+      - name: Check the store settings
+        env:
+          ACTION: ${{ inputs.action }}
+          PRODLI_GOOGLE_CLIENT_ID: ${{ secrets.PRODLI_GOOGLE_CLIENT_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+        run: |
+          need="PRODLI_GOOGLE_CLIENT_ID"
+          [ "$ACTION" = build ] || need="$need CWS_CLIENT_ID CWS_CLIENT_SECRET CWS_REFRESH_TOKEN CWS_PUBLISHER_ID"
+          missing=""
+          for n in $need; do [ -n "${!n}" ] || missing="$missing $n"; done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing:$missing (secrets, and the CWS_PUBLISHER_ID variable; see STORE_SUBMISSION.md → Releasing from GitHub)"
+            exit 1
+          fi
+      - name: Build the store zip (talks to https://app.prodli.com)
+        env:
+          PRODLI_GOOGLE_CLIENT_ID: ${{ secrets.PRODLI_GOOGLE_CLIENT_ID }}
+        run: |
+          pnpm run build:extension:store
+          v=$(node -p 'require("./artifacts/prodli/extension/manifest.json").version')
+          unzip -p prodli-extension-store.zip manifest.json | node -e '
+            const m = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (!m.oauth2?.client_id) { console.error("::error::The zip has no Google sign-in"); process.exit(1); }
+            if (m.key) { console.error("::error::The zip has a key field (the store rejects it)"); process.exit(1); }'
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "Built ProdLi $v from ${GITHUB_SHA::7}."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prodli-extension-store-${{ env.VERSION }}
+          path: prodli-extension-store.zip
+          retention-days: 30
+      - name: ${{ inputs.action == 'submit' && 'Upload and submit for review' || 'Upload as a draft' }}
+        if: inputs.action != 'build'
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          ACTION: ${{ inputs.action }}
+        run: node artifacts/prodli/scripts/chrome-store.mjs "$ACTION" prodli-extension-store.zip
+      - name: Summary
+        if: always()
+        env:
+          ACTION: ${{ inputs.action }}
+        run: |
+          {
+            echo "### Chrome Web Store: $ACTION"
+            echo "- Version: ${VERSION:-not built} (commit \`${GITHUB_SHA::7}\`)"
+            case "$ACTION" in
+              build)  echo "- The zip is attached to this run. Nothing was sent to the store." ;;
+              upload) echo "- Draft uploaded if the step above passed: review the listing in the Developer Dashboard, then Submit for review." ;;
+              submit) echo "- Submitted for review if the step above passed; Google publishes it once approved (usually within days)." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"

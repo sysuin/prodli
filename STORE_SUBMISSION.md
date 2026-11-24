@@ -13,6 +13,7 @@ Everything to paste into the [Developer Dashboard](https://chrome.google.com/web
   pnpm run build:extension:store
   ```
   This writes `prodli-extension-store.zip`. It always talks to https://app.prodli.com, includes Google sign-in from `.env.local`, and leaves out the `key` field (the store rejects it). It never touches the `dist-extension` folder your Chrome loads.
+  Or, once it's set up, build it on GitHub instead: Actions → **Store** → Run workflow (section 6).
 - Version: **1.5.0** in `artifacts/prodli/extension/manifest.json`. Raise it for every upload after this one.
 - The production API must be deployed first: 1.5.0 uses new AI endpoints (`/api/ai/ocr`, the language setting). (1.4.0: deployed 20 Nov 2026.)
 - The store's name and summary come from the manifest: **ProdLi: AI Meeting Notes & Daily Planner** and the summary in section 3. The name leads with what people search the store for ("meeting notes", "planner"); keep it short and descriptive, since the store rejects keyword stuffing.
@@ -155,3 +156,33 @@ No account is needed: every section works offline after install. To try the AI f
 - [ ] The five data types ticked (Website content now covers screenshots) and the three statements checked
 - [ ] Privacy policy URL set
 - [ ] Submit. Then check the listing shows 1.5.0 once it's approved
+
+## 6. Releasing from GitHub
+
+`.github/workflows/store.yml` builds the store zip on GitHub, with no laptop and no `.env.local`, and can upload it with the Chrome Web Store API (v2). Start it from main: Actions → **Store** → Run workflow, and choose:
+
+- **build**: makes the zip and attaches it to the run. Nothing goes to the store.
+- **upload**: sends the zip to the store as a draft. Then change the listing in the Developer Dashboard if needed and press **Submit for review** there. Use this when the description, screenshots or privacy answers change, because the API only sends the package.
+- **submit**: uploads and submits for review in one go. Google publishes it once approved. Use this for releases where only the code changed.
+
+Every run first type-checks and runs the extension's unit tests. It checks the zip has Google sign-in and no `key` field. The manifest version must be higher than the store's.
+
+### One-time setup (on the Mac, about 20 minutes)
+
+1. **A separate Google Cloud project for releasing** (for example "prodli-release"). Keep it apart from the `prodli` project, so its consent screen and the Calendar verification aren't touched.
+   - APIs & Services → Library → enable **Chrome Web Store API**.
+   - Google Auth Platform → Branding: an app name and your email. Audience: External, then **Publish app**. In Testing mode Google expires the refresh token after 7 days. It stays unverified, which is fine for your own account: when you sign in, Google warns "Google hasn't verified this app". Choose Advanced → continue.
+   - Clients → Create client → **Desktop app**. Copy the client ID and client secret.
+2. **The refresh token.** In the repo on the Mac:
+   ```bash
+   CWS_CLIENT_ID="…" CWS_CLIENT_SECRET="…" node artifacts/prodli/scripts/chrome-store-token.mjs
+   ```
+   Sign in with the Google account that owns the ProdLi store item. The script prints the refresh token. Copy it, then clear the terminal.
+3. **The publisher ID** is in the Developer Dashboard's address (https://chrome.google.com/webstore/devconsole/…) once you're signed in.
+4. **GitHub** → the repo → Settings → Secrets and variables → Actions:
+   - Secrets: `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, and `PRODLI_GOOGLE_CLIENT_ID` (the extension's sign-in client ID from `.env.local`; CI uses it too, so it may be there already).
+   - Variables tab: `CWS_PUBLISHER_ID`.
+5. **Try it:** run the workflow with **build**, download the zip from the run and compare it with one built on the Mac. Then use **upload** for the next real release.
+
+If a run says the keys are invalid or expired, make a new refresh token (step 2) and replace the secret. `node artifacts/prodli/scripts/chrome-store.mjs status`, run with the same settings in the environment, shows the item's upload and review state.
+
