@@ -16,9 +16,10 @@ import { BackupModal } from "./BackupModal";
 import { HelpModal, version } from "./HelpModal";
 import { Logo } from "./Logo";
 import { WritingStyleSection } from "./WritingStyle";
+import { LanguageSettings } from "./LanguageSettings";
 const DictationSettings = lazy(() => import("./DictationSettings").then((m) => ({ default: m.DictationSettings })));
 
-export type SettingsTab = "account" | "plan" | "devices" | "connections" | "data" | "appearance" | "desktop" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "connections" | "data" | "appearance" | "desktop" | "language" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
@@ -52,6 +53,7 @@ const TABS: TabDef[] = [
   { id: "data", label: "Backup & data", icon: "💾", group: "Account" },
   { id: "appearance", label: "Appearance", icon: "🎨", group: "Preferences" },
   { id: "desktop", label: "Desktop app", icon: "🖥", group: "Preferences", desktopOnly: true },
+  { id: "language", label: "Language", icon: "🌐", group: "Preferences" },
   { id: "writing", label: "Writing style", icon: "✍️", group: "Preferences", serverOnly: true },
   { id: "dictation", label: "Dictation", icon: "🎙", group: "Preferences", extensionOnly: true },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
@@ -327,6 +329,16 @@ export function SettingsModal({
         <>
           <Heading sub="How ProdLi runs on this computer.">Desktop app</Heading>
           <DesktopSettingsSection />
+        </>
+      );
+      break;
+    case "language":
+      body = (
+        <>
+          <Heading sub="For dictation, 🎙 Speak tasks and the daily brief.">Language</Heading>
+          <div style={box}>
+            <LanguageSettings />
+          </div>
         </>
       );
       break;

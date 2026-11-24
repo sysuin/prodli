@@ -336,27 +336,29 @@ const MESSAGES: Record<string, string> = {
   bad_request: "Part of the audio couldn't be read. Try again.",
 };
 
-type Stub = (wav: Uint8Array, startMs: number, vocabulary: string[]) => Promise<PieceResult>;
+type Stub = (wav: Uint8Array, startMs: number, vocabulary: string[], language?: string) => Promise<PieceResult>;
 
-async function sendPiece(wav: Uint8Array, startMs: number, vocabulary: string[]): Promise<PieceResult> {
+/** `language`: an ISO 639-1 code for Whisper (dictation, Settings → Language); undefined = Whisper detects it. */
+async function sendPiece(wav: Uint8Array, startMs: number, vocabulary: string[], language?: string): Promise<PieceResult> {
   if (import.meta.env.VITE_E2E === "1") {
     const stub = (globalThis as { __prodliTranscribeStub?: Stub }).__prodliTranscribeStub;
-    if (stub) return stub(wav, startMs, vocabulary);
+    if (stub) return stub(wav, startMs, vocabulary, language);
   }
   const headers: Record<string, string> = { "Content-Type": "audio/wav" };
   // Names and terms as a spelling hint for Whisper (Setup → word list).
   if (vocabulary.length) headers["X-ProdLi-Vocabulary"] = encodeURIComponent(vocabulary.slice(0, 40).join(",")).slice(0, 1500);
-  return accountRequest<PieceResult>("/api/ai/transcribe", { method: "POST", headers, body: wav as BodyInit }, MESSAGES);
+  const path = language ? `/api/ai/transcribe?language=${encodeURIComponent(language)}` : "/api/ai/transcribe";
+  return accountRequest<PieceResult>(path, { method: "POST", headers, body: wav as BodyInit }, MESSAGES);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const retryable = (err: unknown) => err instanceof AccountError && (err.status === 0 || err.status === 502 || err.status === 503 || /reach ProdLi/.test(err.message));
 
 /** Sends one piece to ProdLi's AI, retrying brief network problems. (Also used by the background for Zoom/Teams recordings.) */
-export async function sendWithRetry(wav: Uint8Array, startMs: number, vocabulary: string[], signal?: AbortSignal): Promise<PieceResult> {
+export async function sendWithRetry(wav: Uint8Array, startMs: number, vocabulary: string[], signal?: AbortSignal, language?: string): Promise<PieceResult> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await sendPiece(wav, startMs, vocabulary);
+      return await sendPiece(wav, startMs, vocabulary, language);
     } catch (err) {
       if (signal?.aborted || attempt >= 2 || !retryable(err)) throw err;
       await sleep(attempt === 0 ? 1500 : 4000);

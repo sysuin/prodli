@@ -45,6 +45,7 @@ import type { SyncOutcome, UserStore } from "./userStore";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
 import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
 import { DICTATE_MONTHLY_LIMIT, DictateInputSchema, dictateWithClaude, MAX_DICTATION_CHARS, type DictateInput } from "./dictate";
+import { isWhisperLanguage } from "./languages";
 import { DODO_RETURN_PARAMS, renderProPage, type ProPageFrom } from "./proPage";
 import { authenticateApiToken, cleanTokenName, createApiToken, deleteAllApiTokens, deleteApiToken, listApiTokens, MAX_TOKENS, TOKEN_PREFIX, type TokenAuth } from "./apiTokens";
 import { ArgError, check, getMeeting, getNote, getToday, listHabits, listMeetings, listTodos, searchNotes, type Reader } from "./readApi";
@@ -91,7 +92,7 @@ export interface Deps {
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
-  transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[]) => Promise<TranscriptPiece>;
+  transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[], language?: string) => Promise<TranscriptPiece>;
   summarizePage: (input: PageSummaryInput, apiKey: string) => Promise<PageSummary>;
   extractTasks: (input: ExtractTasksInput, apiKey: string) => Promise<{ lines: string[]; model: string }>;
   breakdown: (input: BreakdownInput, apiKey: string) => Promise<{ steps: string[]; model: string }>;
@@ -897,8 +898,8 @@ export function createApp(deps: Deps = realDeps) {
     }
   });
 
-  // POST <16 kHz mono WAV, ≤ 35 s> → { text, segments, language, usage }. One piece of a
-  // meeting's recording, transcribed by Whisper on Workers AI. The audio isn't stored.
+  // POST <16 kHz mono WAV, ≤ 35 s> [?language=hi] → { text, segments, language, usage }. One piece of a
+  // meeting's recording (or of a dictation), transcribed by Whisper on Workers AI. The audio isn't stored.
   app.post("/api/ai/transcribe", requireAuth, async (c) => {
     const auth = c.get("auth");
     if (!c.env.AI) return c.json({ error: "ai_unavailable" }, 503);
@@ -908,6 +909,10 @@ export function createApp(deps: Deps = realDeps) {
     if (bytes.length > MAX_PIECE_BYTES) return c.json({ error: "too_large" }, 413);
     const seconds = wavSeconds(bytes);
     if (seconds === null || seconds < 0.2) return c.json({ error: "bad_request" }, 400);
+    // ?language=hi: the language the user chose (Settings → Language), an ISO 639-1 code; absent = Whisper detects it.
+    // (A query parameter, not a header, so it never needs a CORS preflight.)
+    const language = c.req.query("language") || undefined;
+    if (language !== undefined && !isWhisperLanguage(language)) return c.json({ error: "bad_request", message: "Unknown language." }, 400);
     const now = deps.now();
     const limit = transcribeLimitSeconds(auth.user.plan);
     const cost = Math.ceil(seconds);
@@ -921,7 +926,7 @@ export function createApp(deps: Deps = realDeps) {
       } catch {
         vocabulary = [];
       }
-      const r = await deps.transcribe(bytes, c.env.AI, vocabulary);
+      const r = await deps.transcribe(bytes, c.env.AI, vocabulary, language);
       return c.json({ ...r, usage: { usedSeconds: used, limitSeconds: limit } });
     } catch (err) {
       await refundSeconds(c.env.DB, auth.user.id, now, cost);

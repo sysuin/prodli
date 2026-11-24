@@ -49,13 +49,19 @@ interface WhisperOutput {
   transcription_info?: { language?: string };
 }
 
-export async function transcribeWithWorkersAi(wav: Uint8Array, ai: Ai, vocabulary: string[] = []): Promise<TranscriptPiece> {
+/**
+ * `language`: an ISO 639-1 code (languages.ts WHISPER_LANGUAGES) when the user chose one
+ * (dictation, Settings → Language). Whisper then skips its own detection, which often
+ * picks Urdu or English for Hindi. Without it, Whisper detects the language per piece.
+ */
+export async function transcribeWithWorkersAi(wav: Uint8Array, ai: Ai, vocabulary: string[] = [], language?: string): Promise<TranscriptPiece> {
   try {
     // A short prompt with names and terms makes Whisper spell them right (it doesn't force a language).
     const prompt = vocabulary.length ? vocabulary.join(", ").slice(0, 400) : undefined;
     const out = (await ai.run(TRANSCRIBE_MODEL as Parameters<Ai["run"]>[0], {
       audio: toBase64(wav),
       task: "transcribe",
+      ...(language ? { language } : {}),
       ...(prompt ? { initial_prompt: prompt } : {}),
       vad_filter: true,
       // Repeated phrases on quiet audio are a known Whisper failure; don't let one piece feed the next.

@@ -15,6 +15,7 @@ import type { Meeting } from "../recorder/types";
 import { currentStreak, isDone } from "./habits";
 import { buildPrep, metLabel } from "./meetingPrep";
 import { breakdown, focusScore, SITE_CATEGORIES_KEY } from "./siteCategories";
+import { briefLanguage, getVoiceLanguage } from "./voiceLanguage";
 
 export const DAYS_KEY = "days";
 export const TODAY_SETTINGS_KEY = "todaySettings";
@@ -235,7 +236,9 @@ export interface BriefResult {
 export async function writeBrief(ctx: BriefContext): Promise<BriefResult> {
   if (!accountsEnabled() || !(await getProdliAccount())) return { brief: basicBrief(ctx), fallbackReason: "signed_out" };
   try {
-    const r = await accountRequest<{ brief: DailyBrief; usage: { used: number; limit: number } }>("/api/ai/brief", { method: "POST", body: JSON.stringify(ctx) });
+    // Settings → Language: the brief in Hindi, Tamil… (English unless chosen).
+    const language = briefLanguage(await getVoiceLanguage());
+    const r = await accountRequest<{ brief: DailyBrief; usage: { used: number; limit: number } }>("/api/ai/brief", { method: "POST", body: JSON.stringify(language ? { ...ctx, language } : ctx) });
     return { brief: { ...r.brief, source: "ai" }, usage: r.usage };
   } catch (err) {
     const reason =

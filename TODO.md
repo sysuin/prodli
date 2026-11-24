@@ -74,7 +74,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [ ] **A9. Morning brief and scheduled-prompt answers as phone notifications** (2–4 days).
 - [ ] **A10. System-wide dictation into any app** (3–5 weeks, desktop): moved up from Tier 3 #14 to the first desktop feature once the app is signed.
 - [ ] **A11. Document scan to a note with OCR**, searchable in Ask (1–2 weeks, phone).
-- [ ] **A12. Hindi and other Indian languages** for dictation, Speak tasks and the daily brief (3–7 days).
+- [x] **A12. Hindi and other Indian languages** — *done 2026-11-24:* Settings → Language (Automatic, English, Hindi, Hinglish, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Punjabi, Urdu), free. Dictation tells Whisper the language (`language`, ISO 639-1) and the clean-up keeps the script; Hinglish goes to Whisper as Hindi and the clean-up writes Latin letters. Speak tasks listens in hi-IN etc. and keeps titles in that language with English date words; the brief is written in it. Left: a check with real speech. Was: for dictation, Speak tasks and the daily brief (3–7 days).
 - [ ] **A13. Snippet picker** (3–5 days, extension): a shortcut or palette opens saved snippets and inserts into the focused field (no all-sites permission). All four Chrome shortcut slots are used, so it goes in the palette.
 - [ ] **A14. Clipboard history** (2–3 weeks, desktop): send to note or task, AI transforms, skips password-manager copies.
 - [ ] **A15. Follow-ons** (desktop + phone): desktop region screenshot with OCR (reuses A3), Pomodoro on the phone lock screen (Live Activity).
