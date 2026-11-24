@@ -1,6 +1,6 @@
 # ProdLi — guide for Claude sessions
 
-ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new tab + meeting recorder), a web app at app.prodli.com, a desktop app (Electron) and a phone app (Expo). One owner, building features people pay for. What's open and what's done: [TODO.md](TODO.md).
+ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new tab + meeting recorder), a web app at app.prodli.com, a desktop app (Electron) and a phone app (Expo). One owner, building features people pay for. What's open and what's done: [TODO.md](TODO.md). Current state, recent work and the owner's decisions so far: [docs/HANDOFF.md](docs/HANDOFF.md) (read it at the start of a new session).
 
 ## Repository
 
