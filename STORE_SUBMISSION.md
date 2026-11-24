@@ -1,6 +1,8 @@
-# ProdLi v1.4.0: Chrome Web Store submission kit
+# ProdLi v1.5.0: Chrome Web Store submission kit
 
 Everything to paste into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) for this release.
+
+**New in 1.5.0** (since 1.4.0): a 14-day Pro trial for new accounts; meeting trust pack (opt-in heads-up in the Meet chat, auto-delete, download everything); two-way Google Calendar ("ProdLi" calendar) and meetings filed under calendar events; Today's Now card with ✨ Break it down; upload any recording for notes; read aloud and highlights; importing to-dos from Todoist, TickTick, Google Tasks, CSV and Markdown; a read-only personal API and MCP server; a much better note editor (pictures with captions and sizes, code blocks, find and replace, links, nested lists); streak freezes and milestones for habits; typed prefixes in ⌘K and Quick add (t, n, h, p 25, ?, s); "Insert a ProdLi snippet" in any text box; "Screenshot to ProdLi" with crop, marks and text extraction; Hindi and 10 more Indian languages for dictation, Speak tasks and the daily brief.
 
 **New in 1.4.0** (since 1.3.0): repeating to-dos, reminders, lists and labels, and natural-language quick add; 🎙 Speak tasks; focus blocking with schedules and strict mode; saved tabs, quick links and a search box on Today; Read later and "Summarize page to ProdLi notes"; note templates and a daily note; richer habits (count, timed, quit, skip days, year heatmap); Ask ProdLi sources, saved and scheduled prompts; meeting prep; site categories and a daily focus score; the drag-to-timebox Day view; AI notes for Zoom, Teams, Webex, Slack, Discord, Jitsi and Whereby calls in the browser (and any website, as an option) and for in-person meetings; to-do Board and Eisenhower matrix views; AI audio transcription for mixed-language calls; meeting types and a word list.
 
@@ -11,8 +13,8 @@ Everything to paste into the [Developer Dashboard](https://chrome.google.com/web
   pnpm run build:extension:store
   ```
   This writes `prodli-extension-store.zip`. It always talks to https://app.prodli.com, includes Google sign-in from `.env.local`, and leaves out the `key` field (the store rejects it). It never touches the `dist-extension` folder your Chrome loads.
-- Version: **1.4.0** in `artifacts/prodli/extension/manifest.json`. Raise it for every upload after this one.
-- The production API must be deployed first (done 20 Nov 2026): 1.4.0 syncs new lists (to-do lists, saved tabs, quick links, Read later) and uses new AI endpoints.
+- Version: **1.5.0** in `artifacts/prodli/extension/manifest.json`. Raise it for every upload after this one.
+- The production API must be deployed first: 1.5.0 uses new AI endpoints (`/api/ai/ocr`, the language setting). (1.4.0: deployed 20 Nov 2026.)
 - The store's name and summary come from the manifest: **ProdLi: AI Meeting Notes & Daily Planner** and the summary in section 3. The name leads with what people search the store for ("meeting notes", "planner"); keep it short and descriptive, since the store rejects keyword stuffing.
 
 ## 2. Store listing → Graphics
@@ -127,7 +129,7 @@ Tick these (they leave the device only when the user signs in or uses a feature)
 | **Authentication information** | A Google sign-in token is exchanged for a ProdLi session, used to sync the user's data. |
 | **Personal communications** | Meeting transcripts and summaries (calls in the browser and in-person meetings), call or in-person audio sent for transcription, and meeting summaries the user chooses to share by link (stored until the link expires or sharing stops), synced to the account and sent to the AI provider when the user asks for a summary. For voice dictation, the user's voice while they dictate (sent to the AI provider for transcription) and the transcribed text (sent to the AI provider to clean up; with the selected text in Command Mode), not stored on ProdLi's servers. For writing help, the selected note text or a meeting's summary is sent to the AI provider to write a suggestion or follow-up email; neither is stored on ProdLi's servers. |
 | **Web history** | Time Tracker totals per website name (no full addresses), synced and used in the daily brief and weekly review; the titles and addresses of tabs, links and pages the user chooses to save (saved tabs, quick links, Read later), synced to the account. |
-| **Website content** | Text, titles and links the user saves from pages with "Add to ProdLi", stored as notes and to-dos; the text of a page the user asks to summarize ("Summarize page"), sent to the AI provider and not stored on ProdLi's servers. |
+| **Website content** | Text, titles and links the user saves from pages with "Add to ProdLi", stored as notes and to-dos; the text of a page the user asks to summarize ("Summarize page"), sent to the AI provider and not stored on ProdLi's servers; a screenshot of the visible page the user takes with "Screenshot to ProdLi", kept as a picture in a note, and sent to the AI provider only when the user clicks "Pull out the text" (not stored on ProdLi's servers). |
 
 Leave the others unticked (health, financial and payment information, location, user activity). Payments for ProdLi Pro happen on Dodo Payments' checkout page, not in the extension.
 
