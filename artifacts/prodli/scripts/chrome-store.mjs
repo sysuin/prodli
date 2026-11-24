@@ -8,23 +8,27 @@
  *   node scripts/chrome-store.mjs submit <zip>        → uploads, then submits for review;
  *                                                       Google publishes it once approved
  *
- * Settings (environment): CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN
- * (from scripts/chrome-store-token.mjs), CWS_PUBLISHER_ID (in the Developer
- * Dashboard's address) and optionally CWS_EXTENSION_ID (default: ProdLi's).
+ * Settings (environment):
+ *   CWS_SERVICE_ACCOUNT  the service account's JSON key (the whole file's text), or
+ *   CWS_ACCESS_TOKEN     an access token you already have (e.g. from gcloud)
+ *   CWS_PUBLISHER_ID     Developer Dashboard → Publisher → Settings
+ *   CWS_EXTENSION_ID     optional; default ProdLi's
  * Setup: STORE_SUBMISSION.md → "Releasing from GitHub".
  */
 
 import { readFileSync } from "fs";
+import { createSign } from "crypto";
 import { pathToFileURL } from "url";
 
 export const PRODLI_EXTENSION_ID = "gjgknflakhglanjaeenkmciohimnbkdp";
 const API = "https://chromewebstore.googleapis.com";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const SCOPE = "https://www.googleapis.com/auth/chromewebstore";
 
 /** Turns a failed response's body into one readable line. */
 export function errorText(status, body) {
   if (body && typeof body.error === "string") {
-    if (body.error === "invalid_grant") return "The store keys are invalid or expired (invalid_grant): make a new refresh token with scripts/chrome-store-token.mjs";
+    if (body.error === "invalid_grant") return `Google refused the service account (invalid_grant${body.error_description ? `: ${body.error_description}` : ""}): check the CWS_SERVICE_ACCOUNT key`;
     return `${body.error}${body.error_description ? `: ${body.error_description}` : ""}`;
   }
   if (body?.error?.message) return `HTTP ${status}: ${body.error.message}`;
@@ -41,15 +45,34 @@ async function call(fetchImpl, url, init) {
 }
 
 export function settings(env) {
-  const missing = ["CWS_CLIENT_ID", "CWS_CLIENT_SECRET", "CWS_REFRESH_TOKEN", "CWS_PUBLISHER_ID"].filter((k) => !env[k]?.trim());
+  const missing = [];
+  if (!env.CWS_PUBLISHER_ID?.trim()) missing.push("CWS_PUBLISHER_ID");
+  const token = env.CWS_ACCESS_TOKEN?.trim();
+  let account = null;
+  if (!token) {
+    if (!env.CWS_SERVICE_ACCOUNT?.trim()) missing.push("CWS_SERVICE_ACCOUNT");
+    else {
+      try { account = JSON.parse(env.CWS_SERVICE_ACCOUNT); } catch { throw new Error("CWS_SERVICE_ACCOUNT isn't JSON: paste the whole key file"); }
+      if (!account.client_email || !account.private_key) throw new Error("CWS_SERVICE_ACCOUNT has no client_email or private_key: use the service account's JSON key");
+    }
+  }
   if (missing.length) throw new Error(`Missing settings: ${missing.join(", ")} (STORE_SUBMISSION.md → "Releasing from GitHub")`);
   const item = `publishers/${env.CWS_PUBLISHER_ID.trim()}/items/${env.CWS_EXTENSION_ID?.trim() || PRODLI_EXTENSION_ID}`;
-  return { item, clientId: env.CWS_CLIENT_ID.trim(), clientSecret: env.CWS_CLIENT_SECRET.trim(), refreshToken: env.CWS_REFRESH_TOKEN.trim() };
+  return { item, token, account };
+}
+
+const b64url = (v) => Buffer.from(typeof v === "string" ? v : JSON.stringify(v)).toString("base64url");
+
+/** A signed JWT for the service account (Google's "JWT bearer" grant). */
+export function serviceAccountAssertion(account, now = Math.floor(Date.now() / 1000)) {
+  const unsigned = `${b64url({ alg: "RS256", typ: "JWT" })}.${b64url({ iss: account.client_email, scope: SCOPE, aud: account.token_uri || TOKEN_URL, iat: now, exp: now + 3600 })}`;
+  return `${unsigned}.${createSign("RSA-SHA256").update(unsigned).sign(account.private_key).toString("base64url")}`;
 }
 
 export async function accessToken(s, fetchImpl) {
-  const body = new URLSearchParams({ client_id: s.clientId, client_secret: s.clientSecret, refresh_token: s.refreshToken, grant_type: "refresh_token" });
-  const res = await call(fetchImpl, TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  if (s.token) return s.token;
+  const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: serviceAccountAssertion(s.account) });
+  const res = await call(fetchImpl, s.account.token_uri || TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   if (!res.access_token) throw new Error("Google sent no access token");
   return res.access_token;
 }
@@ -62,7 +85,7 @@ export function fetchStatus(s, token, fetchImpl) {
 export async function upload(s, token, zip, fetchImpl, { waitMs = 120_000, pollMs = 3_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = () => {} } = {}) {
   const res = await call(fetchImpl, `${API}/upload/v2/${s.item}:upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/zip", "X-Goog-Upload-Protocol": "raw", "X-Goog-Upload-File-Name": "extension.zip" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/zip" },
     body: zip,
   });
   let state = res.uploadState;

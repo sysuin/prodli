@@ -1,8 +1,11 @@
+import { generateKeyPairSync, createVerify } from "crypto";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain .mjs script, no types
 import { main, PRODLI_EXTENSION_ID } from "../../scripts/chrome-store.mjs";
 
-const ENV = { CWS_CLIENT_ID: "cid", CWS_CLIENT_SECRET: "secret", CWS_REFRESH_TOKEN: "refresh", CWS_PUBLISHER_ID: "pub1" };
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const ACCOUNT = { type: "service_account", client_email: "store@prodli.iam.gserviceaccount.com", private_key: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), token_uri: "https://oauth2.googleapis.com/token" };
+const ENV = { CWS_SERVICE_ACCOUNT: JSON.stringify(ACCOUNT), CWS_PUBLISHER_ID: "pub1" };
 const ITEM = `publishers/pub1/items/${PRODLI_EXTENSION_ID}`;
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
@@ -38,14 +41,32 @@ async function run(args: string[], routes: Record<string, Reply | Reply[]>, env:
 const TOKEN = { "/token": { body: { access_token: "at" } } };
 
 describe("chrome-store.mjs (Chrome Web Store API v2)", () => {
-  it("upload: gets a token, uploads the zip raw to the item, and stops at a draft", async () => {
+  it("signs in as the service account with a JWT Google can verify", async () => {
+    const { code, calls } = await run(["status"], { ...TOKEN, [`${ITEM}:fetchStatus`]: { body: { lastAsyncUploadState: "SUCCEEDED" } } });
+    expect(code).toBe(0);
+    const form = new URLSearchParams(String(calls[0].body));
+    expect(form.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:jwt-bearer");
+    const [h, c, sig] = form.get("assertion")!.split(".");
+    expect(createVerify("RSA-SHA256").update(`${h}.${c}`).verify(publicKey, Buffer.from(sig, "base64url"))).toBe(true);
+    const claims = JSON.parse(Buffer.from(c, "base64url").toString());
+    expect(claims).toMatchObject({ iss: ACCOUNT.client_email, scope: "https://www.googleapis.com/auth/chromewebstore", aud: ACCOUNT.token_uri });
+    expect(claims.exp - claims.iat).toBe(3600);
+    expect(calls[1].headers).toMatchObject({ Authorization: "Bearer at" });
+  });
+
+  it("an access token you already have is used as is", async () => {
+    const { code, calls } = await run(["status"], { [`${ITEM}:fetchStatus`]: { body: {} } }, { CWS_ACCESS_TOKEN: "given", CWS_PUBLISHER_ID: "pub1" });
+    expect(code).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].headers).toMatchObject({ Authorization: "Bearer given" });
+  });
+
+  it("upload: gets a token, uploads the zip to the item, and stops at a draft", async () => {
     const { code, out, calls } = await run(["upload", "x.zip"], { ...TOKEN, [`${ITEM}:upload`]: { body: { uploadState: "SUCCEEDED", crxVersion: "1.5.0" } } });
     expect(code).toBe(0);
     expect(calls.map((c) => c.url)).toEqual(["https://oauth2.googleapis.com/token", `https://chromewebstore.googleapis.com/upload/v2/${ITEM}:upload`]);
-    expect(String(calls[0].body)).toContain("grant_type=refresh_token");
-    expect(String(calls[0].body)).toContain("refresh_token=refresh");
     expect(calls[1].method).toBe("POST");
-    expect(calls[1].headers).toMatchObject({ Authorization: "Bearer at", "X-Goog-Upload-Protocol": "raw" });
+    expect(calls[1].headers).toMatchObject({ Authorization: "Bearer at", "Content-Type": "application/zip" });
     expect(out).toContain("Uploaded version 1.5.0");
     expect(out).toContain("draft");
   });
@@ -91,14 +112,16 @@ describe("chrome-store.mjs (Chrome Web Store API v2)", () => {
     expect(api.out).toContain("HTTP 400: Item is pending review");
     const grant = await run(["status"], { "/token": { status: 400, body: { error: "invalid_grant" } } });
     expect(grant.code).toBe(1);
-    expect(grant.out).toContain("chrome-store-token.mjs");
+    expect(grant.out).toContain("check the CWS_SERVICE_ACCOUNT key");
   });
 
   it("missing settings are named, and nothing is sent", async () => {
-    const { code, out, calls } = await run(["upload", "x.zip"], {}, { CWS_CLIENT_ID: "cid" });
+    const { code, out, calls } = await run(["upload", "x.zip"], {}, {});
     expect(code).toBe(1);
-    expect(out).toContain("CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_PUBLISHER_ID");
+    expect(out).toContain("Missing settings: CWS_PUBLISHER_ID, CWS_SERVICE_ACCOUNT");
     expect(calls).toHaveLength(0);
+    const bad = await run(["upload", "x.zip"], {}, { CWS_SERVICE_ACCOUNT: "not json", CWS_PUBLISHER_ID: "pub1" });
+    expect(bad.out).toContain("isn't JSON");
   });
 
   it("status reads the item; a wrong command prints usage", async () => {
