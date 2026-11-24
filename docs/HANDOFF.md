@@ -38,6 +38,15 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 4. **1 Dec 2026:** a scheduled task on the owner's Mac makes the repo private again (to save Actions minutes, the repo was public in November). After that, check the `production` environment's required reviewer still works on the owner's GitHub plan, and remember Actions minutes count again (each CI run is about 15–18 minutes).
 5. Next features, when the owner asks: the desktop menu-bar timer (A1) was the next quick item; then the larger items in TODO's feature plan.
 
+## The other local sessions (all finished, all merged)
+
+Besides the main session, four local sessions worked on ProdLi. Everything they built is on main; what they left open is in TODO.md.
+
+- **"GTM strategy planning"** (until 22 Nov; sysuin/prodli#89, #91): store listing led by meeting notes, a Chrome Web Store review prompt after 3 summarized meetings, an uninstall survey (`/api/feedback/uninstall`, migration 0013), a growth report, and comparison pages on prodli.com (`/compare/granola` and others). Left: lawyer review of `docs/legal/REVIEW-NOTES.md` §10.
+- **"ProdLi desktop app"** (until 21 Nov; up to sysuin/prodli#88): the Electron app (every section, record a call in any app, Quick add shortcut, tray, time in apps), its e2e and smoke tests, Mac and Windows packaging in CI (`.github/workflows/desktop.yml`), and `docs/legal/DESKTOP-ADDITIONS.md`. Left: signing certificates, lawyer review, a Google "Desktop app" OAuth client for Calendar, a real-world check on a signed build.
+- **"ProdLi mobile development"** (until 21 Nov; up to sysuin/prodli#87, branch `mobile-4` is merged): the Expo app, its browser tests at phone size (in CI), store screenshots and listing kit (`docs/MOBILE-STORE.md`), welcome and error screens. Left: Expo account, iOS/Android Google sign-in clients, Apple/Google developer accounts, lawyer review (§9). Its worktree on the Mac (`.claude/worktrees/mobile-app`) holds nothing unmerged.
+- **"ProdLi: retry Google branding verification"** (scheduled run, 18 Nov): Google verified the branding, but it must be **published by about 25 Nov** (Google Auth Platform → Branding → Publish branding) or the verification expires. Then submit `calendar.readonly` for verification.
+
 ## Things only the Mac has (not in the repo)
 
 - `.env.local` (Google sign-in client ID and the extension key) for store builds.
