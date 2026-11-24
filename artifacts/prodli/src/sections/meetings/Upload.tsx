@@ -201,6 +201,7 @@ export function UploadStatus({ meeting, signedIn, flash }: { meeting: Meeting; s
             Transcribing…{" "}
             {totalMs ? `${Math.floor(job.progress.doneMs / 60_000)} of ${minutes(meeting.durationSec)} min` : `${Math.floor(job.progress.doneMs / 60_000)} min done`}
             {job.progress.pieces ? ` · ${job.progress.pieces} piece${job.progress.pieces === 1 ? "" : "s"}` : ""}
+            {job.progress.reused ? ` (${job.progress.reused} from the last try, not counted again)` : ""}
           </span>
           <button style={btn()} onClick={() => stopUpload(meeting.id)}>Stop</button>
         </div>

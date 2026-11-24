@@ -88,8 +88,8 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 
 ## Next ideas
 
-- [ ] **Import from other apps (first part is Feature plan item 8):** start with "paste a list" (any app, ~half a day), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
-- [ ] **Upload Retry resumes:** retrying a failed uploaded-recording transcription starts from the beginning, so minutes already used for pieces sent before the failure count twice. Resume from the last finished piece instead.
+- [ ] **Import from other apps (first part is Feature plan item 8):** ~~"paste a list"~~ (covered by 🎙 Speak or paste tasks, 2026-11-24), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
+- [x] **Upload Retry resumes:** *done 2026-11-24:* finished pieces are kept on the device while it runs; Retry sends only the rest and joins the transcript in order. retrying a failed uploaded-recording transcription starts from the beginning, so minutes already used for pieces sent before the failure count twice. Resume from the last finished piece instead.
 - [ ] **Editor, next round** (from the 2026-11-23 editor testing):
   - [x] Picture resizing and captions (done 2026-11-23: S/M/L/Full, drag the edge, caption) (pictures always fill the note width today).
   - [x] Code blocks: syntax colours, a language picker and a Copy button.

@@ -2655,6 +2655,26 @@ const suites = {
     }
     check("Upload: Retry transcribes it", retried?.transcript[0] === "Speaker: Retry worked." && !retried.error, JSON.stringify(retried));
 
+    // Failing part-way: Retry carries on, sending only the pieces that weren't transcribed (no minutes counted twice).
+    await p.eval(`(() => { globalThis.__sent = []; globalThis.__prodliTranscribeStub = async (wav, startMs) => { __sent.push(startMs); if (__sent.length > 1) throw new Error("offline"); return { text: "First part.", segments: [], language: "en" }; }; return true; })()`);
+    await uploadFile("speech-en-3x.wav", "Half upload");
+    const half = await waitReady("Half upload");
+    await sleep(400);
+    const firstSent = await p.eval("__sent.slice().sort((a, b) => a - b)");
+    const kept = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? [])`);
+    check("Upload: a part-way failure keeps the finished pieces and says Retry carries on", firstSent.length >= 2 && kept.length === 1 && kept[0].startMs === firstSent[0] && /carries on from where it stopped/.test(half?.error ?? ""), JSON.stringify({ firstSent, kept: kept.map((k) => k.startMs), error: half?.error }));
+    await p.eval(`(() => { globalThis.__sent = []; globalThis.__prodliTranscribeStub = async (wav, startMs) => { __sent.push(startMs); return { text: "Second part.", segments: [], language: "en" }; }; return true; })()`);
+    await p.eval(`document.querySelector('[data-testid="upload-retry"] button').click()`);
+    let resumed;
+    for (let i = 0; i < 40; i++) {
+      await sleep(250);
+      resumed = (await readMeetings()).find((x) => x.title === "Half upload");
+      if (resumed?.transcript.length && resumed.status === "ready") break;
+    }
+    const retrySent = await p.eval("__sent.slice().sort((a, b) => a - b)");
+    const leftover = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? null)`);
+    check("Upload: Retry sends only the missing pieces and joins the transcript in order", !retrySent.includes(firstSent[0]) && retrySent.length >= 1 && resumed?.transcript[0] === "Speaker: First part." && resumed.transcript.slice(1).every((t) => t === "Speaker: Second part.") && leftover === null, JSON.stringify({ retrySent, firstSent, transcript: resumed?.transcript, leftover }));
+
     // Not audio: the panel explains instead of uploading.
     await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
     await sleep(500);

@@ -371,6 +371,15 @@ export interface TranscribeProgress {
   /** How far into the recording the finished pieces reach. */
   doneMs: number;
   pieces: number;
+  /** Pieces taken from an earlier, unfinished run (not sent again). */
+  reused?: number;
+}
+
+/** A transcribed piece, kept so a retry doesn't send (and pay for) it again. */
+export interface DonePiece {
+  startMs: number;
+  durationMs: number;
+  result: PieceResult;
 }
 
 /**
@@ -384,9 +393,15 @@ export async function transcribeRecording(
     signal,
     onProgress,
     send,
+    resume,
+    onPiece,
   }: {
     signal?: AbortSignal;
     onProgress?: (p: TranscribeProgress) => void;
+    /** Pieces finished by an earlier run of the same recording: used as they are (same start and length), not sent again. */
+    resume?: DonePiece[];
+    /** Each newly transcribed piece, as soon as it's back (to keep for a retry). */
+    onPiece?: (piece: DonePiece) => void;
     /** Sends a piece somewhere else (the offscreen recorder hands pieces to the background, which has the account). */
     send?: (wav: Uint8Array, startMs: number) => Promise<PieceResult>;
   } = {},
@@ -397,7 +412,9 @@ export async function transcribeRecording(
     if (!(await getProdliAccount())) throw new TranscribeError(SIGN_IN_FOR_TRANSCRIPTION);
   }
   const vocabulary = send ? [] : await storageGet<string[]>(VOCABULARY_STORAGE_KEY, []);
-  const results: { startMs: number; durationMs: number; result: PieceResult }[] = [];
+  const results: DonePiece[] = [];
+  const earlier = new Map((resume ?? []).map((d) => [d.startMs, d]));
+  let reused = 0;
   let usage: PieceResult["usage"];
   let doneMs = 0;
   let source: AsyncGenerator<Piece>;
@@ -420,13 +437,24 @@ export async function transcribeRecording(
       if (next.done) return;
       const piece = next.value;
       const durationMs = Math.round((piece.samples.length / RATE) * 1000);
+      // Already transcribed in an earlier run (the recording is cut the same way each time).
+      const kept = earlier.get(piece.startMs);
+      if (kept && Math.abs(kept.durationMs - durationMs) <= 1) {
+        results.push(kept);
+        reused++;
+        doneMs = Math.max(doneMs, piece.startMs + durationMs);
+        onProgress?.({ doneMs, pieces: results.length, reused });
+        continue;
+      }
       try {
         const wav = encodeWav(piece.samples);
         const result = send ? await send(wav, piece.startMs) : await sendWithRetry(wav, piece.startMs, vocabulary, signal);
-        results.push({ startMs: piece.startMs, durationMs, result });
+        const done = { startMs: piece.startMs, durationMs, result };
+        results.push(done);
+        onPiece?.(done);
         if (result.usage && (!usage || result.usage.usedSeconds > usage.usedSeconds)) usage = result.usage;
         doneMs = Math.max(doneMs, piece.startMs + durationMs);
-        onProgress?.({ doneMs, pieces: results.length });
+        onProgress?.({ doneMs, pieces: results.length, reused });
       } catch (err) {
         stop ??= err;
         return;
