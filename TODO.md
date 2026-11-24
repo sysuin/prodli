@@ -41,7 +41,7 @@ Day-to-day building runs in Claude Code cloud sessions; the guide for them is [C
 
 - [x] **GitHub Actions minutes:** *done 2026-11-24:* the uptime check runs hourly as one job (it was three jobs every 15 minutes, about 8,600 billed minutes a month once private); now about 720 a month. Was: `.github/workflows/uptime.yml` runs every 15 minutes; once the repo is private again (1 Dec), each run bills at least 1 minute, more than GitHub Free's 2,000 before any CI run (15–18 minutes each).
 - [x] **Store kit out of date:** *done 2026-11-24:* the description and the `identity` row say how the "ProdLi" calendar is used; the `contextMenus`, `activeTab` and `scripting` rows cover Screenshot to ProdLi and the snippet picker; "Before you submit" is for 1.5.0. Was: `STORE_SUBMISSION.md` still says Google Calendar access is read-only (description and the `identity` permission note), but 1.5.0 also writes to a "ProdLi" calendar (`calendar.app.created`; the Privacy page already says so). The "Before you submit" checklist still lists 1.4.0 items. Fix both before uploading 1.5.0.
-- [ ] *Small:* `scripts/pr.sh` with no arguments prints one stray line (`set -euo pipefail`) after its help.
+- [x] *Small:* *done 2026-11-24:* `scripts/pr.sh` with no arguments prints one stray line (`set -euo pipefail`) after its help.
 
 ## Next — Claude can do
 
