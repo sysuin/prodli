@@ -212,6 +212,9 @@ export function DictationSettings() {
       <section style={card} aria-labelledby={`${id}-snippets`}>
         <h3 id={`${id}-snippets`} style={h}>5 · Snippets</h3>
         <p style={muted}>Say a short cue to type saved text — say just the cue, or use it inside a sentence.</p>
+        <p style={muted} data-testid="snippet-picker-help">
+          Or pick one without talking: right-click in any text box → <b>Insert a ProdLi snippet</b>, or set a shortcut for it in <code>chrome://extensions/shortcuts</code>. In ProdLi, press Ctrl/⌘+K and type “s ”. <code>{"{date}"}</code>, <code>{"{time}"}</code> and <code>{"{day}"}</code> are filled in when a snippet is picked.
+        </p>
         {snippets.length > 0 && (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {snippets.map((s) => (

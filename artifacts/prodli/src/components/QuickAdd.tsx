@@ -4,10 +4,25 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addNote, addTask, type CaptureInput } from "../lib/capture";
 import { parseTask } from "../lib/taskParse";
 import { addReadLater } from "../lib/readLater";
+import { logHabitToday, matchHabits, parsePrefix, prefixHelp, startPomodoroNow, type PrefixKind } from "../lib/palettePrefix";
+import { isDone, kindOf, momentText, progressLabel } from "../lib/habits";
+import { storageGet } from "../lib/storage";
+import { getDayKey } from "../lib/utils";
+import type { Habit } from "../types";
+import { openAsk } from "../lib/ask";
+import { isExtension } from "../lib/tabSessions";
+
+/** The Quick add window (extension) asks in a new ProdLi tab: index.html#ask=… (App opens Ask). */
+const askInNewTab = (question?: string) => void chrome.tabs.create({ url: chrome.runtime.getURL(`index.html#ask=${encodeURIComponent(question ?? "")}`) });
 
 const field: CSSProperties = { border: "var(--nb-border)", padding: "8px 10px", fontFamily: "inherit", fontSize: 14, background: "hsl(var(--background))", color: "hsl(var(--foreground))", width: "100%", boxSizing: "border-box" };
 
-export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureInput; onDone: (message: string) => void; onCancel: () => void }) {
+/**
+ * Typing a prefix first: "t " a to-do, "n " a note (both switch the form),
+ * "h read" check off a habit, "p 25" start a Pomodoro, "? …" ask ProdLi
+ * (where `onAsk` is given). Same prefixes as the palette (lib/palettePrefix.ts).
+ */
+export function QuickAddForm({ initial, onDone, onCancel, onAsk }: { initial?: CaptureInput; onDone: (message: string) => void; onCancel: () => void; onAsk?: (question?: string) => void }) {
   const [kind, setKind] = useState<"todo" | "note" | "later">(initial?.text && initial.text.length > 120 ? "note" : "todo");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [text, setText] = useState(initial?.text ?? "");
@@ -15,8 +30,43 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => titleRef.current?.focus(), []);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  useEffect(() => void storageGet<Habit[]>("habits", []).then(setHabits), []);
+
+  // h / p / ? turn the form into that action; t / n just pick the kind (handled on typing).
+  const pre = parsePrefix(title);
+  const action: PrefixKind | null = pre && (pre.kind === "habit" || pre.kind === "pomodoro" || (pre.kind === "ask" && onAsk)) ? pre.kind : null;
+  const habitMatches = action === "habit" ? matchHabits(habits, pre!.rest) : [];
+  const onTitle = (value: string) => {
+    const p = parsePrefix(value);
+    if (p && (p.kind === "todo" || p.kind === "note")) {
+      setKind(p.kind);
+      setTitle(p.rest);
+    } else setTitle(value);
+  };
+  const runAction = async (habitId?: string) => {
+    if (!pre || !action) return;
+    setSaving(true);
+    try {
+      if (action === "pomodoro") {
+        const t = await startPomodoroNow(pre.minutes, pre.rest);
+        onDone(`🍅 Focus started: ${Math.round(t.remaining / 60)} min${pre.rest ? ` · ${pre.rest}` : ""}`);
+      } else if (action === "habit") {
+        const id = habitId ?? habitMatches[0]?.id;
+        const r = id ? await logHabitToday(id) : null;
+        if (!r) return;
+        onDone(r.moment ? `${momentText(r.moment).title} ${r.habit.name}${r.moment.earnedFreeze ? " · 🧊 streak freeze earned" : ""}` : `${r.done ? "✓ " : ""}${r.habit.name}: ${progressLabel(r.habit, getDayKey())}`);
+      } else if (action === "ask") {
+        onAsk?.(pre.rest || undefined);
+        onDone(pre.rest ? `Asking ProdLi: ${pre.rest}` : "Opening Ask ProdLi");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
+    if (action) return runAction();
     if (!title.trim() && !text.trim()) return;
     setSaving(true);
     try {
@@ -57,7 +107,41 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
           </button>
         ))}
       </div>
-      <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : "Note title"} aria-label="Title" maxLength={300} style={field} />
+      <input ref={titleRef} value={title} onChange={(e) => onTitle(e.target.value)} placeholder={kind === "todo" ? "What needs doing?" : "Note title"} aria-label="Title" maxLength={300} style={field} />
+      {action ? (
+        <div data-testid="quickadd-action" style={{ display: "grid", gap: 6 }}>
+          {action === "pomodoro" && (
+            <button type="submit" disabled={saving} style={{ ...btn(true, saving), textAlign: "left", textTransform: "none" }}>
+              🍅 Start {pre!.minutes ? `a ${pre!.minutes}-min` : "a"} Pomodoro{pre!.rest ? `: ${pre!.rest}` : ""}
+            </button>
+          )}
+          {action === "ask" && (
+            <button type="submit" disabled={saving} style={{ ...btn(true, saving), textAlign: "left", textTransform: "none" }}>
+              ✨ Ask ProdLi{pre!.rest ? `: “${pre!.rest}”` : "…"}
+            </button>
+          )}
+          {action === "habit" &&
+            (habitMatches.length ? (
+              habitMatches.slice(0, 6).map((h, i) => (
+                <button key={h.id} type="button" disabled={saving} onClick={() => void runAction(h.id)} style={{ ...btn(i === 0, saving), textAlign: "left", textTransform: "none", display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>
+                    {h.emoji} {kindOf(h) === "check" ? (isDone(h, getDayKey()) ? "Unmark" : "Check off") : kindOf(h) === "timed" ? "+5 min" : "+1"}: {h.name}
+                  </span>
+                  <span style={{ opacity: 0.7, fontWeight: 600 }}>{progressLabel(h, getDayKey())}</span>
+                </button>
+              ))
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>{habits.some((h) => !h.archived) ? "No habit due today matches." : "No habits yet: add them in Habits."}</div>
+            ))}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="button" onClick={onCancel} style={btn(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+      <>
+      {kind === "todo" && !title.trim() && <div style={{ fontSize: 11, opacity: 0.7, fontFamily: "Space Mono, monospace" }}>Type first: {prefixHelp(onAsk ? ["todo", "note", "habit", "pomodoro", "ask"] : ["todo", "note", "habit", "pomodoro"])}</div>}
       {kind === "todo" && title.trim() && (() => {
         const p = parseTask(title);
         return p.matched.length ? (
@@ -90,6 +174,8 @@ export function QuickAddForm({ initial, onDone, onCancel }: { initial?: CaptureI
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
+      </>
+      )}
     </form>
   );
 }
@@ -121,6 +207,7 @@ export function QuickAddModal({ initial, onClose, onSaved }: { initial?: Capture
         <div style={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>➕ Quick add</div>
         <QuickAddForm
           initial={initial}
+          onAsk={openAsk}
           onCancel={onClose}
           onDone={(m) => {
             onSaved(m);
@@ -149,6 +236,7 @@ export function QuickAddWindow({ initial }: { initial?: CaptureInput }) {
       ) : (
         <QuickAddForm
           initial={initial}
+          onAsk={isExtension() ? askInNewTab : undefined}
           onCancel={() => window.close()}
           onDone={(m) => {
             setDone(m);

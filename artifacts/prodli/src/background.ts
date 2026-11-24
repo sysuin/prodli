@@ -18,6 +18,7 @@ import { registerRecordNudge } from "./lib/recordNudge";
 import { registerDictation } from "./dictation/background";
 import { registerMeetingRetention } from "./recorder/retention";
 import { registerCalendarSync } from "./lib/calendarSync";
+import { registerSnippets } from "./snippets/background";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
@@ -40,6 +41,8 @@ registerTodayReminder();
 registerPrepReminders();
 // "Add to ProdLi": right-click menus and the Quick add shortcut (Alt+Shift+A).
 registerCapture();
+// Saved snippets typed into any text box (right-click → Insert a ProdLi snippet, or its shortcut).
+registerSnippets();
 // Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).
 registerLocalFiles();
 // Focus blocking: blocked sites go to the pause page (schedules, Pomodoro focus, used-up daily limits).
