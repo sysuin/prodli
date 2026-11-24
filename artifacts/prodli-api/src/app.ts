@@ -16,6 +16,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import {
   authenticate,
+  clientUser,
   createSession,
   deleteAllSessions,
   deleteSession,
@@ -40,7 +41,7 @@ import { funnelReport, parseUninstallFeedback, saveUninstallFeedback } from "./i
 import { BreakdownInputSchema, breakdownWithClaude, type BreakdownInput, ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
-import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
+import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, isPaidPlan, ourProductIds, PAID_PLANS, planFor, planOfProduct, planRank, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type PaidPlan, type Plan, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
 import { MAX_OCR_DATA_URL, OcrInputSchema, ocrWithClaude, type OcrInput } from "./ocr";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
@@ -292,9 +293,9 @@ export function createApp(deps: Deps = realDeps) {
     const { token, session } = await createSession(c.env.DB, user.id, client, device, now);
     if (client === "web") {
       setCookie(c, SESSION_COOKIE, token, { path: "/", secure: true, httpOnly: true, sameSite: "Lax", maxAge: Math.floor(SESSION_TTL.web / 1000) });
-      return c.json({ user, session });
+      return c.json({ user: clientUser(user), session });
     }
-    return c.json({ user, session, token });
+    return c.json({ user: clientUser(user), session, token });
   });
 
   // ── Desktop app sign-in (src/desktopAuth.ts) ──────────────────────────────
@@ -319,13 +320,13 @@ export function createApp(deps: Deps = realDeps) {
     const { token, session } = await createSession(c.env.DB, redeemed.userId, "desktop", desktopDeviceLabel(body.platform), now);
     const auth = await authenticate(c.env.DB, token, now);
     if (!auth) return c.json({ error: "unauthorized" }, 401);
-    return c.json({ user: auth.user, session, token });
+    return c.json({ user: clientUser(auth.user), session, token });
   });
 
   // ── Account ────────────────────────────────────────────────────────────────
   app.get("/api/me", requireAuth, (c) => {
     const auth = c.get("auth");
-    return c.json({ user: auth.user, session: { id: auth.sessionId, client: auth.client } });
+    return c.json({ user: clientUser(auth.user), session: { id: auth.sessionId, client: auth.client } });
   });
 
   app.get("/api/sessions", requireAuth, async (c) => {
@@ -383,7 +384,7 @@ export function createApp(deps: Deps = realDeps) {
     }
     // A paid subscription ends with the account (otherwise it would keep renewing).
     const sub = await getSubscription(c.env.DB, auth.user.id);
-    if (sub && planFor(sub.status) === "pro") {
+    if (sub && isPaidPlan(planFor(sub.status))) {
       if (!c.env.DODO_API_KEY) return c.json({ error: "subscription_active", message: "Cancel your Pro subscription first (Account → Manage subscription), then delete your account." }, 409);
       try {
         await dodo(c).cancelNow(sub.subscription_id);
@@ -459,37 +460,73 @@ export function createApp(deps: Deps = realDeps) {
   };
   const appOrigin = (c: Ctx) => new URL(c.req.url).origin;
 
-  /** The user's plan, what each plan includes, and (when Pro is on sale) the prices. */
+  const limitsOf = (plan: Plan) => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan] });
+  /** What's for sale: per paid plan, which billing periods and their prices. */
+  const plansOnSale = async (c: Ctx) => {
+    const products = productsOnSale(c.env);
+    const plans: Partial<Record<PaidPlan, { onSale: Record<Interval, boolean>; prices: Partial<Record<Interval, Price | null>> }>> = {};
+    for (const p of PAID_PLANS) {
+      const ids = products?.[p];
+      if (!ids) continue;
+      const prices: Partial<Record<Interval, Price | null>> = {};
+      for (const i of ["monthly", "yearly"] as const) if (ids[i]) prices[i] = await priceOf(c, ids[i]!);
+      plans[p] = { onSale: { monthly: !!ids.monthly, yearly: !!ids.yearly }, prices };
+    }
+    return { products, plans };
+  };
+
+  /** The plans and their prices, for anyone (the plan picker before signing in, the website). */
+  app.get("/api/billing/plans", async (c) => {
+    const { products, plans } = await plansOnSale(c);
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({ plans, earlyAccess: !products, limits: { free: limitsOf("free"), pro: limitsOf("pro"), plus: limitsOf("plus") } });
+  });
+
+  /** The user's plan, what each plan includes, and (when plans are on sale) the prices. */
   app.get("/api/billing", requireAuth, async (c) => {
     const auth = c.get("auth");
     const sub = await getSubscription(c.env.DB, auth.user.id);
-    const products = productsOnSale(c.env);
-    const prices: Partial<Record<Interval, Price | null>> = {};
-    if (products) for (const i of ["monthly", "yearly"] as const) if (products[i]) prices[i] = await priceOf(c, products[i]!);
-    const limits = (plan: "free" | "pro") => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan] });
+    const { products, plans } = await plansOnSale(c);
+    const tier: Plan = isPaidPlan(auth.user.plan) ? auth.user.plan : "free";
     return c.json({
-      plan: auth.user.plan === "pro" ? "pro" : "free",
+      // "free" | "pro" for app versions from before Pro Plus (Pro Plus includes all of Pro); `tier` is exact.
+      plan: tier === "free" ? "free" : "pro",
+      tier,
       /** The free Pro trial, while it runs (plan is "pro" then, but there's no subscription). */
       trial: auth.user.trialEndsAt ? { endsAt: auth.user.trialEndsAt } : null,
-      onSale: products ? { monthly: !!products.monthly, yearly: !!products.yearly } : null,
-      // Pro-only features (custom meeting templates, links that never expire) are open to everyone until Pro is on sale.
+      // Pro only, as older app versions read it.
+      onSale: plans.pro ? plans.pro.onSale : null,
+      prices: plans.pro?.prices ?? {},
+      plans,
+      // Pro-only features (custom meeting templates, links that never expire) are open to everyone until a plan is on sale.
       earlyAccess: !products,
-      prices,
       canManage: !!sub && !!c.env.DODO_API_KEY,
-      subscription: sub ? { status: sub.status, interval: sub.billing_interval, renewsAt: sub.cancel_at ? null : sub.period_end, endsAt: sub.cancel_at } : null,
-      limits: { free: limits("free"), pro: limits("pro") },
+      subscription: sub
+        ? { status: sub.status, interval: sub.billing_interval, renewsAt: sub.cancel_at ? null : sub.period_end, endsAt: sub.cancel_at, plan: planOfProduct(c.env, sub.price_id) }
+        : null,
+      limits: { free: limitsOf("free"), pro: limitsOf("pro"), plus: limitsOf("plus") },
     });
   });
 
-  /** POST { interval } → { url } of Dodo's hosted checkout page for this user. */
+  const readChoice = async (c: Ctx) => {
+    const body = (await c.req.json().catch(() => null)) as { interval?: unknown; plan?: unknown } | null;
+    const interval: Interval | null = body?.interval === "monthly" || body?.interval === "yearly" ? body.interval : null;
+    // Older app versions send no plan: Pro.
+    const plan: PaidPlan | null = body?.plan === undefined ? "pro" : body.plan === "pro" || body.plan === "plus" ? body.plan : null;
+    return { interval, plan };
+  };
+
+  /** POST { plan?, interval } → { url } of Dodo's hosted checkout page for this user. */
   app.post("/api/billing/checkout", requireAuth, async (c) => {
     const auth = c.get("auth");
-    const body = (await c.req.json().catch(() => null)) as { interval?: unknown } | null;
-    const interval = body?.interval === "monthly" || body?.interval === "yearly" ? body.interval : null;
+    const { interval, plan } = await readChoice(c);
     const products = productsOnSale(c.env);
     if (!products) return c.json({ error: "billing_unavailable" }, 503);
-    if (!interval || !products[interval]) return c.json({ error: "bad_request" }, 400);
-    if (auth.user.plan === "pro" && !auth.user.trialEndsAt) return c.json({ error: "already_pro" }, 409);
+    const productId = plan && interval ? products[plan]?.[interval] : undefined;
+    if (!productId) return c.json({ error: "bad_request" }, 400);
+    // Already paying: switch plans instead (POST /api/billing/change), so nobody pays twice.
+    const sub = await getSubscription(c.env.DB, auth.user.id);
+    if (sub && isPaidPlan(planFor(sub.status))) return c.json({ error: "already_subscribed", message: "You already have a plan. Switch plans instead." }, 409);
     try {
       const client = dodo(c);
       let customerId = await getCustomerId(c.env.DB, auth.user.id);
@@ -497,9 +534,37 @@ export function createApp(deps: Deps = realDeps) {
         customerId = await client.createCustomer({ email: auth.user.email, name: auth.user.name, userId: auth.user.id });
         await saveCustomerId(c.env.DB, auth.user.id, customerId, deps.now());
       }
-      return c.json({ url: await client.checkoutUrl({ productId: products[interval]!, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/pro/done?from=checkout` }) });
+      return c.json({ url: await client.checkoutUrl({ productId, customerId, userId: auth.user.id, returnUrl: `${appOrigin(c)}/pro/done?from=checkout` }) });
     } catch (err) {
       if (err instanceof BillingError) return c.json({ error: "billing_failed", message: "Couldn't open the checkout. Try again." }, 502);
+      throw err;
+    }
+  });
+
+  /**
+   * POST { plan, interval } → { change: "now" | "at_renewal" }. Moves the current
+   * subscription to another plan or billing period: a higher plan (or yearly)
+   * starts now, with the unused time credited; a lower one starts at the next renewal.
+   */
+  app.post("/api/billing/change", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const { interval, plan } = await readChoice(c);
+    const products = productsOnSale(c.env);
+    if (!products) return c.json({ error: "billing_unavailable" }, 503);
+    const productId = plan && interval ? products[plan]?.[interval] : undefined;
+    if (!productId || !plan || !interval) return c.json({ error: "bad_request" }, 400);
+    const sub = await getSubscription(c.env.DB, auth.user.id);
+    if (!sub || !isPaidPlan(planFor(sub.status))) return c.json({ error: "no_subscription" }, 404);
+    if (sub.price_id === productId) return c.json({ error: "same_plan", message: "You're already on this plan." }, 409);
+    const current = planOfProduct(c.env, sub.price_id);
+    const yearlyNow = sub.billing_interval === "year";
+    // Up a plan, or the same plan from monthly to yearly: now. Otherwise at the next renewal.
+    const upgrade = planRank(plan) > planRank(current) || (plan === current && interval === "yearly" && !yearlyNow);
+    try {
+      await dodo(c).changePlan({ subscriptionId: sub.subscription_id, productId, upgrade });
+      return c.json({ change: upgrade ? "now" : "at_renewal" });
+    } catch (err) {
+      if (err instanceof BillingError) return c.json({ error: "billing_failed", message: upgrade ? "Couldn't switch plans. Check your card in Manage subscription, then try again." : "Couldn't switch plans. Try again." }, 502);
       throw err;
     }
   });
@@ -531,8 +596,7 @@ export function createApp(deps: Deps = realDeps) {
     } catch {
       return c.json({ error: "bad_request" }, 400);
     }
-    const ours = new Set([c.env.DODO_PRODUCT_MONTHLY, c.env.DODO_PRODUCT_YEARLY].map((x) => x?.trim()).filter((x): x is string => !!x));
-    const result = await applySubscriptionEvent(c.env.DB, event, deps.now(), ours);
+    const result = await applySubscriptionEvent(c.env.DB, event, deps.now(), ourProductIds(c.env), (productId) => planOfProduct(c.env, productId));
     console.log(JSON.stringify({ msg: "dodo_webhook", type: event.type, applied: result.applied, ...(result.applied ? { plan: result.plan } : { reason: result.reason }) }));
     // 200 even when ignored, so Dodo doesn't retry events we can't use.
     return c.json({ ok: true, applied: result.applied });

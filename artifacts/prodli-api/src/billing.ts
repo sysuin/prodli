@@ -8,8 +8,10 @@
 // POST /api/billing/webhook → we keep one row per user in D1 `subscriptions`
 // and set users.plan. The plan decides the limits (sync storage, AI allowances).
 //
+// Plans: Free, Pro and Pro Plus (higher limits), each paid plan monthly or yearly.
 // Settings (wrangler.jsonc vars, public): DODO_ENV ("test" | "live"),
-// DODO_PRODUCT_MONTHLY, DODO_PRODUCT_YEARLY (product ids, pdt_…).
+// DODO_PRODUCT_MONTHLY, DODO_PRODUCT_YEARLY (Pro), DODO_PRODUCT_PLUS_MONTHLY,
+// DODO_PRODUCT_PLUS_YEARLY (Pro Plus) — product ids, pdt_….
 // Secrets: DODO_API_KEY, DODO_WEBHOOK_SECRET (whsec_…).
 
 export type DodoEnv = "test" | "live";
@@ -18,6 +20,8 @@ export interface BillingVars {
   DODO_ENV?: string;
   DODO_PRODUCT_MONTHLY?: string;
   DODO_PRODUCT_YEARLY?: string;
+  DODO_PRODUCT_PLUS_MONTHLY?: string;
+  DODO_PRODUCT_PLUS_YEARLY?: string;
   DODO_API_KEY?: string;
   DODO_WEBHOOK_SECRET?: string;
   /** Local end-to-end tests only (a stand-in for Dodo's API); ignored unless ENV is "development". */
@@ -25,27 +29,61 @@ export interface BillingVars {
 }
 
 export type Interval = "monthly" | "yearly";
+export type PaidPlan = "pro" | "plus";
+export type Plan = "free" | PaidPlan;
+export const PAID_PLANS: readonly PaidPlan[] = ["pro", "plus"];
+export const isPaidPlan = (plan: string): plan is PaidPlan => plan === "pro" || plan === "plus";
+/** Higher is more: changing to a higher plan is an upgrade (charged now), to a lower one a downgrade (from the next renewal). */
+export const planRank = (plan: string) => (plan === "plus" ? 2 : plan === "pro" ? 1 : 0);
+
+/** Product ids per paid plan and billing period. */
+export type Catalog = Partial<Record<PaidPlan, Partial<Record<Interval, string>>>>;
 
 export const dodoEnv = (env: BillingVars): DodoEnv => (env.DODO_ENV === "live" ? "live" : "test");
 
-/** The products on sale, or null when Pro can't be bought on this server yet. */
-export function productsOnSale(env: BillingVars): Partial<Record<Interval, string>> | null {
-  // Without the webhook secret a payment could never turn Pro on, and without the
+function catalog(env: BillingVars): Catalog {
+  const pick = (monthly?: string, yearly?: string) => {
+    const out: Partial<Record<Interval, string>> = {};
+    if (monthly?.trim()) out.monthly = monthly.trim();
+    if (yearly?.trim()) out.yearly = yearly.trim();
+    return out.monthly || out.yearly ? out : undefined;
+  };
+  const c: Catalog = {};
+  const pro = pick(env.DODO_PRODUCT_MONTHLY, env.DODO_PRODUCT_YEARLY);
+  const plus = pick(env.DODO_PRODUCT_PLUS_MONTHLY, env.DODO_PRODUCT_PLUS_YEARLY);
+  if (pro) c.pro = pro;
+  if (plus) c.plus = plus;
+  return c;
+}
+
+/** The products on sale, or null when nothing can be bought on this server yet. */
+export function productsOnSale(env: BillingVars): Catalog | null {
+  // Without the webhook secret a payment could never turn a plan on, and without the
   // API key we can't start a checkout: don't sell.
   if (!env.DODO_API_KEY || !env.DODO_WEBHOOK_SECRET) return null;
-  const out: Partial<Record<Interval, string>> = {};
-  if (env.DODO_PRODUCT_MONTHLY?.trim()) out.monthly = env.DODO_PRODUCT_MONTHLY.trim();
-  if (env.DODO_PRODUCT_YEARLY?.trim()) out.yearly = env.DODO_PRODUCT_YEARLY.trim();
-  return out.monthly || out.yearly ? out : null;
+  const c = catalog(env);
+  return c.pro || c.plus ? c : null;
+}
+
+/** Every product id that belongs to ProdLi (webhooks are business-wide). */
+export function ourProductIds(env: BillingVars): Set<string> {
+  const c = catalog(env);
+  return new Set(PAID_PLANS.flatMap((p) => Object.values(c[p] ?? {})));
+}
+
+/** Which plan a product sells (unknown products count as Pro, the original plan). */
+export function planOfProduct(env: BillingVars, productId: string | null | undefined): PaidPlan {
+  const plus = catalog(env).plus;
+  return productId && plus && (plus.monthly === productId || plus.yearly === productId) ? "plus" : "pro";
 }
 
 /**
- * Pro-only features (custom meeting templates, links that never expire). While
- * Pro can't be bought on this server yet, they're open to everyone as early
- * access, so nobody hits a wall they can't pay past.
+ * Pro-only features (custom meeting templates, links that never expire): Pro and
+ * Pro Plus. While nothing can be bought on this server yet, they're open to
+ * everyone as early access, so nobody hits a wall they can't pay past.
  */
 export function proFeatureAllowed(plan: string, env: BillingVars): boolean {
-  return plan === "pro" || !productsOnSale(env);
+  return isPaidPlan(plan) || !productsOnSale(env);
 }
 
 // ── Webhook signature (Standard Webhooks: webhook-id / -timestamp / -signature) ──
@@ -103,9 +141,10 @@ export async function verifyWebhook(
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
 
-/** Statuses that keep Pro on (past_due: a renewal failed and the grace period is running). */
-const PRO_STATUSES = new Set(["active", "past_due"]);
-export const planFor = (status: string) => (PRO_STATUSES.has(status) ? "pro" : "free");
+/** Statuses that keep a paid plan on (past_due: a renewal failed and the grace period is running). */
+const PAID_STATUSES = new Set(["active", "past_due"]);
+/** The plan a subscription gives: its product's plan while it's active, else free. */
+export const planFor = (status: string, paid: PaidPlan = "pro"): Plan => (PAID_STATUSES.has(status) ? paid : "free");
 
 interface DodoSubscription {
   payload_type?: string;
@@ -145,7 +184,7 @@ const ms = (iso: string | undefined | null) => {
 export type ApplyResult = { applied: true; userId: string; plan: string } | { applied: false; reason: string };
 
 /** Applies one subscription.* webhook event. Safe to receive twice or out of order. */
-export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, nowMs: number, ourProducts?: Set<string>): Promise<ApplyResult> {
+export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, nowMs: number, ourProducts?: Set<string>, planOf: (productId: string | null | undefined) => PaidPlan = () => "pro"): Promise<ApplyResult> {
   if (!event.type?.startsWith("subscription.")) return { applied: false, reason: "not_a_subscription_event" };
   const sub = event.data;
   // Webhooks are business-wide: other brands' subscriptions (e.g. JobScanner) arrive here too.
@@ -164,7 +203,7 @@ export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, n
   const current = await db.prepare(`SELECT * FROM subscriptions WHERE user_id = ?1`).bind(userId).first<SubscriptionRow>();
   if (current?.subscription_id === sub.subscription_id && current.event_at > at) return { applied: false, reason: "stale" };
   // An old subscription ending must not end the newer one.
-  if (current && current.subscription_id !== sub.subscription_id && planFor(current.status) === "pro" && planFor(sub.status) !== "pro") return { applied: false, reason: "superseded" };
+  if (current && current.subscription_id !== sub.subscription_id && isPaidPlan(planFor(current.status)) && !isPaidPlan(planFor(sub.status))) return { applied: false, reason: "superseded" };
 
   const interval = sub.payment_frequency_interval?.toLowerCase();
   const row: SubscriptionRow = {
@@ -178,7 +217,7 @@ export async function applySubscriptionEvent(db: D1Database, event: DodoEvent, n
     cancel_at: sub.cancel_at_next_billing_date ? ms(sub.next_billing_date) : null,
     event_at: at,
   };
-  const plan = planFor(row.status);
+  const plan = planFor(row.status, planOf(row.price_id));
   await db.batch([
     db.prepare(`DELETE FROM subscriptions WHERE subscription_id = ?1 AND user_id <> ?2`).bind(row.subscription_id, userId),
     db
@@ -216,6 +255,12 @@ export interface DodoClient {
   createCustomer(input: { email: string; name: string; userId: string }): Promise<string>;
   /** A hosted checkout page for one product. */
   checkoutUrl(input: { productId: string; customerId: string; userId: string; returnUrl: string }): Promise<string>;
+  /**
+   * Moves a subscription to another product (plan or billing period). Upgrades
+   * apply now (unused time credited, the new period charged); downgrades apply
+   * at the next renewal, with nothing charged now.
+   */
+  changePlan(input: { subscriptionId: string; productId: string; upgrade: boolean }): Promise<void>;
   /** Dodo's customer portal: change plan or card, invoices, cancel. */
   portalUrl(customerId: string, returnUrl: string): Promise<string>;
   /** Cancels right away (used when the account is deleted). */
@@ -251,9 +296,23 @@ export function dodoClient(apiKey: string, environment: DodoEnv, fetcher: typeof
         customer: { customer_id: customerId },
         metadata: { userId },
         return_url: returnUrl,
+        // As few steps as possible: one page, card details and a postcode, saved cards
+        // offered, no phone number, straight back to ProdLi after paying.
+        minimal_address: true,
+        show_saved_payment_methods: true,
+        feature_flags: { single_page: true, redirect_immediately: true, allow_phone_number_collection: false },
       });
       if (!r.checkout_url) throw new BillingError("Dodo didn't return a checkout page");
       return r.checkout_url;
+    },
+    async changePlan({ subscriptionId, productId, upgrade }) {
+      await call("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/change-plan`, {
+        product_id: productId,
+        quantity: 1,
+        proration_billing_mode: "prorated_immediately",
+        effective_at: upgrade ? "immediately" : "next_billing_date",
+        on_payment_failure: "prevent_change",
+      });
     },
     async portalUrl(customerId, returnUrl) {
       const r = await call<{ link?: string }>("POST", `/customers/${encodeURIComponent(customerId)}/customer-portal/session?return_url=${encodeURIComponent(returnUrl)}`);

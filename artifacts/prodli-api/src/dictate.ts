@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 import { AI_MODEL, AiError } from "./ai";
 import { dictationLanguageText, VOICE_LANGUAGES } from "./languages";
 
-export const DICTATE_MONTHLY_LIMIT = { free: 1000, pro: 10000 } as const;
+export const DICTATE_MONTHLY_LIMIT = { free: 1000, pro: 3000, plus: 6000 } as const;
 export const MAX_DICTATION_CHARS = 8000;
 export const DICTATION_STYLES = ["formal", "casual", "very_casual", "neutral"] as const;
 export type DictationStyle = (typeof DICTATION_STYLES)[number];

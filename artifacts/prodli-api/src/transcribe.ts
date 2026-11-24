@@ -7,7 +7,7 @@
 import { AiError, monthKey } from "./ai";
 
 /** Minutes of audio per month. Workers AI gives ~214 free minutes a day per account; beyond that it's ~$0.03 an hour. */
-export const TRANSCRIBE_MONTHLY_MINUTES = { free: 300, pro: 1500 } as const;
+export const TRANSCRIBE_MONTHLY_MINUTES = { free: 300, pro: 1500, plus: 4500 } as const;
 export const TRANSCRIBE_MODEL = "@cf/openai/whisper-large-v3-turbo";
 /** One piece: the app sends ≤ 30 s; a little slack for rounding. */
 export const MAX_PIECE_SECONDS = 35;

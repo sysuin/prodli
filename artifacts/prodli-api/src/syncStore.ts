@@ -18,7 +18,7 @@ export type CollectionName = (typeof COLLECTIONS)[number];
 export const MERGED_COLLECTIONS: ReadonlySet<CollectionName> = new Set(["tracking", "stats"]);
 
 /** Free plan: total stored data per user. */
-export const QUOTA_BYTES = { free: 100 * 1024 * 1024, pro: 2 * 1024 * 1024 * 1024 } as const;
+export const QUOTA_BYTES = { free: 100 * 1024 * 1024, pro: 2 * 1024 * 1024 * 1024, plus: 10 * 1024 * 1024 * 1024 } as const;
 /** Durable Object SQLite rows are capped at 2 MB; stay well under it. */
 export const MAX_ITEM_BYTES = 1_500_000;
 /** Most changes returned in one pull (the client asks again while `more`). */

@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 import { AI_MODEL, AiError } from "./ai";
 import { BriefContextSchema } from "./brief";
 
-export const ASK_MONTHLY_LIMIT = { free: 100, pro: 1000 } as const;
+export const ASK_MONTHLY_LIMIT = { free: 100, pro: 500, plus: 1200 } as const;
 export const MAX_ASK_CHARS = 80_000;
 
 export const AskInputSchema = z.object({

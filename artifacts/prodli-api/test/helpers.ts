@@ -141,6 +141,10 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
           fail();
           return `https://checkout.dodopayments.com/session/${productId}`;
         },
+        async changePlan({ subscriptionId, productId, upgrade }) {
+          calls.push({ kind: "dodo-change", clientId: `${subscriptionId}:${productId}:${upgrade ? "now" : "renewal"}` });
+          fail();
+        },
         async portalUrl(customerId) {
           calls.push({ kind: "dodo-portal", clientId: `${environment}:${customerId}` });
           fail();
@@ -153,7 +157,7 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
         async price(productId) {
           calls.push({ kind: "dodo-price", clientId: productId });
           fail();
-          return productId === "pdt_year" ? { amount: 4800, currency: "USD" } : { amount: 500, currency: "USD" };
+          return productId === "pdt_year" ? { amount: 4800, currency: "USD" } : productId === "pdt_plus_year" ? { amount: 12000, currency: "USD" } : productId === "pdt_plus_month" ? { amount: 1200, currency: "USD" } : { amount: 500, currency: "USD" };
         },
       };
     },
