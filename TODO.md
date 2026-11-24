@@ -7,7 +7,8 @@ Last updated: 2026-11-24 · Version 1.5.0 · Repo: https://github.com/sysuin/pro
 Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
 
 - [x] **Google consent screen:** published (In production) on 2026-11-17; sign-in works for everyone. prodli.com verified in Search Console (TXT record in Cloudflare; keep it).
-- [ ] **Calendar verification:** branding re-verification is scheduled for 2026-11-18 (Google asks for a 24-hour wait after domain verification). After branding passes, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today).
+- [ ] **⚠️ Publish the Google branding by 25 Nov 2026:** the scheduled check on 18 Nov got the branding **verified**, but Google shows it only after you click **Publish branding** (Google Auth Platform → Branding, project prodli, account sunnysinghnitb@gmail.com), and the verified result expires 7 days after 18 Nov. If it expires, branding has to be re-verified.
+- [ ] **Calendar verification:** after publishing the branding, submit `calendar.readonly` in the Verification Center with a short demo video (sign in → Connect Calendar → Today). (`calendar.app.created`, for two-way calendar, needs no review.)
 - [ ] **Chrome Web Store (1.5.0):** `pnpm run build:extension:store` → upload `prodli-extension-store.zip` and paste the kit in [STORE_SUBMISSION.md](STORE_SUBMISSION.md) (screenshots, description, privacy answers) → submit. Until then, extension users keep 1.4.0: the old plan box (Pro only; Pro Plus subscribers show as Pro), no screenshots, snippet picker or Indian languages. Build the zip on the Mac (it needs `.env.local`).
 - [ ] **Real purchase test (live Dodo):** on app.prodli.com → Settings → Plan & usage → Get Pro (yearly or monthly) → pay with a real card → check the plan turns on by itself; then "Switch to Pro Plus" (charged the difference) → check it says Pro Plus; then cancel in Manage subscription and refund yourself in the Dodo dashboard. Also try picking a plan on prodli.com while signed out (sign in → checkout opens by itself).
 - [x] **ProdLi Pro:** live in Dodo Payments (verification approved, live products, API key and webhook; on sale since 2026-11-22). Pro Plus ($12/$120) and the lower Pro limits went live on 2026-11-24 (production version 3ba3d0ed) — [docs/PRO-PLAN.md](docs/PRO-PLAN.md).
@@ -19,8 +20,11 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] A time-block reminder going off; "Add to Google Calendar"
   - [ ] A weekly review with your real data
   - [ ] Phone: the web app (Share → Add to Home Screen)
-- [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts; deploy the production API (phone sign-in); then `eas build` and a TestFlight / internal-testing beta. Listing text, screenshots and privacy answers are ready in [docs/MOBILE-STORE.md](docs/MOBILE-STORE.md). Ask the lawyer about the phone-app additions in `docs/legal/REVIEW-NOTES.md` §9.
+- [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts; then `eas build` and a TestFlight / internal-testing beta. Listing text, screenshots and privacy answers are ready in [docs/MOBILE-STORE.md](docs/MOBILE-STORE.md). Ask the lawyer about the phone-app additions in `docs/legal/REVIEW-NOTES.md` §9. (The production API has had phone sign-in since the 22–24 Nov deploys.)
 - [ ] **Desktop app (Mac + Windows):** production API with desktop sign-in is live (2026-11-21); next: Apple + Windows signing certificates and a download page — [docs/DESKTOP.md](docs/DESKTOP.md) → "Before shipping".
+  - [ ] Your lawyer reviews [docs/legal/DESKTOP-ADDITIONS.md](docs/legal/DESKTOP-ADDITIONS.md) (privacy and terms wording for the desktop apps) before it goes on prodli.com.
+  - [ ] Google Calendar in the desktop app needs a Google "Desktop app" OAuth client in the prodli Google Cloud project.
+  - [ ] One real-world check on a signed build: record a real call and sign in with your own Google account.
 - [x] **Cloudflare billing alerts:** budget alerts at $10 (auto-created) and $25 (added 2026-11-17), emailed to the account owner
 
 ## Working in Claude Cloud (from 2026-11-24)
@@ -37,12 +41,18 @@ Day-to-day building runs in Claude Code cloud sessions; the guide for them is [C
 
 - [ ] **GitHub Actions minutes:** `.github/workflows/uptime.yml` runs every 15 minutes; once the repo is private again (1 Dec), each run bills at least 1 minute, about 2,900 minutes a month, more than GitHub Free's 2,000 before any CI run (15–18 minutes each). Lengthen the interval (e.g. hourly or every 6 hours) or move the uptime check off Actions (e.g. a Cloudflare cron or a free uptime monitor) before 1 Dec.
 - [ ] **Store kit out of date:** `STORE_SUBMISSION.md` still says Google Calendar access is read-only (description and the `identity` permission note), but 1.5.0 also writes to a "ProdLi" calendar (`calendar.app.created`; the Privacy page already says so). The "Before you submit" checklist still lists 1.4.0 items. Fix both before uploading 1.5.0.
-- [ ] **Calendar verification status (you):** check Google's Verification Center: did the branding re-check (scheduled for 18 Nov) pass, and has the `calendar.readonly` request been submitted? Update the "Calendar verification" item above with the answer.
 - [ ] *Small:* `scripts/pr.sh` with no arguments prints one stray line (`set -euo pipefail`) after its help.
 
 ## Next — Claude can do
 
 - Nothing pending before launch.
+
+## Lawyer review (collected from all sessions)
+
+- [ ] `docs/legal/REVIEW-NOTES.md` §9: phone-app additions to the privacy policy.
+- [ ] `docs/legal/REVIEW-NOTES.md` §10: uninstall survey and growth report wording (from the GTM session, 22 Nov).
+- [ ] `docs/legal/DESKTOP-ADDITIONS.md`: desktop app privacy and terms wording.
+- [ ] The screenshot text extraction, Indian languages and web dictation lines added to the Privacy page on 24 Nov (already live; worth a look).
 
 ## Optional
 
