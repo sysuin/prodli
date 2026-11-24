@@ -42,6 +42,7 @@ import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, planFor, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type Price } from "./billing";
 import type { SyncOutcome, UserStore } from "./userStore";
+import { MAX_OCR_DATA_URL, OcrInputSchema, ocrWithClaude, type OcrInput } from "./ocr";
 import { MAX_PREP_CHARS, PrepInputSchema, prepWithClaude, type Prep, type PrepInput } from "./prep";
 import { CoachInputSchema, coachWithClaude, type CoachInput, type Coaching } from "./coach";
 import { DICTATE_MONTHLY_LIMIT, DictateInputSchema, dictateWithClaude, MAX_DICTATION_CHARS, type DictateInput } from "./dictate";
@@ -96,12 +97,13 @@ export interface Deps {
   summarizePage: (input: PageSummaryInput, apiKey: string) => Promise<PageSummary>;
   extractTasks: (input: ExtractTasksInput, apiKey: string) => Promise<{ lines: string[]; model: string }>;
   breakdown: (input: BreakdownInput, apiKey: string) => Promise<{ steps: string[]; model: string }>;
+  ocr: (input: OcrInput, apiKey: string) => Promise<{ text: string; model: string }>;
   /** Dodo Payments API client (tests pass a fake). */
   dodo?: (apiKey: string, environment: DodoEnv) => DodoClient;
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, breakdown: breakdownWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, breakdown: breakdownWithClaude, ocr: ocrWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -183,8 +185,10 @@ export function createApp(deps: Deps = realDeps) {
   const syncBody = bodyLimit({ maxSize: 8 * 1024 * 1024, onError: tooLarge });
   const aiBody = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
   const webhookBody = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
+  // Screenshots for "Pull out the text" are a bit larger than the other AI requests.
+  const ocrBody = bodyLimit({ maxSize: MAX_OCR_DATA_URL + 1024, onError: tooLarge });
   app.use("/api/*", (c, next) =>
-    c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
+    c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/ocr" ? ocrBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
   );
   const noStore: MiddlewareHandler<AppEnv> = async (c, next) => {
     await next();
@@ -867,6 +871,30 @@ export function createApp(deps: Deps = realDeps) {
     try {
       const r = await deps.breakdown(input.data, c.env.ANTHROPIC_API_KEY);
       return c.json({ steps: r.steps, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "write_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST { image: "data:image/webp;base64,…" } → { text, usage }. 📸 Screenshot → "Pull out the text".
+  // Counts toward the writing allowance; the picture goes to Anthropic and isn't stored.
+  app.post("/api/ai/ocr", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.AI_LIMITER && !(await c.env.AI_LIMITER.limit({ key: `ai:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const body = (await c.req.json().catch(() => null)) as { image?: unknown } | null;
+    if (typeof body?.image === "string" && body.image.length > MAX_OCR_DATA_URL) return c.json({ error: "too_large", message: "That picture is too big. Crop a smaller part." }, 413);
+    const input = OcrInputSchema.safeParse(body);
+    if (!input.success) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = writeLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "write_usage");
+    if (used === null) return c.json({ error: "write_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.ocr(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ text: r.text, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "write_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);

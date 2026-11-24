@@ -108,6 +108,8 @@ export interface Todo {
   /** Imported from another app (Settings → Backup & data → Import): that app and the task's id there
    *  (or a hash of list + title + due date), so importing the same file again skips it. */
   importedFrom?: { app: string; id: string };
+  /** A note that goes with it (a screenshot saved as a to-do), opened with 🖼 on the to-do. */
+  noteId?: string;
   createdAt: string;
   updatedAt?: string;
 }

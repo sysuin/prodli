@@ -4,6 +4,7 @@ import { MENU_SNIPPET } from "../snippets/background";
 import { accountsEnabled } from "./prodliAccount";
 import { syncOnce } from "./prodliSync";
 import { addReadLater, extractPageText, MAX_PAGE_CHARS, saveHighlight, savePageNote } from "./readLater";
+import { createScreenshotMenu } from "./screenshotBackground";
 
 const MENU_TODO = "prodli-add-todo";
 const MENU_NOTE = "prodli-add-note";
@@ -37,6 +38,8 @@ async function openQuickAdd(tab?: chrome.tabs.Tab, text?: string): Promise<void>
   if (isWeb && t?.title) params.set("title", t.title);
   if (isWeb && t?.url) params.set("url", t.url);
   if (text) params.set("text", text);
+  // For the window's 📸 button: the shortcut gave ProdLi this tab (activeTab) for a screenshot.
+  if (isWeb && t?.id) params.set("tab", String(t.id));
   await chrome.windows.create({ url: chrome.runtime.getURL(`index.html#quick-add?${params}`), type: "popup", width: 460, height: 420, focused: true });
 }
 
@@ -49,9 +52,10 @@ export function registerCapture(): void {
       chrome.contextMenus.create({ id: MENU_SUMMARIZE, title: "Summarize page to ProdLi notes", contexts: ["page"] });
       chrome.contextMenus.create({ id: MENU_HIGHLIGHT, title: "Save highlight to ProdLi", contexts: ["selection"] });
       chrome.contextMenus.create({ id: MENU_SNIPPET, title: "Insert a ProdLi snippet", contexts: ["editable"] });
+      createScreenshotMenu();
     });
   });
-  if (import.meta.env.VITE_E2E === "1") Object.assign(globalThis, { __prodliSaveHighlight: onSaveHighlight });
+  if (import.meta.env.VITE_E2E === "1") Object.assign(globalThis, { __prodliSaveHighlight: onSaveHighlight, __prodliOpenQuickAdd: openQuickAdd });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     void (async () => {

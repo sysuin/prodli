@@ -9,6 +9,7 @@ import { accountsEnabled } from "./lib/prodliAccount";
 import { registerBackgroundSync } from "./lib/prodliSync";
 import { registerTodayReminder } from "./lib/todayBackground";
 import { registerCapture } from "./lib/captureBackground";
+import { registerScreenshot } from "./lib/screenshotBackground";
 import { registerLocalFiles } from "./lib/localFilesBackground";
 import { checkTab, registerFocusBlock } from "./lib/focusBlockBackground";
 import { registerAskPrompts } from "./lib/askBackground";
@@ -43,6 +44,8 @@ registerPrepReminders();
 registerCapture();
 // Saved snippets typed into any text box (right-click → Insert a ProdLi snippet, or its shortcut).
 registerSnippets();
+// Screenshot to ProdLi: right-click on a page, or 📸 in the Quick add window.
+registerScreenshot();
 // Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).
 registerLocalFiles();
 // Focus blocking: blocked sites go to the pause page (schedules, Pomodoro focus, used-up daily limits).
