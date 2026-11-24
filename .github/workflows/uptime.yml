@@ -1,31 +1,37 @@
-# Uptime check: every 15 minutes, ask production and staging if they're healthy.
+# Uptime check: every hour, ask production, staging and prodli.com if they're healthy.
 # A failed run makes GitHub email the repository owner (Settings → Notifications
 # → Actions: "Send notifications for failed workflows only").
-# Free: about 3,000 short runs a month (the job takes a few seconds).
+# One job checks all three, because a private repo bills each job at least one
+# minute: hourly is about 720 minutes a month (GitHub Free includes 2,000).
 name: Uptime
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
-    strategy:
-      fail-fast: false
-      matrix:
-        url:
-          - https://app.prodli.com/api/health
-          - https://prodli-api-staging.sunnysinghnitb.workers.dev/api/health
-          - https://prodli.com/
+    timeout-minutes: 5
     steps:
-      - name: Check ${{ matrix.url }}
+      - name: Check production, staging and prodli.com
         run: |
-          for i in 1 2 3; do
-            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 15 "${{ matrix.url }}" || true)
-            if [ "$code" = "200" ]; then echo "OK ($code)"; exit 0; fi
-            echo "Attempt $i: HTTP $code"; sleep 20
+          down=0
+          for url in \
+            https://app.prodli.com/api/health \
+            https://prodli-api-staging.sunnysinghnitb.workers.dev/api/health \
+            https://prodli.com/; do
+            ok=0
+            for i in 1 2 3; do
+              rm -f /tmp/body
+              code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 15 "$url" || true)
+              if [ "$code" = "200" ]; then echo "OK ($code) $url"; ok=1; break; fi
+              echo "Attempt $i: HTTP $code $url"; [ "$i" = 3 ] || sleep 20
+            done
+            if [ "$ok" = 0 ]; then
+              echo "::error::$url is down (last status $code)"; head -c 500 /tmp/body 2>/dev/null || true; echo
+              down=1
+            fi
           done
-          echo "::error::${{ matrix.url }} is down (last status $code)"; head -c 500 /tmp/body || true; exit 1
+          exit $down

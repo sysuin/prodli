@@ -60,7 +60,7 @@
   curl -s -H "Authorization: Bearer $ADMIN_TOKEN" https://app.prodli.com/api/admin/funnel | jq
   ```
   Installs, uninstalls and weekly users come from the Chrome Web Store dashboard (Analytics). Uninstall answers come from prodli.com/goodbye, which Chrome opens after removal.
-- ✅ Uptime check every 15 minutes (`.github/workflows/uptime.yml`): production, staging and prodli.com. A failure emails you.
+- ✅ Uptime check every hour (`.github/workflows/uptime.yml`, one job so a private repo bills about 720 Actions minutes a month): production, staging and prodli.com. A failure emails you.
 - ✅ Anthropic monthly spend limits
 - ✅ Cloudflare billing budget alerts at $10 and $25 a month (Notifications; they warn but don't stop spending)
 
