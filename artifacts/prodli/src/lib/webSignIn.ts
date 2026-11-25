@@ -16,6 +16,9 @@
 // is useless without the verifier, which never leaves the extension.
 
 import { accountRequest, apiBase, saveExtensionSession, signInFromExtension, type ProdliUser } from "./prodliAccount";
+import { knownWithoutChromeSignIn } from "./google";
+
+export { knownWithoutChromeSignIn };
 
 export const WEB_SIGNIN_MESSAGE = "prodli-signin";
 const PENDING_KEY = "pendingWebSignIn"; // this device only (chrome.storage.session where there is one)
@@ -45,14 +48,6 @@ export function serverWebOrigin(): string {
 /** The page the extension opens. */
 export function webSignInUrl(origin: string, extensionId: string, state: string, challenge: string): string {
   return `${origin.replace(/\/+$/, "")}/?${new URLSearchParams({ extension: "signin", id: extensionId, state, challenge }).toString()}`;
-}
-
-/** Browsers known not to have Chrome's Google sign-in: go straight to the web sign-in. */
-export function knownWithoutChromeSignIn(nav: { userAgentData?: { brands?: { brand: string }[] }; brave?: unknown; userAgent?: string } = navigator as never): boolean {
-  if (nav.brave) return true;
-  const brands = (nav.userAgentData?.brands ?? []).map((b) => b.brand);
-  if (brands.some((b) => /Microsoft Edge|Opera|Brave|Vivaldi|Yandex/i.test(b))) return true;
-  return /\b(Edg|OPR|YaBrowser)\//.test(nav.userAgent ?? "");
 }
 
 const area = (): chrome.storage.StorageArea => chrome.storage.session ?? chrome.storage.local;

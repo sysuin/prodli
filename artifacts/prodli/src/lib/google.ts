@@ -42,9 +42,22 @@ export interface BackupInfo {
 
 export class GoogleError extends Error {}
 
-/** True when this build has a Google OAuth client ID (see docs/GOOGLE-SIGN-IN.md). */
+/**
+ * Browsers known not to have Chrome's Google sign-in (chrome.identity.getAuthToken): Edge, Opera,
+ * Brave… The extension signs in through app.prodli.com there (lib/webSignIn.ts); Google Calendar
+ * and Drive backup, which need that sign-in, are hidden.
+ */
+export function knownWithoutChromeSignIn(nav: { userAgentData?: { brands?: { brand: string }[] }; brave?: unknown; userAgent?: string } = navigator as never): boolean {
+  if (nav.brave) return true;
+  const brands = (nav.userAgentData?.brands ?? []).map((b) => b.brand);
+  if (brands.some((b) => /Microsoft Edge|Opera|Brave|Vivaldi|Yandex/i.test(b))) return true;
+  return /\b(Edg|OPR|YaBrowser)\//.test(nav.userAgent ?? "");
+}
+
+/** True when this build has a Google OAuth client ID (see docs/GOOGLE-SIGN-IN.md) and the browser can use it. */
 export function googleConfigured(): boolean {
   if (typeof chrome === "undefined" || !chrome.identity?.getAuthToken || !chrome.runtime?.getManifest) return false;
+  if (typeof navigator !== "undefined" && knownWithoutChromeSignIn()) return false;
   const id = (chrome.runtime.getManifest() as chrome.runtime.Manifest & { oauth2?: { client_id?: string } }).oauth2?.client_id ?? "";
   return /\.apps\.googleusercontent\.com$/.test(id);
 }
