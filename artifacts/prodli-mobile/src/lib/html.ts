@@ -75,9 +75,11 @@ export function unsupportedFormatting(html: string): string[] {
     if (type !== null && !KNOWN_TYPES.has(type)) found.add(NAMED[type] ?? "other formatting");
     const style = attr(attrs, "style");
     if (style !== null && tag !== "mark") {
-      const props = style.split(";").map((d) => d.split(":")[0].trim().toLowerCase()).filter(Boolean);
-      if (props.some((x) => x.startsWith("background"))) found.add("a background colour");
-      if (tag !== "span" || props.some((x) => x !== "color" && !x.startsWith("background"))) found.add("other formatting");
+      const decls = style.split(";").map((d) => [d.slice(0, d.indexOf(":")).trim().toLowerCase(), d.slice(d.indexOf(":") + 1).trim().toLowerCase()]).filter(([k]) => k);
+      // "background-color: transparent" (old Google Docs pastes) is no background: losing it changes nothing.
+      const real = decls.filter(([k, v]) => !(k.startsWith("background") && /^(transparent|none|initial|inherit|unset|rgba\(0,\s*0,\s*0,\s*0\))$/.test(v)));
+      if (real.some(([k]) => k.startsWith("background"))) found.add("a background colour");
+      if (tag !== "span" ? real.length > 0 : real.some(([k]) => k !== "color" && !k.startsWith("background"))) found.add("other formatting");
     }
   }
   return [...found];

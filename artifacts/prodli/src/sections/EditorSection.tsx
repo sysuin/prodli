@@ -15,6 +15,7 @@ import { useSyncedList } from "../lib/syncedList";
 import { generateId } from "../lib/utils";
 import type { Note } from "../types";
 import { looksLikeMarkdown, MAX_NOTE_BYTES } from "../lib/markdownDetect";
+import { cleanPastedHtml } from "../lib/pasteClean";
 import { fitsInNote, imageFileToDataUrl, INSERT_IMAGE_EVENT, isNoteImage } from "../lib/noteImages";
 import { LinkBox, linkBoxFor, type LinkBoxState } from "./editor/LinkBox";
 
@@ -299,6 +300,8 @@ export function EditorSection() {
       content: "",
       editorProps: {
         attributes: { "aria-label": "Note editor", spellcheck: "true" },
+        // Google Docs / Word / Notion HTML: drop their default black text and white backgrounds, fix Word lists (lib/pasteClean.ts).
+        transformPastedHTML: (html) => cleanPastedHtml(html),
         handleKeyDown: (_view, event) => {
           const np = notePickRef.current;
           if (np.state) {
