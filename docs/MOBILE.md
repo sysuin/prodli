@@ -20,7 +20,7 @@ Status: **built and tested in the browser** (2026-11-21), not yet on a real phon
 |---|---|---|
 | Today: focus, today's to-dos, habits, daily brief, evening reflection | ✅ | ✅ |
 | To-dos: smart add, Today / Upcoming / lists / Done, subtasks, repeats, labels, Board and Matrix views, lists (new, rename, delete) | ✅ | ✅ (+ time blocks, saved filters) |
-| Notes: list, search, pin, rich editing (same editor engine), templates, today's daily note | ✅ (notes with tables are read-only) | ✅ |
+| Notes: list, search, pin, rich editing (same editor engine), templates, today's daily note | ✅ (notes with tables, code blocks, toggles, callouts, dividers, pictures, note links or background colours are read-only) | ✅ |
 | Habits: check, count, minutes, quit; streaks; scheduled days | ✅ | ✅ |
 | Meetings: transcripts, summaries, action items → to-dos, summarize, share | ✅ view + record in person (live AI transcript) | ✅ record calls + in person, view |
 | Ask ProdLi | ✅ | ✅ |
@@ -51,7 +51,7 @@ artifacts/prodli-mobile/
 - **Shared logic, not copies.** The sync rules (`syncCore`), repeating to-dos (`recurrence`), habit streaks (`habits`), smart add (`taskParse`), Board/Matrix rules (`todoBoards`), the weekly review (`reviewCore`), note templates (`noteTemplatesCore`), audio transcription helpers (`recorder/audioPieces`) and the data types come straight from `artifacts/prodli/src` through `src/shared/index.ts`. Change them there and both apps follow (the phone's typecheck and tests cover them).
 - **Same data, same keys.** The phone stores `notes`, `todos`, `habits`, `days`, `lists`, `meetings`, `pomodoroSessions`, … under the extension's keys, in SQLite (`expo-sqlite/kv-store`). The session token is in the Keychain / Keystore (`expo-secure-store`), never in regular storage.
 - **Sync** (`src/lib/sync.ts`) is the extension's protocol: push what changed since the last sync (fingerprints), pull everything after the last sequence number, newest edit wins, deletions carry tombstones, a meeting merely missing on the phone is fetched again (never deleted everywhere). `tests/unit/sync.test.ts` runs it against the server's own `syncStore.ts`.
-- **Notes** are TipTap HTML. The phone edits them with TenTap (TipTap inside a WebView), so the HTML stays the same on every device. TenTap has no tables, so a note with a table (or anything unknown) opens read-only — the phone can never drop content. Opening a note never rewrites it: the editor only saves when the content differs from what it loaded.
+- **Notes** are TipTap HTML. The phone edits them with TenTap (TipTap inside a WebView), so the HTML stays the same on every device. TenTap's start kit has no tables, code blocks, dividers, toggles, callouts, pictures (saved as `<figure>`), links to other notes or background colours, so a note with any of them (or anything unknown) opens read-only, saying what it has (`unsupportedFormatting` in `src/lib/html.ts`). The phone can never drop content; `artifacts/prodli/tests/unit/phoneEditable.test.ts` checks this against HTML from the extension's own editor. Opening a note never rewrites it: the editor only saves when the content differs from what it loaded.
 - **Sign-in:** native Google sign-in (`@react-native-google-signin/google-signin`) asks Google for an ID token for ProdLi's **web** client; the server verifies it like the web app's and returns a bearer token (`POST /api/auth/google` with `kind: "mobile"`, session type `mobile`, 180 days, shown as "ProdLi app on iPhone/Android" in the devices list). Server change: migration `0011_mobile_sessions.sql`.
 - **In-person recording** (`app/record.tsx`, `src/lib/liveTranscriber.ts`): expo-audio streams 16-bit PCM from the microphone (also with the screen locked); the extension's own `Resampler` and pause-based `Segmenter` (`artifacts/prodli/src/recorder/audioPieces.ts`) cut it into 16 kHz WAV pieces, which go to `/api/ai/transcribe` while you talk (silence is never sent). Stopping saves a synced meeting (platform "in-person") and summarizes it. The audio isn't kept. The transcript so far is saved on the phone during recording, so if the app is closed mid-meeting the next launch turns it into a meeting.
 - **AI** uses the account's allowances (brief, Ask, summaries) through the same endpoints as the extension. Without an account or offline, Today shows the basic (non-AI) brief.
@@ -120,6 +120,6 @@ cd artifacts/prodli-mobile && pnpm dlx eas-cli@latest build --profile developmen
 
 ## Not yet (next steps)
 
-- Table editing in notes (a custom TenTap editor build with TipTap's table extension).
+- Editing tables, code blocks, toggles, callouts, pictures and note links in notes (a custom TenTap editor build with those TipTap extensions).
 - Time blocks and saved filters on the phone.
 - Home-screen widgets (today's to-dos) and share-to-ProdLi (save a link to Read later from any app).

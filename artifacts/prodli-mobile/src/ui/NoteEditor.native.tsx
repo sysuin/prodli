@@ -1,7 +1,7 @@
 // The phone's note editor: TenTap, which is TipTap (the extension's editor
 // engine) in a WebView, so notes keep the same HTML on every device. A note
-// the phone can't edit safely (tables) is shown read-only in a script-free
-// WebView instead.
+// the phone can't edit safely (tables, code blocks, toggles, callouts…; see
+// lib/html.ts) is shown read-only in a script-free WebView instead.
 import { RichText, Toolbar, useEditorBridge, useBridgeState, TenTapStartKit, CoreBridge, PlaceholderBridge, darkEditorTheme, defaultEditorTheme, type BridgeExtension } from "@10play/tentap-editor";
 import { useEffect, useRef } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
@@ -26,6 +26,18 @@ const css = (dark: boolean) => {
   ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.6; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border: 1px solid ${c.border}; padding: 6px; vertical-align: top; }
+  /* Shown read-only (lib/html.ts unsupportedFormatting): callouts, toggles, pictures, dividers. */
+  [data-type="callout"] { display: flex; gap: 10px; padding: 10px 12px; margin: 12px 0; border: 2px solid ${c.border}; border-radius: 6px; background-color: ${c.muted}; }
+  [data-type="callout"]::before { content: attr(data-emoji); background-color: transparent; }
+  [data-type="callout"] * { background-color: transparent; }
+  [data-type="callout"] > * { margin: 0; }
+  details { border-left: 3px solid ${c.border}; padding-left: 10px; margin: 12px 0; }
+  summary { font-weight: 700; }
+  figure { margin: 12px 0; }
+  img { max-width: 100%; height: auto; }
+  figcaption { color: ${c.mutedFg}; font-size: 14px; }
+  hr { border: none; border-top: 2px solid ${c.border}; }
+  pre { white-space: pre-wrap; }
   `;
 };
 

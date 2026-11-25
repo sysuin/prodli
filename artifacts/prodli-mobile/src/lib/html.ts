@@ -1,8 +1,8 @@
 // Notes are HTML written by the extension's editor (TipTap). The phone edits
 // them with the same editor engine (TenTap = TipTap in a WebView), which knows
-// everything the extension writes except tables. A note with a table (or
-// anything else unknown) opens read-only, so editing on the phone can never
-// drop content from the computer.
+// most of what the extension writes. A note with anything it doesn't know
+// (tables, code blocks, toggles, callouts…; see unsupportedFormatting) opens
+// read-only, so editing on the phone can never drop content from the computer.
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
 
@@ -49,15 +49,47 @@ export function deriveTitle(html: string): string {
   return title.length > 60 ? `${title.slice(0, 57).trimEnd()}…` : title || "Untitled";
 }
 
-/** Tags the phone's editor keeps intact. */
-const EDITABLE_TAGS = new Set(["p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "u", "s", "strike", "del", "code", "pre", "blockquote", "ul", "ol", "li", "a", "hr", "mark", "span", "label", "input", "div", "img"]);
+// What the phone's editor keeps. TenTap's start kit (the bridges in
+// NoteEditor.native.tsx) has paragraphs, headings, bold/italic/underline/strike,
+// inline code, links, lists and checklists, quotes, line breaks, images, text
+// colour and highlights. It has no code blocks, dividers, tables, toggles,
+// callouts, pictures (saved as <figure>), links to other notes or background colours:
+// TipTap would quietly drop those on the first edit, so such notes open read-only.
+const EDITABLE_TAGS = new Set(["p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "u", "s", "strike", "del", "code", "blockquote", "ul", "ol", "li", "a", "mark", "span", "label", "input", "div", "img"]);
+const KNOWN_TYPES = new Set(["taskList", "taskItem"]);
+const NAMED: Record<string, string> = { table: "a table", pre: "a code block", hr: "a divider", figure: "a picture", details: "a toggle", summary: "a toggle", callout: "a callout", "note-link": "a link to another note", detailsContent: "a toggle", "note-image": "a picture" };
+
+const attr = (attrs: string, name: string): string | null => {
+  const m = attrs.match(new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+  return m ? (m[2] ?? m[3] ?? m[4] ?? "") : null;
+};
+
+/** What in this note the phone's editor would drop, in plain words (empty: it can be edited). */
+export function unsupportedFormatting(html: string): string[] {
+  const found = new Set<string>();
+  for (const [, rawTag, attrs] of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/gi)) {
+    const tag = rawTag.toLowerCase();
+    if (NAMED[tag]) found.add(NAMED[tag]);
+    else if (!EDITABLE_TAGS.has(tag)) found.add("other formatting");
+    const type = attr(attrs, "data-type");
+    if (type !== null && !KNOWN_TYPES.has(type)) found.add(NAMED[type] ?? "other formatting");
+    const style = attr(attrs, "style");
+    if (style !== null && tag !== "mark") {
+      const props = style.split(";").map((d) => d.split(":")[0].trim().toLowerCase()).filter(Boolean);
+      if (props.some((x) => x.startsWith("background"))) found.add("a background colour");
+      if (tag !== "span" || props.some((x) => x !== "color" && !x.startsWith("background"))) found.add("other formatting");
+    }
+  }
+  return [...found];
+}
 
 /** Why the note can't be edited on the phone, or null if it can. */
 export function readOnlyReason(html: string): string | null {
-  const tags = new Set([...html.matchAll(/<([a-z][a-z0-9]*)\b/gi)].map((m) => m[1].toLowerCase()));
-  if (tags.has("table")) return "This note has a table. You can read it here; edit it on your computer, where tables are supported.";
-  const unknown = [...tags].filter((t) => !EDITABLE_TAGS.has(t));
-  return unknown.length ? "This note has formatting the phone app can't edit yet. You can read it here; edit it on your computer." : null;
+  const found = unsupportedFormatting(html);
+  if (!found.length) return null;
+  const named = found.filter((f) => f !== "other formatting");
+  const what = named.length ? (named.length === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`) : "formatting";
+  return `This note has ${what} the phone app can't edit yet. You can read it here; edit it on your computer, so nothing is lost.`;
 }
 
 /** Plain text (e.g. from Ask ProdLi) → note HTML. */
