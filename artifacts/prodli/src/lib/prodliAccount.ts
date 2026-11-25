@@ -145,9 +145,14 @@ export async function signInFromExtension(interactive = true): Promise<ProdliUse
     method: "POST",
     body: JSON.stringify({ kind: "extension", accessToken }),
   });
+  await saveExtensionSession(r);
+  return r.user;
+}
+
+/** Keeps an extension (bearer) session and the profile: after Chrome's sign-in, or the web sign-in (lib/webSignIn.ts). */
+export async function saveExtensionSession(r: { user: ProdliUser; token: string; session: { expiresAt: number } }): Promise<void> {
   await storageSet<StoredSession>(PRODLI_SESSION_KEY, { token: r.token, expiresAt: r.session.expiresAt });
   await storageSet(PRODLI_ACCOUNT_KEY, r.user);
-  return r.user;
 }
 
 /**

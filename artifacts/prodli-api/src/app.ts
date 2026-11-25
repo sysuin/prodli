@@ -80,6 +80,8 @@ export interface Env extends BillingVars {
   DEV_FAKE_GOOGLE?: string;
   /** Days of free Pro for new accounts (reverse trial). Unset or 0 = no trial. */
   TRIAL_DAYS?: string;
+  /** More extension IDs besides the Chrome Web Store one (e.g. the Edge Add-ons copy), comma-separated. */
+  EXTRA_EXTENSION_IDS?: string;
 }
 
 export interface Deps {
@@ -114,15 +116,22 @@ function fakeGoogle(token: string): GoogleIdentity {
 }
 const useFakeGoogle = (env: Env) => env.ENV === "development" && env.DEV_FAKE_GOOGLE === "true";
 
-/** The Chrome Web Store build (and unpacked builds with the store key) share this ID. */
-export const EXTENSION_ORIGIN = "chrome-extension://gjgknflakhglanjaeenkmciohimnbkdp";
+/** The Chrome Web Store build (and unpacked builds with the store key) share this ID. Brave, Opera and Vivaldi install it from the same store. */
+export const EXTENSION_ID = "gjgknflakhglanjaeenkmciohimnbkdp";
+export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
+const EXTENSION_ID_RE = /^[a-p]{32}$/;
+
+/** ProdLi's extension IDs: the Chrome Web Store one plus EXTRA_EXTENSION_IDS (another store's copy). */
+export function extensionIds(extra: string | undefined): string[] {
+  return [EXTENSION_ID, ...(extra ?? "").split(",").map((x) => x.trim()).filter((x) => EXTENSION_ID_RE.test(x))];
+}
 export const SESSION_COOKIE = "__Host-prodli_session";
 /** The desktop apps (artifacts/prodli-desktop) serve their pages from this origin. */
 export const DESKTOP_ORIGIN = "app://prodli";
 
 /** Browser origins allowed to call the API with the user's session. */
-export function allowedOrigins(env: Environment): string[] {
-  const production = ["https://app.prodli.com", "https://prodli.com", EXTENSION_ORIGIN, DESKTOP_ORIGIN];
+export function allowedOrigins(env: Environment, extraExtensionIds?: string): string[] {
+  const production = ["https://app.prodli.com", "https://prodli.com", ...extensionIds(extraExtensionIds).map((id) => `chrome-extension://${id}`), DESKTOP_ORIGIN];
   if (env === "production") return production;
   const local = ["http://localhost:5173", "http://localhost:8787", "http://127.0.0.1:5173"];
   if (env === "staging") return [...production, "https://staging.prodli.com", ...local];
@@ -135,11 +144,14 @@ type Ctx = Context<AppEnv>;
 /** Local development also accepts unpacked test builds, whose extension ID is random. */
 const devExtension = (env: Environment, origin: string) => env === "development" && /^chrome-extension:\/\/[a-p]{32}$/.test(origin);
 
+/** An extension ID that may receive a sign-in code (ProdLi's own; any in local development). */
+const knownExtension = (env: Env, id: string) => extensionIds(env.EXTRA_EXTENSION_IDS).includes(id) || (env.ENV === "development" && EXTENSION_ID_RE.test(id));
+
 /** Logs never show a token from an /mcp/<token> URL. */
 const redactPath = (path: string) => path.replace(/^\/mcp\/[^/]+/, "/mcp/<token>");
 
 const isAllowedOrigin = (c: Ctx, origin: string | undefined) =>
-  !!origin && (allowedOrigins(c.env.ENV).includes(origin) || devExtension(c.env.ENV, origin) || origin === new URL(c.req.url).origin);
+  !!origin && (allowedOrigins(c.env.ENV, c.env.EXTRA_EXTENSION_IDS).includes(origin) || devExtension(c.env.ENV, origin) || origin === new URL(c.req.url).origin);
 
 const DEVICE_ID = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -170,7 +182,7 @@ export function createApp(deps: Deps = realDeps) {
   app.use("*", secureHeaders());
 
   app.use("/api/*", async (c, next) => {
-    const allowed = allowedOrigins(c.env.ENV);
+    const allowed = allowedOrigins(c.env.ENV, c.env.EXTRA_EXTENSION_IDS);
     return cors({
       origin: (origin) => (allowed.includes(origin) || devExtension(c.env.ENV, origin) ? origin : null),
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -298,12 +310,15 @@ export function createApp(deps: Deps = realDeps) {
     return c.json({ user: clientUser(user), session, token });
   });
 
-  // ── Desktop app sign-in (src/desktopAuth.ts) ──────────────────────────────
+  // ── Desktop app sign-in, and the extension's where Chrome's sign-in isn't there (src/desktopAuth.ts) ──
   // Step 2: the signed-in web app asks for a one-time code for the app's challenge.
+  // With `extensionId`, the code is for that extension (only ProdLi's own), which
+  // gets it from the page (chrome.runtime.sendMessage, externally_connectable).
   app.post("/api/auth/desktop/code", rateLimitAuth, requireAuth, async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { challenge?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { challenge?: unknown; extensionId?: unknown } | null;
     if (typeof body?.challenge !== "string" || !CHALLENGE.test(body.challenge)) return c.json({ error: "bad_request" }, 400);
-    const code = await createDesktopCode(c.env.DB, c.get("auth").user.id, body.challenge, deps.now());
+    if (body.extensionId !== undefined && (typeof body.extensionId !== "string" || !knownExtension(c.env, body.extensionId))) return c.json({ error: "unknown_extension" }, 400);
+    const code = await createDesktopCode(c.env.DB, c.get("auth").user.id, body.challenge, deps.now(), body.extensionId !== undefined ? "extension" : "desktop");
     return c.json({ code });
   });
 
@@ -315,9 +330,14 @@ export function createApp(deps: Deps = realDeps) {
     const body = (await c.req.json().catch(() => null)) as { code?: unknown; verifier?: unknown; platform?: unknown } | null;
     if (typeof body?.code !== "string" || typeof body.verifier !== "string" || !VERIFIER.test(body.verifier)) return c.json({ error: "bad_request" }, 400);
     const now = deps.now();
+    // An extension's code is redeemed only by an extension page (its own origin), never by an app or a website.
+    const fromExtension = origin !== undefined && origin.startsWith("chrome-extension://");
+    if (body.code.startsWith("plec_") !== fromExtension) return c.json({ error: "bad_origin" }, 403);
     const redeemed = await redeemDesktopCode(c.env.DB, body.code, body.verifier, now);
     if (!redeemed.ok) return c.json({ error: redeemed.error }, 400);
-    const { token, session } = await createSession(c.env.DB, redeemed.userId, "desktop", desktopDeviceLabel(body.platform), now);
+    const { token, session } = redeemed.client === "extension"
+      ? await createSession(c.env.DB, redeemed.userId, "extension", deviceLabel(c.req.header("User-Agent")), now)
+      : await createSession(c.env.DB, redeemed.userId, "desktop", desktopDeviceLabel(body.platform), now);
     const auth = await authenticate(c.env.DB, token, now);
     if (!auth) return c.json({ error: "unauthorized" }, 401);
     return c.json({ user: clientUser(auth.user), session, token });

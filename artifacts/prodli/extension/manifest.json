@@ -33,6 +33,9 @@
     "https://meet.google.com/*",
     "file:///*"
   ],
+  "externally_connectable": {
+    "matches": ["https://app.prodli.com/*"]
+  },
   "commands": {
     "toggle-recording": {
       "suggested_key": {

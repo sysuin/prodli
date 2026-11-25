@@ -2,7 +2,7 @@
 // for the app's PKCE challenge; the app trades code + verifier for a "desktop" session.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { SESSION_TTL } from "../src/accounts";
-import { DESKTOP_ORIGIN, type Env } from "../src/app";
+import { DESKTOP_ORIGIN, EXTENSION_ID, EXTENSION_ORIGIN, type Env } from "../src/app";
 import { challengeFor, DESKTOP_CODE_TTL } from "../src/desktopAuth";
 import { cookieFrom, json, makeApp, makeEnv } from "./helpers";
 
@@ -128,5 +128,63 @@ describe("desktop sign-in", () => {
     const del = await app.request("/api/account", { method: "DELETE", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ confirmEmail: "d@example.com" }) }, env);
     expect(del.status).toBe(200);
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM desktop_codes").first<{ n: number }>())?.n).toBe(0);
+  });
+});
+
+// Where Chrome's own Google sign-in isn't available (Edge, Brave, Opera…), the
+// extension opens app.prodli.com in a tab; the page gets a code for the
+// extension and hands it over with chrome.runtime.sendMessage.
+describe("extension sign-in through the web app", () => {
+  const EDGE_ID = "abcdefghijklmnopabcdefghijklmnop";
+  const extCode = async (app: ReturnType<typeof makeApp>["app"], cookie: string, extensionId = EXTENSION_ID) =>
+    app.request("/api/auth/desktop/code", json({ challenge: await challengeFor(VERIFIER), extensionId }, { Origin: WEB, Cookie: cookie }), env);
+
+  it("web session → extension code → an ordinary extension session, redeemed by the extension", async () => {
+    const { app, clock } = makeApp();
+    const res = await extCode(app, await webCookie(app));
+    expect(res.status).toBe(200);
+    const { code } = (await res.json()) as { code: string };
+    expect(code).toMatch(/^plec_[A-Za-z0-9_-]{43}$/);
+    const back = await redeem(app, { code, verifier: VERIFIER }, { Origin: EXTENSION_ORIGIN, "User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/131.0 Safari/537.36 Edg/131.0" });
+    expect(back.status).toBe(200);
+    const body = (await back.json()) as { token: string; session: { client: string; expiresAt: number } };
+    expect(body.session).toMatchObject({ client: "extension", expiresAt: clock.now + SESSION_TTL.extension });
+    const me = await app.request("/api/me", { headers: { Authorization: `Bearer ${body.token}` } }, env);
+    expect(await me.json()).toMatchObject({ user: { email: "d@example.com" }, session: { client: "extension" } });
+  });
+
+  it("codes are only for ProdLi's own extensions", async () => {
+    const { app } = makeApp();
+    const cookie = await webCookie(app);
+    expect((await extCode(app, cookie, EDGE_ID)).status).toBe(400);
+    expect((await extCode(app, cookie, "not-an-id")).status).toBe(400);
+    // Another store's copy (Edge Add-ons) is added with EXTRA_EXTENSION_IDS.
+    const withEdge = { ...env, EXTRA_EXTENSION_IDS: ` ${EDGE_ID} , junk` };
+    const res = await app.request("/api/auth/desktop/code", json({ challenge: await challengeFor(VERIFIER), extensionId: EDGE_ID }, { Origin: WEB, Cookie: cookie }), withEdge);
+    expect(res.status).toBe(200);
+    const pre = await app.request("/api/me", { method: "OPTIONS", headers: { Origin: `chrome-extension://${EDGE_ID}`, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization" } }, withEdge);
+    expect(pre.headers.get("Access-Control-Allow-Origin")).toBe(`chrome-extension://${EDGE_ID}`);
+    const preNo = await app.request("/api/me", { method: "OPTIONS", headers: { Origin: `chrome-extension://${EDGE_ID}`, "Access-Control-Request-Method": "GET" } }, env);
+    expect(preNo.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("an extension code can't be redeemed by the desktop app or a website, nor a desktop code by an extension", async () => {
+    const { app } = makeApp();
+    const cookie = await webCookie(app);
+    const { code } = (await (await extCode(app, cookie)).json()) as { code: string };
+    expect((await redeem(app, { code, verifier: VERIFIER })).status).toBe(403); // no Origin: the desktop app
+    expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: DESKTOP_ORIGIN })).status).toBe(403);
+    expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: WEB })).status).toBe(403);
+    expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop" })).status).toBe(403); // not ProdLi
+    expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: EXTENSION_ORIGIN })).status).toBe(200);
+    const desktopCode = await getCode(app, cookie);
+    expect((await redeem(app, { code: desktopCode, verifier: VERIFIER }, { Origin: EXTENSION_ORIGIN })).status).toBe(403);
+  });
+
+  it("still needs the right verifier", async () => {
+    const { app } = makeApp();
+    const { code } = (await (await extCode(app, await webCookie(app))).json()) as { code: string };
+    expect((await redeem(app, { code, verifier: "w".repeat(43) }, { Origin: EXTENSION_ORIGIN })).status).toBe(400);
+    expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: EXTENSION_ORIGIN })).status).toBe(400); // used up
   });
 });
