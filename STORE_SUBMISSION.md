@@ -43,13 +43,15 @@ To regenerate them after UI changes (from `artifacts/prodli`): `node scripts/sto
 AI meeting notes with no bot for Meet, Zoom and Teams, and a new tab that plans your day: brief, to-dos, notes, habits, focus.
 ```
 
+**Keep the description plain** (rejected 25 Nov 2026 for "Keyword Spam", reference Yellow Argon, over the list of call apps): don't list many app or feature names in a row; name two at most and say "such as".
+
 **Description:**
 
 ```
 AI notes for every meeting, with no bot in the call. ProdLi writes the transcript, summary, decisions and action items for Google Meet, Zoom, Teams and in-person meetings, then turns them into your plan for the day in every new tab: a daily brief, to-dos, notes, habits and focus tools in one place.
 
-🎙️ AI MEETING NOTES FOR GOOGLE MEET, ZOOM AND TEAMS, NO BOT
-Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On Zoom, Microsoft Teams, Webex, Slack huddles, Discord, Jitsi and Whereby in the browser (or any website, if you turn that on), it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…, or your own template with your own sections), with names spelled from your own word list. Send action items to your to-dos in one click, draft a follow-up email, or share the notes as a read-only link. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
+🎙️ AI MEETING NOTES, NO BOT
+Click the ProdLi icon in a call. On Google Meet, ProdLi takes notes from Meet's live captions (only you see them). On other calls in your browser, such as Zoom or Teams, it records the call's audio and transcribes it with AI when the call ends; AI transcription also handles calls where people switch languages. You get a summary, decisions and action items, shaped by the meeting type (1:1, interview, sales call, stand-up…, or your own template with your own sections), with names spelled from your own word list. Send action items to your to-dos in one click, draft a follow-up email, or share the notes as a read-only link. No bot joins the call. For a meeting in the room, press 🎙 Record in person on the Meetings page (it works at app.prodli.com on your phone too).
 
 ☀️ TODAY: YOUR DAY, PLANNED
 Each morning ProdLi writes a short daily brief: your top priorities and why, a suggested schedule around your meetings, what to watch out for, and prep for meetings you've had before (what you covered last time and what's still open). Plan tasks for today and drag them onto the Day view to block time, or let ProdLi fit them into the free time between meetings. Search the web, open your quick links and saved tabs, and keep a Read later list, all from the same page. In the evening, wrap up the day; tomorrow's brief reads it.
@@ -79,7 +81,7 @@ Right-click any page or selection, or press Alt+Shift+A, to save it as a to-do o
 ProdLi works without an account; everything stays in your browser. Sign in with Google (free) to sync between computers and the web app at app.prodli.com (works on your phone too), with nightly backups. The account also turns on the AI features.
 
 FREE
-The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses, 300 minutes of AI audio transcription and 1,000 voice-dictation clean-ups a month, plus 100 MB of synced data. ProdLi Pro raises these limits and adds your own meeting templates, talk-time insights, action items across all your meetings, AI meeting prep, 30- and 90-day focus trends, your own writing style for AI writing help, meeting series history, notes in your language, prep reminders before meetings, key moments you mark during a meeting, meeting-time insights, AI meeting coaching, summaries that build on your own notes, a decision log, automatic meeting types, dictation Command Mode and shared links that never expire.
+The free plan includes 20 AI meeting summaries, 62 daily briefs and weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses, 300 minutes of AI audio transcription and 1,000 voice-dictation clean-ups a month, plus 100 MB of synced data. ProdLi Pro raises these limits and adds more for people with many meetings, such as your own meeting templates, AI meeting prep and a decision log.
 
 PRIVACY
 No ads, no analytics, no tracking, and your data is never sold. Your data is used only to run ProdLi. AI features send only what they need to Anthropic's Claude (which doesn't train on it) or, for audio transcription, to an open speech model on Cloudflare. Google Calendar is optional: ProdLi reads your events, and the only calendar it can change is a separate "ProdLi" calendar it creates for your time blocks, if you turn that on. Full policy: https://prodli.com/privacy
