@@ -19,6 +19,8 @@ export interface DesktopPrefs {
   keepRunning: boolean;
   /** Remind me to record when a call starts in another app. */
   callNudge: boolean;
+  /** Keep the computer from sleeping while recording or in a focus session. */
+  autoKeepAwake: boolean;
 }
 
 /** A local file opened with the app (File → Open, Open With, dropped on the dock icon). */

@@ -13,7 +13,8 @@ import { registerPrefsIpc } from "./prefs";
 import { filesFromArgv, listenForOpenedFiles, openFiles, registerFilesIpc } from "./files";
 import { IS_DEV } from "./config";
 import { enableSystemAudioSwitches, setUpMedia } from "./media";
-import { isRecording, refreshMenus, setRecording, setUpMenus, tearDownMenus } from "./menu";
+import { isRecording, refreshMenus, refreshTray, setRecording, setTrayTitle, setUpMenus, tearDownMenus } from "./menu";
+import { startMenuBar, stopMenuBar } from "./menuBar";
 import { startUpdates } from "./updates";
 import { startCallNudges } from "./callNudge";
 import { startAppTracking, stopAppTracking } from "./appTracker";
@@ -64,6 +65,7 @@ if (!app.requestSingleInstanceLock()) {
 
     const store = await opening;
     startAppTracking(store);
+    startMenuBar(store, { setTitle: setTrayTitle, rebuildMenu: refreshTray });
     if (store.recovered) {
       void dialog.showMessageBox({
         type: "warning",
@@ -102,6 +104,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on("will-quit", () => {
     stopAppTracking();
+    stopMenuBar();
     tearDownMenus();
     closeStore();
   });

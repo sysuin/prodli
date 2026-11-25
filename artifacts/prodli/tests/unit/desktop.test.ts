@@ -29,7 +29,7 @@ function fakeBridge(): DesktopBridge & { data: Map<string, unknown> } {
       onChanged: (cb) => (listeners.add(cb), () => listeners.delete(cb)),
     },
     account: { signIn: async () => ({ ok: true }), cancelSignIn: async () => {} },
-    prefs: { get: async () => ({ openAtLogin: false, keepRunning: true, callNudge: true }), set: async (p) => ({ openAtLogin: false, keepRunning: true, callNudge: true, ...p }) },
+    prefs: { get: async () => ({ openAtLogin: false, keepRunning: true, callNudge: true, autoKeepAwake: true }), set: async (p) => ({ openAtLogin: false, keepRunning: true, callNudge: true, autoKeepAwake: true, ...p }) },
     files: { take: async () => [], onAvailable: () => () => {}, openDialog: async () => {} },
     openExternal: async () => {},
     systemAudio: async () => ({ supported: true, permission: "granted" }),

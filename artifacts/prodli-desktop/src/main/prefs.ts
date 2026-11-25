@@ -10,6 +10,13 @@ import { cleanPrefs, type Prefs } from "../core/prefs";
 
 const file = () => path.join(app.getPath("userData"), "desktop-prefs.json");
 let cached: Prefs | null = null;
+const listeners = new Set<() => void>();
+
+/** Called after Settings › Desktop app changes a preference. */
+export function onPrefsChange(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => void listeners.delete(cb);
+}
 
 function load(): Prefs {
   let saved: unknown = null;
@@ -40,6 +47,7 @@ function setPrefs(patch: unknown): Prefs {
   } catch {
     // not important
   }
+  listeners.forEach((cb) => cb());
   return next;
 }
 
