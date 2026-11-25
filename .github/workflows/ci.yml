@@ -25,7 +25,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The whole suite takes about 20 minutes (desktop package, phone and extension end-to-end); 30 leaves room.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
