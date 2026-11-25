@@ -45,6 +45,8 @@ describe("note HTML", () => {
     expect(readOnlyReason("<p><sup>2</sup></p>")).toMatch(/^This note has formatting the phone app can't edit yet/);
     expect(readOnlyReason('<p style="text-align: center">x</p>')).toMatch(/formatting/);
     expect(unsupportedFormatting('<p><span style="font-size: 20px">x</span></p>')).toEqual(["other formatting"]);
+    // Notes pasted from Google Docs before paste clean-up: black text, transparent backgrounds.
+    expect(readOnlyReason('<p><span style="color: #000000; background-color: transparent;">old paste</span></p>')).toBeNull();
   });
 
   it("turns plain text with bullets into note HTML", () => {

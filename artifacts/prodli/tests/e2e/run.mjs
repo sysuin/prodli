@@ -616,6 +616,21 @@ const suites = {
     check("Editor: pasted Markdown becomes headings, checklists and bold", pasted.includes("<h2>Pasted heading</h2>") && pasted.includes('data-checked="true"') && pasted.includes("<strong>bold</strong>"));
     await waitSaved();
 
+    // Pasting from Google Docs and Word (lib/pasteClean.ts): no black text or white backgrounds, Word lists become lists.
+    const pasteHtml = async (html) => {
+      await p.focusEditor();
+      await p.eval(`(() => { const dt = new DataTransfer(); dt.setData("text/html", ${JSON.stringify(html)}); dt.setData("text/plain", "x"); document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); })()`);
+      await sleep(300);
+      return p.editorHtml();
+    };
+    const gdocsSpan = (style, text) => `<span style="font-size:11pt;font-family:Arial,sans-serif;${style}white-space:pre-wrap;">${text}</span>`;
+    const fromDocs = await pasteHtml(`<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-e2e"><p dir="ltr" style="line-height:1.38;">${gdocsSpan("color:#000000;background-color:transparent;font-weight:700;", "Docs bold")}${gdocsSpan("color:#000000;background-color:transparent;font-weight:400;", " docs plain")}</p><ul><li dir="ltr" role="checkbox" aria-checked="true" style="color:#000000;"><p dir="ltr" role="presentation">${gdocsSpan("color:#000000;background-color:transparent;", "Docs task")}</p></li></ul></b>`);
+    check("Editor: pasting from Google Docs keeps bold and checklists, without black text or backgrounds", fromDocs.includes("<strong>Docs bold</strong>") && !fromDocs.includes("<strong> docs plain") && /data-checked="true"[^>]*>.*Docs task/.test(fromDocs) && !fromDocs.includes("#000000") && !fromDocs.includes("transparent"), fromDocs.slice(fromDocs.indexOf("Docs bold") - 40, fromDocs.indexOf("Docs task") + 40));
+    const wordItem = (glyph, text, lvl = 1) => `<p class=MsoListParagraph style='margin-left:36.0pt;text-indent:-18.0pt;mso-list:l0 level${lvl} lfo1'><![if !supportLists]><span style='font-family:Symbol'><span style='mso-list:Ignore'>${glyph}<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp;&nbsp; </span></span></span><![endif]>${text}<o:p></o:p></p>`;
+    const fromWord = await pasteHtml(`<html xmlns:o="urn:schemas-microsoft-com:office:office"><body><!--StartFragment-->${wordItem("·", "Word one")}${wordItem("·", "Word two")}<p class=MsoNormal><span style='color:black;background:white'>Word end</span></p><!--EndFragment--></body></html>`);
+    check("Editor: pasting from Word turns its list paragraphs into a list, without bullets typed in", /<ul><li><p>Word one<\/p><\/li><li><p>Word two<\/p><\/li><\/ul>/.test(fromWord) && !fromWord.includes("·") && fromWord.includes("<p>Word end</p>"), fromWord.slice(fromWord.indexOf("Word one") - 60, fromWord.indexOf("Word end") + 20));
+    await waitSaved();
+
     // Pin, delete with undo.
     await p.eval(`document.querySelector('[data-note-id="${b2.id}"] button[aria-label^="Actions"]').click()`);
     await p.click("Pin to top");
