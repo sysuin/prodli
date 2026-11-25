@@ -15,17 +15,8 @@ import { storageGet, storageSet } from "./storage";
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 export const CALENDAR_KEY = "calendarConnected";
 
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string | null; // HH:MM (local) or null for all-day
-  end: string | null;
-  allDay: boolean;
-  location?: string;
-  meetLink?: string;
-  /** Other people invited (not you, not rooms). Used on this device for meeting prep. */
-  attendees?: { name?: string; email?: string }[];
-}
+export type { CalendarEvent } from "./calendarEvent";
+import type { CalendarEvent } from "./calendarEvent";
 
 export class CalendarError extends Error {}
 

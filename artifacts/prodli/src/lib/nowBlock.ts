@@ -1,10 +1,10 @@
 // Today's "Now" card (gentle day mode): the time block that's on now, how long
-// is left, and what's next. Pure helpers; the card is sections/today/NowCard.tsx.
-// "✨ Break it down" asks ProdLi's AI for a few small steps (a writing-help use).
+// is left, and what's next. Pure helpers (also used by the desktop menu bar,
+// lib/menuBar.ts); the card is sections/today/NowCard.tsx. "✨ Break it down"
+// is in lib/breakDown.ts.
 
 import type { Todo } from "../types";
 import { blockOf, type Slot } from "./timeBlocks";
-import { accountRequest } from "./prodliAccount";
 
 export interface BlockAt {
   todo: Todo;
@@ -38,10 +38,4 @@ export function countdown(msLeft: number): string {
   const m = Math.floor((s % 3600) / 60);
   const sec = String(s % 60).padStart(2, "0");
   return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
-}
-
-/** Steps from ProdLi's AI for a task (needs an account; counts as a writing-help use). */
-export async function breakDown(task: string, context = ""): Promise<string[]> {
-  const r = await accountRequest<{ steps: string[] }>("/api/ai/breakdown", { method: "POST", body: JSON.stringify({ task: task.slice(0, 300), context: context.slice(0, 1500) }) }, { write_quota_exceeded: "You've used this month's writing help. It resets on the 1st (or go Pro)." });
-  return r.steps;
 }

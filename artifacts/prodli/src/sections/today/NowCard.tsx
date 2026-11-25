@@ -4,7 +4,8 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import type { Todo } from "../../types";
-import { countdown, currentBlock, nextBlock, breakDown } from "../../lib/nowBlock";
+import { countdown, currentBlock, nextBlock } from "../../lib/nowBlock";
+import { breakDown } from "../../lib/breakDown";
 import { toHM } from "../../lib/timeBlocks";
 import { generateId } from "../../lib/utils";
 import { toggleTodo as toggleCompletion } from "../../lib/recurrence";
