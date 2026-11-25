@@ -25,7 +25,6 @@ import {
   refreshAccount,
   renderGoogleButton,
   signInFromDesktop,
-  signInFromExtension,
   signOutDevice,
   signOutEverywhere,
   signOutHere,
@@ -36,6 +35,7 @@ import {
 } from "../lib/prodliAccount";
 import { getSyncStatus, onSyncStatusChange, SYNC_MEETINGS_KEY, syncOnce, type SyncStatus } from "../lib/prodliSync";
 import { desktop } from "../lib/desktop";
+import { signInAnyBrowser, startWebSignIn } from "../lib/webSignIn";
 import { PlanPicker } from "./PlanPicker";
 
 type Profile = Pick<GoogleAccount, "name" | "email" | "picture">;
@@ -259,6 +259,8 @@ function ProdliAccountSection() {
   const [typedEmail, setTypedEmail] = useState("");
   const googleBtn = useRef<HTMLDivElement>(null);
   const [buttonError, setButtonError] = useState<string | null>(null);
+  /** The web sign-in tab is open (lib/webSignIn.ts); the account arrives by itself. */
+  const [webTab, setWebTab] = useState(false);
 
   useEffect(() => {
     if (ext || app || user !== null || !googleBtn.current) return;
@@ -325,17 +327,34 @@ function ProdliAccountSection() {
             )}
           </div>
         ) : ext ? (
-          <button
-            onClick={() => void act("signin", async () => {
-              const u = await signInFromExtension(true);
-              setUser(u);
-              setMessage({ tone: "ok", text: `Signed in as ${u.email}. Syncing your data…` });
-            })}
-            disabled={!!busy}
-            style={{ ...btn(false, !!busy), display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", color: "#1f1f1f", textTransform: "none", fontSize: 14, padding: "10px 16px" }}
-          >
-            <GoogleG /> {busy === "signin" ? "Signing in…" : "Sign in with Google"}
-          </button>
+          <div style={{ display: "grid", gap: 8 }}>
+            <button
+              onClick={() => void act("signin", async () => {
+                const r = await signInAnyBrowser();
+                if ("user" in r) {
+                  setUser(r.user);
+                  setMessage({ tone: "ok", text: `Signed in as ${r.user.email}. Syncing your data…` });
+                } else setWebTab(true);
+              })}
+              disabled={!!busy}
+              data-testid="extension-signin"
+              style={{ ...btn(false, !!busy), display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", color: "#1f1f1f", textTransform: "none", fontSize: 14, padding: "10px 16px" }}
+            >
+              <GoogleG /> {busy === "signin" ? "Signing in…" : "Sign in with Google"}
+            </button>
+            {webTab ? (
+              <div role="status" style={{ fontSize: 12, textAlign: "center", lineHeight: 1.5 }}>
+                Finish signing in in the tab that just opened (app.prodli.com). This updates by itself.{" "}
+                <button onClick={() => void startWebSignIn()} style={{ border: "none", background: "none", padding: 0, color: "inherit", textDecoration: "underline", cursor: "pointer", fontSize: 12 }}>
+                  Open it again
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => void act("signin", async () => { await startWebSignIn(); setWebTab(true); })} disabled={!!busy} data-testid="web-signin" style={{ border: "none", background: "none", padding: 0, color: "inherit", textDecoration: "underline", cursor: "pointer", fontSize: 12, opacity: 0.75 }}>
+                Trouble signing in? Sign in through app.prodli.com instead
+              </button>
+            )}
+          </div>
         ) : (
           <>
             <div ref={googleBtn} data-testid="google-signin" style={{ minHeight: 44, display: "flex", justifyContent: "center" }} />

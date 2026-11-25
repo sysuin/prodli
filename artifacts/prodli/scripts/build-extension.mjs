@@ -79,6 +79,16 @@ console.log("==> Applying build settings to manifest...");
   }
   const key = process.env.PRODLI_EXTENSION_KEY?.trim();
   if (key) m.key = key;
+  // Only ProdLi's own web app may message the extension (the sign-in hand-off where Chrome's own
+  // Google sign-in isn't there, src/lib/webSignIn.ts): the server this build talks to.
+  let apiOrigin = null;
+  try {
+    apiOrigin = new URL(process.env.VITE_PRODLI_API ?? "").origin;
+  } catch {
+    apiOrigin = null;
+  }
+  if (apiOrigin) m.externally_connectable = { matches: [`${apiOrigin}/*`] };
+  else delete m.externally_connectable;
   writeFileSync(manifestPath, JSON.stringify(m, null, 2));
 }
 

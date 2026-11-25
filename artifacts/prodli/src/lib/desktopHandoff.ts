@@ -37,3 +37,24 @@ export function handoffUrl(appOrigin: string, h: DesktopHandoff): string {
   const q = new URLSearchParams({ desktop: "signin", port: String(h.port), state: h.state, challenge: h.challenge });
   return `${appOrigin.replace(/\/+$/, "")}/?${q.toString()}`;
 }
+
+// ── The extension (where Chrome's own Google sign-in isn't there; lib/webSignIn.ts) ──
+// app.prodli.com/?extension=signin&id=<extension id>&state=…&challenge=… — the page
+// gets a code for that extension (the server only issues them for ProdLi's own IDs)
+// and hands it over with chrome.runtime.sendMessage.
+
+export interface ExtensionHandoff {
+  extensionId: string;
+  state: string;
+  challenge: string;
+}
+
+export function parseExtensionHandoff(search: string): ExtensionHandoff | null {
+  const q = new URLSearchParams(search);
+  if (q.get("extension") !== "signin") return null;
+  const extensionId = q.get("id") ?? "";
+  const state = q.get("state") ?? "";
+  const challenge = q.get("challenge") ?? "";
+  if (!/^[a-p]{32}$/.test(extensionId) || !STATE.test(state) || !CHALLENGE.test(challenge)) return null;
+  return { extensionId, state, challenge };
+}

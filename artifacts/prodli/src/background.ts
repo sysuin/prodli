@@ -20,6 +20,7 @@ import { registerDictation } from "./dictation/background";
 import { registerMeetingRetention } from "./recorder/retention";
 import { registerCalendarSync } from "./lib/calendarSync";
 import { registerSnippets } from "./snippets/background";
+import { registerWebSignIn } from "./lib/webSignIn";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
 
@@ -37,6 +38,8 @@ registerPomodoro();
 registerDriveBackup();
 // ProdLi account sync: every 15 minutes, even with no ProdLi tab open (open tabs sync live).
 if (accountsEnabled()) registerBackgroundSync();
+// Sign-in through app.prodli.com where Chrome's own Google sign-in isn't there (Edge, Brave, Opera…).
+if (accountsEnabled()) registerWebSignIn();
 // Today: a daily "plan your day" reminder (Today → Settings).
 registerTodayReminder();
 registerPrepReminders();

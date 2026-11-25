@@ -25,7 +25,7 @@ const SERVER = `http://localhost:${PORT}`;
 const OUT = "dist-extension-server-test";
 
 process.env.PRODLI_OUT_DIR = OUT; // cdp.mjs loads this build
-const { Browser, sleep, waitForDownload } = await import("./cdp.mjs");
+const { Browser, Page, sleep, waitForDownload } = await import("./cdp.mjs");
 
 const run = (cmd, cwd, env = {}) => execSync(cmd, { cwd, stdio: "inherit", env: { ...process.env, ...env } });
 
@@ -387,6 +387,59 @@ try {
   const meAfter = await p.eval(`fetch(${JSON.stringify(SERVER)} + "/api/me", { headers: { Authorization: "Bearer " + ${JSON.stringify(prodliSession?.token ?? "")} } }).then(r => r.status)`);
   check("…which also signed out the extension", meAfter === 401);
   check("…and revoked the API key", (await mcp({ jsonrpc: "2.0", id: 3, method: "tools/list" })).status === 401);
+
+  // Browsers without Chrome's own Google sign-in (Edge, Brave, Opera…): the extension opens
+  // app.prodli.com in a tab and the page hands it a one-time code (lib/webSignIn.ts).
+  // This test build has no Google client ID, so Chrome's sign-in fails and the web sign-in follows.
+  console.log("sign in through the web app (no Chrome sign-in)");
+  await w.eval(`fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "web", idToken: ${JSON.stringify(ALICE)} }) }).then(r => r.status)`);
+  await p.eval(`chrome.storage.local.remove(["prodliSession", "prodliAccount"]).then(() => true)`);
+  await p.send("Page.reload", {});
+  await sleep(1800);
+  await openAccount(p);
+  await sleep(500);
+  await p.click("Sign in with Google", { exact: false });
+  let signInTab = null;
+  for (let i = 0; i < 25 && !signInTab; i++) {
+    const { targetInfos } = await b.send("Target.getTargets");
+    signInTab = targetInfos.find((x) => x.type === "page" && x.url.startsWith(`${SERVER}/?extension=signin`)) ?? null;
+    if (!signInTab) await sleep(200);
+  }
+  check("Extension: opens the web app's sign-in page in a tab, for this extension", !!signInTab && new URL(signInTab.url).searchParams.get("id") === b.extId, signInTab?.url ?? "no tab");
+  check("Extension: says to finish in that tab", (await p.text()).includes("Finish signing in in the tab that just opened"));
+  if (signInTab) {
+    const { sessionId } = await b.send("Target.attachToTarget", { targetId: signInTab.targetId, flatten: true });
+    await b.send("Runtime.enable", {}, sessionId);
+    const hp = new Page(b, sessionId, signInTab.targetId);
+    let ht = "";
+    for (let i = 0; i < 25 && !/connect prodli/i.test(ht); i++) {
+      await sleep(200);
+      ht = await hp.text().catch(() => "");
+    }
+    check("Web: the page knows who's signed in and offers Connect ProdLi", ht.includes("Sign in to ProdLi in this browser") && ht.includes("alice@example.com") && /connect prodli/i.test(ht), ht.slice(0, 300).replace(/\n/g, " | "));
+    await hp.eval(`document.querySelector('[data-testid="handoff-confirm"]').click(); true`);
+    for (let i = 0; i < 25 && !ht.includes("Done"); i++) {
+      await sleep(200);
+      ht = await hp.text().catch(() => "");
+    }
+    check("Web: hands the code to the extension", ht.includes("Done — ProdLi in this browser is signed in"), ht.slice(0, 300).replace(/\n/g, " | "));
+    let web = null;
+    for (let i = 0; i < 15 && !web?.prodliSession; i++) {
+      web = await p.storage(["prodliSession", "prodliAccount"]);
+      if (!web?.prodliSession) await sleep(200);
+    }
+    check("Extension: has its own session from the web sign-in", typeof web?.prodliSession?.token === "string" && web.prodliSession.token.startsWith("pls_") && web.prodliAccount?.email === "alice@example.com", JSON.stringify(web));
+    const who = await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${web?.prodliSession?.token ?? ""}` } }).then((r) => r.json()).catch(() => null);
+    check("…an ordinary extension session for the same account", who?.user?.email === "alice@example.com" && who?.session?.client === "extension", JSON.stringify(who));
+    await sleep(600);
+    check("Extension: the account window shows the account", (await p.text()).includes("alice@example.com"));
+    const replay = await hp.eval(`new Promise((r) => chrome.runtime.sendMessage(${JSON.stringify(b.extId)}, { type: "prodli-signin", code: "plec_${"x".repeat(43)}", state: ${JSON.stringify(new URL(signInTab.url).searchParams.get("state"))} }, (reply) => r(reply)))`);
+    check("Extension: a second message for the same sign-in is refused", replay?.ok === false, JSON.stringify(replay));
+    hp.close();
+    // Back to how "sign out everywhere" left things, for the sections below.
+    await w.eval(`fetch("/api/auth/logout", { method: "POST" }).then(r => r.status)`);
+    await fetch(`${SERVER}/api/auth/logout-all`, { method: "POST", headers: { Authorization: `Bearer ${web?.prodliSession?.token ?? ""}` } }).catch(() => {});
+  }
 
   console.log("delete account");
   await p.send("Page.reload", {});
