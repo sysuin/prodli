@@ -4,7 +4,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 
 ## Where things stand
 
-- **Production (app.prodli.com):** version `3ba3d0ed` (deployed 24 Nov 2026 from main `09da79f`, PR sysuin/prodli#106). Restore point taken just before it: `00000033-00000000-0000512d-ee98d88739a0b09045b3e6f9a8a29b74`. Health: `https://app.prodli.com/api/health`.
+- **Production (app.prodli.com):** deployed 25 Nov 2026 from main `16baf95` (up to sysuin/prodli#123) through the GitHub workflow, the first run of it (restore point before it: `00000035-00000000-0000512e-a1191c63058fbdc7b38e58a1b70cafea`). Before that: version `3ba3d0ed`, 24 Nov from `09da79f`. Health: `https://app.prodli.com/api/health`.
 - **Website (prodli.com):** deploys by itself on every push to main; shows the three plans.
 - **Chrome extension:** the store still has **1.4.0**. The code is **1.5.0** (manifest), with everything below; it reaches users only when the owner uploads a new store build from the Mac.
 - **Plans (live in Dodo since 24 Nov):** Free; Pro $5/month or $48/year; Pro Plus $12/month or $120/year. Limits and product IDs: docs/PRO-PLAN.md. Every new account gets a 14-day Pro trial (TRIAL_DAYS). No real purchase has been made yet (TODO: real purchase test).
@@ -34,7 +34,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 
 1. **Owner, on the Mac:** upload 1.5.0 to the Chrome Web Store; make one real purchase (Pro, then switch to Pro Plus, then cancel and refund).
 2. **Owner:** Google Calendar verification (demo video), first real two-way calendar run, real-use checks (Meet, Zoom, Teams, pasting from Google Docs/Word/Notion, a real phone).
-3. **The first GitHub production deploy** (Actions → Deploy → `production-api`) hasn't run with the new restore-point and health steps yet: watch that run closely the first time.
+3. ~~The first GitHub production deploy~~ — *done 25 Nov 2026:* the restore point, deploy and health check all worked; the owner approves each run in GitHub.
 4. **1 Dec 2026:** a scheduled task on the owner's Mac makes the repo private again (to save Actions minutes, the repo was public in November). After that, check the `production` environment's required reviewer still works on the owner's GitHub plan, and remember Actions minutes count again (each CI run is about 15–18 minutes).
 5. Next features, when the owner asks: the desktop menu-bar timer (A1) was the next quick item; then the larger items in TODO's feature plan.
 
