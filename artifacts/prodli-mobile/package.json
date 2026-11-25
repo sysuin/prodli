@@ -12,7 +12,8 @@
     "test": "vitest run",
     "icons": "node scripts/make-icons.mjs",
     "export:check": "expo export --platform ios --platform android --output-dir dist-check",
-    "test:e2e": "node tests/e2e/run.mjs"
+    "test:e2e": "node tests/e2e/run.mjs && node tests/e2e/noteEditor.mjs",
+    "build:editor": "node editor-web/build.mjs"
   },
   "dependencies": {
     "@10play/tentap-editor": "^1.1.0",
@@ -46,9 +47,10 @@
     "react-native-webview": "14.0.1"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@types/react": "~19.3.0",
     "typescript": "~5.9.2",
-    "vitest": "^5.1.0",
-    "@types/node": "catalog:"
+    "vite": "catalog:",
+    "vitest": "^5.1.0"
   }
 }

@@ -1,14 +1,18 @@
 // The phone's note editor: TenTap, which is TipTap (the extension's editor
-// engine) in a WebView, so notes keep the same HTML on every device. A note
-// the phone can't edit safely (tables, code blocks, toggles, callouts…; see
-// lib/html.ts) is shown read-only in a script-free WebView instead.
-import { RichText, Toolbar, useEditorBridge, useBridgeState, TenTapStartKit, CoreBridge, PlaceholderBridge, darkEditorTheme, defaultEditorTheme, type BridgeExtension } from "@10play/tentap-editor";
+// engine) in a WebView, so notes keep the same HTML on every device. It runs
+// ProdLi's own editor bundle (editor-web → noteEditorHtml.js) with the
+// extension's blocks, so tables, code blocks, toggles, callouts, pictures and
+// note links can be edited too. A note with anything else (lib/html.ts) is shown
+// read-only in a script-free WebView instead.
+import { RichText, Toolbar, useEditorBridge, useBridgeState, TenTapStartKit, CoreBridge, LinkBridge, PlaceholderBridge, darkEditorTheme, defaultEditorTheme, type BridgeExtension } from "@10play/tentap-editor";
 import { useEffect, useRef } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { Banner } from "./kit";
 import { DARK, LIGHT } from "./theme";
 import type { NoteEditorProps } from "./NoteEditor";
+import { editorHtml } from "./noteEditorHtml";
+import { phoneBridgeList } from "../lib/editorConfig";
 
 const css = (dark: boolean) => {
   const c = dark ? DARK : LIGHT;
@@ -43,7 +47,8 @@ const css = (dark: boolean) => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyBridge = BridgeExtension<any, any, any>;
-const bridges = (dark: boolean): AnyBridge[] => [...(TenTapStartKit as AnyBridge[]), CoreBridge.configureCSS(css(dark)) as AnyBridge, PlaceholderBridge.configureExtension({ placeholder: "Start writing…" }) as AnyBridge];
+// TenTap's start kit without its image bridge (ProdLi's picture node is in the bundle) and with links like the computer's.
+const bridges = (dark: boolean): AnyBridge[] => [...phoneBridgeList(TenTapStartKit as AnyBridge[], LinkBridge as never), CoreBridge.configureCSS(css(dark)) as AnyBridge, PlaceholderBridge.configureExtension({ placeholder: "Start writing…" }) as AnyBridge];
 
 function ReadOnly({ html, dark, reason }: { html: string; dark: boolean; reason: string }) {
   const doc = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css(dark)}</style></head><body>${html}</body></html>`;
@@ -63,6 +68,7 @@ function Editable({ html, dark, onChangeHtml, registerFlush }: NoteEditorProps) 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editor = useEditorBridge({
     initialContent: html,
+    customSource: editorHtml,
     autofocus: false,
     avoidIosKeyboard: true,
     // The built-in themes are full themes; the option takes a deep-partial one (cast: TS gives up on the deep type).

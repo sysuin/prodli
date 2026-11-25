@@ -23,30 +23,27 @@ describe("note HTML", () => {
     expect(readOnlyReason('<p><mark data-color="#fde68a" style="background-color: #fde68a; color: inherit">hi</mark> <span style="color: #dc2626">red</span> <a target="_blank" rel="noopener noreferrer" href="https://x.com">link</a> <code>x</code></p><blockquote><p>q</p></blockquote><ul><li><p>a</p><ul><li><p>b</p></li></ul></li></ul><img src="data:image/webp;base64,AAA">')).toBeNull();
   });
 
-  // The HTML below is what the extension's editor writes (sections/editor/*.ts renderHTML).
+  // What the computer's editor writes (artifacts/prodli sections/editor/*); the phone's editor keeps all of it
+  // (round trip checked in artifacts/prodli/tests/unit/phoneEditable.test.ts).
   it.each([
-    ["<table><tbody><tr><td><p>1</p></td></tr></tbody></table>", "a table"],
-    ['<pre><code class="language-js">let x = 1</code></pre>', "a code block"],
-    ["<p>a</p><hr><p>b</p>", "a divider"],
-    ['<div data-emoji="💡" data-color="blue" data-type="callout"><p>Remember</p></div>', "a callout"],
-    ['<details class="note-toggle" open=""><summary>More</summary><div data-type="detailsContent"><p>Hidden</p></div></details>', "a toggle"],
-    ['<p>See <a data-note-id="n1" data-type="note-link" href="#note-n1">Plan</a></p>', "a link to another note"],
-    ['<figure data-type="note-image" data-width="m"><img src="data:image/webp;base64,AAA"><figcaption>Cap</figcaption></figure>', "a picture"],
-    ['<p><span style="background-color: #fef3c7">yellow</span></p>', "a background colour"],
-    ['<p><span style="color: #dc2626; background-color: #fef3c7">both</span></p>', "a background colour"],
-  ])("opens %s read-only (%s)", (html, what) => {
-    const reason = readOnlyReason(html);
-    expect(reason).toContain(what);
-    expect(reason).toMatch(/edit it on your computer/);
+    ["a table", '<table style="min-width: 75px"><colgroup><col style="min-width: 25px"><col style="min-width: 25px"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>H</p></th><td colspan="1" rowspan="1"><p>1</p></td></tr></tbody></table>'],
+    ["a code block", '<pre><code class="language-js">let x = 1</code></pre>'],
+    ["a divider", "<p>a</p><hr><p>b</p>"],
+    ["a callout", '<div data-emoji="💡" data-color="blue" data-type="callout"><p>Remember</p></div>'],
+    ["a toggle", '<details class="note-toggle" open=""><summary>More</summary><div data-type="detailsContent"><p>Hidden</p></div></details>'],
+    ["a link to another note", '<p>See <a data-note-id="n1" title="Plan" data-type="note-link" href="#note-n1">Plan</a></p>'],
+    ["a picture with a caption and size", '<figure data-type="note-image" class="note-figure" data-width="60"><img src="data:image/webp;base64,AAA" class="note-image" style="width:60%" data-width="60"><figcaption>Cap</figcaption></figure>'],
+    ["a background colour", '<p><span style="color: #dc2626; background-color: var(--note-yellow-bg)">both</span></p>'],
+    ["an old Google Docs paste", '<p><span style="color: #000000; background-color: transparent;">old paste</span></p>'],
+  ])("lets %s be edited", (_what, html) => {
+    expect(readOnlyReason(html)).toBeNull();
   });
 
-  it("names several things at once, and unknown formatting generically", () => {
-    expect(readOnlyReason('<pre><code>x</code></pre><div data-type="callout"><p>c</p></div>')).toMatch(/^This note has a code block and a callout the phone app can't edit yet/);
-    expect(readOnlyReason("<p><sup>2</sup></p>")).toMatch(/^This note has formatting the phone app can't edit yet/);
-    expect(readOnlyReason('<p style="text-align: center">x</p>')).toMatch(/formatting/);
-    expect(unsupportedFormatting('<p><span style="font-size: 20px">x</span></p>')).toEqual(["other formatting"]);
-    // Notes pasted from Google Docs before paste clean-up: black text, transparent backgrounds.
-    expect(readOnlyReason('<p><span style="color: #000000; background-color: transparent;">old paste</span></p>')).toBeNull();
+  it("opens anything else read-only (pasted from elsewhere, or from a newer ProdLi)", () => {
+    for (const html of ["<p><sup>2</sup></p>", '<p style="text-align: center">x</p>', '<p><span style="font-size: 20px">x</span></p>', '<div data-type="something-new"><p>x</p></div>', "<iframe src=x></iframe>", '<td style="background: red"><p>x</p></td>']) {
+      expect(readOnlyReason(html)).toMatch(/^This note has formatting the phone app can't edit yet.*edit it on your computer/);
+    }
+    expect(unsupportedFormatting("<p><sup>2</sup></p>")).toEqual(["formatting"]);
   });
 
   it("turns plain text with bullets into note HTML", () => {
