@@ -21,6 +21,9 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] A time-block reminder going off; "Add to Google Calendar"
   - [ ] A weekly review with your real data
   - [ ] Phone: the web app (Share → Add to Home Screen)
+  - [ ] Sign in to the extension in Brave or Edge (app.prodli.com opens, Connect ProdLi, then sync works) — added 2026-11-25
+  - [ ] Paste into a note from real Google Docs, Word and Notion (no black text in dark mode; Word lists stay lists) — added 2026-11-25
+  - [ ] Desktop menu bar timer on a real Mac and Windows build (countdown, Start/Pause, keep-awake) — added 2026-11-25
 - [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts; then `eas build` and a TestFlight / internal-testing beta. Listing text, screenshots and privacy answers are ready in [docs/MOBILE-STORE.md](docs/MOBILE-STORE.md). Ask the lawyer about the phone-app additions in `docs/legal/REVIEW-NOTES.md` §9. (The production API has had phone sign-in since the 22–24 Nov deploys.)
 - [ ] **Desktop app (Mac + Windows):** production API with desktop sign-in is live (2026-11-21); next: Apple + Windows signing certificates and a download page — [docs/DESKTOP.md](docs/DESKTOP.md) → "Before shipping".
   - [ ] Your lawyer reviews [docs/legal/DESKTOP-ADDITIONS.md](docs/legal/DESKTOP-ADDITIONS.md) (privacy and terms wording for the desktop apps) before it goes on prodli.com.
@@ -110,7 +113,10 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 - [x] **Sign-in in every Chromium browser** — *built 2026-11-25:* the extension signed in only through Chrome's own Google sign-in (`chrome.identity.getAuthToken`), which Edge doesn't have (and most likely Brave, Opera and Vivaldi, which install from the Chrome Web Store). Now Chrome keeps one-click sign-in; elsewhere, or if it fails, "Sign in with Google" opens app.prodli.com in a tab and the page hands the extension a one-time code (the desktop app's PKCE hand-off; `lib/webSignIn.ts`, `externally_connectable` for app.prodli.com only — not a permission). Codes are only for ProdLi's own extension IDs. Google Drive backup stays Chrome-only.
   - [x] **Before an extension with this ships:** *done 2026-11-25:* production API deployed from main `16baf95` (the first deploy through the GitHub workflow: restore point `00000035-00000000-0000512e-a1191c63058fbdc7b38e58a1b70cafea`, health check passed), and the 1.5.0 draft in the Chrome Web Store re-uploaded from the same commit, so 1.5.0 includes it.
   - [ ] Try it once in a real Brave or Edge (sign in, sync).
-- [ ] *Cheap extra:* list ProdLi on Edge Add-ons with the same package (~1 day, now that sign-in works there). Once Edge gives the listing an extension ID, add it to `EXTRA_EXTENSION_IDS` in `artifacts/prodli-api/wrangler.jsonc` (production) so its sign-in and API calls are allowed, then deploy.
+- [ ] **ProdLi on Edge Add-ons** — *ready 2026-11-25:* the kit is [EDGE_SUBMISSION.md](EDGE_SUBMISSION.md), and the Store workflow has `edge-upload` / `edge-submit` (Edge Add-ons API v1.1). In Edge, sign-in goes through app.prodli.com; Google Calendar and Drive backup are hidden (no `getAuthToken`). Left for you:
+  - [ ] Register in Partner Center (free), create the extension with the zip from a **build** run, and send Claude its extension ID. Claude adds it to `EXTRA_EXTENSION_IDS` and asks to deploy production **before** you submit, or the Edge copy can't sign in.
+  - [ ] Fill in the listing (EDGE_SUBMISSION.md section 1) and submit.
+  - [ ] For updates from GitHub: Publish API credentials as the secrets `EDGE_CLIENT_ID` and `EDGE_API_KEY`, and the variable `EDGE_PRODUCT_ID` (API keys expire; renew them in Partner Center).
 - Phone items (A5, A6, A9, A11, A15) need native device builds, which can't be tested in the current setup; treat them as riskier than their effort.
 - **Rule:** no feature may add a required all-websites permission. Anything that needs one ships as an optional permission asked for on first use, or doesn't ship.
 

@@ -7,12 +7,15 @@
 #               Developer Dashboard and press "Submit for review" there
 #               (use this when the description or screenshots change too)
 #     submit  → upload and submit for review; Google publishes it once approved
+#     edge-upload / edge-submit → the same zip to the Microsoft Edge Add-ons
+#               listing (draft, or submitted for certification); EDGE_SUBMISSION.md
 #
 # Only you start it (manual runs need write access) and only from main. The
 # version in artifacts/prodli/extension/manifest.json must be higher than the
 # store's. Setup (one time, on the Mac): STORE_SUBMISSION.md → "Releasing from GitHub".
 # Secrets: PRODLI_GOOGLE_CLIENT_ID (sign-in, also used by CI) and
 # CWS_SERVICE_ACCOUNT (the service account's JSON key). Variable: CWS_PUBLISHER_ID.
+# Edge: secrets EDGE_CLIENT_ID and EDGE_API_KEY, variable EDGE_PRODUCT_ID.
 name: Store
 
 on:
@@ -22,7 +25,7 @@ on:
         description: What to do with the zip
         type: choice
         default: build
-        options: [build, upload, submit]
+        options: [build, upload, submit, edge-upload, edge-submit]
 
 concurrency:
   group: chrome-web-store
@@ -58,13 +61,19 @@ jobs:
           PRODLI_GOOGLE_CLIENT_ID: ${{ secrets.PRODLI_GOOGLE_CLIENT_ID }}
           CWS_SERVICE_ACCOUNT: ${{ secrets.CWS_SERVICE_ACCOUNT }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
         run: |
           need="PRODLI_GOOGLE_CLIENT_ID"
-          [ "$ACTION" = build ] || need="$need CWS_SERVICE_ACCOUNT CWS_PUBLISHER_ID"
+          case "$ACTION" in
+            upload|submit) need="$need CWS_SERVICE_ACCOUNT CWS_PUBLISHER_ID" ;;
+            edge-*) need="$need EDGE_CLIENT_ID EDGE_API_KEY EDGE_PRODUCT_ID" ;;
+          esac
           missing=""
           for n in $need; do [ -n "${!n}" ] || missing="$missing $n"; done
           if [ -n "$missing" ]; then
-            echo "::error::Missing:$missing (secrets, and the CWS_PUBLISHER_ID variable; see STORE_SUBMISSION.md → Releasing from GitHub)"
+            echo "::error::Missing:$missing (repository secrets and variables; see STORE_SUBMISSION.md → Releasing from GitHub, or EDGE_SUBMISSION.md for Edge)"
             exit 1
           fi
       - name: Build the store zip (talks to https://app.prodli.com)
@@ -85,12 +94,20 @@ jobs:
           path: prodli-extension-store.zip
           retention-days: 30
       - name: ${{ inputs.action == 'submit' && 'Upload and submit for review' || 'Upload as a draft' }}
-        if: inputs.action != 'build'
+        if: inputs.action == 'upload' || inputs.action == 'submit'
         env:
           CWS_SERVICE_ACCOUNT: ${{ secrets.CWS_SERVICE_ACCOUNT }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
           ACTION: ${{ inputs.action }}
         run: node artifacts/prodli/scripts/chrome-store.mjs "$ACTION" prodli-extension-store.zip
+      - name: ${{ inputs.action == 'edge-submit' && 'Edge Add-ons - upload and submit for certification' || 'Edge Add-ons - upload to the draft' }}
+        if: inputs.action == 'edge-upload' || inputs.action == 'edge-submit'
+        env:
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+          ACTION: ${{ inputs.action }}
+        run: node artifacts/prodli/scripts/edge-store.mjs "${ACTION#edge-}" prodli-extension-store.zip "ProdLi ${VERSION} (commit ${GITHUB_SHA::7})"
       - name: Summary
         if: always()
         env:
@@ -103,5 +120,7 @@ jobs:
               build)  echo "- The zip is attached to this run. Nothing was sent to the store." ;;
               upload) echo "- Draft uploaded if the step above passed: review the listing in the Developer Dashboard, then Submit for review." ;;
               submit) echo "- Submitted for review if the step above passed; Google publishes it once approved (usually within days)." ;;
+              edge-upload) echo "- Edge Add-ons: the zip is in the listing's draft if the step above passed. Check it in Partner Center, then Publish." ;;
+              edge-submit) echo "- Edge Add-ons: submitted for certification if the step above passed; Microsoft publishes it once it passes." ;;
             esac
           } >> "$GITHUB_STEP_SUMMARY"
