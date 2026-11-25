@@ -6,7 +6,8 @@
 // Toggle lists come from @tiptap/extension-details; colours from
 // @tiptap/extension-text-style (see colors.ts).
 
-import { Extension, mergeAttributes, Node } from "@tiptap/core";
+import { Extension } from "@tiptap/core";
+import { CalloutSchema, NoteLinkSchema } from "./noteSchema";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { useState, useSyncExternalStore } from "react";
 import { duplicateBlock, itemStartAt, moveBlock } from "./blockOps";
@@ -63,23 +64,7 @@ function CalloutView({ node, updateAttributes, editor }: ReactNodeViewProps) {
   );
 }
 
-export const Callout = Node.create({
-  name: "callout",
-  group: "block",
-  content: "block+",
-  defining: true,
-  addAttributes() {
-    return {
-      emoji: { default: "💡", parseHTML: (el) => el.getAttribute("data-emoji") || "💡", renderHTML: (a) => ({ "data-emoji": a.emoji }) },
-      color: { default: "gray", parseHTML: (el) => el.getAttribute("data-color") || "gray", renderHTML: (a) => ({ "data-color": a.color }) },
-    };
-  },
-  parseHTML() {
-    return [{ tag: 'div[data-type="callout"]' }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-type": "callout" }), 0];
-  },
+export const Callout = CalloutSchema.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CalloutView);
   },
@@ -151,27 +136,7 @@ function NoteLinkView({ node }: ReactNodeViewProps) {
   );
 }
 
-export const NoteLink = Node.create({
-  name: "noteLink",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: true,
-  addAttributes() {
-    return {
-      id: { default: "", parseHTML: (el) => el.getAttribute("data-note-id") || "", renderHTML: (a) => ({ "data-note-id": a.id }) },
-      title: { default: "", parseHTML: (el) => (el.textContent || "").replace(/^↗\s*/, "") },
-    };
-  },
-  parseHTML() {
-    return [{ tag: 'a[data-type="note-link"]', priority: 60 }];
-  },
-  renderHTML({ node, HTMLAttributes }) {
-    return ["a", mergeAttributes(HTMLAttributes, { "data-type": "note-link", href: `#note-${node.attrs.id}` }), node.attrs.title || "Untitled"];
-  },
-  renderText({ node }) {
-    return node.attrs.title || "Untitled";
-  },
+export const NoteLink = NoteLinkSchema.extend({
   addNodeView() {
     return ReactNodeViewRenderer(NoteLinkView);
   },
