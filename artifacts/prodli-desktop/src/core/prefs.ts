@@ -6,9 +6,11 @@ export interface Prefs {
   keepRunning: boolean;
   /** Remind me to record when a call starts in another app. */
   callNudge: boolean;
+  /** Keep the computer from sleeping while recording or in a focus session (menu bar timer). */
+  autoKeepAwake: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { openAtLogin: false, keepRunning: true, callNudge: true };
+export const DEFAULT_PREFS: Prefs = { openAtLogin: false, keepRunning: true, callNudge: true, autoKeepAwake: true };
 
 /** Only known keys with boolean values get through (from disk or from the page). */
 export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
@@ -17,5 +19,6 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     openAtLogin: typeof r.openAtLogin === "boolean" ? r.openAtLogin : base.openAtLogin,
     keepRunning: typeof r.keepRunning === "boolean" ? r.keepRunning : base.keepRunning,
     callNudge: typeof r.callNudge === "boolean" ? r.callNudge : base.callNudge,
+    autoKeepAwake: typeof r.autoKeepAwake === "boolean" ? r.autoKeepAwake : base.autoKeepAwake,
   };
 }

@@ -45,6 +45,13 @@ export function DesktopSettingsSection() {
                 <div style={note}>Pomodoro, reminders, sync and recordings keep going. Quit from the {mac ? "menu bar icon or ⌘Q" : "tray icon or File → Exit"}.</div>
               </span>
             </label>
+            <label style={row}>
+              <input type="checkbox" checked={prefs.autoKeepAwake} onChange={(e) => save({ autoKeepAwake: e.target.checked })} />
+              <span>
+                Keep the computer awake while recording or focusing
+                <div style={note}>It won't go to sleep during a recording or a Pomodoro focus session (the screen may still turn off). To keep the screen on too, use Keep Computer Awake in the {mac ? "menu bar" : "tray"} menu.</div>
+              </span>
+            </label>
           </>
         ) : (
           <span style={{ fontSize: 13, opacity: 0.7 }}>Loading…</span>

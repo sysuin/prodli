@@ -38,6 +38,7 @@ console.log("==> Starting the server with a fresh local database");
 const state = mkdtempSync(path.join(tmpdir(), "prodli-desktop-e2e-api-"));
 const userData = mkdtempSync(path.join(tmpdir(), "prodli-desktop-e2e-data-"));
 const urlFile = path.join(userData, "signin-url.txt");
+const trayFile = path.join(userData, "tray.json");
 run(`pnpm exec wrangler d1 migrations apply DB --local --persist-to "${state}"`, api, { CI: "true" });
 const server = spawn("pnpm", ["exec", "wrangler", "dev", "--port", String(PORT), "--persist-to", state, "--var", "DEV_FAKE_GOOGLE:true", "--log-level", "warn"], {
   cwd: api,
@@ -100,10 +101,10 @@ async function connect() {
 const electron = path.join(pkg, "node_modules", ".bin", process.platform === "win32" ? "electron.cmd" : "electron");
 const launch = () =>
   // Fake microphone (a tone) instead of a real one; no permission prompts (see main/media.ts).
-  spawn(electron, [".", `--remote-debugging-port=${DEBUG_PORT}`, "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"], {
+  spawn(electron, [".", `--remote-debugging-port=${DEBUG_PORT}`, "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", ...(process.platform === "linux" ? ["--no-sandbox"] : [])], {
     cwd: pkg,
     stdio: ["ignore", "inherit", "inherit"],
-    env: { ...process.env, PRODLI_USER_DATA: userData, PRODLI_E2E_URL_FILE: urlFile },
+    env: { ...process.env, PRODLI_USER_DATA: userData, PRODLI_E2E_URL_FILE: urlFile, PRODLI_E2E_TRAY_FILE: trayFile },
     shell: process.platform === "win32",
   });
 
@@ -118,6 +119,35 @@ try {
   await page.eval(`window.prodliDesktop.storage.set("e2eProbe", { n: 1 })`);
   check("saves to the app's data file", existsSync(path.join(userData, "ProdLi Data", "store.json")) || (await sleep(500), existsSync(path.join(userData, "ProdLi Data", "store.json"))));
 
+  // The menu bar timer (main/menuBar.ts) reads the store: a running focus session and the time block that's on.
+  console.log("menu bar timer");
+  const tray = async (ok) => {
+    let t = null;
+    for (let i = 0; i < 30; i++) {
+      try { t = JSON.parse(readFileSync(trayFile, "utf8")); } catch { t = null; }
+      if (t && ok(t)) return t;
+      await sleep(200);
+    }
+    return t;
+  };
+  await page.eval(`(() => { const d = new Date(Date.now() - 5 * 60_000); const p2 = (n) => String(n).padStart(2, "0"); const day = d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); return Promise.all([
+    window.prodliDesktop.storage.set("todos", [{ id: "mb1", title: "Write the proposal", completed: false, estimateMin: 60, block: { day, start: p2(d.getHours()) + ":" + p2(d.getMinutes()) }, createdAt: new Date().toISOString() }, { id: "mb2", title: "Call the bank", completed: false, plannedFor: day, createdAt: new Date().toISOString() }]),
+    window.prodliDesktop.storage.set("pomodoroTimer", { phase: "work", running: true, endsAt: Date.now() + 20 * 60_000, remaining: 0, label: "", lastCompletedAt: null, lastCompletedPhase: null }),
+  ]).then(() => true); })()`);
+  let t = await tray((x) => /^🍅 (19|20):\d\d$/.test(x.title) && x.menu.includes("Pause"));
+  check("menu bar shows the focus countdown", /^🍅 (19|20):\d\d$/.test(t?.title ?? ""), JSON.stringify(t));
+  check("tray menu: the session with Pause and Stop, the block that's on and the top task", !!t && t.menu.includes("Pause") && t.menu.includes("Stop") && t.menu.some((l) => l.startsWith("Now: Write the proposal (until ")) && t.menu.includes("Top task: Call the bank"), JSON.stringify(t?.menu));
+  check("keeps the computer awake during the focus session", !!t && t.menu.includes("Staying awake during your focus session"), JSON.stringify(t?.menu));
+  const before = t?.title;
+  t = await tray((x) => x.title !== before);
+  check("the countdown ticks", !!t && t.title !== before, `${before} → ${t?.title}`);
+  await page.eval(`window.prodliDesktop.storage.set("pomodoroTimer", { phase: "work", running: false, endsAt: null, remaining: 600, label: "", lastCompletedAt: null, lastCompletedPhase: null })`);
+  t = await tray((x) => x.menu.includes("Resume"));
+  check("a paused session shows ⏸ and Resume, and no longer keeps the computer awake", t?.title === "⏸ 10:00" && t.menu.includes("Resume") && !t.menu.includes("Staying awake during your focus session"), JSON.stringify(t));
+  await page.eval(`Promise.all([window.prodliDesktop.storage.remove("pomodoroTimer"), window.prodliDesktop.storage.set("todos", [])]).then(() => true)`);
+  t = await tray((x) => x.title === "" && x.menu[0] === "Start a Focus Session (25 min)");
+  check("with nothing on, just the icon and Start a Focus Session", t?.title === "" && t.menu[0] === "Start a Focus Session (25 min)", JSON.stringify(t));
+
   // Chromium's fake devices give a tone for the microphone, and its fake capture
   // UI hands getDisplayMedia a fake screen with a fake audio track: so this runs
   // the full "computer's sound + microphone" mix.
@@ -126,6 +156,8 @@ try {
   await page.eval(`document.querySelector("[data-testid=record-call]").click(); true`);
   const recording = await page.eval(`new Promise((r) => { let n = 0; const t = setInterval(() => { const bar = document.querySelector("[data-testid=in-person-bar]"); if (bar || ++n > 100) { clearInterval(t); r(bar?.innerText ?? null); } }, 100); })`);
   check("Record a call starts (recording bar)", /Recording a call/.test(recording ?? ""), String(recording));
+  const recTray = await tray((x) => x.menu.includes("Staying awake while recording"));
+  check("keeps the computer awake while recording", !!recTray?.menu.includes("Staying awake while recording"), JSON.stringify(recTray?.menu));
   await sleep(11_500); // more than one 10-second audio chunk
   await page.eval(`[...document.querySelectorAll("[data-testid=in-person-bar] button")].find((b) => /Stop/.test(b.textContent)).click(); true`);
   const meeting = await page.eval(`new Promise((resolve) => {

@@ -137,12 +137,75 @@ describe("menus", () => {
   });
 });
 
+describe("menu bar timer", async () => {
+  const { menuBarStatus, keepAwakeMode, DEFAULT_POMODORO_SETTINGS } = await import("../src/core/menuBar");
+  const calls: string[] = [];
+  const a: MenuActions = {
+    command: (c) => calls.push(c), quickAdd: () => {}, recordCall: () => {}, openFile: () => {}, openWindow: () => {}, openExternal: () => {}, quit: () => {},
+    timer: { start: () => calls.push("start"), pause: () => calls.push("pause"), resume: () => calls.push("resume"), stop: () => calls.push("stop") },
+    toggleKeepAwake: () => calls.push("awake"),
+  };
+  const labels = (items: MenuItemConstructorOptions[]) => items.filter((i) => i.type !== "separator").map((i) => i.label);
+  const click = (items: MenuItemConstructorOptions[], label: string) => (items.find((i) => i.label === label)!.click as () => void)();
+  const NOW = new Date(2026, 10, 25, 10, 0, 0).getTime();
+  const DAY = "2026-11-25";
+
+  it("offers a focus session when nothing runs, and starts one", () => {
+    const items = trayMenuTemplate(a, { recording: false, status: menuBarStatus({ now: NOW }), focusMinutes: 50, keepAwake: { manual: false, reason: null } });
+    expect(labels(items).slice(0, 3)).toEqual(["Start a Focus Session (50 min)", "Keep Computer Awake", "Open ProdLi"]);
+    click(items, "Start a Focus Session (50 min)");
+    expect(calls.at(-1)).toBe("start");
+  });
+
+  it("shows a running session with Pause and Stop, then today's blocks and top task", () => {
+    const status = menuBarStatus({
+      timer: { phase: "work", running: true, endsAt: NOW + 25 * 60_000, remaining: 0, label: "", lastCompletedAt: null, lastCompletedPhase: null },
+      settings: DEFAULT_POMODORO_SETTINGS,
+      todos: [
+        { id: "a", title: "Write the proposal", completed: false, createdAt: "", block: { day: DAY, start: "09:45" } },
+        { id: "b", title: "Standup prep", completed: false, createdAt: "", block: { day: DAY, start: "10:30" } },
+        { id: "c", title: "Call the bank", completed: false, createdAt: "", plannedFor: DAY },
+      ],
+      now: NOW,
+    });
+    const items = trayMenuTemplate(a, { recording: false, status, keepAwake: { manual: false, reason: "Staying awake during your focus session" } });
+    expect(labels(items).slice(0, 8)).toEqual(["Focus until 10:25", "Pause", "Stop", "Now: Write the proposal (until 10:15)", "Next: Standup prep at 10:30 (in 30 min)", "Top task: Call the bank", "Keep Computer Awake", "Staying awake during your focus session"]);
+    expect(items.find((i) => i.label === "Focus until 10:25")!.enabled).toBe(false);
+    click(items, "Pause");
+    click(items, "Top task: Call the bank");
+    expect(calls.slice(-2)).toEqual(["pause", "go:todos"]);
+  });
+
+  it("a paused session offers Resume", () => {
+    const status = menuBarStatus({ timer: { phase: "work", running: false, endsAt: null, remaining: 600, label: "", lastCompletedAt: null, lastCompletedPhase: null }, now: NOW });
+    const items = trayMenuTemplate(a, { recording: false, status });
+    expect(labels(items).slice(0, 3)).toEqual(["Focus paused, 10:00 left", "Resume", "Stop"]);
+  });
+
+  it("Keep Computer Awake is a checkbox; the automatic reason hides while it's on", () => {
+    const on = trayMenuTemplate(a, { recording: false, status: menuBarStatus({ now: NOW }), keepAwake: { manual: true, reason: "Keeping your computer awake" } });
+    const box = on.find((i) => i.label === "Keep Computer Awake")!;
+    expect(box).toMatchObject({ type: "checkbox", checked: true });
+    expect(labels(on)).not.toContain("Keeping your computer awake");
+    (box.click as () => void)();
+    expect(calls.at(-1)).toBe("awake");
+  });
+
+  it("keeps the screen on when asked; keeps the computer awake while recording or focusing if allowed", () => {
+    expect(keepAwakeMode({ manual: true, auto: false, recording: false, focusing: false })?.kind).toBe("display");
+    expect(keepAwakeMode({ manual: false, auto: true, recording: true, focusing: false })).toEqual({ kind: "system", reason: "Staying awake while recording" });
+    expect(keepAwakeMode({ manual: false, auto: true, recording: false, focusing: true })?.kind).toBe("system");
+    expect(keepAwakeMode({ manual: false, auto: false, recording: true, focusing: true })).toBeNull();
+    expect(keepAwakeMode({ manual: false, auto: true, recording: false, focusing: false })).toBeNull();
+  });
+});
+
 describe("desktop preferences", async () => {
   const { cleanPrefs, DEFAULT_PREFS } = await import("../src/core/prefs");
   it("keeps known boolean settings only", () => {
     expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
-    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true });
-    expect(cleanPrefs({ keepRunning: false }, { openAtLogin: true, keepRunning: true, callNudge: false })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false });
+    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true, autoKeepAwake: true });
+    expect(cleanPrefs({ keepRunning: false, autoKeepAwake: false }, { openAtLogin: true, keepRunning: true, callNudge: false, autoKeepAwake: true })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false, autoKeepAwake: false });
   });
 });
 

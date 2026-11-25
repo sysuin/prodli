@@ -6,6 +6,7 @@
 // registering them (`registerAccelerator: false`).
 
 import type { MenuItemConstructorOptions } from "electron";
+import { inMinutes, type MenuBarStatus } from "./menuBar";
 
 export interface MenuActions {
   /** Sends a command to the main window (prodli/src/lib/desktopCommands.ts). */
@@ -18,7 +19,21 @@ export interface MenuActions {
   checkForUpdates?(): void;
   /** Set when an update has downloaded: "Restart to Update (1.2.0)". */
   restartToUpdate?: { version: string; run(): void };
+  /** The menu bar timer (main/menuBar.ts). */
+  timer?: { start(): void; pause(): void; resume(): void; stop(): void };
+  toggleKeepAwake?(): void;
   quit(): void;
+}
+
+/** What the tray menu shows besides its fixed items. */
+export interface TrayState {
+  recording: boolean;
+  /** The timer, the block that's on, the next one and the top task (core/menuBar.ts). */
+  status?: MenuBarStatus;
+  /** Length of a focus session, for "Start a Focus Session (25 min)". */
+  focusMinutes?: number;
+  /** Keep awake: on from the menu, and why the computer is staying awake now (or null). */
+  keepAwake?: { manual: boolean; reason: string | null };
 }
 
 export const QUICK_ADD_SHORTCUT = "Alt+Shift+A";
@@ -137,10 +152,41 @@ export function appMenuTemplate(platform: NodeJS.Platform, a: MenuActions, opts:
   return [...appMenu, file, edit, view, goMenu, windowMenu, help];
 }
 
+/** The timer, today's blocks and keep-awake at the top of the tray menu. */
+function statusItems(a: MenuActions, state: TrayState): MenuItemConstructorOptions[] {
+  const st = state.status;
+  const items: MenuItemConstructorOptions[] = [];
+  const sep: MenuItemConstructorOptions = { type: "separator" };
+  if (a.timer) {
+    const timer = a.timer;
+    if (st?.timer) {
+      const t = st.timer;
+      items.push({ label: t.running ? `${t.label} until ${t.until}` : `${t.label} paused, ${t.left} left`, enabled: false });
+      items.push(t.running ? { label: "Pause", click: () => timer.pause() } : { label: "Resume", click: () => timer.resume() });
+      items.push({ label: "Stop", click: () => timer.stop() });
+    } else {
+      items.push({ label: `Start a Focus Session (${state.focusMinutes ?? 25} min)`, click: () => timer.start() });
+    }
+    items.push(sep);
+  }
+  if (st?.now) items.push({ label: `Now: ${st.now.title} (until ${st.now.until})`, click: () => a.command("go:today") });
+  if (st?.next) items.push({ label: `Next: ${st.next.title} at ${st.next.at} (${inMinutes(st.next.inMin)})`, click: () => a.command("go:today") });
+  if (st?.top) items.push({ label: `Top task: ${st.top}`, click: () => a.command("go:todos") });
+  if (st?.now || st?.next || st?.top) items.push(sep);
+  if (a.toggleKeepAwake && state.keepAwake) {
+    const toggle = a.toggleKeepAwake;
+    items.push({ label: "Keep Computer Awake", type: "checkbox", checked: state.keepAwake.manual, click: () => toggle() });
+    if (state.keepAwake.reason && !state.keepAwake.manual) items.push({ label: state.keepAwake.reason, enabled: false });
+    items.push(sep);
+  }
+  return items;
+}
+
 /** The tray (Windows) / menu bar icon (Mac) menu, and the Mac dock menu. */
-export function trayMenuTemplate(a: MenuActions, state: { recording: boolean }): MenuItemConstructorOptions[] {
+export function trayMenuTemplate(a: MenuActions, state: TrayState): MenuItemConstructorOptions[] {
   return [
     ...(a.restartToUpdate ? ([{ label: `Restart to Update (${a.restartToUpdate.version})`, click: () => a.restartToUpdate!.run() }, { type: "separator" }] as MenuItemConstructorOptions[]) : []),
+    ...statusItems(a, state),
     { label: "Open ProdLi", click: () => a.openWindow() },
     { label: "Quick Add…", accelerator: QUICK_ADD_SHORTCUT, click: () => a.quickAdd() },
     { label: state.recording ? "Recording… (open Meetings)" : "Record a Call or Meeting", click: () => (state.recording ? a.command("go:meetings") : a.recordCall()) },

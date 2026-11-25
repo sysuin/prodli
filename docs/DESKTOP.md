@@ -11,6 +11,7 @@ Status: **first version built** (2026-11-21), not yet distributed. One codebase,
 | Record in person | ✅ | ✅ | ✅ |
 | Works offline, data on this computer, sync with an account | ✅ | ✅ | ✅ |
 | Quick add from anywhere (**Alt/Option+Shift+A**), menu bar / tray icon, dock menu | ✅ | Alt+Shift+A in Chrome | — |
+| Menu bar timer: Pomodoro countdown next to the icon (Mac), Start / Pause / Stop, the time block that's on, the next one and the top task in the menu; Keep Computer Awake, and staying awake while recording or focusing (Settings › Desktop app) | ✅ | — | — |
 | Keeps running when the window is closed (timers, reminders, sync, recordings) | ✅ | ✅ (background) | — |
 | Google Calendar on Today | not yet (see below) | ✅ | ✅ |
 | Time Tracker | time in apps on this computer (opt-in, not synced) + synced browsing history | ✅ tracks sites | view |

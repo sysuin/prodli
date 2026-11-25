@@ -1,15 +1,29 @@
 // Menu bar / window menu, tray icon, dock menu and the global Quick add shortcut.
 
-import { app, globalShortcut, Menu, nativeImage, shell, Tray } from "electron";
+import { app, globalShortcut, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from "electron";
+import { writeFileSync } from "node:fs";
 import { appMenuTemplate, dockMenuTemplate, QUICK_ADD_SHORTCUT, trayMenuTemplate, type MenuActions } from "../core/menu";
 import { isExternalLink } from "../core/links";
 import { IS_DEV, resourcePath } from "./config";
 import { sendCommand, showMainWindow, showQuickAdd } from "./windows";
 import { openFileDialog } from "./files";
 import { checkForUpdatesNow, restartToUpdate, updatesEnabled, updateState } from "./updates";
+import { menuBarState, setMenuBarRecording, timerActions, toggleKeepAwake } from "./menuBar";
 
 let tray: Tray | null = null;
 let recording = false;
+let trayDump = { title: "", tooltip: "ProdLi", menu: [] as string[] };
+
+/** Development builds only: the tray's text and menu, written to a file for tests/e2e.mjs. */
+function dumpTray(patch: Partial<typeof trayDump>): void {
+  if (!IS_DEV || !process.env.PRODLI_E2E_TRAY_FILE) return;
+  trayDump = { ...trayDump, ...patch };
+  try {
+    writeFileSync(process.env.PRODLI_E2E_TRAY_FILE, JSON.stringify(trayDump));
+  } catch {
+    // tests only
+  }
+}
 
 export const actions: MenuActions = {
   command: sendCommand,
@@ -18,6 +32,8 @@ export const actions: MenuActions = {
   openFile: () => void openFileDialog(),
   openWindow: () => void showMainWindow(),
   openExternal: (url) => void (isExternalLink(url) && shell.openExternal(url)),
+  timer: timerActions,
+  toggleKeepAwake,
   quit: () => app.quit(), // before-quit (index.ts) asks first if a recording is running
 };
 
@@ -46,10 +62,21 @@ export function refreshMenus(): void {
   refreshTray();
 }
 
-function refreshTray(): void {
+export function refreshTray(): void {
   if (!tray) return;
-  tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate(withUpdates(), { recording })));
-  tray.setToolTip(recording ? "ProdLi — recording" : "ProdLi");
+  const st = menuBarState();
+  const template = trayMenuTemplate(withUpdates(), { recording, ...st });
+  tray.setContextMenu(Menu.buildFromTemplate(template));
+  if (recording) tray.setToolTip("ProdLi — recording");
+  dumpTray({ menu: template.filter((i: MenuItemConstructorOptions) => i.type !== "separator").map((i) => String(i.label ?? "")) });
+}
+
+/** The menu bar timer's text next to the icon (Mac; empty hides it) and the tooltip (main/menuBar.ts). */
+export function setTrayTitle(title: string, tooltip: string): void {
+  if (!tray) return;
+  if (process.platform === "darwin") tray.setTitle(title, { fontType: "monospacedDigit" });
+  tray.setToolTip(recording ? "ProdLi — recording" : tooltip);
+  dumpTray({ title, tooltip });
 }
 
 export function setUpMenus(): void {
@@ -67,6 +94,7 @@ export function setUpMenus(): void {
 export function setRecording(on: boolean): void {
   recording = on;
   refreshTray();
+  setMenuBarRecording(on);
   if (process.platform === "darwin") app.dock?.setBadge(on ? "●" : "");
 }
 

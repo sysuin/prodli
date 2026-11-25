@@ -5,7 +5,7 @@
 // No calendar write access is needed: "Add to Google Calendar" opens Google's
 // own prefilled event page, where the user clicks Save.
 
-import type { CalendarEvent } from "./calendar";
+import type { CalendarEvent } from "./calendarEvent";
 import type { Todo } from "../types";
 
 export const DEFAULT_BLOCK_MIN = 30;
