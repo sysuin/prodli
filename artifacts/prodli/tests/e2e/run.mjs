@@ -2238,6 +2238,15 @@ const suites = {
     await sleep(800);
     check("Timebox: the agenda opens in Day view", await p.eval(`!!document.querySelector('[data-testid="day-view"]')`));
     const todos = async () => (await p.storage(["todos"])).todos;
+    // A drag saves a moment later (slower on CI): poll for the expected to-dos instead of reading once.
+    const todosWhen = async (ok) => {
+      let t = await todos();
+      for (let i = 0; i < 25 && !ok(t); i++) {
+        await sleep(100);
+        t = await todos();
+      }
+      return t;
+    };
     const PX = 1.1;
     // Scroll so a time is visible, then return a point on the grid for it.
     const pointAt = async (hhmm) => p.eval(`(() => { const [h, m] = "${hhmm}".split(":").map(Number); const grid = document.querySelector('[data-testid="day-grid"]'); grid.parentElement.scrollTop = Math.max(0, (h * 60 + m - 540) * ${PX} - 150); document.querySelector('[data-testid="day-view"]').scrollIntoView({ block: "start" }); const r = grid.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + (h * 60 + m - 540) * ${PX} }; })()`);
@@ -2253,19 +2262,19 @@ const suites = {
     // Drag "Write report" (60 min) from the tray so it's centred on 13:30 → 13:00–14:00.
     const target = await pointAt("13:30");
     await drag(await center('[data-testid="tray-task"]'), target);
-    let t = await todos();
+    let t = await todosWhen((x) => x.find((y) => y.id === "w1")?.block?.start === "13:00");
     check("Timebox: dragging a task onto the timeline blocks it there", t.find((x) => x.id === "w1")?.block?.start === "13:00", JSON.stringify(t.map((x) => x.block)));
     // Move "Email Sam" from 10:00 down an hour.
     const sam = '[data-testid="day-block"][data-id="w2"]';
     await pointAt("10:00");
     let from = await center(sam);
     await drag(from, { x: from.x, y: from.y + 60 * PX });
-    t = await todos();
+    t = await todosWhen((x) => x.find((y) => y.id === "w2")?.block?.start === "11:00");
     check("Timebox: dragging a block moves it (snapped to 15 minutes)", t.find((x) => x.id === "w2")?.block?.start === "11:00", JSON.stringify(t.find((x) => x.id === "w2")?.block));
     // Make it 30 minutes longer by dragging its bottom edge.
     from = await center(`${sam} [data-testid="block-resize"]`);
     await drag(from, { x: from.x, y: from.y + 30 * PX });
-    t = await todos();
+    t = await todosWhen((x) => x.find((y) => y.id === "w2")?.estimateMin === 60);
     check("Timebox: dragging the bottom edge changes the length", t.find((x) => x.id === "w2")?.estimateMin === 60, String(t.find((x) => x.id === "w2")?.estimateMin));
     for (const theme of ["light", "dark"]) {
       await p.eval(`document.documentElement.classList.toggle("dark", ${theme === "dark"})`);
@@ -2275,12 +2284,14 @@ const suites = {
       check(`A11y (${theme}): the Day view has no serious problems`, v.length === 0, v.join(", "));
     }
     await p.eval(`document.documentElement.classList.remove("dark")`);
+    // The red current-time line never takes a click or drag meant for the block under it.
+    check("Timebox: the current-time line lets clicks through to the blocks", await p.eval(`(() => { const l = document.querySelector('[data-testid="now-line"]'); return !l || getComputedStyle(l).pointerEvents === "none"; })()`));
     // Drag it back to the tray to unblock it.
     await pointAt("11:00");
     from = await center(sam);
     await drag(from, await center('[data-testid="day-tray"]'));
-    t = await todos();
-    check("Timebox: dragging a block to the tray unblocks it", !t.find((x) => x.id === "w2")?.block && (await p.eval(`document.querySelector('[data-testid="day-tray"]').innerText`)).includes("Email Sam"));
+    t = await todosWhen((x) => !x.find((y) => y.id === "w2")?.block);
+    check("Timebox: dragging a block to the tray unblocks it", !t.find((x) => x.id === "w2")?.block && (await p.eval(`document.querySelector('[data-testid="day-tray"]').innerText`)).includes("Email Sam"), JSON.stringify(t.find((x) => x.id === "w2")?.block));
     // Keyboard: move, lengthen and unblock "Write report"; Enter places "Email Sam".
     const key = async (sel, k, shift = false) => {
       await p.eval(`document.querySelector(${JSON.stringify(sel)}).focus()`);

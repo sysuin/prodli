@@ -194,7 +194,8 @@ export function DayView(props: {
               <span style={{ position: "absolute", left: -44, top: -7, width: 40, textAlign: "right", fontSize: 10, fontFamily: "Space Mono, monospace", opacity: 0.75 }}>{toHM(m % (24 * 60))}</span>
             </div>
           ))}
-          {nowMin > range.start && nowMin < range.end && <div aria-hidden data-testid="now-line" style={{ position: "absolute", top: (nowMin - range.start) * PX, left: 0, right: 0, borderTop: "2px solid #E53935", zIndex: 3 }} />}
+          {/* The current-time line sits above the blocks but lets clicks and drags through to them. */}
+          {nowMin > range.start && nowMin < range.end && <div aria-hidden data-testid="now-line" style={{ position: "absolute", top: (nowMin - range.start) * PX, left: 0, right: 0, borderTop: "2px solid #E53935", zIndex: 3, pointerEvents: "none" }} />}
           {laid.map(({ item, col, cols }) => {
             const top = (item.start - range.start) * PX;
             const h = Math.max(18, (item.end - item.start) * PX - 2);
