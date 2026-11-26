@@ -9,6 +9,7 @@ import { applyImport, type ImportOutcome } from "../lib/importers/apply";
 import { repeatLabel, timeLabel } from "../lib/recurrence";
 import { storageGet } from "../lib/storage";
 import { VOICE_TASKS_EVENT } from "../lib/voiceTasks";
+import { IMPORT_NOTES_EVENT } from "../lib/noteImporters/events";
 import type { Todo } from "../types";
 
 const btn = (primary = false, disabled = false): CSSProperties => ({
@@ -103,6 +104,20 @@ export function ImportTasksModal({ onClose, onDone }: { onClose: () => void; onD
           ))}
         </div>
         <div style={{ fontSize: 12, opacity: 0.8, marginTop: 12 }}>
+          Moving notes too?{" "}
+          <button
+            data-testid="import-notes-link"
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new CustomEvent(IMPORT_NOTES_EVENT));
+            }}
+            style={{ border: "none", background: "none", padding: 0, color: "inherit", textDecoration: "underline", cursor: "pointer", font: "inherit", fontWeight: 700 }}
+          >
+            Import from Notion, Evernote or Keep
+          </button>
+          .
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 6 }}>
           Have a list you can copy (Apple Reminders, Things, notes)?{" "}
           <button
             onClick={() => {

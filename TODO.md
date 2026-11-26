@@ -28,6 +28,7 @@ Full details: [docs/LAUNCH-CHECKLIST.md](docs/LAUNCH-CHECKLIST.md).
   - [ ] Sign in to the extension in Brave or Edge (app.prodli.com opens, Connect ProdLi, then sync works) — added 2026-11-25
   - [ ] Paste into a note from real Google Docs, Word and Notion (no black text in dark mode; Word lists stay lists) — added 2026-11-25
   - [ ] Desktop menu bar timer on a real Mac and Windows build (countdown, Start/Pause, keep-awake) — added 2026-11-25
+  - [ ] Import your real notes from Notion, Evernote or Google Keep (Notes → ⋯ → Import from Notion, Evernote, Keep…); check pictures, checklists and links between pages — added 2026-11-26
 - [ ] **Phone app (iOS + Android):** one-time setup in [docs/MOBILE.md](docs/MOBILE.md) → "One-time setup": Expo account, iOS + Android Google OAuth clients, Apple Developer ($99/yr) and Google Play ($25) accounts; then `eas build` and a TestFlight / internal-testing beta. Listing text, screenshots and privacy answers are ready in [docs/MOBILE-STORE.md](docs/MOBILE-STORE.md). Ask the lawyer about the phone-app additions in `docs/legal/REVIEW-NOTES.md` §9. (The production API has had phone sign-in since the 22–24 Nov deploys.)
 - [ ] **Desktop app (Mac + Windows):** production API with desktop sign-in is live (2026-11-21); next: Apple + Windows signing certificates and a download page — [docs/DESKTOP.md](docs/DESKTOP.md) → "Before shipping".
   - [ ] Your lawyer reviews [docs/legal/DESKTOP-ADDITIONS.md](docs/legal/DESKTOP-ADDITIONS.md) (privacy and terms wording for the desktop apps) before it goes on prodli.com.
@@ -131,7 +132,7 @@ Why and evidence for each item: [docs/research/2026-11-productivity-apps-feature
 
 ## Next ideas
 
-- [ ] **Import from other apps (first part is Feature plan item 8):** ~~"paste a list"~~ (covered by 🎙 Speak or paste tasks, 2026-11-24), then Todoist/TickTick/CSV files with a preview and Undo, then Google Tasks and Microsoft To Do sign-in; later notes (Notion, Evernote, Keep), meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
+- [ ] **Import from other apps (first part is Feature plan item 8):** ~~"paste a list"~~ (covered by 🎙 Speak or paste tasks, 2026-11-24), ~~Todoist/TickTick/CSV files with a preview and Undo~~ (2026-11-23), ~~notes (Notion, Evernote, Keep, Obsidian/Bear)~~ (*done 2026-11-26:* Notes → ⋯ → Import from Notion, Evernote, Keep…; pages, databases as tables, checklists, callouts, pictures, links between notes; preview, Undo, no duplicates; checked with sample exports, not yet with your real ones). Left: Google Tasks and Microsoft To Do sign-in, meeting transcripts (Otter, Granola) and habit history. Plan, difficulty and the full wish list: [docs/PLAN-IMPORT.md](docs/PLAN-IMPORT.md)
 - [x] **Upload Retry resumes:** *done 2026-11-24:* finished pieces are kept on the device while it runs; Retry sends only the rest and joins the transcript in order. retrying a failed uploaded-recording transcription starts from the beginning, so minutes already used for pieces sent before the failure count twice. Resume from the last finished piece instead.
 - [ ] **Editor, next round** (from the 2026-11-23 editor testing):
   - [x] Picture resizing and captions (done 2026-11-23: S/M/L/Full, drag the edge, caption) (pictures always fill the note width today).

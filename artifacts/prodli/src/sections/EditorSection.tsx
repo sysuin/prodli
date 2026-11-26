@@ -1,3 +1,4 @@
+import { IMPORT_NOTES_EVENT } from "../lib/noteImporters/events";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -951,6 +952,7 @@ export function EditorSection() {
                     { icon: "🔍", label: "Find and replace…", title: "Find and replace in this note (Ctrl/⌘+F)", run: () => openFind(true) },
                     { icon: "⧉", label: "Copy as Markdown", title: "Copy note as Markdown", run: () => void copyMarkdown() },
                     { icon: "⬆", label: "Import Markdown file…", title: "Import a Markdown file as a new note", run: () => importInputRef.current?.click() },
+                    { icon: "⇩", label: "Import from Notion, Evernote, Keep…", title: "Import notes from Notion, Evernote, Google Keep, Obsidian or Bear", run: () => window.dispatchEvent(new CustomEvent(IMPORT_NOTES_EVENT)) },
                     { icon: "⬇", label: "Export as Markdown (.md)", title: "Export this note as Markdown (.md)", run: exportMarkdown },
                     { icon: "🖨", label: "Print / save as PDF", title: "Print or save as PDF", run: printNote },
                     ...(reader.available ? [{ icon: "▶", label: "Listen (read aloud)", title: "Read this note aloud", run: listen }] : []),

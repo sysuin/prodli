@@ -105,6 +105,13 @@ export function markdownToSafeHtml(markdown: string): string {
   return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true }, FORBID_TAGS: ["style", "form", "button", "textarea", "select"] });
 }
 
+/** Another app's HTML (an import) → safe HTML, sanitized the same way. */
+export function sanitizeHtml(html: string): string {
+  if (!DOMPurify.isSupported) return `<p>${escapeHtml(html.replace(/<[^>]*>/g, " "))}</p>`;
+  configurePurify();
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, FORBID_TAGS: ["style", "form", "button", "textarea", "select"] });
+}
+
 // ── JSON ──────────────────────────────────────────────────────────────────────
 
 export type JsonParseResult =
