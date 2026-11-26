@@ -188,3 +188,15 @@ describe("extension sign-in through the web app", () => {
     expect((await redeem(app, { code, verifier: VERIFIER }, { Origin: EXTENSION_ORIGIN })).status).toBe(400); // used up
   });
 });
+
+describe("production config", () => {
+  it("lets the Edge Add-ons copy sign in and call the API", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { allowedOrigins, extensionIds } = await import("../src/app");
+    const text = readFileSync(`${process.cwd()}/wrangler.jsonc`, "utf8").replace(/^\s*\/\/.*$/gm, "");
+    const vars = (JSON.parse(text) as { env: { production: { vars: { EXTRA_EXTENSION_IDS?: string } } } }).env.production.vars;
+    const EDGE = "jdaokndpplfdpaaoaloihgmbelagadff";
+    expect(extensionIds(vars.EXTRA_EXTENSION_IDS)).toContain(EDGE);
+    expect(allowedOrigins("production", vars.EXTRA_EXTENSION_IDS)).toContain(`chrome-extension://${EDGE}`);
+  });
+});
