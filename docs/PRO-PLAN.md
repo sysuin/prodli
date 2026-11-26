@@ -99,6 +99,13 @@ The existing webhook endpoints already send every `subscription.*` event (includ
 
 **Buying and switching:** Settings → Plan & usage shows the three plans with a Monthly / Yearly switch. One click opens Dodo's one-page checkout (card and postcode, saved cards offered, no phone number) and comes straight back. Signed out, the button signs in first and then carries on to the checkout; prodli.com's pricing buttons link to `app.prodli.com/?plan=pro|plus&period=monthly|yearly`, which does the same. Subscribers switch with `POST /api/billing/change` (Dodo's change-plan): a higher plan, or monthly → yearly, starts now with the unused time credited (`prorated_immediately`); a lower plan starts at the next renewal. Apps from before Pro Plus see Pro Plus as `plan: "pro"`; the exact plan is `tier`.
 
+## Dodo products: brand and descriptions (2026-11-25)
+
+- All four live ProdLi products (Pro and Pro Plus, monthly and yearly) were moved from the JobScanner brand to the **ProdLi** brand in the Dodo dashboard. Before that, the checkout showed "JobScanner".
+- The Pro products' descriptions now say **500** Ask ProdLi questions a month (they said 1,000, the limit before 24 Nov).
+- Both Pro Plus products got descriptions: 900 AI meeting summaries, 400 briefs and weekly reviews, 1,200 Ask ProdLi questions and 10 GB of synced storage a month.
+- Product IDs didn't change. Moving a product between brands, or editing its description, needs nothing in the code or `wrangler.jsonc`.
+
 ## How it works
 
 - **Free trial (reverse trial):** new accounts get 14 days of Pro (`TRIAL_DAYS` var in `wrangler.jsonc`, staging and production; unset in dev and tests). `users.trial_ends_at` is set once when the account is created; `users.plan` stays `free`, and `toUser` in `src/accounts.ts` reports `plan: "pro"` with `trialEndsAt` while it runs, so limits and Pro features apply and checkout still works. Existing accounts never get one. The app shows "Pro trial: N days left" on the plan screen, a reminder on Today in the last 3 days (with what ProdLi did during the trial), and a monthly recap in the first days of each month (`lib/valueRecap.ts`, counted on the device).
