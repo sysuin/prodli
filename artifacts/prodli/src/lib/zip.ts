@@ -25,8 +25,8 @@ function dosTime(d: Date): { time: number; date: number } {
   };
 }
 
-/** Builds a .zip from text files. Names may include folders ("notes/a.md"). */
-export function zipFiles(files: { name: string; text: string }[], when = new Date()): Blob {
+/** Builds a .zip from files (text, or bytes). Names may include folders ("notes/a.md"). */
+export function zipFiles(files: { name: string; text?: string; bytes?: Uint8Array }[], when = new Date()): Blob {
   const enc = new TextEncoder();
   const { time, date } = dosTime(when);
   const parts: Uint8Array[] = [];
@@ -34,7 +34,7 @@ export function zipFiles(files: { name: string; text: string }[], when = new Dat
   let offset = 0;
   for (const f of files) {
     const name = enc.encode(f.name);
-    const data = enc.encode(f.text);
+    const data = f.bytes ?? enc.encode(f.text ?? "");
     const crc = crc32(data);
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);

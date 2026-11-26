@@ -33,6 +33,7 @@ export interface PaletteActions {
   dailyNote: () => void;
   voiceTasks: () => void;
   importTasks: () => void;
+  importNotes: () => void;
   toggleTheme: () => void;
   account: () => void;
   backup: () => void;
@@ -72,6 +73,7 @@ export function CommandPalette({ actions, onClose, isDark }: { actions: PaletteA
       { id: "quick-add", label: "Quick add a to-do or note", icon: "➕", keywords: "new create capture", run: actions.quickAdd },
       { id: "voice-tasks", label: "Speak or paste tasks", icon: "🎙", keywords: "voice dictate brain dump talk microphone tasks", run: actions.voiceTasks },
       { id: "import-tasks", label: "Import to-dos from other apps", icon: "⇩", keywords: "import todoist ticktick google tasks csv markdown switch move migrate", run: actions.importTasks },
+      { id: "import-notes", label: "Import notes from other apps", icon: "⇩", keywords: "import notion evernote keep obsidian bear markdown enex notes switch move migrate", run: actions.importNotes },
       { id: "daily-note", label: "Open today's daily note", icon: "📅", keywords: "journal daily note today log", run: actions.dailyNote },
       { id: "save-tabs", label: "Save open tabs and close them", icon: "🗂", keywords: "tabs session onetab window clear later", run: actions.saveTabs },
       // Writing help works on the text selected in Notes (the selection survives opening the palette).

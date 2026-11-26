@@ -21,6 +21,8 @@ import { VOICE_TASKS_EVENT } from "./lib/voiceTasks";
 import { VoiceTasksModal } from "./components/VoiceTasks";
 import { IMPORT_TASKS_EVENT } from "./lib/importers/core";
 import { undoImport, type ImportOutcome } from "./lib/importers/apply";
+import { IMPORT_NOTES_EVENT } from "./lib/noteImporters/events";
+import { undoNotesImport, type NotesImportOutcome } from "./lib/noteImporters/undo";
 import { InPersonChip } from "./components/InPersonChip";
 import { INBOX_KEY, OPEN_INBOX_KEY, type InboxAnswer } from "./lib/askPrompts";
 import type { ChatTurn } from "./lib/ask";
@@ -88,6 +90,7 @@ function rememberSectionHint(s: Section) {
 // Import from other apps: loaded only when opened.
 const WebDictationLazy = lazy(() => import("./components/WebDictation").then((m) => ({ default: m.WebDictation })));
 const ImportTasksModal = lazy(() => import("./components/ImportTasks").then((m) => ({ default: m.ImportTasksModal })));
+const ImportNotesModal = lazy(() => import("./components/ImportNotes").then((m) => ({ default: m.ImportNotesModal })));
 const TodaySection = lazy(() => importers.today().then(m => ({ default: m.TodaySection })));
 const ReviewSection = lazy(() => importers.review().then(m => ({ default: m.ReviewSection })));
 const EditorSection = lazy(() => importers.editor().then(m => ({ default: m.EditorSection })));
@@ -193,6 +196,30 @@ export default function App() {
               run: () => void undoImport(out.undo).then(() => flash("Import undone"), () => flash("Couldn't undo. Try again.")),
             }
           : undefined,
+      );
+    },
+    [flash],
+  );
+  const [importNotesOpen, setImportNotesOpen] = useState(false);
+  const closeImportNotes = useCallback(() => setImportNotesOpen(false), []);
+  useEffect(() => {
+    const open = () => {
+      setSettingsTab(null);
+      setImportNotesOpen(true);
+    };
+    window.addEventListener(IMPORT_NOTES_EVENT, open);
+    return () => window.removeEventListener(IMPORT_NOTES_EVENT, open);
+  }, []);
+  const importedNotes = useCallback(
+    (out: NotesImportOutcome) => {
+      const parts = [`Imported ${out.added} note${out.added === 1 ? "" : "s"}`];
+      if (out.skipped) parts.push(`${out.skipped} already here`);
+      if (out.tooLarge) parts.push(`${out.tooLarge} too large`);
+      if (out.picturesDropped) parts.push(`${out.picturesDropped} picture${out.picturesDropped === 1 ? "" : "s"} left out`);
+      if (out.added) setSection("editor");
+      flash(
+        parts.join(" · "),
+        out.added ? { label: "Undo", run: () => void undoNotesImport(out.undo).then(() => flash("Import undone"), () => flash("Couldn't undo. Try again.")) } : undefined,
       );
     },
     [flash],
@@ -486,6 +513,7 @@ export default function App() {
       setVoiceOpen(true);
     },
     importTasks: () => setImportOpen(true),
+    importNotes: () => setImportNotesOpen(true),
     dailyNote: () => void requestDailyNote().then(() => handleSectionChange("editor")),
     saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
@@ -651,6 +679,11 @@ export default function App() {
       {importOpen && (
         <Suspense fallback={null}>
           <ImportTasksModal onClose={closeImport} onDone={imported} />
+        </Suspense>
+      )}
+      {importNotesOpen && (
+        <Suspense fallback={null}>
+          <ImportNotesModal onClose={closeImportNotes} onDone={importedNotes} />
         </Suspense>
       )}
       {section !== "meetings" && <InPersonChip onOpen={() => void handleSectionChange("meetings")} />}

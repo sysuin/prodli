@@ -1,6 +1,10 @@
 # Plan: importing from other apps
 
-**Status:** parked for later (2026-11-23). Listed in [TODO.md](../TODO.md) → Next ideas.
+**Status:** steps 1, 2, 4 and 5 of the suggested order are built (to-dos 2026-11-23; notes and meeting transcripts 2026-11-26); 3 (sign-in imports) is open. Listed in [TODO.md](../TODO.md) → Next ideas.
+
+**Notes import (built 2026-11-26):** Notes → ⋯ → Import from Notion, Evernote, Keep…, or Settings → Backup & data, or ⌘K "import notes". `src/lib/noteImporters/` reads Notion's Markdown & CSV or HTML export (.zip, also .zip inside .zip; pages, subpages, databases as tables, callouts, pictures), Evernote .enex (checklists old and new, pictures matched by MD5, code blocks, tags), Google Keep Takeout (lists, pinned, labels, pictures; the bin left out, archived optional) and Markdown folders (Obsidian wiki links and embeds, Bear, front-matter tags). Links between notes become ProdLi note links; pictures are shrunk to WebP within the note limits; tags become a "Tags:" line; HTML is sanitized with DOMPurify. Preview, Undo, and re-importing skips notes already here (`Note.importedFrom`). Tests: `tests/unit/noteImporters.test.ts`, e2e suite `noteImport`.
+
+**Meeting transcripts (built 2026-11-26):** Meetings → ⬆ Upload recording (or drop the file) also takes a transcript: WebVTT/SRT/SBV captions (Teams and Meet `<v Name>`, Zoom `Name: words`), timed text (Otter `Name  0:05`, Fireflies `Name - 00:05`, `[00:05] Name: words`) and untimed `Name: words` (Granola's Me/Them) or paragraphs, with times estimated from the words. It becomes a meeting (`transcriptSource: "file"`, no audio) and gets the usual AI notes when signed in; no transcription minutes. `src/recorder/transcriptFile.ts`; tests `tests/unit/transcriptFile.test.ts` and the e2e suite `upload`.
 
 Everything here runs in the browser: no server work, no cost, and no app review
 (except Google's free review if Google Tasks is done through sign-in).

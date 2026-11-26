@@ -17,6 +17,8 @@ export interface Note {
   cover?: string;
   /** The web page this note is about (page summaries and saved highlights). */
   sourceUrl?: string;
+  /** Where an imported note came from (lib/noteImporters), so importing again skips it. */
+  importedFrom?: { app: string; id: string };
 }
 
 export interface Subtask {

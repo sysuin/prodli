@@ -11,6 +11,7 @@ import http from "node:http";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Browser, EXT, FIXTURES, sleep, waitForDownload } from "./cdp.mjs";
+import { writeNoteFixtures } from "./noteFixtures.mjs";
 
 const only = process.argv[2]; // optional suite filter, e.g. "editor" or "files,tracker"
 
@@ -2702,8 +2703,8 @@ const suites = {
     const leftover = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? null)`);
     check("Upload: Retry sends only the missing pieces and joins the transcript in order", !retrySent.includes(firstSent[0]) && retrySent.length >= 1 && resumed?.transcript[0] === "Speaker: First part." && resumed.transcript.slice(1).every((t) => t === "Speaker: Second part.") && leftover === null, JSON.stringify({ retrySent, firstSent, transcript: resumed?.transcript, leftover }));
 
-    // Not audio: the panel explains instead of uploading.
-    await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
+    // Neither audio nor a transcript: the panel explains instead of uploading.
+    await p.setFile('[data-testid="upload-recording-input"]', "data.json");
     await sleep(500);
     check("Upload: a file that isn't audio is explained, not uploaded", /isn't an audio or video file/.test(await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`)) && !(await p.eval(`!!document.querySelector('[data-testid="upload-start"]')`)));
     await p.click("Close");
@@ -2733,6 +2734,24 @@ const suites = {
       if (cut?.status === "ready") break;
     }
     check("Upload: one cut short by a closed page offers Retry", cut?.status === "ready" && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
+
+    // A transcript file (Teams captions) becomes a meeting right away: no audio, no transcription.
+    await p.eval(`(() => { globalThis.__tsent = 0; globalThis.__prodliTranscribeStub = async () => { __tsent++; return { text: "x", segments: [], language: "en" }; }; return true; })()`);
+    await p.setFile('[data-testid="upload-recording-input"]', "Budget review.vtt");
+    await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+    const tPanel = await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`);
+    check("Upload: a transcript file opens the import panel with its lines, length and speakers", /import transcript/i.test(tPanel) && /3 lines · 1 min · Jane Doe, Sam Lee/.test(tPanel) && (await p.eval(`document.querySelector('[data-testid="upload-title"]').value`)) === "Budget review", tPanel);
+    await p.shot("upload-transcript-panel");
+    await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    const imported = await waitReady("Budget review");
+    check(
+      "Upload: the transcript becomes a meeting without audio or transcription",
+      imported?.status === "ready" && imported.hasAudio === false && imported.source === "file" && imported.transcript.length === 3 && imported.transcript[1] === "Sam Lee: We agreed to cut travel by ten percent." && imported.durationSec === 74 && (await p.eval("__tsent")) === 0,
+      JSON.stringify(imported),
+    );
+    await sleep(500);
+    await p.shot("upload-transcript-meeting");
+    check("Upload: the imported meeting shows its transcript", (await p.text()).includes("Sam will send the new numbers on Monday."));
     await p.eval(`delete globalThis.__prodliTranscribeStub`);
     await p.close();
   },
@@ -3517,6 +3536,131 @@ const suites = {
     ({ todos = [], lists = [] } = await p.storage(["todos", "lists"]));
     check("Import: Undo removes exactly what was added, including the new list", todos.length === 1 && todos[0].id === "keep" && !lists.some((l) => l.name === "E2E Errands"), JSON.stringify({ todos: todos.map((t) => t.title), lists }));
     check("Import: the To-Dos view updates after Undo", !(await p.text()).includes("Buy oat milk"));
+    await p.close();
+  },
+
+  async noteImport(b, check) {
+    // Import notes: Notion (a .zip inside a .zip), Evernote (.enex), Google Keep (Takeout) → preview → import → Undo.
+    const dir = writeNoteFixtures();
+    const p = await b.openPage();
+    await p.goto("editor");
+    const mine = { id: "mine", title: "My own note", content: "<p>Mine</p>", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await p.eval(`chrome.storage.local.set({ notes: [${JSON.stringify(mine)}] })`);
+    await sleep(400);
+    const clickTestId = (id) => p.eval(`(() => { const el = document.querySelector('[data-testid="${id}"]'); if (!el) throw new Error("No ${id}"); el.click(); return true; })()`);
+    const modalText = () => p.eval(`document.querySelector('[data-testid="import-notes"]')?.innerText ?? ""`);
+    const pick = async (file) => {
+      const { root } = await p.send("DOM.getDocument", { depth: -1 });
+      const { nodeId } = await p.send("DOM.querySelector", { nodeId: root.nodeId, selector: '[data-testid="import-notes-file"]' });
+      await p.send("DOM.setFileInputFiles", { nodeId, files: [path.join(dir, file)] });
+      for (let i = 0; i < 30 && !(await p.eval(`!!document.querySelector('[data-testid="import-notes-summary"], [data-testid="import-notes"] [role="alert"]')`)); i++) await sleep(200);
+    };
+    const waitNotes = async (ok) => {
+      let notes = [];
+      for (let i = 0; i < 30; i++) {
+        ({ notes = [] } = await p.storage(["notes"]));
+        if (ok(notes)) break;
+        await sleep(200);
+      }
+      return notes;
+    };
+
+    // Opens from Settings → Backup & data, and from ⌘K.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-settings", { detail: { tab: "data" } }))`);
+    await sleep(400);
+    await clickTestId("import-notes-button");
+    await sleep(500);
+    check("Import notes: opens from Settings → Backup & data", await p.eval(`!!document.querySelector('[data-testid="import-notes"]')`));
+    await p.key("Escape");
+    await sleep(200);
+    await p.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))`);
+    await sleep(300);
+    await p.type("import notes");
+    await sleep(200);
+    await p.key("Enter");
+    await sleep(500);
+    check("Import notes: opens from the ⌘K palette", /where are your notes/i.test(await modalText()));
+
+    // Notion.
+    await clickTestId("import-notes-app-notion");
+    await sleep(200);
+    await pick("Notion-Export.zip");
+    const summary = await p.eval(`document.querySelector('[data-testid="import-notes-summary"]')?.innerText ?? ""`);
+    check("Import notes: Notion preview counts pages and the database", /^3 notes$/i.test(summary.trim()), summary + " | " + (await modalText()).slice(0, 300));
+    check("Import notes: the preview names the notes and what won't carry over", /E2E Home/.test(await modalText()) && /won.t carry over/i.test(await modalText()));
+    await p.shot("import-notes-preview");
+    await clickTestId("import-notes-confirm");
+    let notes = await waitNotes((n) => n.length === 4);
+    const home = notes.find((n) => n.title === "E2E Home");
+    const plan = notes.find((n) => n.title === "Project plan");
+    const reading = notes.find((n) => n.title === "Reading list");
+    check("Import notes: adds the pages and the database on top", notes.length === 4 && notes[3]?.id === "mine" && !!home && !!plan && !!reading, JSON.stringify(notes.map((n) => n.title)));
+    check("Import notes: links between pages point at the new notes", home?.content.includes(`data-note-id="${plan?.id}"`) && home?.content.includes(`data-note-id="${reading?.id}"`) && plan?.content.includes(`data-note-id="${home?.id}"`), home?.content);
+    check("Import notes: the picture is in the note, made smaller", /<img[^>]+src="data:image\/webp;base64,/.test(home?.content ?? ""), (home?.content ?? "").slice(0, 300));
+    check("Import notes: the callout and checklist come through", /data-type="callout"[^>]*/.test(home?.content ?? "") && home?.content.includes('data-emoji="🚀"') && home?.content.includes('data-checked="true"'), home?.content);
+    check("Import notes: nothing unsafe gets in", !/<script|onerror|javascript:/i.test(home?.content ?? "") && !(await p.eval("window.__pwned")), home?.content);
+    check("Import notes: the database is a table with every row", (reading?.content.match(/<tr>/g) ?? []).length === 3, reading?.content);
+    check("Import notes: the toast offers Undo", /imported 3 notes/i.test(await p.eval(`document.querySelector('[data-testid="app-toast"]')?.innerText ?? ""`)));
+    await clickTestId("toast-action");
+    notes = await waitNotes((n) => n.length === 1);
+    check("Import notes: Undo removes exactly the imported notes", notes.length === 1 && notes[0].id === "mine", JSON.stringify(notes.map((n) => n.title)));
+
+    // Import it again and open the note: links, picture and callout show in the editor.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-import-notes"))`);
+    await sleep(400);
+    await clickTestId("import-notes-app-notion");
+    await sleep(200);
+    await pick("Notion-Export.zip");
+    await clickTestId("import-notes-confirm");
+    notes = await waitNotes((n) => n.length === 4);
+    const home2 = notes.find((n) => n.title === "E2E Home");
+    await p.eval(`chrome.storage.local.set({ activeNoteId: ${JSON.stringify(home2?.id)} })`);
+    await p.goto("editor");
+    let shown = {};
+    for (let i = 0; i < 15; i++) {
+      shown = await p.eval(`(() => { const ed = document.querySelector(".ProseMirror"); return { links: ed?.querySelectorAll('[data-type="note-link"]').length ?? 0, img: !!ed?.querySelector("img[src^='data:image']"), callout: !!ed?.querySelector('[data-type="callout"]'), tasks: ed?.querySelectorAll('ul[data-type="taskList"] > li').length ?? 0 }; })()`);
+      if (shown.links) break;
+      await sleep(200);
+    }
+    check("Import notes: the note opens in the editor with its links, picture, callout and checklist", shown.links === 2 && shown.img && shown.callout && shown.tasks === 2, JSON.stringify(shown));
+    await p.shot("import-notes-opened");
+
+    // Importing the same export again adds nothing.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-import-notes"))`);
+    await sleep(400);
+    await clickTestId("import-notes-app-notion");
+    await sleep(200);
+    await pick("Notion-Export.zip");
+    check("Import notes: re-importing skips notes already here", /imported before/i.test(await modalText()) && (await p.eval(`document.querySelector('[data-testid="import-notes-confirm"]').disabled`)));
+    await p.key("Escape");
+    await sleep(200);
+
+    // Evernote.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-import-notes"))`);
+    await sleep(400);
+    await clickTestId("import-notes-app-evernote");
+    await sleep(200);
+    await pick("E2E Notebook.enex");
+    await clickTestId("import-notes-confirm");
+    notes = await waitNotes((n) => n.some((x) => x.title === "E2E Packing list"));
+    const packing = notes.find((n) => n.title === "E2E Packing list");
+    check("Import notes: Evernote checklists, picture and tags come through", /data-checked="true"[^>]*><p>Passport/.test(packing?.content ?? "") && /<img[^>]+src="data:image\/webp/.test(packing?.content ?? "") && packing?.content.includes("Tags: travel"), packing?.content);
+
+    // Google Keep: archived notes can be left out; the bin is.
+    await p.eval(`window.dispatchEvent(new CustomEvent("prodli-import-notes"))`);
+    await sleep(400);
+    await clickTestId("import-notes-app-keep");
+    await sleep(200);
+    await pick("takeout-keep.zip");
+    check("Import notes: Keep preview mentions the bin and archived notes", /in Keep's bin/i.test(await modalText()) && /1 archived/i.test(await modalText()), await modalText());
+    await clickTestId("import-notes-archived");
+    await sleep(200);
+    check("Import notes: unticking archived leaves them out", /import 1 note$/i.test((await p.eval(`document.querySelector('[data-testid="import-notes-confirm"]').innerText`)).trim()));
+    await clickTestId("import-notes-confirm");
+    notes = await waitNotes((n) => n.some((x) => x.title === "E2E Groceries"));
+    const groceries = notes.find((n) => n.title === "E2E Groceries");
+    check("Import notes: Keep list, pin, label and picture come through", groceries?.pinned === true && /data-checked="true"[^>]*><p>Eggs/.test(groceries?.content ?? "") && groceries?.content.includes("Tags: Home") && /<img[^>]+src="data:image\/webp/.test(groceries?.content ?? ""), groceries?.content);
+    check("Import notes: archived and binned Keep notes stay out", !notes.some((n) => n.title === "E2E Old idea" || n.title === "E2E Binned"));
     await p.close();
   },
 };
