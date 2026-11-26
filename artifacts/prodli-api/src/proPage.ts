@@ -30,7 +30,15 @@ export function proPageContent(from: ProPageFrom, status: string | null, plan: "
     return { ok: false, title: "The payment didn't go through", body: ["You haven't been charged.", "Close this tab and try again from ProdLi: Settings → Plan & usage."] };
   }
   if (PENDING.has(s)) {
-    return { ok: true, title: "Your payment is processing", body: [`${name} switches on as soon as Dodo Payments confirms it, usually within a minute, on every device you're signed in on.`, "You can close this tab and go back to ProdLi."] };
+    // Dodo also returns here with "pending" after a declined card, so this fits both outcomes.
+    return {
+      ok: true,
+      title: "Checking your payment",
+      body: [
+        `If the payment goes through, ${name} switches on within a minute on every device you're signed in on.`,
+        "If your card was declined, you haven't been charged. Go back to ProdLi (Settings → Plan & usage) to try again or use another card.",
+      ],
+    };
   }
   return {
     ok: true,
