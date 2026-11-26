@@ -56,6 +56,8 @@
         "ENV": "staging",
         // New accounts get 14 days of Pro (src/accounts.ts trialDays).
         "TRIAL_DAYS": "14",
+        // The extension's other store copies (src/app.ts extensionIds): Microsoft Edge Add-ons.
+        "EXTRA_EXTENSION_IDS": "jdaokndpplfdpaaoaloihgmbelagadff",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo test mode (test cards, no real money): ProdLi brand → products (pdt_…).
@@ -90,6 +92,8 @@
         "ENV": "production",
         // New accounts get 14 days of Pro (src/accounts.ts trialDays).
         "TRIAL_DAYS": "14",
+        // The extension's other store copies (src/app.ts extensionIds): Microsoft Edge Add-ons.
+        "EXTRA_EXTENSION_IDS": "jdaokndpplfdpaaoaloihgmbelagadff",
         "GOOGLE_EXTENSION_CLIENT_ID": "1063523043715-buer16fjveuaod8kefjspm2vlq4idpdh.apps.googleusercontent.com",
         "GOOGLE_WEB_CLIENT_ID": "1063523043715-kr5ff8rtrh9br7l9hin7efoo50ajo536.apps.googleusercontent.com",
         // Dodo live mode. Empty = Pro not on sale yet.
