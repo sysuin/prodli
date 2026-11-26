@@ -1,9 +1,12 @@
 // Meetings → "⬆ Upload recording": the header button (and dropping a file on
 // Meetings), the panel that asks for a title and date, and the progress / Retry
-// on an uploaded meeting. Logic: recorder/upload.ts.
+// on an uploaded meeting. A transcript file (.vtt, .srt, Otter/Granola text)
+// gets its own panel and no transcription. Logic: recorder/upload.ts,
+// recorder/transcriptFile.ts.
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
-import { createUpload, onUploadChange, probeFile, processUpload, SIGN_IN_TO_TRANSCRIBE_UPLOAD, stopUpload, uploadJob, type ProbedFile } from "../../recorder/upload";
+import { createTranscriptMeeting, createUpload, onUploadChange, probeFile, processUpload, SIGN_IN_TO_TRANSCRIBE_UPLOAD, stopUpload, uploadJob, type ProbedFile } from "../../recorder/upload";
+import { isTranscriptFile, MAX_TRANSCRIPT_BYTES, parseTranscript, TRANSCRIPT_ACCEPT, type ParsedTranscript } from "../../recorder/transcriptFile";
 import { defaultUploadDate, defaultUploadTitle, formatBytes, fromDateTimeLocal, isRecordingFile, toDateTimeLocal, UPLOAD_ACCEPT } from "../../recorder/uploadFile";
 import { accountsEnabled } from "../../lib/prodliAccount";
 import type { Meeting } from "../../recorder/types";
@@ -37,14 +40,14 @@ export function UploadButton({ onFile }: { onFile: (file: File) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button data-testid="upload-recording" style={btn()} title="Turn an audio or video file (voice memo, recorder export, Zoom recording…) into meeting notes" onClick={() => input.current?.click()}>
+      <button data-testid="upload-recording" style={btn()} title="Turn an audio or video file (voice memo, recorder export, Zoom recording…) or a transcript (.vtt, .srt, Otter or Granola text) into meeting notes" onClick={() => input.current?.click()}>
         ⬆ Upload recording
       </button>
       <input
         ref={input}
         data-testid="upload-recording-input"
         type="file"
-        accept={UPLOAD_ACCEPT}
+        accept={`${UPLOAD_ACCEPT},${TRANSCRIPT_ACCEPT}`}
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -87,8 +90,8 @@ export function useUploadDrop(onFile: (file: File) => void, flash: (msg: string)
         setDragging(false);
         const f = e.dataTransfer.files[0];
         if (!f) return;
-        if (isRecordingFile(f)) onFile(f);
-        else flash("Drop an audio or video file to upload it");
+        if (isRecordingFile(f) || isTranscriptFile(f)) onFile(f);
+        else flash("Drop an audio, video or transcript file to upload it");
       },
     },
   };
@@ -97,13 +100,110 @@ export function useUploadDrop(onFile: (file: File) => void, flash: (msg: string)
 export function DropOverlay() {
   return (
     <div data-testid="upload-drop" style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-      <div style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: ACCENT, color: "#000", padding: "18px 24px", fontWeight: 900, fontSize: 16 }}>⬆ Drop to upload the recording</div>
+      <div style={{ border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)", background: ACCENT, color: "#000", padding: "18px 24px", fontWeight: 900, fontSize: 16 }}>⬆ Drop to upload the recording or transcript</div>
     </div>
   );
 }
 
 /** Title and date for a picked file, then Upload. */
-export function UploadPanel({ file, signedIn, onClose, onCreated }: { file: File; signedIn: boolean; onClose: () => void; onCreated: (meetingId: string) => void }) {
+export function UploadPanel(props: { file: File; signedIn: boolean; onClose: () => void; onCreated: (meetingId: string) => void }) {
+  return isTranscriptFile(props.file) && !isRecordingFile(props.file) ? <TranscriptPanel {...props} /> : <RecordingPanel {...props} />;
+}
+
+const SPEAKERS_SHOWN = 4;
+
+/** A transcript file: what's in it, a title and date, then Import. */
+function TranscriptPanel({ file, signedIn, onClose, onCreated }: { file: File; signedIn: boolean; onClose: () => void; onCreated: (meetingId: string) => void }) {
+  const [parsed, setParsed] = useState<ParsedTranscript | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [title, setTitle] = useState(() => defaultUploadTitle(file.name));
+  const [when, setWhen] = useState(() => toDateTimeLocal(defaultUploadDate(file.lastModified)));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setParsed(null);
+    setProblem(null);
+    setTitle(defaultUploadTitle(file.name));
+    setWhen(toDateTimeLocal(defaultUploadDate(file.lastModified)));
+    if (file.size > MAX_TRANSCRIPT_BYTES) {
+      setProblem("This transcript is too large (over 5 MB).");
+      return;
+    }
+    void file.text().then(
+      (text) => {
+        if (cancelled) return;
+        const p = parseTranscript(text);
+        if (!p.entries.length) setProblem("There's no transcript in this file.");
+        else setParsed(p);
+      },
+      () => !cancelled && setProblem("ProdLi can't read this file."),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
+
+  const date = fromDateTimeLocal(when);
+  const ready = !!parsed && !!date && !saving;
+  const save = async () => {
+    if (!parsed || !date) return;
+    setSaving(true);
+    try {
+      onCreated(await createTranscriptMeeting(parsed.entries, { title, date, durationSec: parsed.durationSec, fileName: file.name }));
+    } catch {
+      setProblem("The transcript couldn't be saved. Try again.");
+      setSaving(false);
+    }
+  };
+  const speakers = parsed?.speakers ?? [];
+
+  return (
+    <div data-testid="upload-panel" style={{ borderBottom: "var(--nb-border)", background: "hsl(var(--muted))", padding: "12px 24px", display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 13 }}>
+        <strong style={{ fontSize: 14 }}>⬆ Import transcript</strong>
+        <span data-testid="transcript-info" style={{ fontWeight: 600, opacity: 0.8, overflowWrap: "anywhere" }}>
+          {file.name}
+          {parsed
+            ? ` · ${parsed.entries.length} ${parsed.entries.length === 1 ? "line" : "lines"}${parsed.durationSec && parsed.format !== "text" ? ` · ${formatLength(parsed.durationSec)}` : ""}${speakers.length ? ` · ${speakers.slice(0, SPEAKERS_SHOWN).join(", ")}${speakers.length > SPEAKERS_SHOWN ? ` +${speakers.length - SPEAKERS_SHOWN}` : ""}` : ""}`
+            : problem
+              ? ""
+              : " · reading…"}
+        </span>
+      </div>
+      {problem ? (
+        <div role="alert" style={{ fontSize: 13, fontWeight: 700 }}>{problem}</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <label style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 700, flex: "1 1 240px" }}>
+              Title
+              <input data-testid="upload-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} style={field} />
+            </label>
+            <label style={{ display: "grid", gap: 4, fontSize: 12, fontWeight: 700 }}>
+              Held on
+              <input data-testid="upload-date" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={field} />
+            </label>
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.85 }}>
+            {signedIn ? "ProdLi writes the notes and action items from it, like a recorded call. No transcription minutes are used." : accountsEnabled() ? "The transcript is saved now; sign in (👤, free) to get AI notes from it." : "The transcript is saved as a meeting."}
+            {parsed?.format === "text" ? " This file has no times, so the times shown are estimates." : ""}
+          </div>
+        </>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        {!problem && (
+          <button data-testid="upload-start" style={btn(true, !ready)} disabled={!ready} onClick={() => void save()}>
+            {saving ? "Saving…" : signedIn ? "Import & write notes" : "Import"}
+          </button>
+        )}
+        <button style={btn()} onClick={onClose}>{problem ? "Close" : "Cancel"}</button>
+      </div>
+    </div>
+  );
+}
+
+function RecordingPanel({ file, signedIn, onClose, onCreated }: { file: File; signedIn: boolean; onClose: () => void; onCreated: (meetingId: string) => void }) {
   const [probe, setProbe] = useState<ProbedFile | null>(null);
   const [title, setTitle] = useState(() => defaultUploadTitle(file.name));
   const [when, setWhen] = useState(() => toDateTimeLocal(defaultUploadDate(file.lastModified)));

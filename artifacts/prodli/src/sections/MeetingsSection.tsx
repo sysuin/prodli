@@ -593,7 +593,7 @@ function MeetingDetail({
       {meeting.notice && <Banner tone="warn">{meeting.notice}</Banner>}
       {meeting.error && <Banner tone="error">{meeting.error}</Banner>}
       {meeting.platform === "upload" && <UploadStatus meeting={meeting} signedIn={hasKey} flash={flash} />}
-      {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">{NO_AI_HINT} to turn this transcript into notes and action items.</Banner>}
+      {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">{NO_AI_HINT}</Banner>}
 
       {audioUrl && (
         <Section title={`Audio${meeting.micIncluded ? "" : " (other participants only)"}`}>

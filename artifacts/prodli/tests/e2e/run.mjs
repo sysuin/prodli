@@ -2703,8 +2703,8 @@ const suites = {
     const leftover = await p.eval(`chrome.storage.local.get(${JSON.stringify(`uploadPieces_${half?.id}`)}).then((r) => r[${JSON.stringify(`uploadPieces_${half?.id}`)}] ?? null)`);
     check("Upload: Retry sends only the missing pieces and joins the transcript in order", !retrySent.includes(firstSent[0]) && retrySent.length >= 1 && resumed?.transcript[0] === "Speaker: First part." && resumed.transcript.slice(1).every((t) => t === "Speaker: Second part.") && leftover === null, JSON.stringify({ retrySent, firstSent, transcript: resumed?.transcript, leftover }));
 
-    // Not audio: the panel explains instead of uploading.
-    await p.setFile('[data-testid="upload-recording-input"]', "notes.txt");
+    // Neither audio nor a transcript: the panel explains instead of uploading.
+    await p.setFile('[data-testid="upload-recording-input"]', "data.json");
     await sleep(500);
     check("Upload: a file that isn't audio is explained, not uploaded", /isn't an audio or video file/.test(await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`)) && !(await p.eval(`!!document.querySelector('[data-testid="upload-start"]')`)));
     await p.click("Close");
@@ -2734,6 +2734,24 @@ const suites = {
       if (cut?.status === "ready") break;
     }
     check("Upload: one cut short by a closed page offers Retry", cut?.status === "ready" && /page closed/.test(cut.notice ?? ""), JSON.stringify(cut));
+
+    // A transcript file (Teams captions) becomes a meeting right away: no audio, no transcription.
+    await p.eval(`(() => { globalThis.__tsent = 0; globalThis.__prodliTranscribeStub = async () => { __tsent++; return { text: "x", segments: [], language: "en" }; }; return true; })()`);
+    await p.setFile('[data-testid="upload-recording-input"]', "Budget review.vtt");
+    await waitFor(`!!document.querySelector('[data-testid="upload-start"]:not([disabled])')`);
+    const tPanel = await p.eval(`document.querySelector('[data-testid="upload-panel"]')?.innerText ?? ""`);
+    check("Upload: a transcript file opens the import panel with its lines, length and speakers", /import transcript/i.test(tPanel) && /3 lines · 1 min · Jane Doe, Sam Lee/.test(tPanel) && (await p.eval(`document.querySelector('[data-testid="upload-title"]').value`)) === "Budget review", tPanel);
+    await p.shot("upload-transcript-panel");
+    await p.eval(`document.querySelector('[data-testid="upload-start"]').click()`);
+    const imported = await waitReady("Budget review");
+    check(
+      "Upload: the transcript becomes a meeting without audio or transcription",
+      imported?.status === "ready" && imported.hasAudio === false && imported.source === "file" && imported.transcript.length === 3 && imported.transcript[1] === "Sam Lee: We agreed to cut travel by ten percent." && imported.durationSec === 74 && (await p.eval("__tsent")) === 0,
+      JSON.stringify(imported),
+    );
+    await sleep(500);
+    await p.shot("upload-transcript-meeting");
+    check("Upload: the imported meeting shows its transcript", (await p.text()).includes("Sam will send the new numbers on Monday."));
     await p.eval(`delete globalThis.__prodliTranscribeStub`);
     await p.close();
   },

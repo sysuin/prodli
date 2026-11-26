@@ -91,8 +91,8 @@ export interface Meeting {
   share?: { id: string; url: string; expiresAt: number | null };
   /** On-device transcript (used when Meet captions weren't available) */
   speechTranscript?: TranscriptEntry[];
-  /** Where `transcript` came from. Missing means Meet's captions (with on-device gap filling). */
-  transcriptSource?: "captions" | "audio";
+  /** Where `transcript` came from. Missing means Meet's captions (with on-device gap filling). "file": imported from a transcript file (⬆ Upload recording). */
+  transcriptSource?: "captions" | "audio" | "file";
   /** The captions transcript, kept when `transcript` was replaced by "Transcribe audio with AI". */
   captionTranscript?: TranscriptEntry[];
   /** Languages Whisper heard, most-spoken first (e.g. ["en", "tl"]). */

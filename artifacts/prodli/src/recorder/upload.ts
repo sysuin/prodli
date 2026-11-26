@@ -16,7 +16,7 @@ import { readMp4Audio, readWavInfo, sniffFormat, type MediaFormat, type ReadAt }
 import { uploadMimeType, uploadProblem } from "./uploadFile";
 import { accountsEnabled, getAiUsage } from "../lib/prodliAccount";
 import { storageGet, storageRemove, storageSet } from "../lib/storage";
-import { AUTO_SUMMARIZE_STORAGE_KEY, type Meeting } from "./types";
+import { AUTO_SUMMARIZE_STORAGE_KEY, type Meeting, type TranscriptEntry } from "./types";
 
 export const SIGN_IN_TO_TRANSCRIBE_UPLOAD = "Saved as audio. Transcribing it needs a free ProdLi account: sign in (👤), then press Transcribe below.";
 const NOT_AVAILABLE = "Saved as audio. Audio transcription isn't available in this copy of ProdLi.";
@@ -208,6 +208,46 @@ export async function createUpload(file: File, { title, date, durationSec }: { t
   };
   await putMeeting(meeting);
   if (canTranscribe) void processUpload(id);
+  return id;
+}
+
+/**
+ * A transcript file (Zoom/Teams/Meet captions, an Otter or Granola export…) as
+ * a new meeting: no audio, no transcription minutes. Writes the notes right
+ * away when signed in and auto-summary is on. Returns the meeting's id.
+ */
+export async function createTranscriptMeeting(entries: TranscriptEntry[], { title, date, durationSec, fileName }: { title: string; date: Date; durationSec: number; fileName: string }): Promise<string> {
+  const now = new Date();
+  const id = `mtg_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`;
+  const summarize = (await canUseProdliAi()) && (await storageGet<boolean>(AUTO_SUMMARIZE_STORAGE_KEY, true));
+  const meeting: Meeting = {
+    id,
+    platform: "upload",
+    title: title.trim().slice(0, 200) || "Imported transcript",
+    meetingCode: null,
+    url: "",
+    startedAt: date.toISOString(),
+    endedAt: new Date(date.getTime() + durationSec * 1000).toISOString(),
+    durationSec,
+    status: summarize ? "processing" : "ready",
+    transcript: entries,
+    transcriptSource: "file",
+    summary: null,
+    error: null,
+    notice: `Transcript imported from ${fileName.slice(0, 120)}.`,
+    hasAudio: false,
+    micIncluded: false,
+    audioMimeType: null,
+    uploadedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+  await putMeeting(meeting);
+  if (summarize) {
+    void summarizeMeeting(meeting).then(
+      (summary) => updateMeeting(id, () => ({ status: "ready", summary })),
+      (err) => updateMeeting(id, () => ({ status: "ready", error: err instanceof Error ? err.message : "Summarizing failed." })),
+    );
+  }
   return id;
 }
 
