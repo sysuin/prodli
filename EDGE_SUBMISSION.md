@@ -24,7 +24,17 @@ Microsoft's API can only update a listing, so the first one is created in Partne
    - **Short description:** the summary in STORE_SUBMISSION.md section 3.
    - **Store logo (300×300):** `artifacts/prodli/public/icon-512.png`, scaled down.
    - **Screenshots (1280×800):** the five in STORE_SUBMISSION.md section 2, same order. **Small promotional tile (440×280):** `promo-440x280.png`.
-8. **Submit.** In "Notes for certification", paste the reviewer notes from STORE_SUBMISSION.md section 4, then add: "Sign-in opens app.prodli.com in a tab (Edge has no identity.getAuthToken)."
+8. **Privacy:** paste the single purpose, the remote-code answer, the data usage and the permission justifications from STORE_SUBMISSION.md section 4, except these, which mention Chrome or Google Calendar there. In Edge, paste these instead:
+
+   | Permission | Paste this in Edge |
+   |---|---|
+   | `identity` | In the package because the Chrome version uses it for Google sign-in. In Microsoft Edge ProdLi doesn't use it: "Sign in with Google" opens ProdLi's website (app.prodli.com) in a tab, where the user signs in, and the website hands the extension a one-time code. ProdLi never reads the browser's own account. |
+   | `webNavigation` | Notices when the user opens a Markdown, CSV, JSON or text file from their computer in the browser, so ProdLi can show it in its file viewer. Only active if the user turns on "Open files from anywhere"; the file is read on the device and never uploaded. |
+   | `search` | The search box on ProdLi's new tab page sends what the user types to their default search engine through the browser's search API. ProdLi never changes the search engine and doesn't see the results. |
+   | `downloads` *(optional)* | Requested only with "Open files from anywhere": the browser downloads some local files (such as CSV) instead of opening them; ProdLi cancels that download and shows the file in its viewer instead. |
+
+   *(The 1.5.0 submission on 26 Nov used the Chrome text for these; use this wording from the next update on.)*
+9. **Submit.** In "Notes for certification", paste the reviewer notes from STORE_SUBMISSION.md section 4, then add: "Sign-in opens app.prodli.com in a tab (Edge has no identity.getAuthToken)."
 
 Microsoft's review usually takes up to 7 business days.
 
