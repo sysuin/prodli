@@ -4,7 +4,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 
 ## Where things stand
 
-- **Production (app.prodli.com):** deployed 26 Nov 2026 from main `85fb745` (up to sysuin/prodli#130: Edge sign-in allowed) through the GitHub workflow (restore point before it: `00000040-00000000-0000512f-1efa20184d7465f1b7b995787b8fbe3f`). Not yet in production: #131 (payment-page wording, no welcome tour over plan links) and #126 (current-time line fix in the web app). Before that: 25 Nov from `16baf95`. Health: `https://app.prodli.com/api/health`.
+- **Production (app.prodli.com):** deployed 26 Nov 2026 from main `be0aae6` (up to sysuin/prodli#132: payment-page wording, no welcome tour over plan links, current-time line fix in the web app) through the GitHub workflow (restore point before it: `00000042-00000000-0000512f-cb2895c7eac1b4a22efcf6ef5fd05a9c`). Earlier the same day from `85fb745` (Edge sign-in allowed); 25 Nov from `16baf95`. Health: `https://app.prodli.com/api/health`.
 - **Website (prodli.com):** deploys by itself on every push to main; shows the three plans.
 - **Chrome extension:** the store still has **1.4.0**. The code is **1.5.0** (manifest), with everything below; it reaches users only when the owner uploads a new store build from the Mac.
 - **Plans (live in Dodo since 24 Nov):** Free; Pro $5/month or $48/year; Pro Plus $12/month or $120/year. Limits and product IDs: docs/PRO-PLAN.md. Every new account gets a 14-day Pro trial (TRIAL_DAYS). No real purchase has been made yet (TODO: real purchase test).
