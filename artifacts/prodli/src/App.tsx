@@ -115,6 +115,9 @@ export default function App() {
 
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Opened from a plan on prodli.com (?plan=…) or back from the checkout: the plans are what
+  // matters, so the welcome tour waits for the next visit instead of covering them.
+  const [arrivedForPlans] = useState(() => /[?&](plan=(pro|plus)|pro=|subscription_id=)/.test(window.location.search));
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [draggingFile, setDraggingFile] = useState(false);
   const clearDroppedFile = useCallback(() => setDroppedFile(null), []);
@@ -372,7 +375,7 @@ export default function App() {
       } else {
         document.documentElement.classList.remove("dark");
       }
-      if (!seenOnboarding) setShowOnboarding(true);
+      if (!seenOnboarding && !arrivedForPlans) setShowOnboarding(true);
       setLoaded(true);
     });
   }, []);
