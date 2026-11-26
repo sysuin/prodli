@@ -181,6 +181,12 @@ describe("ProdLi Pro", () => {
     expect(html).toContain("You're on ProdLi Pro");
     expect(html).not.toContain("<script");
     expect(await (await app.request("/pro/done?from=checkout&status=failed", {}, selling())).text()).toContain("didn't go through");
+    // "pending" also follows a declined card: the page fits a payment that's still confirming and one that failed.
+    const pending = await (await app.request("/pro/done?from=checkout&status=pending&plan=plus", {}, selling())).text();
+    expect(pending).toContain("Checking your payment");
+    expect(pending).toContain("If the payment goes through, Pro Plus switches on");
+    expect(pending).toContain("If your card was declined, you haven't been charged");
+    expect(pending).not.toContain("processing");
     expect(await (await app.request("/pro/done?from=portal", {}, selling())).text()).toContain("You're all set");
     const odd = await app.request("/pro/done?from=checkout&payment_id=p&status=%3Cb%3E", {}, selling());
     expect(odd.headers.get("location")).toBe("/pro/done?from=checkout");

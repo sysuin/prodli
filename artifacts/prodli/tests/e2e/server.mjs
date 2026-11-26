@@ -441,6 +441,28 @@ try {
     await fetch(`${SERVER}/api/auth/logout-all`, { method: "POST", headers: { Authorization: `Bearer ${web?.prodliSession?.token ?? ""}` } }).catch(() => {});
   }
 
+  // A first visit from a plan on prodli.com (?plan=…): the plans show, the welcome tour waits for the next visit.
+  console.log("plan link from prodli.com");
+  await w.eval(`localStorage.removeItem("prodli_hasSeenOnboarding"); true`);
+  const fromSite = await b.openPage(`${SERVER}/?plan=pro&period=monthly`);
+  let planCards = false;
+  for (let i = 0; i < 20 && !planCards; i++) {
+    await sleep(200);
+    planCards = await fromSite.eval(`!!document.querySelector('[data-testid="plan-card-pro"]')`);
+  }
+  check("Web: arriving with a plan shows the plans, without the welcome tour on top", planCards && !(await fromSite.eval(`!!document.querySelector('[aria-labelledby="welcome-title"]')`)));
+  fromSite.close();
+  await w.eval(`localStorage.removeItem("prodli_pendingUpgrade"); true`);
+  const plainVisit = await b.openPage(`${SERVER}/`);
+  let tour = false;
+  for (let i = 0; i < 20 && !tour; i++) {
+    await sleep(200);
+    tour = await plainVisit.eval(`!!document.querySelector('[aria-labelledby="welcome-title"]')`);
+  }
+  check("Web: the welcome tour still shows on the next plain visit", tour);
+  plainVisit.close();
+  await w.eval(`localStorage.setItem("prodli_hasSeenOnboarding", "true"); localStorage.removeItem("prodli_pendingUpgrade"); true`);
+
   console.log("delete account");
   await p.send("Page.reload", {});
   await sleep(1800);
