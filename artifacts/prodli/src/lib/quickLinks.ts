@@ -68,3 +68,42 @@ export async function runSearch(text: string): Promise<void> {
   }
   await chrome.search.query({ text: target.text, disposition: "CURRENT_TAB" });
 }
+
+/** Hidden "Most visited" suggestions (this device). */
+export const HIDDEN_SUGGESTIONS_KEY = "quickLinkSuggestionsHidden";
+/** "Most visited" suggestions on or off (this device). */
+export const SUGGESTIONS_ON_KEY = "quickLinkSuggestions";
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * "Most visited": the sites you spent the most time on (Time Tracker days),
+ * minus ones already in your links, excluded sites, ones you hid, and
+ * addresses that aren't real sites (localhost, IP addresses).
+ */
+export function suggestedSites(
+  days: Record<string, Record<string, number>>,
+  opts: { links: { url: string }[]; excluded?: { has(domain: string): boolean }; hidden?: string[]; max?: number; minSeconds?: number },
+): { domain: string; seconds: number }[] {
+  const pinned = new Set(opts.links.map((l) => hostOf(l.url)));
+  const hidden = new Set((opts.hidden ?? []).map((d) => d.toLowerCase()));
+  const totals = new Map<string, number>();
+  for (const day of Object.values(days)) {
+    for (const [domain, secs] of Object.entries(day ?? {})) {
+      if (typeof secs !== "number" || secs <= 0) continue;
+      const d = domain.toLowerCase();
+      totals.set(d, (totals.get(d) ?? 0) + secs);
+    }
+  }
+  return [...totals]
+    .filter(([d, s]) => s >= (opts.minSeconds ?? 300) && !pinned.has(d) && !hidden.has(d) && !opts.excluded?.has(d) && !/^(\d{1,3}\.){3}\d{1,3}$/.test(d) && d !== "localhost" && !d.endsWith(".localhost") && d.includes("."))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, opts.max ?? 6)
+    .map(([domain, seconds]) => ({ domain, seconds }));
+}
