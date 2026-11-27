@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { DomainSet } from "../../lib/domainSet";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line } from "recharts";
 import { getDayKey, getDaysBetween } from "../../lib/utils";
 import type { TimeTrackingDay } from "../../types";
@@ -22,7 +23,7 @@ export function AllTimeTab({ excludedDomains }: { excludedDomains: string[] }) {
   const [allDates, setAllDates] = useState<string[]>([]);
   const [filteredData, setFilteredData] = useState<Record<string, TimeTrackingDay>>({});
   const excludedSet = useMemo(
-    () => new Set(excludedDomains.map((d) => d.toLowerCase())),
+    () => new DomainSet(excludedDomains),
     [excludedDomains],
   );
   const [loading, setLoading] = useState(true);

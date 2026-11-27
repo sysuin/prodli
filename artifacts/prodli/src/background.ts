@@ -2,6 +2,7 @@
 // Tracks active browsing time per domain and stores it in chrome.storage.local.
 
 import type { TrackerSettings, FocusRule } from "./types";
+import { DomainSet } from "./lib/domainSet";
 import { registerRecorder } from "./recorder/controller";
 import { registerPomodoro } from "./lib/pomodoroBackground";
 import { registerDriveBackup } from "./lib/driveBackground";
@@ -117,9 +118,19 @@ function isTrackable(url: string | undefined): boolean {
   return !!url && (url.startsWith("http://") || url.startsWith("https://"));
 }
 
+/** Excluded sites cover their subdomains too (google.com → mail.google.com). */
 function isExcludedDomain(domain: string, settings: TrackerSettings): boolean {
-  const list = settings.excludedDomains ?? [];
-  return list.some((d) => d.toLowerCase() === domain.toLowerCase());
+  return new DomainSet(settings.excludedDomains ?? []).has(domain);
+}
+
+// Every tracker step runs one after another: two browser events at the same
+// moment (a tab switch and the minute heartbeat, say) used to flush the same
+// session twice and count its time twice.
+let trackerQueue: Promise<unknown> = Promise.resolve();
+function serial(fn: () => Promise<void>): Promise<void> {
+  const run = trackerQueue.then(fn, fn);
+  trackerQueue = run.catch(() => undefined);
+  return run;
 }
 
 async function getSettings(): Promise<TrackerSettings> {
@@ -131,13 +142,22 @@ async function getSettings(): Promise<TrackerSettings> {
   });
 }
 
-async function getActiveTabUrl(): Promise<string | undefined> {
+/** The tab in front, unless it's incognito (private browsing is never recorded). */
+async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    return tab?.url;
+    return tab && !tab.incognito ? tab : undefined;
   } catch {
     return undefined;
   }
+}
+async function getActiveTabUrl(): Promise<string | undefined> {
+  return (await getActiveTab())?.url;
+}
+
+/** When the computer says "idle", the user stopped `threshold` seconds ago: don't count that time. */
+function idleSince(settings: TrackerSettings): number {
+  return Date.now() - settings.idleThreshold * 1000;
 }
 
 // ── Session management ────────────────────────────────────────────────────────
@@ -152,7 +172,7 @@ async function flushAndEnd(endMs: number = Date.now()): Promise<string | null> {
   await restoreSession();
   if (!currentDomain || !sessionStartMs) return null;
   const flushedDomain = currentDomain;
-  const elapsed = Math.round((endMs - sessionStartMs) / 1000);
+  const elapsed = Math.round((Math.max(endMs, sessionStartMs) - sessionStartMs) / 1000);
   if (elapsed > 0 && elapsed < 3600) {
     const date = new Date(sessionStartMs);
     const dayKey = `tt_${getDayKey(date)}`;
@@ -239,7 +259,7 @@ async function checkFocusLimit(domain: string): Promise<void> {
 
 // ── Chrome event listeners ────────────────────────────────────────────────────
 
-chrome.tabs.onActivated.addListener(async () => {
+chrome.tabs.onActivated.addListener(() => serial(async () => {
   await restoreSession();
   const url = await getActiveTabUrl();
   const domain = isTrackable(url) ? extractDomain(url) : null;
@@ -253,10 +273,10 @@ chrome.tabs.onActivated.addListener(async () => {
       }
     }
   }
-});
+}));
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
-  if (!changeInfo.url) return;
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => serial(async () => {
+  if (!changeInfo.url || tab?.incognito) return;
   await restoreSession();
   try {
     const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -275,42 +295,57 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
       }
     }
   }
-});
+}));
 
-chrome.windows.onFocusChanged.addListener(async (windowId) => {
+chrome.windows.onFocusChanged.addListener((windowId) => serial(async () => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
     await flushAndEnd();
   } else {
     const settings = await getSettings();
     const state = await chrome.idle.queryState(settings.idleThreshold);
-    await refreshSession(state !== "active");
+    await refreshSession(await isAway(state));
   }
-});
+}));
 
-chrome.idle.onStateChanged.addListener(async (state) => {
-  if (state !== "active") {
-    await flushAndEnd();
-  } else {
-    await refreshSession(false);
-  }
-});
+/** Away from the computer: locked, or idle with nothing playing (a video or a call in the tab in front counts as being there). */
+async function isAway(state: string): Promise<boolean> {
+  if (state === "active") return false;
+  if (state === "locked") return true;
+  return !(await getActiveTab())?.audible;
+}
+
+chrome.idle.onStateChanged.addListener((state) => serial(async () => {
+  if (state === "active") return refreshSession(false);
+  if (!(await isAway(state))) return; // watching or listening: keep counting
+  const settings = await getSettings();
+  await flushAndEnd(state === "idle" ? idleSince(settings) : Date.now());
+}));
 
 // ── Alarms ────────────────────────────────────────────────────────────────────
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === "tt_heartbeat") {
+  if (alarm.name === "tt_heartbeat") await serial(heartbeat);
+  else if (alarm.name === "tt_daily_summary") {
+    await sendDailySummary();
+    await scheduleDailyAlarm();
+    await pruneOldFocusNotifiedKeys();
+  }
+});
+
+async function heartbeat(): Promise<void> {
+  {
     await restoreSession();
     if (!currentDomain || !sessionStartMs) {
       // No session (e.g. the worker restarted): pick up the active tab again.
       const settings = await getSettings();
       const state = await chrome.idle.queryState(settings.idleThreshold);
-      await refreshSession(state !== "active");
+      await refreshSession(await isAway(state));
       return;
     }
     if (currentDomain && sessionStartMs) {
       const settings = await getSettings();
       const state = await chrome.idle.queryState(settings.idleThreshold);
-      if (state === "active") {
+      if (!(await isAway(state))) {
         // Flush elapsed, check limits, restart session
         const flushedDomain = await flushAndEnd();
         const url = await getActiveTabUrl();
@@ -324,15 +359,11 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
           await checkFocusLimit(flushedDomain);
         }
       } else {
-        await flushAndEnd();
+        await flushAndEnd(state === "idle" ? idleSince(settings) : Date.now());
       }
     }
-  } else if (alarm.name === "tt_daily_summary") {
-    await sendDailySummary();
-    await scheduleDailyAlarm();
-    await pruneOldFocusNotifiedKeys();
   }
-});
+}
 
 // ── Daily summary notification ────────────────────────────────────────────────
 
@@ -396,7 +427,7 @@ async function init(): Promise<void> {
   await pruneOldFocusNotifiedKeys();
   // Start tracking the currently active tab immediately
   const state = await chrome.idle.queryState(settings.idleThreshold);
-  await refreshSession(state !== "active");
+  await serial(async () => refreshSession(await isAway(state)));
 }
 
 // After someone removes ProdLi, Chrome opens a short anonymous "why?" page
