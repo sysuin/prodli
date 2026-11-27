@@ -1,4 +1,5 @@
 import { isDesktop } from "../lib/desktop";
+import { DomainSet } from "../lib/domainSet";
 import { DesktopApps } from "./tracker/DesktopApps";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line } from "recharts";
@@ -146,7 +147,7 @@ export function TimeTrackerSection({ settingsOnly = false }: { settingsOnly?: bo
   };
 
   const excludedSet = useMemo(
-    () => new Set((settings.excludedDomains ?? []).map((d) => d.toLowerCase())),
+    () => new DomainSet(settings.excludedDomains ?? []),
     [settings.excludedDomains],
   );
 

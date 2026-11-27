@@ -12,6 +12,8 @@
 // device adds its own part, so the server merges them (larger number per
 // site) instead of letting one device's copy replace another's.
 
+import { isTrackingDayValue, stripTrackingDay, TRACKING_CLEARS_ID, type TrackingClears } from "./trackingClears";
+
 export const COLLECTIONS = ["notes", "todos", "habits", "meetings", "pomodoroSessions", "tracking", "stats", "days", "lists", "tabSessions", "quickLinks", "readLater"] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 /** Merged by taking the larger number (per key), not replaced. */
@@ -100,6 +102,12 @@ export class SyncStore {
     sql.exec(`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, n INTEGER NOT NULL)`);
   }
 
+  /** The Time Tracker's clears record (src/trackingClears.ts), if any. */
+  private trackingClears(): TrackingClears | null {
+    const v = this.sql.exec<{ v: string | null }>(`SELECT v FROM items WHERE c = 'tracking' AND id = ? AND d = 0`, TRACKING_CLEARS_ID).toArray()[0]?.v;
+    return v ? (JSON.parse(v) as TrackingClears) : null;
+  }
+
   seq(): number {
     return this.sql.exec<{ n: number }>(`SELECT n FROM meta WHERE k = 'seq'`).toArray()[0]?.n ?? 0;
   }
@@ -118,6 +126,8 @@ export class SyncStore {
 
     const echo = new Set<string>(); // merged here: send the result back even though this device wrote it
     for (const ch of changes) {
+      // Time Tracker: sites cleared after a day stay cleared, whatever an older device still sends.
+      if (ch.c === "tracking" && ch.id !== TRACKING_CLEARS_ID && !ch.d && isTrackingDayValue(ch.v)) ch.v = stripTrackingDay(ch.id, ch.v, this.trackingClears(), false);
       let json = ch.d ? null : JSON.stringify(ch.v);
       if (json && json.length > MAX_ITEM_BYTES) throw new SyncError("item_too_large", `${ch.c}/${ch.id} is larger than ${MAX_ITEM_BYTES} bytes`);
       const cur = this.sql.exec<{ u: string; d: number; v: string | null; size: number }>(`SELECT u, d, v, size FROM items WHERE c = ? AND id = ?`, ch.c, ch.id).toArray()[0];
@@ -146,6 +156,21 @@ export class SyncStore {
       );
       bytes += grow;
       accepted += 1;
+      if (ch.c === "tracking" && ch.id === TRACKING_CLEARS_ID && json) {
+        // A clear: remove those sites from the stored days now (including the day of the clear).
+        const clears = JSON.parse(json) as TrackingClears;
+        for (const row of this.sql.exec<{ id: string; v: string; size: number }>(`SELECT id, v, size FROM items WHERE c = 'tracking' AND d = 0 AND id != ? AND v IS NOT NULL`, TRACKING_CLEARS_ID).toArray()) {
+          const day = JSON.parse(row.v) as unknown;
+          if (!isTrackingDayValue(day)) continue;
+          const next = stripTrackingDay(row.id, day, clears, true);
+          if (next === day) continue;
+          const v = JSON.stringify(next);
+          const size = v.length + row.id.length + 40;
+          seq += 1;
+          this.sql.exec(`UPDATE items SET v = ?, size = ?, u = ?, s = ? WHERE c = 'tracking' AND id = ?`, v, size, u, seq, row.id);
+          bytes += size - row.size;
+        }
+      }
       const key = `${ch.c}\u0000${ch.id}`;
       if (!echo.has(key)) mine.add(key);
     }

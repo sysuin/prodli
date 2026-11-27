@@ -1731,7 +1731,8 @@ const suites = {
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const target = `http://127.0.0.1:${server.address().port}/landing`;
     const p = await b.openPage();
-    await p.eval(`chrome.storage.local.set({ quickLinks: [] })`);
+    const tday = await p.eval(`(() => { const d = new Date(); return "tt_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })()`);
+    await p.eval(`chrome.storage.local.set({ quickLinks: [], quickLinkSuggestionsHidden: [], ${JSON.stringify(tday)}: { "github.com": 3000, "figma.com": 900, "127.0.0.1": 5000, "short.example": 30 } })`);
     await p.goto("today");
     const setValue = (sel, text) => p.eval(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
     check("Links: Today has a web search box", await p.eval(`!!document.querySelector('input[aria-label="Search the web"]')`));
@@ -1741,6 +1742,20 @@ const suites = {
     await p.eval(`document.querySelector('form[role="search"] button[type="submit"]').click()`);
     await sleep(300);
     check("Links: search uses chrome.search with the default engine, in this tab", JSON.stringify(await p.eval("window.__searches")) === JSON.stringify([{ text: "best pizza near me", disposition: "CURRENT_TAB" }]), JSON.stringify(await p.eval("window.__searches")));
+    // "Most visited" suggestions from the Time Tracker.
+    await sleep(500);
+    const sugg = async () => p.eval(`[...document.querySelectorAll('[data-testid="link-suggestion"] a')].map((a) => a.textContent)`);
+    check("Links: suggests the most visited sites (not local addresses or a few seconds)", JSON.stringify(await sugg()) === JSON.stringify(["github.com", "figma.com"]), JSON.stringify(await sugg()));
+    await p.eval(`document.querySelector('button[aria-label="Add github.com to your links"]').click()`);
+    await sleep(500);
+    let pinned = (await p.storage(["quickLinks"])).quickLinks ?? [];
+    check("Links: + on a suggestion adds it to the links (and it's no longer suggested)", pinned.length === 1 && pinned[0].url === "https://github.com/" && pinned[0].title === "Github" && !(await sugg()).includes("github.com"), JSON.stringify({ pinned, s: await sugg() }));
+    await p.eval(`document.querySelector('button[aria-label="Don\\'t suggest figma.com"]').click()`);
+    await sleep(400);
+    check("Links: × hides a suggestion", !(await sugg()).includes("figma.com") && ((await p.storage(["quickLinkSuggestionsHidden"])).quickLinkSuggestionsHidden ?? []).includes("figma.com"));
+    await p.eval(`chrome.storage.local.set({ quickLinks: [] })`);
+    await sleep(400);
+
     // Add a link.
     await p.click("+ Link");
     await sleep(200);
@@ -2999,6 +3014,19 @@ const suites = {
       await ext.send("Page.reload", {});
       await sleep(1800);
       check("Tracker: Today view lists the site", (await ext.text()).includes("127.0.0.1"));
+
+      // Excluding a site covers its subdomains (Chrome sends *.localhost to this computer).
+      await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 3600, notifyEnabled: false, notifyTime: "20:00", focusList: [], excludedDomains: ["localhost"] } })`);
+      await sleep(400);
+      const sub = await b.openPage(`http://app.localhost:${port}/`);
+      await b.send("Target.activateTarget", { targetId: sub.targetId });
+      await sleep(3000);
+      const subSession = (await sw.eval(`chrome.storage.session.get("tt_session")`)).tt_session;
+      await b.send("Target.activateTarget", { targetId: ext.targetId });
+      await sleep(800);
+      const subSecs = ((await ext.storage([dayKey]))[dayKey] ?? {})["app.localhost"] ?? 0;
+      check("Tracker: an excluded site's subdomains aren't counted", subSession?.domain !== "app.localhost" && subSecs === 0, JSON.stringify({ subSession, subSecs }));
+      await sub.close();
 
       // Clearing history keeps settings.
       await ext.eval(`chrome.storage.local.set({ tt_settings: { idleThreshold: 60, notifyEnabled: true, notifyTime: "20:00", focusList: [{ id: "r1", domain: "youtube.com", limitMinutes: 30, redirectEnabled: false }], excludedDomains: ["bank.example"] } })`);

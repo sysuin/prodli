@@ -65,6 +65,31 @@ describe("SyncStore", () => {
     expect(s.exportAll().stats).toEqual([{ id: "completedPomodoros", value: 7 }]);
   });
 
+  it("Time Tracker clears stay cleared: the server removes the sites and ignores older devices' numbers", () => {
+    const s = new SyncStore(nodeSql());
+    const tracking = () => Object.fromEntries((s.exportAll().tracking as { id: string; value: unknown }[]).map((t) => [t.id, t.value]));
+    const day = (id: string, v: Record<string, number>, n = 1): ChangeIn => ({ c: "tracking", id, u: T(n), v });
+    s.sync(0, [day("2026-11-20", { "youtube.com": 900, "github.com": 600 }), day("2026-11-27", { "youtube.com": 300, "github.com": 60 })], BIG);
+    // Device A removes youtube.com's history on 27 Nov: the clears record goes first, then its stripped days.
+    const r = s.sync(2, [{ c: "tracking", id: "clears", u: T(5), v: { sites: { "youtube.com": 20261127 } } }, day("2026-11-20", { "github.com": 600 }, 5)], BIG);
+    const days = tracking();
+    expect(days["2026-11-20"]).toEqual({ "github.com": 600 });
+    expect(days["2026-11-27"]).toEqual({ "github.com": 60 }); // the day of the clear too, once
+    // Both rewritten days go back to device A as well.
+    expect(r.changes.map((c) => c.id).sort()).toEqual(["2026-11-20", "2026-11-27"]);
+    // An older device still sending the old numbers can't bring them back for earlier days…
+    s.sync(r.seq, [day("2026-11-20", { "youtube.com": 900, "github.com": 600 }, 9)], BIG);
+    expect(tracking()["2026-11-20"]).toEqual({ "github.com": 600 });
+    // …but time on the site after the clear, on the day of the clear, still counts.
+    s.sync(r.seq, [day("2026-11-27", { "youtube.com": 30, "github.com": 60 }, 10)], BIG);
+    expect(tracking()["2026-11-27"]).toEqual({ "youtube.com": 30, "github.com": 60 });
+    // Clearing everything.
+    s.sync(0, [{ c: "tracking", id: "clears", u: T(11), v: { all: 20261127, sites: { "youtube.com": 20261127 } } }], BIG);
+    const after = tracking();
+    expect(after["2026-11-20"]).toEqual({});
+    expect(after["2026-11-27"]).toEqual({});
+  });
+
   it("pages large pulls", () => {
     const s = new SyncStore(nodeSql());
     s.sync(0, Array.from({ length: PAGE_ITEMS + 5 }, (_, i) => note(`n${i}`, T(1))), BIG);

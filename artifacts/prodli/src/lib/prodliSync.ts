@@ -18,6 +18,7 @@ import { accountRequest, apiBase, getProdliAccount, onProdliAccountChange, Accou
 import { onAnyStorageChange, onStorageChange, storageGet, storageGetAll, storageRemove, storageSet } from "./storage";
 import { batches, decide, localChanges, normStamp, pushedHash, shadowKey, type Change, type Coll, type CollectionState, type Incoming, type Kind, type LocalItem } from "./syncCore";
 import { getTombstones } from "./tombstones";
+import { CLEARS_APPLIED_KEY, CLEARS_ID, CLEARS_KEY, isClearsValue, newClears, stripTrackingDay, type TrackingClears } from "./trackingClears";
 import { deleteMeeting, getMeeting, listMeetings, MEETINGS_CHANNEL, putMeeting } from "../recorder/db";
 import type { Meeting } from "../recorder/types";
 
@@ -161,14 +162,38 @@ const trackingAdapter: Adapter = {
   deletable: false,
   async read() {
     const out = new Map<string, LocalItem>();
-    for (const [k, v] of Object.entries(await storageGetAll())) {
+    const all = await storageGetAll();
+    // The clears record goes first, so the server applies it before the days.
+    if (isClearsValue(all[CLEARS_KEY]) && (all[CLEARS_KEY].all || all[CLEARS_KEY].sites)) out.set(CLEARS_ID, { u: "", v: all[CLEARS_KEY] });
+    for (const [k, v] of Object.entries(all)) {
       const m = TRACKING_DAY.exec(k);
       if (m && v && typeof v === "object") out.set(m[1], { u: "", v });
     }
     return out;
   },
   async apply(puts) {
-    for (const [day, v] of puts) if (/^\d{4}-\d{2}-\d{2}$/.test(day)) await storageSet(`tt_${day}`, v);
+    const incoming = puts.get(CLEARS_ID);
+    const clears = isClearsValue(incoming) ? incoming : await storageGet<TrackingClears | null>(CLEARS_KEY, null);
+    for (const [day, v] of puts) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !v || typeof v !== "object") continue;
+      // Sites cleared after that day stay cleared, whatever another device still has.
+      await storageSet(`tt_${day}`, stripTrackingDay(day, v as Record<string, number>, clears, false));
+    }
+    if (isClearsValue(incoming)) {
+      await storageSet(CLEARS_KEY, incoming);
+      const applied = await storageGet<TrackingClears | null>(CLEARS_APPLIED_KEY, null);
+      const fresh = newClears(incoming, applied);
+      if (fresh.all || fresh.sites) {
+        // A clear made on another device: clear here too, including the day it was made.
+        for (const [k, v] of Object.entries(await storageGetAll())) {
+          const m = TRACKING_DAY.exec(k);
+          if (!m || !v || typeof v !== "object") continue;
+          const next = stripTrackingDay(m[1], v as Record<string, number>, fresh, true);
+          if (next !== v) await storageSet(k, next);
+        }
+        await storageSet(CLEARS_APPLIED_KEY, incoming);
+      }
+    }
   },
 };
 

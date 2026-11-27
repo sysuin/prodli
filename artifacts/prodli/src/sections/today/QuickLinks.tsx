@@ -1,10 +1,50 @@
-// Web search (default engine) and quick link tiles at the top of Today.
+// Web search (default engine) and quick link tiles at the top of Today, with
+// "Most visited" suggestions from the Time Tracker (pin with +, hide with ×).
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useSyncedList } from "../../lib/syncedList";
-import { canSearch, defaultTitle, MAX_LINKS, normalizeUrl, runSearch, tileColor } from "../../lib/quickLinks";
-import { generateId } from "../../lib/utils";
-import type { QuickLink } from "../../types";
+import { canSearch, defaultTitle, HIDDEN_SUGGESTIONS_KEY, MAX_LINKS, normalizeUrl, runSearch, suggestedSites, SUGGESTIONS_ON_KEY, tileColor } from "../../lib/quickLinks";
+import { generateId, getDayKey } from "../../lib/utils";
+import { storageGet, storageSet } from "../../lib/storage";
+import { DomainSet } from "../../lib/domainSet";
+import { loadRangeData } from "../tracker/data";
+import type { QuickLink, TrackerSettings } from "../../types";
+
+/** Sites you spent the most time on in the last two weeks (Time Tracker), not yet in your links. */
+function useSuggestions(links: QuickLink[]) {
+  const [on, setOn] = useState(true);
+  const [hidden, setHidden] = useState<string[] | null>(null);
+  const [sites, setSites] = useState<{ domain: string; seconds: number }[]>([]);
+  useEffect(() => {
+    void storageGet<boolean>(SUGGESTIONS_ON_KEY, true).then(setOn);
+    void storageGet<string[]>(HIDDEN_SUGGESTIONS_KEY, []).then(setHidden);
+  }, []);
+  useEffect(() => {
+    if (!on || hidden === null) return setSites([]);
+    let alive = true;
+    const from = new Date();
+    from.setDate(from.getDate() - 13);
+    void Promise.all([loadRangeData(getDayKey(from), getDayKey()), storageGet<Partial<TrackerSettings>>("tt_settings", {})]).then(([days, settings]) => {
+      if (alive) setSites(suggestedSites(days, { links, excluded: new DomainSet(settings.excludedDomains ?? []), hidden, max: Math.min(6, MAX_LINKS - links.length) }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [links, hidden, on]);
+  return {
+    on,
+    sites,
+    setOn: (v: boolean) => {
+      setOn(v);
+      void storageSet(SUGGESTIONS_ON_KEY, v);
+    },
+    hide: (domain: string) => {
+      const next = [...(hidden ?? []), domain];
+      setHidden(next);
+      void storageSet(HIDDEN_SUGGESTIONS_KEY, next.slice(-200));
+    },
+  };
+}
 
 const small: CSSProperties = { border: "var(--nb-border)", background: "hsl(var(--card))", color: "hsl(var(--foreground))", padding: "4px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase", letterSpacing: "0.04em" };
 const input: CSSProperties = { border: "var(--nb-border)", padding: "6px 8px", fontFamily: "inherit", fontSize: 13, background: "hsl(var(--card))", color: "hsl(var(--foreground))", minWidth: 0 };
@@ -17,6 +57,12 @@ export function QuickLinks() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const suggest = useSuggestions(links);
+  const pin = (domain: string) => {
+    if (links.length >= MAX_LINKS) return;
+    const u = `https://${domain}/`;
+    save([...links, { id: generateId(), url: u, title: defaultTitle(u).slice(0, 40), createdAt: new Date().toISOString() }]);
+  };
 
   const add = () => {
     const u = normalizeUrl(url);
@@ -96,6 +142,30 @@ export function QuickLinks() {
         )}
       </div>
       {editing && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Click a link to rename it, × to remove it.</div>}
+      {suggest.on && suggest.sites.length > 0 && !adding && (
+        <div data-testid="link-suggestions" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", color: "hsl(var(--muted-foreground))" }}>Most visited</span>
+          {suggest.sites.map((s) => (
+            <span key={s.domain} data-testid="link-suggestion" style={{ display: "inline-flex", alignItems: "center", border: "2px dashed hsl(var(--foreground) / 0.45)", background: "hsl(var(--card))", fontSize: 12, fontWeight: 700, maxWidth: 220 }}>
+              <a href={`https://${s.domain}/`} title={`Open ${s.domain} (${Math.round(s.seconds / 60)} min in the last 2 weeks)`} style={{ color: "hsl(var(--foreground))", textDecoration: "none", padding: "3px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {s.domain}
+              </a>
+              <button aria-label={`Add ${s.domain} to your links`} title="Add to your links" onClick={() => pin(s.domain)} disabled={links.length >= MAX_LINKS} style={{ border: "none", borderLeft: "2px dashed hsl(var(--foreground) / 0.45)", background: "#FFD700", color: "#000", fontWeight: 900, cursor: "pointer", padding: "3px 7px", fontFamily: "inherit" }}>
+                +
+              </button>
+              <button aria-label={`Don't suggest ${s.domain}`} title="Don't suggest this site" onClick={() => suggest.hide(s.domain)} style={{ border: "none", background: "none", color: "hsl(var(--foreground))", cursor: "pointer", padding: "3px 6px", fontFamily: "inherit", fontWeight: 800 }}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {editing && (
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+          <input type="checkbox" checked={suggest.on} onChange={(e) => suggest.setOn(e.target.checked)} data-testid="link-suggestions-toggle" />
+          Suggest my most visited sites (from the Time Tracker)
+        </label>
+      )}
       {adding && (
         <form
           onSubmit={(e) => {

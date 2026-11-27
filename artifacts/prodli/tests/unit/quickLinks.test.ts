@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultTitle, normalizeUrl, searchTarget, tileColor } from "../../src/lib/quickLinks";
+import { defaultTitle, normalizeUrl, searchTarget, tileColor, suggestedSites } from "../../src/lib/quickLinks";
 
 describe("quick links and search", () => {
   it("cleans up link addresses", () => {
@@ -22,5 +22,22 @@ describe("quick links and search", () => {
     expect(searchTarget("react")).toEqual({ kind: "search", text: "react" });
     expect(searchTarget("  ")).toBeNull();
     expect(tileColor("Github")).toBe(tileColor("Github"));
+  });
+});
+
+describe("Most visited suggestions", () => {
+  const days = {
+    "2026-11-26": { "github.com": 3000, "youtube.com": 2000, "mail.google.com": 900, "127.0.0.1": 5000, "localhost": 4000, "bank.example": 1200, "tiny.com": 60 },
+    "2026-11-27": { "github.com": 1000, "docs.google.com": 700, "news.example": 400 },
+  };
+  it("ranks sites by time and leaves out pinned, excluded, hidden and non-sites", () => {
+    const out = suggestedSites(days, { links: [{ url: "https://www.youtube.com/" }], excluded: new Set(["bank.example"]), hidden: ["NEWS.example"] });
+    expect(out.map((s) => s.domain)).toEqual(["github.com", "mail.google.com", "docs.google.com"]);
+    expect(out[0].seconds).toBe(4000);
+  });
+  it("keeps to the limit and the minimum time", () => {
+    expect(suggestedSites(days, { links: [], max: 2 }).map((s) => s.domain)).toEqual(["github.com", "youtube.com"]);
+    expect(suggestedSites(days, { links: [], minSeconds: 1000 }).map((s) => s.domain)).toEqual(["github.com", "youtube.com", "bank.example"]);
+    expect(suggestedSites({}, { links: [] })).toEqual([]);
   });
 });
