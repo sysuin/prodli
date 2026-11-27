@@ -1,6 +1,8 @@
 # Writing help in ProdLi: plan
 
-Goal: help people write better **where they already write in ProdLi**: notes and meeting follow-ups. This is not a Grammarly clone. ProdLi doesn't read what you type on other websites.
+Goal: help people write better **where they already write in ProdLi**: notes and meeting follow-ups.
+
+> **Changed 2026-11-27:** you decided to check writing on other websites too, on demand with no permission and optionally on every site. See [PLAN-WRITING-CHECK.md](PLAN-WRITING-CHECK.md). The reasoning below is kept for history.
 
 ## Why this shape (decided 2026-11-17)
 
