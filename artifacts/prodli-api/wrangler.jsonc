@@ -29,7 +29,7 @@
     "binding": "ASSETS",
     // /mcp: the MCP server (src/mcp.ts). The .well-known paths answer MCP clients'
     // OAuth discovery with a 404 (ProdLi uses API keys, not OAuth).
-    "run_worker_first": ["/api/*", "/s/*", "/pro/*", "/mcp", "/mcp/*", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/*"],
+    "run_worker_first": ["/api/*", "/s/*", "/v/*", "/pro/*", "/mcp", "/mcp/*", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/*"],
     "not_found_handling": "single-page-application"
   },
   "vars": {
@@ -47,6 +47,8 @@
         { "name": "AI_LIMITER", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
         { "name": "CHECK_LIMITER", "namespace_id": "1004", "simple": { "limit": 40, "period": 60 } }
   ],
+  // Shared videos, kept locally by wrangler dev (src/videos.ts).
+  "r2_buckets": [{ "binding": "VIDEOS", "bucket_name": "prodli-videos-dev" }],
   "durable_objects": { "bindings": [{ "name": "USER_STORE", "class_name": "UserStore" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserStore"] }],
   "env": {
@@ -77,7 +79,7 @@
         { "name": "AI_LIMITER", "namespace_id": "2003", "simple": { "limit": 10, "period": 60 } },
         { "name": "CHECK_LIMITER", "namespace_id": "2004", "simple": { "limit": 40, "period": 60 } }
       ],
-      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups-staging" }],
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups-staging" }, { "binding": "VIDEOS", "bucket_name": "prodli-videos-staging" }],
       // Workers AI: Whisper for "Transcribe audio with AI" (src/transcribe.ts).
       "ai": { "binding": "AI" },
       // Nightly backups (src/backup.ts), 03:17 UTC.
@@ -114,7 +116,7 @@
         { "name": "AI_LIMITER", "namespace_id": "3003", "simple": { "limit": 10, "period": 60 } },
         { "name": "CHECK_LIMITER", "namespace_id": "3004", "simple": { "limit": 40, "period": 60 } }
       ],
-      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups" }],
+      "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "prodli-backups" }, { "binding": "VIDEOS", "bucket_name": "prodli-videos" }],
       // Workers AI: Whisper for "Transcribe audio with AI" (src/transcribe.ts).
       "ai": { "binding": "AI" },
       // Nightly backups (src/backup.ts), 03:17 UTC.

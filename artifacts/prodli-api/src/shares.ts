@@ -77,10 +77,10 @@ export async function openShare(db: D1Database, id: string, now: number): Promis
   return row ?? null;
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "");
-const section = (heading: string, body: string) => (body ? `<h2>${esc(heading)}</h2>${body}` : "");
-const minutes = (sec: number) => (sec >= 3600 ? `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min` : `${Math.max(1, Math.round(sec / 60))} min`);
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+export const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "");
+export const section = (heading: string, body: string) => (body ? `<h2>${esc(heading)}</h2>${body}` : "");
+export const minutes = (sec: number) => (sec >= 3600 ? `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min` : `${Math.max(1, Math.round(sec / 60))} min`);
 
 export const PAGE_STYLE = `body{margin:0;background:#F4EBDD;color:#111;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}main{max-width:720px;margin:0 auto;padding:32px 20px 48px}article{background:#FFFBF4;border:3px solid #000;box-shadow:6px 6px 0 #000;padding:28px}h1{font-size:28px;line-height:1.2;margin:0 0 6px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:24px 0 6px;border-bottom:2px solid #000;padding-bottom:4px}.meta{color:#555;font-size:14px;margin:0 0 12px}ul{padding-left:20px;margin:0}li{margin:4px 0}.who{color:#555;font-size:14px}footer{text-align:center;font-size:13px;color:#555;margin-top:24px}footer a{color:#111;font-weight:700}@media (prefers-color-scheme:dark){body{background:#151515;color:#eee}article{background:#1f1f1f;border-color:#eee;box-shadow:6px 6px 0 #FF4FA3}h2{border-color:#eee}.meta,.who,footer{color:#bbb}footer a{color:#fff}}`;
 

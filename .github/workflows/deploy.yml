@@ -84,6 +84,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy -c ../prodli-site/wrangler.jsonc
+      - name: Video bucket, staging (created once; shared videos, src/videos.ts)
+        if: steps.creds.outputs.present == 'true' && github.event.inputs.target != 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          buckets="$(pnpm exec wrangler r2 bucket list)"
+          case "$buckets" in *prodli-videos-staging*) echo "prodli-videos-staging exists" ;; *) pnpm exec wrangler r2 bucket create prodli-videos-staging ;; esac
       - name: Deploy API (staging)
         if: steps.creds.outputs.present == 'true' && github.event.inputs.target != 'production-api'
         working-directory: artifacts/prodli-api
@@ -92,6 +101,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm run deploy:staging
 
+      - name: Video bucket, production (created once; shared videos, src/videos.ts)
+        if: steps.creds.outputs.present == 'true' && github.event.inputs.target == 'production-api'
+        working-directory: artifacts/prodli-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Exact name: "prodli-videos-staging" must not count as "prodli-videos".
+          if pnpm exec wrangler r2 bucket list | grep -Eq '(^|[[:space:]])prodli-videos([[:space:]]|$)'; then echo "prodli-videos exists"; else pnpm exec wrangler r2 bucket create prodli-videos; fi
       - name: Save a database restore point (production)
         if: steps.creds.outputs.present == 'true' && github.event.inputs.target == 'production-api'
         working-directory: artifacts/prodli-api
