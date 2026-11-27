@@ -272,6 +272,10 @@ try {
   }
 
   console.log("on disk");
+  // If Record a call didn't start properly (Linux CI), the app may still think it's recording and
+  // would ask "A recording is in progress" on quit, which blocks the test.
+  await page.eval(`window.prodliDesktop.setRecording(false); true`);
+  await sleep(200);
   page.close();
   app.kill();
   await new Promise((r) => app.on("exit", r));
