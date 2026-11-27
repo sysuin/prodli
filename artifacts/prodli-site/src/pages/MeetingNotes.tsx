@@ -26,6 +26,8 @@ const COMMON_OUTPUT: [string, string][] = [
   ["✅", "Action items go to your to-dos in one click"],
   ["✉️", "A follow-up email drafted from the summary"],
   ["🔗", "Share the notes as a read-only link with people who weren't there"],
+  ["⬆", "Upload a recording, or bring in a transcript from Otter, Fireflies, Granola, Zoom or Teams"],
+  ["📅", "Notes filed under the meeting in your Google Calendar"],
 ];
 
 const FREE_FAQ: [string, string] = [

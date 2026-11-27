@@ -6,19 +6,22 @@ const ASK = {
   emoji: "✨",
   title: "Ask ProdLi",
   accent: "#A78BFA",
-  desc: "Ask about your day, notes and meetings — “What should I focus on now?”, “What did we decide in Monday's call?” — and turn answers into to-dos with one click. Ctrl/⌘ + K takes you anywhere.",
+  desc: "Ask about your day, notes and meetings — “What should I focus on now?”, “What did we decide in Monday's call?” — and turn answers into to-dos with one click. Save prompts you use often, or have them run on a schedule. Ctrl/⌘ + K takes you anywhere. Works with Claude and ChatGPT too, through ProdLi's MCP server.",
 };
 
 const FEATURES = [
-  { emoji: "🎙️", title: "Meetings", accent: "#FF4FA3", group: "Meet", desc: "AI notes for Google Meet, Zoom, Teams and meetings in the room, with no bot in the call. Transcript, summary, decisions and action items." },
-  { emoji: "☀️", title: "Today", accent: "#F59E0B", group: "Plan", desc: "A daily brief that plans your day around your calendar, to-dos and habits. Block time for tasks between meetings, wrap up in the evening." },
+  { emoji: "🎙️", title: "Meetings", accent: "#FF4FA3", group: "Meet", desc: "AI notes for Google Meet, Zoom, Teams and meetings in the room, with no bot in the call. Transcript, summary, decisions and action items. Upload a recording or an Otter or Zoom transcript too." },
+  { emoji: "🎥", title: "Screen recorder", accent: "#F472B6", group: "Meet", desc: "Record your screen, a window or a tab with your camera in a bubble. Get a transcript and notes, and a link anyone can watch." },
+  { emoji: "☀️", title: "Today", accent: "#F59E0B", group: "Plan", desc: "A daily brief that plans your day around your two-way Google Calendar, to-dos and habits. Block time for tasks between meetings, wrap up in the evening. Search, your quick links and Read later in every new tab." },
   { emoji: "📊", title: "Weekly review", accent: "#14B8A6", group: "Plan", desc: "What got done, what slipped, how habits and focus went — and three priorities for next week." },
   { emoji: "✅", title: "To-Dos", accent: "#00BCD4", group: "Plan", desc: "Priorities, due dates and subtasks. Type “Call Sam friday !high” and ProdLi fills in the rest." },
   { emoji: "🎯", title: "Habits", accent: "#66BB6A", group: "Plan", desc: "Daily check-ins with streaks and a heatmap calendar." },
   { emoji: "✍️", title: "Notes", accent: "#FFD700", group: "Create", desc: "Rich notes with checklists, tables and a “/” menu. Paste Markdown, pin, export or print." },
   { emoji: "📄", title: "Files", accent: "#FF9800", group: "Create", desc: "Drop a Markdown, CSV, JSON or code file anywhere in Chrome to read it nicely — then save it as a note." },
+  { emoji: "🗣️", title: "Dictation", accent: "#38BDF8", group: "Write", desc: "Press Alt+Shift+D in any text box and talk. ProdLi removes the “um”s, fixes punctuation and writes it in the right tone for email or chat. Snippets, your own words, and edits by voice." },
+  { emoji: "✔️", title: "Writing check", accent: "#4ADE80", group: "Write", desc: "Spelling, grammar and clearer wording as you type in Gmail, LinkedIn or any text box. Click for the fix, or rewrite shorter, clearer or friendlier." },
   { emoji: "🍅", title: "Pomodoro", accent: "#FF6B6B", group: "Focus", desc: "A focus timer that keeps running across tabs and tells you when to take a break." },
-  { emoji: "⏱", title: "Time Tracker", accent: "#A78BFA", group: "Focus", desc: "See where your browsing time goes, and set daily limits for distracting sites." },
+  { emoji: "⏱", title: "Time Tracker", accent: "#A78BFA", group: "Focus", desc: "See where your browsing time goes, set daily limits, and block distracting sites (and Shorts and Reels) during focus time." },
 ];
 
 const STEPS = [
@@ -41,6 +44,8 @@ const FAQ = [
   { q: "Does a bot join my meetings?", a: "No. ProdLi takes notes in your browser: from Google Meet's own captions, or from the call's audio on Zoom, Teams, Webex, Slack, Discord and other apps. Nobody else sees anything. Audio leaves your computer only to be transcribed with AI: when you choose it, or after a call or in-person recording while you're signed in (you can turn that off)." },
   { q: "Where is my data?", a: "On your device first. If you sign in, synced data is stored in your own private space on ProdLi's servers. You can download or delete it any time. We don't sell data or show ads." },
   { q: "Is there a desktop app?", a: "Coming very soon: ProdLi for Mac and Windows (prodli.com/download) adds AI notes for calls in any app (Zoom, Teams, Slack, FaceTime…), quick add from anywhere and a menu bar / tray icon. It syncs with the extension and app.prodli.com." },
+  { q: "Can I bring my notes and tasks from other apps?", a: "Yes. Import notes from Notion, Evernote, Google Keep or Markdown files, and tasks from Todoist, TickTick, Google Tasks or a CSV, with a preview first. For meetings, upload a recording or a transcript from Otter, Fireflies, Granola, Zoom or Teams." },
+  { q: "Does it work in Hindi and other languages?", a: "Yes. Dictation, 🎙 Speak tasks and the daily brief work in Hindi, Hinglish, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada, Malayalam, Punjabi and Urdu, as well as English (Settings → Language)." },
   { q: "Does it work on my phone?", a: "Yes — open app.prodli.com and add it to your home screen. The Chrome extension adds the new tab, meeting notes, quick add from any page and time tracking." },
 ];
 
@@ -269,6 +274,7 @@ export function Landing() {
               ))}
             </div>
           </div>
+          <p style={{ margin: "-16px 0 24px", fontSize: 15, fontWeight: 700 }} data-testid="trial-note">New accounts get 14 days of Pro free. No card needed; it goes back to Free on its own.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
             {PLANS.map((plan) => (
               <div key={plan.key} className="nb-card" style={{ padding: "26px 26px 24px", boxShadow: "var(--shadow)", background: plan.key === "pro" ? "var(--yellow)" : undefined, position: "relative" }}>
