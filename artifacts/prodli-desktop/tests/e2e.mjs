@@ -260,8 +260,15 @@ try {
     const pasted = await pill.eval(`window.prodliDesktop.dictation.paste("Hello from ProdLi.")`);
     const lines = existsSync(pasteFile) ? readFileSync(pasteFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
     check("the pill pastes through the clipboard", pasted?.method === "typed" && lines.at(-1)?.text === "Hello from ProdLi." && lines.at(-1)?.clipboard === "Hello from ProdLi.", JSON.stringify({ pasted, lines }));
-    await pill.eval(`window.prodliDesktop.prefs.set({ dictateAnywhere: false }).then(() => true)`).catch(() => undefined);
     pill.close();
+    // Turning it off removes the pill window (so ask from the main window).
+    await page.eval(`window.prodliDesktop.prefs.set({ dictateAnywhere: false }).then(() => true)`);
+    let pillGone = false;
+    for (let i = 0; i < 20 && !pillGone; i++) {
+      await sleep(150);
+      pillGone = !(await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json()).some((p) => p.url.endsWith("#dictate-pill"));
+    }
+    check("turning it off removes the pill and the shortcut", pillGone && (await page.eval(`window.prodliDesktop.dictation.status()`))?.shortcutTaken === false);
   }
 
   console.log("on disk");
