@@ -18,20 +18,31 @@ const css = (dark: boolean) => {
   const c = dark ? DARK : LIGHT;
   return `
   * { background-color: ${c.bg}; color: ${c.fg}; }
-  body, .ProseMirror { font-family: -apple-system, Roboto, "Segoe UI", sans-serif; font-size: 17px; line-height: 1.55; padding: 4px 16px 120px; }
-  h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
-  a { color: ${dark ? "#33BBFF" : "#0060A8"}; }
-  blockquote { border-left: 4px solid ${c.border}; padding-left: 12px; margin-left: 0; color: ${c.mutedFg}; }
-  code, pre { background-color: ${c.muted}; font-family: Menlo, monospace; }
-  pre { padding: 10px; border: 2px solid ${c.border}; }
+  body, .ProseMirror { font-family: -apple-system, Roboto, "Segoe UI", sans-serif; font-size: 17px; line-height: 1.6; padding: 4px 18px 120px; }
+  /* Same shape as the computer's editor (artifacts/prodli index.css, "Writing surface"): the first line is the title. */
+  p { margin: 0 0 0.7em; }
+  h1 { font-size: 1.55em; font-weight: 800; line-height: 1.25; letter-spacing: -0.015em; margin: 1.4em 0 0.4em; }
+  h2 { font-size: 1.28em; font-weight: 800; line-height: 1.3; margin: 1.3em 0 0.4em; border-left: 4px solid #FFD700; padding-left: 10px; }
+  h3 { font-size: 1.1em; font-weight: 700; line-height: 1.35; margin: 1.2em 0 0.35em; }
+  .ProseMirror > :first-child { margin-top: 0.3em; }
+  .ProseMirror > h1:first-child { font-size: 1.9em; line-height: 1.18; letter-spacing: -0.025em; margin-bottom: 0.5em; }
+  a { color: ${dark ? "#7AB4FF" : "#1a56db"}; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+  blockquote { border-left: 3px solid ${c.fg}; padding-left: 14px; margin: 1em 0; color: ${c.mutedFg}; }
+  code { background-color: ${c.muted}; color: ${dark ? "#FFD54A" : "#B42318"}; border-radius: 4px; padding: 0.05em 0.35em; font-family: Menlo, monospace; font-size: 0.86em; }
+  pre { background-color: ${c.muted}; padding: 10px 12px; border-radius: 4px; font-family: Menlo, monospace; font-size: 14px; }
+  pre code { background-color: transparent; color: inherit; padding: 0; font-size: inherit; }
   mark { background-color: #FFD70088; color: inherit; }
-  ul[data-type="taskList"] { padding-left: 4px; }
-  ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
-  ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.6; }
-  table { border-collapse: collapse; width: 100%; }
-  td, th { border: 1px solid ${c.border}; padding: 6px; vertical-align: top; }
-  /* Shown read-only (lib/html.ts unsupportedFormatting): callouts, toggles, pictures, dividers. */
-  [data-type="callout"] { display: flex; gap: 10px; padding: 10px 12px; margin: 12px 0; border: 2px solid ${c.border}; border-radius: 6px; background-color: ${c.muted}; }
+  ul, ol { padding-left: 1.5em; }
+  li::marker { color: ${c.mutedFg}; }
+  ul[data-type="taskList"] { padding-left: 2px; }
+  ul[data-type="taskList"] li { display: flex; gap: 10px; align-items: flex-start; }
+  ul[data-type="taskList"] li > label { height: 1.6em; display: flex; align-items: center; }
+  ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: ${c.mutedFg}; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.94em; }
+  td, th { border: 1px solid ${c.border}; padding: 7px 8px; vertical-align: top; }
+  th { font-weight: 700; text-align: left; border-bottom-width: 2px; }
+  /* Notion-style blocks (editable here too, through editor-web): callouts, toggles, pictures, dividers. */
+  [data-type="callout"] { display: flex; gap: 10px; padding: 10px 12px; margin: 12px 0; border: 1px solid ${c.border}; border-radius: 4px; background-color: ${c.muted}; }
   [data-type="callout"]::before { content: attr(data-emoji); background-color: transparent; }
   [data-type="callout"] * { background-color: transparent; }
   [data-type="callout"] > * { margin: 0; }
@@ -40,7 +51,7 @@ const css = (dark: boolean) => {
   figure { margin: 12px 0; }
   img { max-width: 100%; height: auto; }
   figcaption { color: ${c.mutedFg}; font-size: 14px; }
-  hr { border: none; border-top: 2px solid ${c.border}; }
+  hr { border: none; border-top: 1px solid ${c.border}; margin: 1.6em 0; }
   pre { white-space: pre-wrap; }
   `;
 };
