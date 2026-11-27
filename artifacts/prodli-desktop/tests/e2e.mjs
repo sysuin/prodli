@@ -160,7 +160,8 @@ try {
   const recTray = await tray((x) => x.menu.includes("Staying awake while recording"));
   check("keeps the computer awake while recording", !!recTray?.menu.includes("Staying awake while recording"), JSON.stringify(recTray?.menu));
   await sleep(11_500); // more than one 10-second audio chunk
-  await page.eval(`[...document.querySelectorAll("[data-testid=in-person-bar] button")].find((b) => /Stop/.test(b.textContent)).click(); true`);
+  // (If it didn't start, the checks below fail and the rest of the test still runs.)
+  await page.eval(`[...document.querySelectorAll("[data-testid=in-person-bar] button")].find((b) => /Stop/.test(b.textContent))?.click(); true`);
   const meeting = await page.eval(`new Promise((resolve) => {
     let n = 0;
     const look = () => {
