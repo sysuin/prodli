@@ -10,13 +10,18 @@ import { accountsEnabled, getAiUsage, getProdliAccount, onProdliAccountChange } 
 import { parseVocabulary, VOCABULARY_STORAGE_KEY } from "../recorder/types";
 import {
   CATEGORY_LABELS,
+  CLEANUP_LABELS,
+  cleanupLevel,
   DEFAULT_DICTATION_SETTINGS,
+  DICTATION_DAYS_KEY,
   DICTATION_HISTORY_KEY,
   DICTATION_SETTINGS_KEY,
   dictationStats,
   MAX_SNIPPETS,
   SNIPPETS_KEY,
   STYLE_LABELS,
+  streakDays,
+  type CleanupLevel,
   type DictationEntry,
   type DictationSettings as Settings,
   type DictationStyle,
@@ -55,6 +60,7 @@ export function DictationSettings() {
   const [words, setWords] = useState("");
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [history, setHistory] = useState<DictationEntry[]>([]);
+  const [days, setDays] = useState<string[]>([]);
   const [cue, setCue] = useState("");
   const [snipText, setSnipText] = useState("");
   const [error, setError] = useState("");
@@ -64,6 +70,7 @@ export function DictationSettings() {
     void storageGet<string[]>(VOCABULARY_STORAGE_KEY, []).then((w) => setWords(w.join(", ")));
     void storageGet<Snippet[]>(SNIPPETS_KEY, []).then(setSnippets);
     void storageGet<DictationEntry[]>(DICTATION_HISTORY_KEY, []).then(setHistory);
+    void storageGet<string[]>(DICTATION_DAYS_KEY, []).then(setDays);
     void chrome.permissions?.contains({ permissions: ["offscreen"] }).then(setOffscreen, () => setOffscreen(false));
     void micState().then(setMic);
     void chrome.commands?.getAll().then((all) => setShortcut(all.find((c) => c.name === "dictate")?.shortcut || ""), () => {});
@@ -74,9 +81,14 @@ export function DictationSettings() {
       });
     loadAccount();
     const offH = onStorageChange<DictationEntry[]>(DICTATION_HISTORY_KEY, (v) => setHistory(v ?? []));
+    const offD = onStorageChange<string[]>(DICTATION_DAYS_KEY, (v) => setDays(v ?? []));
+    // Words learned from your corrections show up in the dictionary right away.
+    const offW = onStorageChange<string[]>(VOCABULARY_STORAGE_KEY, (v) => setWords((v ?? []).join(", ")));
     const offA = onProdliAccountChange(loadAccount);
     return () => {
       offH();
+      offD();
+      offW();
       offA();
     };
   }, []);
@@ -120,6 +132,9 @@ export function DictationSettings() {
     setSnipText("");
   };
   const stats = dictationStats(history);
+  const streak = streakDays(days);
+  const level = cleanupLevel(settings);
+  const shown = history.filter((e) => e.text);
 
   return (
     <div data-testid="dictation-settings" style={{ display: "grid", gap: 14 }}>
@@ -168,16 +183,21 @@ export function DictationSettings() {
       <section style={card} aria-labelledby={`${id}-polish`}>
         <h3 id={`${id}-polish`} style={h}>2 · Language, clean-up and style</h3>
         <LanguageSettings compact />
-        <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
-          <input type="checkbox" checked={settings.polish} onChange={(e) => save({ polish: e.target.checked })} style={{ marginTop: 3 }} />
-          <span>
-            AI polish
-            <span style={{ display: "block", fontWeight: 400, opacity: 0.8 }}>
-              Removes filler words and false starts, applies corrections (“Tuesday — no, Wednesday”), adds punctuation and formats lists.
-              {usage ? ` ${Math.max(0, usage.limit - usage.used)} of ${usage.limit} left this month.` : ""} Off: only “um”s and repeats are removed, on this device.
-            </span>
-          </span>
-        </label>
+        <fieldset style={{ border: "none", margin: 0, padding: 0, display: "grid", gap: 4 }} data-testid="dictation-cleanup">
+          <legend style={{ fontSize: 13, fontWeight: 800, padding: 0, marginBottom: 4 }}>
+            Clean-up{usage && level !== "none" ? <span style={{ fontWeight: 400, opacity: 0.8 }}> · {Math.max(0, usage.limit - usage.used)} of {usage.limit} AI clean-ups left this month</span> : null}
+          </legend>
+          {(Object.keys(CLEANUP_LABELS) as CleanupLevel[]).map((l) => (
+            <label key={l} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+              <input type="radio" name={`${id}-cleanup`} value={l} checked={level === l} onChange={() => save({ cleanup: l, polish: l !== "none" })} style={{ marginTop: 3 }} />
+              <span>
+                {CLEANUP_LABELS[l].label}
+                <span style={{ display: "block", fontWeight: 400, opacity: 0.8 }}>{CLEANUP_LABELS[l].detail}</span>
+              </span>
+            </label>
+          ))}
+          <p style={muted}>The AI clean-up reads what's already in the box just before your cursor, so it continues your sentence and matches its capitals and punctuation.</p>
+        </fieldset>
         <div style={{ display: "grid", gap: 6 }}>
           {(Object.keys(CATEGORY_LABELS) as SiteCategory[]).map((c) => (
             <label key={c} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center", fontSize: 13 }}>
@@ -209,6 +229,13 @@ export function DictationSettings() {
         <h3 id={`${id}-words`} style={h}>4 · Dictionary</h3>
         <p style={muted}>Names and terms to spell exactly (shared with meeting notes).</p>
         <textarea value={words} onChange={(e) => setWords(e.target.value)} onBlur={saveWords} rows={2} placeholder="e.g. ProdLi, Priya Shah, Kubernetes, OKRs" aria-label="Dictionary words" style={{ ...field, width: "100%", resize: "vertical" }} />
+        <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+          <input type="checkbox" checked={settings.learnWords !== false} onChange={(e) => save({ learnWords: e.target.checked })} style={{ marginTop: 3 }} data-testid="dictation-learn" />
+          <span>
+            Learn words I correct
+            <span style={{ display: "block", fontWeight: 400, opacity: 0.8 }}>When you fix a misheard word right after dictating (say “Prodly” → “ProdLi”), it's added here.</span>
+          </span>
+        </label>
       </section>
 
       <section style={card} aria-labelledby={`${id}-snippets`}>
@@ -246,6 +273,11 @@ export function DictationSettings() {
       <section style={card} aria-labelledby={`${id}-history`}>
         <h3 id={`${id}-history`} style={h}>6 · History & stats</h3>
         <div data-testid="dictation-stats" style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13 }}>
+          {streak > 0 && (
+            <span data-testid="dictation-streak">
+              🔥 <strong style={{ fontSize: 18 }}>{streak}</strong> day{streak === 1 ? "" : "s"} in a row
+            </span>
+          )}
           <span>
             <strong style={{ fontSize: 18 }}>{stats.weekWords}</strong> words this week
           </span>
@@ -263,12 +295,29 @@ export function DictationSettings() {
             </span>
           )}
         </div>
-        {history.length === 0 ? (
-          <p style={muted}>Your last {50} dictations show here (kept on this device only).</p>
+        <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            checked={settings.keepHistory !== false}
+            onChange={(e) => {
+              save({ keepHistory: e.target.checked });
+              // Turning it off removes what was said, keeping only the counts.
+              if (!e.target.checked) void storageSet(DICTATION_HISTORY_KEY, history.map((x) => ({ ...x, text: "" })));
+            }}
+            style={{ marginTop: 3 }}
+            data-testid="dictation-keep-history"
+          />
+          <span>
+            Keep a history of what I dictate
+            <span style={{ display: "block", fontWeight: 400, opacity: 0.8 }}>Off: past text is removed and new dictations aren't saved; only word counts stay, for the stats.</span>
+          </span>
+        </label>
+        {shown.length === 0 ? (
+          settings.keepHistory !== false && <p style={muted}>Your last {50} dictations show here (kept on this device only).</p>
         ) : (
           <>
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6, maxHeight: 280, overflowY: "auto" }}>
-              {history.slice(0, 20).map((e, i) => (
+              {shown.slice(0, 20).map((e, i) => (
                 <li key={`${e.at}-${i}`} style={{ display: "flex", gap: 8, alignItems: "flex-start", border: "var(--nb-border)", padding: "6px 8px", background: "hsl(var(--background))", fontSize: 13 }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{e.text}</span>
@@ -285,7 +334,7 @@ export function DictationSettings() {
               ))}
             </ul>
             <div>
-              <button style={btn()} onClick={() => void storageSet(DICTATION_HISTORY_KEY, [])}>
+              <button style={btn()} onClick={() => void storageSet(DICTATION_HISTORY_KEY, history.map((x) => ({ ...x, text: "" })))}>
                 Clear history
               </button>
             </div>
@@ -294,7 +343,7 @@ export function DictationSettings() {
       </section>
 
       <p style={{ ...muted, fontSize: 11 }}>
-        Privacy: your voice is sent to ProdLi's AI (Whisper, on Cloudflare) only while you dictate, and the text to Claude for the clean-up. Neither is stored on ProdLi's servers. The history stays on this device. Audio counts against your monthly AI transcription minutes.
+        Privacy: your voice is sent to ProdLi's AI (Whisper, on Cloudflare) only while you dictate, and the text (with up to 1,000 characters already in the box before your cursor, for context) to Claude for the clean-up. Neither is stored on ProdLi's servers. The history stays on this device. Audio counts against your monthly AI transcription minutes.
       </p>
     </div>
   );

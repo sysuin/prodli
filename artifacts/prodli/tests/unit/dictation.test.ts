@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cleanLocally, countWords, dictationStats, expandSnippets, fieldKind, siteCategory, wholeSnippet, type DictationEntry, type Snippet } from "../../src/dictation/core";
+import { addDay, cleanLocally, cleanupLevel, countWords, dayKey, dictationStats, expandSnippets, fieldKind, siteCategory, streakDays, wholeSnippet, type DictationEntry, type Snippet } from "../../src/dictation/core";
+import { correctedWords } from "../../src/dictation/corrections";
 
 describe("siteCategory", () => {
   it("knows email, work and personal sites (subdomains too)", () => {
@@ -59,5 +60,48 @@ describe("stats", () => {
     const s = dictationStats([e("2026-11-21T10:00:00Z", 120, 60_000), e("2026-11-10T10:00:00Z", 80, 30_000), e("2026-11-21T11:00:00Z", 5, 4000, "command")], now);
     expect(s).toEqual({ weekWords: 125, totalWords: 205, count: 3, wpm: 133, savedMin: 4 });
     expect(countWords("  a b\nc ")).toBe(3);
+  });
+});
+
+describe("clean-up level", () => {
+  it("follows the setting, and reads older settings from the AI polish switch", () => {
+    expect(cleanupLevel({ polish: true, cleanup: "concise" })).toBe("concise");
+    expect(cleanupLevel({ polish: true })).toBe("light");
+    expect(cleanupLevel({ polish: false })).toBe("none");
+    expect(cleanupLevel({ polish: false, cleanup: "light" })).toBe("light");
+  });
+});
+
+describe("streak", () => {
+  const now = new Date(2026, 10, 27, 15);
+  const ago = (n: number) => dayKey(new Date(2026, 10, 27 - n, 12));
+  it("counts days in a row ending today, or yesterday before you've dictated today", () => {
+    expect(streakDays([], now)).toBe(0);
+    expect(streakDays([ago(0), ago(1), ago(2), ago(4)], now)).toBe(3);
+    expect(streakDays([ago(1), ago(2)], now)).toBe(2);
+    expect(streakDays([ago(2), ago(3)], now)).toBe(0);
+  });
+  it("adds today once and keeps the list short", () => {
+    expect(addDay([ago(1)], now)).toEqual([ago(0), ago(1)]);
+    expect(addDay([ago(0), ago(1)], now)).toEqual([ago(0), ago(1)]);
+    expect(addDay(Array.from({ length: 500 }, (_, i) => ago(i + 1)), now)).toHaveLength(400);
+  });
+});
+
+describe("learning corrected words", () => {
+  const typed = "Hi team, send it to Prodly by Friday. Thanks";
+  const start = "Hi team, ".length;
+  const end = typed.indexOf(" Thanks");
+  it("finds a misheard word fixed inside the dictation", () => {
+    expect(correctedWords(typed, typed.replace("Prodly", "ProdLi"), start, end)).toEqual(["ProdLi"]);
+    expect(correctedWords(typed, typed.replace("Prodly", "prodly"), start, end)).toEqual([]);
+    expect(correctedWords("Meet Jon at noon.", "Meet John at noon.", 0, 17)).toEqual(["John"]);
+  });
+  it("ignores rewrites, new text and edits outside the dictation", () => {
+    expect(correctedWords(typed, typed, start, end)).toEqual([]);
+    expect(correctedWords(typed, typed.replace("Prodly", "the whole design team"), start, end)).toEqual([]);
+    expect(correctedWords(typed, typed.replace("Prodly", "Marketing"), start, end)).toEqual([]);
+    expect(correctedWords(typed, typed.replace("Hi team", "Hi teem"), start, end)).toEqual([]);
+    expect(correctedWords(typed, `${typed} and more`, start, end)).toEqual([]);
   });
 });

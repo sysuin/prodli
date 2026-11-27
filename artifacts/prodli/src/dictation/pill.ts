@@ -6,6 +6,7 @@
 // pressed (every frame; only the frame that has focus answers), and loaded
 // into ProdLi's own pages directly. Must stay self-contained: type-only imports.
 
+import { correctedWords } from "./corrections";
 import type { FieldInfo, InsertResult, PillState, ToBackground, ToPill } from "./messages";
 
 type Editable = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
@@ -75,6 +76,19 @@ function install(): void {
         selection = sel.toString();
       }
     }
+    // The text just before the cursor, so the clean-up continues it naturally (never from a password box).
+    let before = "";
+    if ((el instanceof HTMLInputElement && el.type !== "password") || el instanceof HTMLTextAreaElement) before = el.value.slice(Math.max(0, (target.start ?? 0) - 1000), target.start ?? 0);
+    else if (el && target.range) {
+      try {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        r.setEnd(target.range.startContainer, target.range.startOffset);
+        before = r.toString().slice(-1000);
+      } catch {
+        before = "";
+      }
+    }
     const cls = el ? `${el.className || ""} ${el.parentElement?.className || ""}` : "";
     const codeLike = /\b(cm-content|CodeMirror|monaco|ace_text|code)\b/i.test(String(cls));
     return {
@@ -83,11 +97,44 @@ function install(): void {
       field: { tag: el ? el.tagName.toLowerCase() : "", type: el instanceof HTMLInputElement ? el.type : undefined, role: el?.getAttribute("role") ?? null, multiline: !!el && !(el instanceof HTMLInputElement), codeLike },
       selection: selection.slice(0, 8000),
       singleLine: el instanceof HTMLInputElement,
+      before,
     };
   }
 
   // ── Typing the text ────────────────────────────────────────────────────────
-  function insert(text: string, replaceSelection: boolean): InsertResult {
+  // ── Learning words you correct (Wispr Flow-style) ──────────────────────────
+  let stopWatching: (() => void) | null = null;
+  const textOf = (el: Editable) => (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : el.textContent ?? "");
+  /** For a minute after typing, notices when a dictated word is corrected (a misheard name) and reports the new spelling. */
+  function watchCorrections(el: Editable, start: number, end: number): void {
+    stopWatching?.();
+    const snapshot = textOf(el);
+    const learned = new Set<string>();
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      for (const w of correctedWords(snapshot, textOf(el), start, end)) {
+        if (learned.has(w.toLowerCase())) continue;
+        learned.add(w.toLowerCase());
+        send({ target: "background-dictate", type: "learn", words: [w] });
+      }
+    };
+    const onInput = () => {
+      clearTimeout(t);
+      t = setTimeout(check, 1200);
+    };
+    el.addEventListener("input", onInput);
+    el.addEventListener("blur", check);
+    const done = setTimeout(() => stopWatching?.(), 60_000);
+    stopWatching = () => {
+      clearTimeout(t);
+      clearTimeout(done);
+      el.removeEventListener("input", onInput);
+      el.removeEventListener("blur", check);
+      stopWatching = null;
+    };
+  }
+
+  function insert(text: string, replaceSelection: boolean, learn = false): InsertResult {
     const el = target.el;
     if (!el || !el.isConnected) return copy(text);
     const value = el instanceof HTMLInputElement ? text.replace(/\s*\n+\s*/g, " ") : text;
@@ -108,6 +155,7 @@ function install(): void {
           el.setRangeText(typed, start, end, "end");
           el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: typed }));
         }
+        if (learn && !replaceSelection && !(el instanceof HTMLInputElement && el.type === "password")) watchCorrections(el, start + lead.length, start + lead.length + value.length);
       } else {
         const sel = window.getSelection();
         if (target.range && sel) {
@@ -123,6 +171,17 @@ function install(): void {
           if (line) ok = document.execCommand("insertText", false, line) && ok;
         });
         if (!ok) return copy(text);
+        if (learn && !replaceSelection) {
+          // Where the dictation ended up in the box's text: from the box's start to the cursor.
+          const s2 = window.getSelection();
+          if (s2?.rangeCount) {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            r.setEnd(s2.getRangeAt(0).endContainer, s2.getRangeAt(0).endOffset);
+            const end = r.toString().length;
+            watchCorrections(el, Math.max(0, end - value.replace(/\n/g, "").length), end);
+          }
+        }
       }
       return { ok: true, method: "typed" };
     } catch {
@@ -166,8 +225,10 @@ function install(): void {
     document.documentElement.appendChild(host);
     return root;
   }
+  let lastListening: Extract<PillState, { phase: "listening" }> | null = null;
   function render(state: PillState): void {
     clearTimeout(hideTimer);
+    lastListening = state.phase === "listening" ? state : null;
     const r = ensurePill();
     const pill = r.querySelector(".pill") as HTMLDivElement;
     pill.textContent = "";
@@ -189,7 +250,7 @@ function install(): void {
       msg.textContent = state.command ? "Say how to change the selection…" : "Listening…";
       const hint = document.createElement("span");
       hint.className = "hint";
-      hint.textContent = state.hold ? `Release to finish · Esc cancels` : `${state.shortcut} or ✓ to finish · Esc cancels`;
+      hint.textContent = state.hold ? `Release to finish · tap for hands-free · Esc cancels` : `Hands-free · ${state.shortcut} or ✓ to finish · Esc cancels`;
       const ok = button("ok", "✓", "Finish dictation", () => send({ target: "background-dictate", type: "finish" }));
       const x = button("x", "✕", "Cancel dictation", () => send({ target: "background-dictate", type: "cancel" }));
       pill.append(b, msg, hint, ok, x);
@@ -257,6 +318,11 @@ function install(): void {
       if (e.key === "Alt" || e.key === "Shift" || e.code === "KeyD") {
         const heldMs = performance.now() - startedAt;
         if (heldMs > 600) send({ target: "background-dictate", type: "finish", heldMs });
+        else if (lastListening) {
+          // A quick tap: hands-free until the shortcut again or ✓.
+          hold = false;
+          render({ ...lastListening, hold: false });
+        }
       }
     },
     true,
@@ -289,7 +355,7 @@ function install(): void {
       render(msg.state);
     } else if (msg.type === "level") level(msg.level);
     else if (msg.type === "insert") {
-      sendResponse(insert(msg.text, msg.replaceSelection));
+      sendResponse(insert(msg.text, msg.replaceSelection, !!msg.learn));
       return undefined;
     } else if (msg.type === "end") hide(msg.delayMs);
     return undefined;

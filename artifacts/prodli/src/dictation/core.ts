@@ -2,7 +2,9 @@
 // website gets, the local clean-up used when AI polish is off or unavailable,
 // snippets (say a cue, get saved text), and stats. No Chrome or network APIs.
 
-export type DictationStyle = "formal" | "casual" | "very_casual" | "neutral";
+export type DictationStyle = "formal" | "casual" | "very_casual" | "excited" | "neutral";
+/** How much the clean-up changes: none (only "um"s, on this device), light (AI: fillers, corrections, punctuation), concise (AI: also tightens rambling). */
+export type CleanupLevel = "none" | "light" | "concise";
 export type SiteCategory = "email" | "work" | "personal" | "other";
 export type FieldKind = "email" | "chat" | "document" | "search" | "code" | "other";
 
@@ -15,8 +17,14 @@ export interface Snippet {
 }
 
 export interface DictationSettings {
-  /** AI polish (filler words, self-corrections, punctuation, lists) through the ProdLi account. */
+  /** AI polish (filler words, self-corrections, punctuation, lists) through the ProdLi account. Kept for older settings; `cleanup` decides. */
   polish: boolean;
+  /** How much the clean-up changes the words (see cleanupLevel()). */
+  cleanup?: CleanupLevel;
+  /** Add words to the dictionary when you correct them right after dictating. */
+  learnWords?: boolean;
+  /** Keep the text of past dictations on this device (off: only the counts for stats). */
+  keepHistory?: boolean;
   /** Style per kind of website. */
   styles: Record<SiteCategory, DictationStyle>;
   /** Hold the shortcut: finish when it's released (push-to-talk). Tap: toggle. */
@@ -26,6 +34,8 @@ export interface DictationSettings {
 export const DICTATION_SETTINGS_KEY = "dictationSettings";
 export const SNIPPETS_KEY = "dictationSnippets";
 export const DICTATION_HISTORY_KEY = "dictationHistory";
+/** Days you dictated (YYYY-MM-DD, newest first), for the streak. */
+export const DICTATION_DAYS_KEY = "dictationDays";
 export const MAX_SNIPPETS = 100;
 export const MAX_HISTORY = 50;
 /** Longest dictation (minutes). */
@@ -33,6 +43,9 @@ export const MAX_DICTATION_MINUTES = 6;
 
 export const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
   polish: true,
+  // No `cleanup` here: older settings with AI polish off must still read as "none" (cleanupLevel()).
+  learnWords: true,
+  keepHistory: true,
   styles: { email: "formal", work: "casual", personal: "very_casual", other: "neutral" },
   holdToTalk: true,
 };
@@ -41,6 +54,7 @@ export const STYLE_LABELS: Record<DictationStyle, string> = {
   formal: "Formal",
   casual: "Casual",
   very_casual: "Very casual",
+  excited: "Excited!",
   neutral: "As spoken (just clean)",
 };
 export const CATEGORY_LABELS: Record<SiteCategory, { label: string; examples: string }> = {
@@ -138,4 +152,37 @@ export function dictationStats(entries: DictationEntry[], now = new Date()) {
   const wpm = spokeMs > 5000 ? Math.round(spokenWords / (spokeMs / 60000)) : null;
   const savedMin = Math.max(0, Math.round(spokenWords / 40 - spokeMs / 60000));
   return { weekWords: words(week), totalWords: words(entries), count: entries.length, wpm, savedMin };
+}
+
+/** The clean-up level, from the setting or (older settings) the AI polish switch. */
+export function cleanupLevel(s: Pick<DictationSettings, "polish" | "cleanup">): CleanupLevel {
+  return s.cleanup ?? (s.polish === false ? "none" : "light");
+}
+
+export const CLEANUP_LABELS: Record<CleanupLevel, { label: string; detail: string }> = {
+  none: { label: "None", detail: "Your words as heard; only “um”s and repeats go (on this device)." },
+  light: { label: "Light", detail: "Removes fillers and false starts, applies corrections (“Tuesday, no, Wednesday”), adds punctuation and lists." },
+  concise: { label: "Concise", detail: "Light, plus tighter wording: cuts rambling and repetition, keeps every fact." },
+};
+
+/** Today's date (local) as YYYY-MM-DD. */
+export const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Adds today to the list of days you dictated (newest first, at most a year and a bit). */
+export function addDay(days: string[], now = new Date()): string[] {
+  const today = dayKey(now);
+  return days[0] === today ? days : [today, ...days.filter((d) => d !== today)].slice(0, 400);
+}
+
+/** Days in a row you dictated, ending today (or yesterday, so a streak isn't lost before you've dictated today). */
+export function streakDays(days: string[], now = new Date()): number {
+  const set = new Set(days);
+  const d = new Date(now);
+  if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (set.has(dayKey(d))) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
 }

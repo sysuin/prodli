@@ -9,12 +9,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DictationCapture } from "../dictation/capture";
-import { cleanLocally, countWords, DEFAULT_DICTATION_SETTINGS, DICTATION_SETTINGS_KEY, MAX_DICTATION_MINUTES, type DictationSettings, type FieldKind } from "../dictation/core";
+import { addDay, cleanLocally, cleanupLevel, countWords, DEFAULT_DICTATION_SETTINGS, DICTATION_DAYS_KEY, DICTATION_SETTINGS_KEY, MAX_DICTATION_MINUTES, type DictationSettings, type FieldKind } from "../dictation/core";
 import { sendWithRetry } from "../recorder/audioTranscribe";
 import { canUseProdliAi } from "../recorder/summarize";
 import { VOCABULARY_STORAGE_KEY } from "../recorder/types";
 import { AccountError, accountRequest } from "../lib/prodliAccount";
-import { storageGet } from "../lib/storage";
+import { storageGet, storageSet } from "../lib/storage";
 import { aiLanguage, getVoiceLanguage, whisperLanguage } from "../lib/voiceLanguage";
 
 type Editable = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
@@ -25,6 +25,8 @@ interface Target {
   end: number | null;
   range: Range | null;
   selection: string;
+  /** Up to 1,000 characters just before the cursor, for the clean-up's context. */
+  before: string;
 }
 
 type Phase = { kind: "idle" } | { kind: "listening"; command: boolean } | { kind: "working"; command: boolean } | { kind: "done"; message: string } | { kind: "error"; message: string };
@@ -56,11 +58,18 @@ function capture(el: Editable): Target {
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    return { el, start, end, range: null, selection: start !== null && end !== null && end > start ? el.value.slice(start, end) : "" };
+    return { el, start, end, range: null, selection: start !== null && end !== null && end > start ? el.value.slice(start, end) : "", before: el.value.slice(Math.max(0, (start ?? el.value.length) - 1000), start ?? el.value.length) };
   }
   const sel = window.getSelection();
   const range = sel && sel.rangeCount && el.contains(sel.getRangeAt(0).commonAncestorContainer) ? sel.getRangeAt(0).cloneRange() : null;
-  return { el, start: null, end: null, range, selection: range ? range.toString() : "" };
+  let before = "";
+  if (range) {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.setEnd(range.startContainer, range.startOffset);
+    before = r.toString().slice(-1000);
+  }
+  return { el, start: null, end: null, range, selection: range ? range.toString() : "", before };
 }
 
 function typeInto(t: Target, text: string, replaceSelection: boolean): "typed" | "copied" {
@@ -185,10 +194,11 @@ export function WebDictation() {
       } catch (err) {
         return settle({ kind: "error", message: err instanceof AccountError && err.status === 402 ? "Command Mode (editing selected text by voice) is part of ProdLi Pro." : err instanceof AccountError ? err.message : "Couldn't apply that edit. Try again." }, 6000);
       }
-    } else if (settings.polish) {
+    } else if (cleanupLevel(settings) !== "none") {
       try {
         const lang = aiLanguage(language);
-        text = (await callDictate({ mode: "polish", text: raw, style: settings.styles.other, field: fieldOf(s.target.el), dictionary: vocabulary.slice(0, 100), ...(lang ? { language: lang } : {}) })).text;
+        const before = s.target.before.trim() ? s.target.before : undefined;
+        text = (await callDictate({ mode: "polish", text: raw, style: settings.styles.other, field: fieldOf(s.target.el), level: cleanupLevel(settings), dictionary: vocabulary.slice(0, 100), ...(lang ? { language: lang } : {}), ...(before ? { before } : {}) })).text;
       } catch (err) {
         text = cleanLocally(raw);
         note = err instanceof AccountError && err.status === 429 ? " (AI clean-up allowance used up this month)" : " (without AI clean-up)";
@@ -196,6 +206,7 @@ export function WebDictation() {
     } else text = cleanLocally(raw);
     if (!text.trim()) return settle({ kind: "done", message: "Nothing to type." }, 2000);
     const how = typeInto(s.target, text, command);
+    void storageGet<string[]>(DICTATION_DAYS_KEY, []).then((days) => storageSet(DICTATION_DAYS_KEY, addDay(days)));
     const words = countWords(text);
     const mac = /Mac/i.test(navigator.userAgent);
     settle({ kind: "done", message: how === "typed" ? `✓ ${command ? "Edited" : `Typed ${words} word${words === 1 ? "" : "s"}`}${note}` : `Copied — paste it with ${mac ? "⌘V" : "Ctrl+V"}${note}` }, how === "typed" ? 1600 : 3500);
