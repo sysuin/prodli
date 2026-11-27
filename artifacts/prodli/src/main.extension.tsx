@@ -13,6 +13,10 @@ import { QuickAddWindow } from "./components/QuickAdd";
 import { captureFromUrl } from "./lib/capture";
 import { parsePausePage } from "./lib/focusBlock";
 import { PausePage } from "./components/PausePage";
+import { lazy, Suspense } from "react";
+import { RECORD_HASH } from "./screenrec/open";
+
+const RecorderPage = lazy(() => import("./screenrec/RecorderPage").then((m) => ({ default: m.RecorderPage })));
 import "./index.css";
 
 // Voice dictation (Alt+Shift+D) types into ProdLi's own pages too: load its pill here
@@ -23,7 +27,9 @@ void import(/* @vite-ignore */ chrome.runtime.getURL("dictate-pill.js")).catch((
 const quickAdd = location.hash.startsWith("#quick-add");
 // index.html#blocked?u=…&r=… is the focus-blocking pause page.
 const paused = parsePausePage(location.hash);
-if (quickAdd || paused) {
+// index.html#record is the screen recorder (🎥 Record a video).
+const recorder = location.hash === RECORD_HASH;
+if (quickAdd || paused || recorder) {
   try {
     if (localStorage.getItem("prodli_theme_hint") === "dark") document.documentElement.classList.add("dark");
   } catch {
@@ -31,5 +37,9 @@ if (quickAdd || paused) {
   }
 }
 createRoot(document.getElementById("root")!).render(
-  paused ? <PausePage {...paused} /> : quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />,
+  recorder ? (
+    <Suspense fallback={null}>
+      <RecorderPage />
+    </Suspense>
+  ) : paused ? <PausePage {...paused} /> : quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />,
 );

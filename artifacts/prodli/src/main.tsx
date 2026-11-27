@@ -6,6 +6,10 @@ import { captureFromUrl } from "./lib/capture";
 import { desktop, isDesktop } from "./lib/desktop";
 import { parseDesktopHandoff, parseExtensionHandoff } from "./lib/desktopHandoff";
 import "./index.css";
+import { lazy, Suspense } from "react";
+import { RECORD_HASH } from "./screenrec/open";
+
+const RecorderPage = lazy(() => import("./screenrec/RecorderPage").then((m) => ({ default: m.RecorderPage })));
 
 // Web app: app.prodli.com/?desktop=signin&… signs in the desktop app, ?extension=signin&… the
 // extension in a browser without Chrome's own Google sign-in (lib/desktopHandoff.ts).
@@ -15,6 +19,8 @@ const extensionHandoff = webApp && !desktopHandoff ? parseExtensionHandoff(locat
 const handoff = desktopHandoff ?? extensionHandoff;
 // Desktop app: index.html#quick-add is the Quick add window (global shortcut, tray menu).
 const quickAdd = isDesktop() && location.hash.startsWith("#quick-add");
+// #record is the screen recorder (🎥 Record a video).
+const recorder = !handoff && location.hash === RECORD_HASH;
 // First paint in the right theme (App applies the saved theme again once loaded).
 try {
   const saved = isDesktop() ? desktop()!.initialTheme : JSON.parse(localStorage.getItem("prodli_theme") ?? "null");
@@ -24,7 +30,11 @@ try {
 }
 
 createRoot(document.getElementById("root")!).render(
-  desktopHandoff ? <DesktopHandoff handoff={desktopHandoff} /> : extensionHandoff ? <DesktopHandoff target={{ kind: "extension", handoff: extensionHandoff }} /> : quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />,
+  recorder ? (
+    <Suspense fallback={null}>
+      <RecorderPage />
+    </Suspense>
+  ) : desktopHandoff ? <DesktopHandoff handoff={desktopHandoff} /> : extensionHandoff ? <DesktopHandoff target={{ kind: "extension", handoff: extensionHandoff }} /> : quickAdd ? <QuickAddWindow initial={captureFromUrl(location.hash.slice(location.hash.indexOf("?") + 1)) ?? undefined} /> : <App />,
 );
 
 // The web app (app.prodli.com) works offline: scripts/build-app.mjs generates /sw.js.

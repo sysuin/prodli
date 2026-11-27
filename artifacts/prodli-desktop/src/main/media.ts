@@ -51,6 +51,12 @@ export function setUpMedia(): void {
         void systemPreferences.askForMediaAccess("microphone").then(callback, () => callback(false));
         return;
       }
+      // 🎥 Record a video: the camera bubble.
+      const wantsCamera = "mediaTypes" in details && (details.mediaTypes ?? []).includes("video");
+      if (wantsCamera && systemPreferences.getMediaAccessStatus("camera") !== "granted") {
+        void systemPreferences.askForMediaAccess("camera").then(callback, () => callback(false));
+        return;
+      }
     }
     callback(ok);
   });

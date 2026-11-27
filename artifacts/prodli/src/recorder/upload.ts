@@ -251,6 +251,41 @@ export async function createTranscriptMeeting(entries: TranscriptEntry[], { titl
   return id;
 }
 
+/**
+ * A finished screen recording (🎥 Record screen, src/screenrec) as a new
+ * meeting: the video is already stored under its id. Transcribes and
+ * summarizes it like an upload when signed in and it has sound.
+ */
+export async function createScreenMeeting(rec: { id: string; startedAt: Date; durationMs: number; mimeType: string; hasSound: boolean }, title: string): Promise<string> {
+  const now = new Date();
+  const sec = Math.max(1, Math.round(rec.durationMs / 1000));
+  const canTranscribe = rec.hasSound && (stubbed() || (await canUseProdliAi()));
+  const meeting: Meeting = {
+    id: rec.id,
+    platform: "screen",
+    title: title.trim().slice(0, 200) || "Screen recording",
+    meetingCode: null,
+    url: "",
+    startedAt: rec.startedAt.toISOString(),
+    endedAt: new Date(rec.startedAt.getTime() + sec * 1000).toISOString(),
+    durationSec: sec,
+    status: canTranscribe ? "processing" : "ready",
+    transcript: [],
+    summary: null,
+    error: null,
+    notice: !rec.hasSound ? "Recorded without sound, so there's no transcript." : canTranscribe ? null : accountsEnabled() ? SIGN_IN_TO_TRANSCRIBE_UPLOAD.replace("Saved as audio.", "Saved.") : null,
+    hasAudio: true,
+    hasVideo: true,
+    micIncluded: rec.hasSound,
+    audioMimeType: rec.mimeType,
+    uploadedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+  await putMeeting(meeting);
+  if (canTranscribe) void processUpload(rec.id);
+  return rec.id;
+}
+
 export interface UploadResult {
   transcribed: boolean;
   summarized: boolean;
@@ -356,7 +391,7 @@ export function stopUpload(meetingId: string): void {
 export async function recoverUploads(): Promise<number> {
   const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
   const held = new Set(((await locks?.query().catch(() => null))?.held ?? []).map((l) => l.name));
-  const stale = (await listMeetings()).filter((m) => m.platform === "upload" && m.status === "processing" && !jobs.has(m.id) && !held.has(lockName(m.id)));
+  const stale = (await listMeetings()).filter((m) => (m.platform === "upload" || m.platform === "screen") && m.status === "processing" && !jobs.has(m.id) && !held.has(lockName(m.id)));
   for (const m of stale) await updateMeeting(m.id, () => ({ status: "ready", notice: "The page closed before this recording was transcribed. Press Retry to transcribe it." }));
   return stale.length;
 }

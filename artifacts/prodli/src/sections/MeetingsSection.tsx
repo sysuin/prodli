@@ -31,6 +31,7 @@ import { InPersonBar, InPersonButton } from "./meetings/InPerson";
 import { callRecordingSupported, recoverInPerson } from "../recorder/inPerson";
 import { recoverUploads } from "../recorder/upload";
 import { DropOverlay, UploadButton, UploadPanel, UploadStatus, useUploadDrop } from "./meetings/Upload";
+import { openRecorder } from "../screenrec/open";
 import { answerReviewAsk, CHROME_STORE_REVIEWS_URL, NO_REVIEW_ASK, REVIEW_ASK_KEY, shouldAskForReview, type ReviewAskState } from "../lib/reviewAsk";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
@@ -167,12 +168,12 @@ function escapeHtml(s: string): string {
 }
 
 /** "Weekly sync-audio.webm": the meeting's name plus an extension that matches how the audio was recorded. */
-export function audioFileName(m: Pick<Meeting, "title" | "audioMimeType"> & { summary?: { title?: string } | null }): string {
+export function audioFileName(m: Pick<Meeting, "title" | "audioMimeType" | "hasVideo"> & { summary?: { title?: string } | null }): string {
   const base = (m.summary?.title || m.title).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "meeting";
   const type = (m.audioMimeType ?? "").toLowerCase();
   // Uploaded files can be any of these (recorder/uploadFile.ts).
   const ext = type.includes("ogg") ? "ogg" : type.startsWith("video/mp4") || type.includes("m4v") ? "mp4" : type.includes("quicktime") ? "mov" : type.includes("flac") ? "flac" : type.includes("mp4") || type.includes("m4a") || type.includes("aac") ? "m4a" : type.includes("mpeg") || type.includes("mp3") ? "mp3" : type.includes("wav") ? "wav" : "webm";
-  return `${base}-audio.${ext}`;
+  return m.hasVideo ? `${base}.${ext}` : `${base}-audio.${ext}`;
 }
 
 function actionItemTitle(item: ActionItem): string {
@@ -592,10 +593,18 @@ function MeetingDetail({
       {meeting.status === "recording" && <Banner tone="info">Recording in progress — notes appear here when the meeting ends.</Banner>}
       {meeting.notice && <Banner tone="warn">{meeting.notice}</Banner>}
       {meeting.error && <Banner tone="error">{meeting.error}</Banner>}
-      {meeting.platform === "upload" && <UploadStatus meeting={meeting} signedIn={hasKey} flash={flash} />}
+      {(meeting.platform === "upload" || meeting.platform === "screen") && <UploadStatus meeting={meeting} signedIn={hasKey} flash={flash} />}
       {!hasKey && meeting.transcript.length > 0 && !s && <Banner tone="info">{NO_AI_HINT}</Banner>}
 
-      {audioUrl && (
+      {audioUrl && meeting.hasVideo && (
+        <Section title="Video">
+          <video data-testid="meeting-video" controls playsInline src={audioUrl} style={{ width: "100%", maxHeight: "60vh", background: "#000", border: "var(--nb-border)" }} />
+          <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
+            Download video
+          </a>
+        </Section>
+      )}
+      {audioUrl && !meeting.hasVideo && (
         <Section title={`Audio${meeting.micIncluded ? "" : " (other participants only)"}`}>
           <audio controls src={audioUrl} style={{ width: "100%" }} />
           <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
@@ -1014,6 +1023,9 @@ export function MeetingsSection({ setupOnly = false }: { setupOnly?: boolean } =
           </button>
         )}
         <InPersonButton disabled={!!recState} flash={flash} onStarted={() => void refresh()} />
+        <button style={btn("plain")} onClick={openRecorder} data-testid="record-screen" title="Record your screen with your camera in a bubble (Loom-style). Saved here with a transcript and notes.">
+          🎥 Record screen
+        </button>
         <UploadButton onFile={setPendingUpload} />
         {ext && (
           <button style={btn(showSetup ? "primary" : "plain")} onClick={() => setShowSetup((v) => !v)}>
