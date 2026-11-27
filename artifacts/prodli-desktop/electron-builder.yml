@@ -84,6 +84,7 @@ mac:
     NSCameraUsageDescription: ProdLi shows your camera in a bubble when you record a video of your screen.
     NSAudioCaptureUsageDescription: ProdLi records your computer's sound when you record a call, so the other people's voices are in the transcript.
     NSScreenCaptureUsageDescription: ProdLi uses screen and system audio recording to capture a call's sound, and to record your screen when you choose Record a video.
+    NSAppleEventsUsageDescription: When you dictate into another app, ProdLi presses ⌘V for you to paste the text where your cursor is.
     LSUIElement: false
   # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are set.
   notarize: false

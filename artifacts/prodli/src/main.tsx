@@ -9,6 +9,7 @@ import "./index.css";
 import { lazy, Suspense } from "react";
 import { RECORD_HASH } from "./screenrec/open";
 
+const DesktopDictationPill = lazy(() => import("./components/DesktopDictationPill").then((m) => ({ default: m.DesktopDictationPill })));
 const RecorderPage = lazy(() => import("./screenrec/RecorderPage").then((m) => ({ default: m.RecorderPage })));
 
 // Web app: app.prodli.com/?desktop=signin&… signs in the desktop app, ?extension=signin&… the
@@ -19,6 +20,8 @@ const extensionHandoff = webApp && !desktopHandoff ? parseExtensionHandoff(locat
 const handoff = desktopHandoff ?? extensionHandoff;
 // Desktop app: index.html#quick-add is the Quick add window (global shortcut, tray menu).
 const quickAdd = isDesktop() && location.hash.startsWith("#quick-add");
+// Desktop app: index.html#dictate-pill is the pill for dictation into any app.
+const dictatePill = isDesktop() && location.hash === "#dictate-pill";
 // #record is the screen recorder (🎥 Record a video).
 const recorder = !handoff && location.hash === RECORD_HASH;
 // First paint in the right theme (App applies the saved theme again once loaded).
@@ -30,7 +33,11 @@ try {
 }
 
 createRoot(document.getElementById("root")!).render(
-  recorder ? (
+  dictatePill ? (
+    <Suspense fallback={null}>
+      <DesktopDictationPill />
+    </Suspense>
+  ) : recorder ? (
     <Suspense fallback={null}>
       <RecorderPage />
     </Suspense>

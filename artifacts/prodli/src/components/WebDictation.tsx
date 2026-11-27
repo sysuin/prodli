@@ -15,6 +15,7 @@ import { canUseProdliAi } from "../recorder/summarize";
 import { VOCABULARY_STORAGE_KEY } from "../recorder/types";
 import { AccountError, accountRequest } from "../lib/prodliAccount";
 import { storageGet, storageSet } from "../lib/storage";
+import { desktop } from "../lib/desktop";
 import { aiLanguage, getVoiceLanguage, whisperLanguage } from "../lib/voiceLanguage";
 
 type Editable = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
@@ -222,6 +223,17 @@ export function WebDictation() {
     s.capture.cancel();
     settle({ kind: "done", message: "Cancelled" }, 800);
   }, [settle]);
+
+  // Desktop app: the "dictate into any app" shortcut, pressed while a ProdLi window is in front.
+  useEffect(
+    () =>
+      desktop()?.onCommand((cmd) => {
+        if (cmd !== "dictate") return;
+        if (session.current) void finish();
+        else void start(editableOf(document.activeElement));
+      }),
+    [start, finish],
+  );
 
   // Alt+Shift+D toggles; Esc cancels.
   useEffect(() => {

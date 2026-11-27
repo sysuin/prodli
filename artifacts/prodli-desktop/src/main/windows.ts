@@ -45,7 +45,7 @@ function savedTheme(): "light" | "dark" | null {
   return t === "dark" || t === "light" ? t : null;
 }
 
-function webPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
+export function webPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
   return {
     preload: preloadPath(),
     contextIsolation: true,
@@ -59,7 +59,7 @@ function webPreferences(): BrowserWindowConstructorOptions["webPreferences"] {
 }
 
 /** Links open in the default browser; the window itself never leaves the app. */
-function lockDown(w: BrowserWindow): void {
+export function lockDown(w: BrowserWindow): void {
   const wc = w.webContents;
   wc.setWindowOpenHandler(({ url }) => {
     if (isExternalLink(url)) void shell.openExternal(url);

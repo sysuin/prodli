@@ -21,7 +21,14 @@ export interface DesktopPrefs {
   callNudge: boolean;
   /** Keep the computer from sleeping while recording or in a focus session. */
   autoKeepAwake: boolean;
+  /** Dictate into any app with a global shortcut (older app versions don't have these). */
+  dictateAnywhere?: boolean;
+  dictateShortcut?: string;
 }
+
+/** Messages from the app to the dictation pill window (#dictate-pill). */
+export type DesktopDictationControl = { type: "start"; app: string } | { type: "app"; app: string } | { type: "finish" } | { type: "cancel" };
+export type DesktopPasteResult = { method: "typed" } | { method: "copied"; reason: "permission" | "unsupported" | "failed" };
 
 /** A local file opened with the app (File → Open, Open With, dropped on the dock icon). */
 export interface OpenedFile {
@@ -76,6 +83,24 @@ export interface DesktopBridge {
   setBadge(text: string): void;
   /** Tells the app a recording started / stopped (tray menu, dock badge, "quit while recording?"). */
   setRecording(recording: boolean): void;
+  /** Dictation into any app (newer app versions only). */
+  dictation?: {
+    /** The pill window: start / finish / cancel, from the shortcut. */
+    onControl(cb: (control: DesktopDictationControl) => void): () => void;
+    /** Pastes the text where the cursor is in the app in front; the clipboard is put back afterwards. */
+    paste(text: string): Promise<DesktopPasteResult>;
+    /** The pill is done (hides its window). */
+    done(): void;
+    /** The pill's ✓ / ✕ (the same as the shortcut / Esc). */
+    finish(): void;
+    cancel(): void;
+    /** The pill window is listening for onControl. */
+    ready(): void;
+    /** canPaste — macOS: whether ProdLi may press ⌘V in other apps (Accessibility), always true elsewhere; shortcutTaken — another app has the chosen shortcut. */
+    status(): Promise<{ canPaste: boolean; shortcutTaken: boolean }>;
+    /** macOS: asks for Accessibility (shows the system prompt and opens System Settings). */
+    askToPaste(): Promise<boolean>;
+  };
 }
 
 declare global {
@@ -95,4 +120,19 @@ export function isDesktop(): boolean {
 /** "Mac" / "Windows" for wording ("Download for Mac"). */
 export function desktopPlatformName(p: DesktopPlatform | undefined = desktop()?.platform): string {
   return p === "mac" ? "Mac" : p === "windows" ? "Windows" : p === "linux" ? "Linux" : "computer";
+}
+
+/** Shortcuts for dictation into any app. Alt+Shift+D is the Chrome extension's, so it isn't the default. */
+export const DICTATE_SHORTCUTS = ["Alt+Shift+Space", "CommandOrControl+Shift+Space", "Alt+Shift+D", "F8"] as const;
+export type DictateShortcut = (typeof DICTATE_SHORTCUTS)[number];
+export const DEFAULT_DICTATE_SHORTCUT: DictateShortcut = "Alt+Shift+Space";
+
+/** How an Electron shortcut reads on this computer ("⌥⇧Space" on a Mac, "Alt+Shift+Space" on Windows). */
+export function shortcutLabel(s: string, mac: boolean): string {
+  if (!mac) return s.replace("CommandOrControl", "Ctrl");
+  const map: Record<string, string> = { CommandOrControl: "⌘", Alt: "⌥", Shift: "⇧", Control: "⌃" };
+  return s
+    .split("+")
+    .map((k) => map[k] ?? k)
+    .join("");
 }
