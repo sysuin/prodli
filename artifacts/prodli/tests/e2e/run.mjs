@@ -3663,6 +3663,42 @@ const suites = {
     check("Import notes: archived and binned Keep notes stay out", !notes.some((n) => n.title === "E2E Old idea" || n.title === "E2E Binned"));
     await p.close();
   },
+
+  async writing(b, check) {
+    // The writing surface: a readable column, the title line, text size and width, and a toolbar that fits.
+    const p = await b.openPage();
+    await p.goto("editor");
+    await p.eval(`document.querySelector('[title="New note (Alt+N)"]').click(); true`);
+    await sleep(600);
+    await p.key("Enter");
+    await sleep(200);
+    const title = await p.eval(`(() => { const h = document.querySelector(".ProseMirror > h1:first-child"); return h ? { cls: h.className, ph: h.getAttribute("data-placeholder"), before: getComputedStyle(h, "::before").content } : null; })()`);
+    check("Writing: an empty title shows Untitled even with the cursor below it", !!title && /is-title-empty/.test(title.cls) && title.ph === "Untitled" && /Untitled/.test(title.before), JSON.stringify(title));
+    const look = () => p.eval(`(() => { const page = document.querySelector(".editor-page"); const pm = document.querySelector(".editor-page .tiptap"); const cs = getComputedStyle(pm); return { size: cs.fontSize, line: parseFloat(cs.lineHeight) / parseFloat(cs.fontSize), max: getComputedStyle(page).maxWidth, width: page.getBoundingClientRect().width }; })()`);
+    let l = await look();
+    check("Writing: notes are 16px text in a column of readable width", l.size === "16px" && Math.abs(l.line - 1.65) < 0.02 && l.max === "736px" && l.width <= 736, JSON.stringify(l));
+    await p.eval(`document.querySelector('[title^="More: find"]').click(); true`);
+    await sleep(250);
+    await p.eval(`document.querySelector('[data-testid="note-size-large"]').click(); document.querySelector('[data-testid="note-full-width"]').click(); true`);
+    await sleep(300);
+    l = await look();
+    check("Writing: Large text and Full width apply right away", l.size === "18px" && l.max === "none" && l.width > 736, JSON.stringify(l));
+    await p.goto("editor");
+    l = await look();
+    const saved = await p.storage(["editorSize", "editorWidth"]);
+    check("Writing: text size and width are kept", l.size === "18px" && l.max === "none" && saved.editorSize === "large" && saved.editorWidth === "full", JSON.stringify({ l, saved }));
+    await p.eval(`chrome.storage.local.set({ editorSize: "medium", editorWidth: "normal" })`);
+    // A narrow window: the less-used buttons step aside and nothing scrolls sideways.
+    await p.send("Emulation.setDeviceMetricsOverride", { width: 1000, height: 800, deviceScaleFactor: 1, mobile: false });
+    await sleep(500);
+    const bar = await p.eval(`(() => { const sc = document.querySelector(".editor-toolbar-scroll"); return { overflow: sc.scrollWidth - sc.clientWidth, hidden: [...document.querySelectorAll(".editor-toolbar-row .tb-medium")].every((x) => getComputedStyle(x).display === "none"), bold: !!document.querySelector('.editor-toolbar-row [title^="Bold"]').offsetParent }; })()`);
+    check("Writing: on a narrow window the toolbar fits without scrolling", bar.overflow <= 1 && bar.hidden && bar.bold, JSON.stringify(bar));
+    await p.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(400);
+    const wide = await p.eval(`[...document.querySelectorAll(".editor-toolbar-row .tb-medium")].every((x) => getComputedStyle(x).display !== "none")`);
+    check("Writing: on a wide window every toolbar button shows", wide);
+    await p.close();
+  },
 };
 
 // ── Runner ────────────────────────────────────────────────────────────────────

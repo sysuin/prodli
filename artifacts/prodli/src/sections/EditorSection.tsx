@@ -45,10 +45,19 @@ type EditorFont = "system" | "inter" | "space-mono" | "merriweather";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const FONT_OPTIONS: { value: EditorFont; label: string; family: string }[] = [
-  { value: "system", label: "System", family: "var(--app-font-sans)" },
+  { value: "system", label: "Default", family: "var(--app-font-sans)" },
   { value: "inter", label: "Inter", family: "'Inter', sans-serif" },
   { value: "space-mono", label: "Space Mono", family: "'Space Mono', monospace" },
   { value: "merriweather", label: "Merriweather", family: "'Merriweather', serif" },
+];
+
+/** Text size and page width of the writing area (⋯ menu; .editor-page data attributes in index.css). */
+type NoteSize = "small" | "medium" | "large";
+type NoteWidth = "normal" | "full";
+const NOTE_SIZES: { value: NoteSize; label: string; px: number }[] = [
+  { value: "small", label: "Small", px: 13 },
+  { value: "medium", label: "Medium", px: 16 },
+  { value: "large", label: "Large", px: 19 },
 ];
 
 const EDIT_DEBOUNCE_MS = 500;
@@ -83,6 +92,10 @@ function newNote(partial: Partial<Note> = {}): Note {
 interface ToolbarButtonProps {
   /** Hidden on phones (index.css .tb-optional). */
   optional?: boolean;
+  /** Also hidden when the toolbar is narrow (index.css .tb-medium); each is in the "/" menu or the selection bubble too. */
+  medium?: boolean;
+  /** No border or shadow of its own (the selection bubble: one bar of buttons). */
+  flat?: boolean;
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
@@ -90,11 +103,35 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
   wide?: boolean;
 }
-function ToolbarButton({ onClick, active, disabled, title, children, wide, optional }: ToolbarButtonProps) {
+function ToolbarButton({ onClick, active, disabled, title, children, wide, optional, medium, flat }: ToolbarButtonProps) {
+  if (flat) {
+    return (
+      <button
+        type="button"
+        className="tb-flat"
+        onClick={onClick}
+        title={title}
+        aria-label={title}
+        aria-pressed={active}
+        disabled={disabled}
+        onMouseDown={(e) => e.preventDefault()}
+        style={{
+          ...(active ? { background: "#FFD700", color: "#000" } : {}),
+          minWidth: 30,
+          height: 30,
+          padding: wide ? "0 9px" : 0,
+          fontSize: wide ? 11 : 13,
+          textTransform: wide ? "uppercase" : undefined,
+        }}
+      >
+        <span aria-hidden="true">{children}</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
-      className={optional ? "tb-optional" : undefined}
+      className={[optional && "tb-optional", medium && "tb-medium"].filter(Boolean).join(" ") || undefined}
       onClick={onClick}
       title={title}
       aria-label={title}
@@ -132,6 +169,8 @@ const Divider = () => <div className="tb-optional" style={{ width: 1, height: 24
 export function EditorSection() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editorFont, setEditorFont] = useState<EditorFont>("system");
+  const [noteSize, setNoteSize] = useState<NoteSize>("medium");
+  const [noteWidth, setNoteWidth] = useState<NoteWidth>("normal");
   const [sort, setSort] = useState<NoteSort>("updated");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
@@ -502,9 +541,17 @@ export function EditorSection() {
 
   // ── Loading ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    void Promise.all([storageGet<string | null>("activeNoteId", null), storageGet<string>("editorFont", "system"), storageGet<NoteSort>("notesSort", "updated")]).then(
-      ([savedActive, savedFont, savedSort]) => {
+    void Promise.all([
+      storageGet<string | null>("activeNoteId", null),
+      storageGet<string>("editorFont", "system"),
+      storageGet<NoteSort>("notesSort", "updated"),
+      storageGet<string>("editorSize", "medium"),
+      storageGet<string>("editorWidth", "normal"),
+    ]).then(
+      ([savedActive, savedFont, savedSort, savedSize, savedWidth]) => {
         setEditorFont(FONT_OPTIONS.some((f) => f.value === savedFont) ? (savedFont as EditorFont) : "system");
+        setNoteSize(NOTE_SIZES.some((x) => x.value === savedSize) ? (savedSize as NoteSize) : "medium");
+        setNoteWidth(savedWidth === "full" ? "full" : "normal");
         setSort(["updated", "created", "title"].includes(savedSort) ? savedSort : "updated");
         activeIdRef.current = savedActive;
         setActiveId(savedActive);
@@ -533,7 +580,7 @@ export function EditorSection() {
     if (!activeIdRef.current || !notes.some((n) => n.id === activeIdRef.current)) {
       if (real.length) selectNote(sortNotes(real, sort)[0].id);
       else {
-        const blank = newNote();
+        const blank = newNote({ content: "<h1></h1>" });
         setNotes((prev) => [blank, ...prev]);
         selectNote(blank.id);
       }
@@ -732,7 +779,7 @@ export function EditorSection() {
     const remaining = notesRef.current.filter((n) => n.id !== id);
     const real = remaining.filter((n) => !n.template);
     if (real.length === 0) {
-      const blank = newNote();
+      const blank = newNote({ content: "<h1></h1>" });
       setNotes([blank, ...remaining]);
       selectNote(blank.id);
     } else {
@@ -749,6 +796,15 @@ export function EditorSection() {
   const changeFont = (font: EditorFont) => {
     setEditorFont(font);
     void storageSet("editorFont", font).catch(() => {});
+  };
+  const changeSize = (size: NoteSize) => {
+    setNoteSize(size);
+    void storageSet("editorSize", size).catch(() => {});
+  };
+  const toggleWidth = () => {
+    const next: NoteWidth = noteWidth === "full" ? "normal" : "full";
+    setNoteWidth(next);
+    void storageSet("editorWidth", next).catch(() => {});
   };
 
   const changeSort = (s: NoteSort) => {
@@ -901,9 +957,9 @@ export function EditorSection() {
         {/* Toolbar */}
         <div role="toolbar" aria-label="Formatting" className="editor-toolbar-row" style={{ borderBottom: "var(--nb-border)", padding: "8px 16px", display: "flex", gap: 6, background: "hsl(var(--muted))", alignItems: "center" }}>
           {/* Formatting buttons scroll sideways when there's no room; the note actions on the right stay put. */}
-          <div className="editor-toolbar-scroll" style={{ display: "flex", gap: 4, alignItems: "center", flex: "1 1 auto", minWidth: 0, overflowX: "auto", scrollbarWidth: "thin" }}>
+          <div className="editor-toolbar-scroll" style={{ display: "flex", gap: 4, alignItems: "center", flex: "1 1 auto", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
           <ToolbarButton onClick={run((e) => e.chain().focus().undo().run())} disabled={!t?.canUndo} title="Undo (Ctrl/⌘+Z)">↩</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().redo().run())} disabled={!t?.canRedo} optional title="Redo (Ctrl/⌘+Shift+Z)">↪</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().redo().run())} disabled={!t?.canRedo} optional medium title="Redo (Ctrl/⌘+Shift+Z)">↪</ToolbarButton>
           <Divider />
           <select
             aria-label="Text style"
@@ -925,9 +981,9 @@ export function EditorSection() {
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBold().run())} active={t?.bold} title="Bold (Ctrl/⌘+B)">B</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleItalic().run())} active={t?.italic} title="Italic (Ctrl/⌘+I)"><em>I</em></ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleUnderline().run())} active={t?.underline} optional title="Underline (Ctrl/⌘+U)"><u>U</u></ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleStrike().run())} active={t?.strike} optional title="Strikethrough (Ctrl/⌘+Shift+S)"><s>S</s></ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleStrike().run())} active={t?.strike} optional medium title="Strikethrough (Ctrl/⌘+Shift+S)"><s>S</s></ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleHighlight().run())} active={t?.highlight} optional title="Highlight (Ctrl/⌘+Shift+H)">🖍</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCode().run())} active={t?.code} optional title="Inline code (Ctrl/⌘+E)">{"<>"}</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCode().run())} active={t?.code} optional medium title="Inline code (Ctrl/⌘+E)">{"<>"}</ToolbarButton>
           <ToolbarButton onClick={setLink} active={t?.link} title="Link (Ctrl/⌘+K)">🔗</ToolbarButton>
           <Divider />
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleBulletList().run())} active={t?.bullet} title="Bullet list">•</ToolbarButton>
@@ -935,17 +991,17 @@ export function EditorSection() {
             <ListOrdered size={16} strokeWidth={2.5} aria-hidden="true" />
           </ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().toggleTaskList().run())} active={t?.task} title="Checklist">☑</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} optional title="Quote">❝</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} optional title="Code block">{"{}"}</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleBlockquote().run())} active={t?.quote} optional medium title="Quote">❝</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().toggleCodeBlock().run())} active={t?.codeBlock} optional medium title="Code block">{"{}"}</ToolbarButton>
           <ToolbarButton onClick={run((e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())} active={t?.inTable} optional title="Insert table">▦</ToolbarButton>
-          <ToolbarButton onClick={run((e) => e.chain().focus().setHorizontalRule().run())} optional title="Divider line">—</ToolbarButton>
+          <ToolbarButton onClick={run((e) => e.chain().focus().setHorizontalRule().run())} optional medium title="Divider line">—</ToolbarButton>
 
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6, flex: "0 0 auto" }}>
             <ReadAloudBar reader={reader} />
             <ToolbarButton onClick={() => setShowOutline((v) => !v)} active={showOutline} optional title="Outline (headings in this note)">☰</ToolbarButton>
             <div style={{ position: "relative" }}>
-              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: find, font, copy, import, export, print">⋯</ToolbarButton>
+              <ToolbarButton onClick={() => setShowMore((v) => !v)} active={showMore} title="More: find, font, text size, width, copy, import, export, print">⋯</ToolbarButton>
               {showMore && (
                 <div role="menu" aria-label="More note actions" style={{ position: "absolute", right: 0, top: 38, zIndex: 30, minWidth: 220, background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow)", padding: 4 }}>
                   {[
@@ -991,6 +1047,38 @@ export function EditorSection() {
                       ))}
                     </div>
                   </div>
+                  <div role="group" aria-label="Text size" style={{ borderTop: "1px solid var(--nb-section-border)", paddingTop: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", opacity: 0.7, padding: "4px 10px" }}>Text size</div>
+                    <div style={{ display: "flex", gap: 4, padding: "2px 6px 6px" }}>
+                      {NOTE_SIZES.map((opt) => (
+                        <button
+                          key={opt.value}
+                          role="menuitemradio"
+                          aria-checked={noteSize === opt.value}
+                          data-testid={`note-size-${opt.value}`}
+                          title={`${opt.label} text`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => changeSize(opt.value)}
+                          style={{ flex: 1, height: 40, padding: "2px 4px", border: noteSize === opt.value ? "2px solid hsl(var(--foreground))" : "1px solid var(--nb-section-border)", background: noteSize === opt.value ? "#FFD700" : "transparent", color: noteSize === opt.value ? "#000" : "inherit", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, lineHeight: 1 }}
+                        >
+                          <span style={{ fontSize: opt.px }}>A</span>
+                          <span style={{ display: "block", fontSize: 9, fontWeight: 700, marginTop: 2 }}>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    role="menuitemcheckbox"
+                    aria-checked={noteWidth === "full"}
+                    data-testid="note-full-width"
+                    title="Use the whole width of the window for notes (good for wide tables)"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={toggleWidth}
+                    style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", textAlign: "left", padding: "7px 10px", border: "none", borderTop: "1px solid var(--nb-section-border)", background: "transparent", color: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    <span aria-hidden style={{ width: 16, textAlign: "center" }}>{noteWidth === "full" ? "☑" : "☐"}</span>
+                    Full width
+                  </button>
                 </div>
               )}
             </div>
@@ -1043,13 +1131,13 @@ export function EditorSection() {
           {/* Editor content */}
           <div
             className="editor-scroll"
-            style={{ flex: 1, overflowY: "auto", padding: "24px 56px", background: "hsl(var(--card))", fontFamily: FONT_OPTIONS.find((f) => f.value === editorFont)?.family }}
+            style={{ flex: 1, overflowY: "auto", background: "hsl(var(--card))", fontFamily: FONT_OPTIONS.find((f) => f.value === editorFont)?.family }}
             onClick={(e) => {
               // Clicking the empty space below the text focuses the end of the note.
               if (e.target === e.currentTarget) editor?.commands.focus("end");
             }}
           >
-            <div ref={pageRef} className="editor-page" style={{ maxWidth: 820, margin: "0 auto", position: "relative" }}>
+            <div ref={pageRef} className="editor-page" data-size={noteSize} data-width={noteWidth} style={{ position: "relative" }}>
               {activeNote && <PageHead key={activeNote.id} note={activeNote} onChange={(patch) => setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? { ...n, ...patch, updatedAt: new Date().toISOString() } : n)))} />}
               <EditorContent editor={editor} style={{ minHeight: "100%" }} />
               <BlockHandle editor={editor} pageRef={pageRef} />
@@ -1104,30 +1192,30 @@ export function EditorSection() {
           }}
           options={{ placement: "top" }}
         >
-          <div className="bubble-menu" style={{ display: "flex", gap: 3, padding: 4, background: "hsl(var(--card))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)" }}>
+          <div className="bubble-menu" style={{ display: "flex", gap: 1, padding: 3, alignItems: "center", background: "hsl(var(--card))", border: "var(--nb-border)", boxShadow: "var(--nb-shadow-sm)" }}>
             {t?.link && (
               <>
-                <ToolbarButton wide onClick={() => { const href = editor.getAttributes("link").href as string | undefined; if (href) window.open(href, "_blank", "noopener,noreferrer"); }} title="Open link">Open ↗</ToolbarButton>
-                <ToolbarButton wide onClick={setLink} title="Edit link">Edit</ToolbarButton>
-                <ToolbarButton wide onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} title="Remove link">Unlink</ToolbarButton>
+                <ToolbarButton flat wide onClick={() => { const href = editor.getAttributes("link").href as string | undefined; if (href) window.open(href, "_blank", "noopener,noreferrer"); }} title="Open link">Open ↗</ToolbarButton>
+                <ToolbarButton flat wide onClick={setLink} title="Edit link">Edit</ToolbarButton>
+                <ToolbarButton flat wide onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()} title="Remove link">Unlink</ToolbarButton>
               </>
             )}
             {!editor.state.selection.empty && (
               <>
                 {isImprovable(editor.state.selection) && (
                   <>
-                    <ToolbarButton wide onClick={() => void improve.open()} title="Improve writing (Ctrl/⌘+J)">✨ Improve</ToolbarButton>
-                    <Divider />
+                    <ToolbarButton flat wide onClick={() => void improve.open()} title="Improve writing (Ctrl/⌘+J)">✨ Improve</ToolbarButton>
+                    <div aria-hidden style={{ width: 1, height: 20, background: "hsl(var(--foreground) / 0.18)", margin: "0 3px" }} />
                   </>
                 )}
-                <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={t?.bold} title="Bold">B</ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={t?.italic} title="Italic"><em>I</em></ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={t?.underline} title="Underline"><u>U</u></ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={t?.strike} title="Strikethrough"><s>S</s></ToolbarButton>
-                <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={t?.highlight} title="Highlight">🖍</ToolbarButton>
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleBold().run()} active={t?.bold} title="Bold">B</ToolbarButton>
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleItalic().run()} active={t?.italic} title="Italic"><em>I</em></ToolbarButton>
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleUnderline().run()} active={t?.underline} title="Underline"><u>U</u></ToolbarButton>
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleStrike().run()} active={t?.strike} title="Strikethrough"><s>S</s></ToolbarButton>
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleHighlight().run()} active={t?.highlight} title="Highlight">🖍</ToolbarButton>
                 <ColorButton editor={editor} />
-                <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} active={t?.code} title="Inline code">{"<>"}</ToolbarButton>
-                {!t?.link && <ToolbarButton onClick={setLink} title="Add link">🔗</ToolbarButton>}
+                <ToolbarButton flat onClick={() => editor.chain().focus().toggleCode().run()} active={t?.code} title="Inline code">{"<>"}</ToolbarButton>
+                {!t?.link && <ToolbarButton flat onClick={setLink} title="Add link">🔗</ToolbarButton>}
               </>
             )}
           </div>

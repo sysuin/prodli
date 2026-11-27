@@ -11,6 +11,7 @@ import { BlockKeys, Callout, NoteLink } from "./blocks";
 import { NoteImage } from "./noteImage";
 import { FindReplace } from "./findReplace";
 import { CodeBlock } from "./codeBlock";
+import { TitlePlaceholder } from "./titlePlaceholder";
 
 /** All Editor features in one place. */
 export function buildExtensions() {
@@ -61,5 +62,6 @@ export function buildExtensions() {
     BlockKeys,
     // Find & replace in the note (Ctrl/⌘+F; the bar is FindBar.tsx).
     FindReplace,
+    TitlePlaceholder,
   ];
 }

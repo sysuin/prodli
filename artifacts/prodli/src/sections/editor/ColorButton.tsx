@@ -19,7 +19,8 @@ export function ColorButton({ editor }: { editor: Editor }) {
         aria-expanded={open}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((v) => !v)}
-        style={{ border: "var(--nb-border)", background: currentBg ? bgColor(currentBg) : "hsl(var(--card))", color: current ? textColor(current) : "hsl(var(--foreground))", minWidth: 30, height: 30, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textDecorationThickness: 3 }}
+        className="tb-flat"
+        style={{ ...(currentBg ? { background: bgColor(currentBg) } : {}), color: current ? textColor(current) : "hsl(var(--foreground))", minWidth: 30, height: 30, fontWeight: 900, textDecoration: "underline", textDecorationThickness: 3 }}
       >
         A
       </button>
