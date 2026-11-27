@@ -39,6 +39,7 @@ const state = mkdtempSync(path.join(tmpdir(), "prodli-desktop-e2e-api-"));
 const userData = mkdtempSync(path.join(tmpdir(), "prodli-desktop-e2e-data-"));
 const urlFile = path.join(userData, "signin-url.txt");
 const trayFile = path.join(userData, "tray.json");
+const pasteFile = path.join(userData, "pasted.jsonl");
 run(`pnpm exec wrangler d1 migrations apply DB --local --persist-to "${state}"`, api, { CI: "true" });
 const server = spawn("pnpm", ["exec", "wrangler", "dev", "--port", String(PORT), "--persist-to", state, "--var", "DEV_FAKE_GOOGLE:true", "--log-level", "warn"], {
   cwd: api,
@@ -68,11 +69,11 @@ for (let i = 0; ; i++) {
 }
 
 // ── A tiny DevTools client ───────────────────────────────────────────────────
-async function connect() {
+async function connect(match = (url) => url.startsWith("app://prodli/") && !url.includes("#dictate-pill")) {
   for (let i = 0; i < 60; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json();
-      const page = list.find((p) => p.type === "page" && p.url.startsWith("app://prodli/"));
+      const page = list.find((p) => p.type === "page" && match(p.url));
       if (page) {
         const ws = new WebSocket(page.webSocketDebuggerUrl);
         await new Promise((r, j) => ((ws.onopen = r), (ws.onerror = j)));
@@ -104,7 +105,7 @@ const launch = () =>
   spawn(electron, [".", `--remote-debugging-port=${DEBUG_PORT}`, "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", ...(process.platform === "linux" ? ["--no-sandbox"] : [])], {
     cwd: pkg,
     stdio: ["ignore", "inherit", "inherit"],
-    env: { ...process.env, PRODLI_USER_DATA: userData, PRODLI_E2E_URL_FILE: urlFile, PRODLI_E2E_TRAY_FILE: trayFile },
+    env: { ...process.env, PRODLI_USER_DATA: userData, PRODLI_E2E_URL_FILE: urlFile, PRODLI_E2E_TRAY_FILE: trayFile, PRODLI_E2E_PASTE_FILE: pasteFile },
     shell: process.platform === "win32",
   });
 
@@ -220,6 +221,47 @@ try {
     synced = await page.eval(`window.prodliDesktop.storage.get("prodliSyncStatus")`);
   }
   check("syncs with the account", !!synced?.lastSyncAt, JSON.stringify(synced));
+
+  if (process.platform !== "win32") {
+    console.log("dictate into any app");
+    await page.eval(`window.prodliDesktop.prefs.set({ dictateAnywhere: true }).then(() => true)`);
+    for (let i = 0; i < 40 && !existsSync(`${pasteFile}.pid`); i++) await sleep(100);
+    const appPid = Number(readFileSync(`${pasteFile}.pid`, "utf8"));
+    const press = () => process.kill(appPid, "SIGUSR2"); // the shortcut (no real keyboard here)
+    const status = await page.eval(`window.prodliDesktop.dictation.status()`);
+    check("turning it on registers the shortcut", status?.shortcutTaken === false && status?.canPaste === true, JSON.stringify(status));
+    const refused = await page.eval(`window.prodliDesktop.dictation.paste("not from the pill")`);
+    check("only the pill window may paste", refused?.method === "copied" && !existsSync(pasteFile), JSON.stringify(refused));
+
+    // In ProdLi itself the shortcut starts the in-app dictation in the focused box.
+    const focused = await page.eval(`(async () => { const t = document.createElement("textarea"); t.id = "e2e-dict"; document.body.appendChild(t); t.focus(); await new Promise((r) => setTimeout(r, 200)); return document.hasFocus(); })()`);
+    if (focused) {
+      press();
+      const inApp = await page.eval(`new Promise((r) => { let n = 0; const t = setInterval(() => { const p = document.querySelector("[data-testid=web-dictate-pill]"); if (p || ++n > 40) { clearInterval(t); r(p?.innerText ?? null); } }, 100); })`);
+      check("in a ProdLi window the shortcut dictates into its text box", /Listening/.test(inApp ?? ""), String(inApp));
+      await page.eval(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); document.getElementById("e2e-dict").remove(); true`);
+    } else console.log("  (window not focused here: skipped the in-app check)");
+
+    // In another app: the pill floats, listens (fake microphone) and finishes.
+    await page.eval(`window.prodliDesktop.closeWindow(); true`);
+    await sleep(500);
+    press();
+    const pill = await connect((url) => url.endsWith("#dictate-pill"));
+    const pillText = () => pill.eval(`document.querySelector("[data-testid=desktop-dictate-pill]")?.innerText ?? ""`);
+    let text = "";
+    for (let i = 0; i < 40 && !/Listening/.test(text); i++) (await sleep(100), (text = await pillText()));
+    check("the shortcut shows the pill, listening", /Listening/.test(text), text);
+    check("the pill window never takes the focus", (await pill.eval(`document.hasFocus()`)) === false);
+    await sleep(2500);
+    press();
+    for (let i = 0; i < 300 && (/Listening|Writing/.test(text) || !text); i++) (await sleep(100), (text = await pillText()));
+    check("pressing it again finishes (no Whisper locally: it says what happened)", !!text && !/Listening/.test(text), text);
+    const pasted = await pill.eval(`window.prodliDesktop.dictation.paste("Hello from ProdLi.")`);
+    const lines = existsSync(pasteFile) ? readFileSync(pasteFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
+    check("the pill pastes through the clipboard", pasted?.method === "typed" && lines.at(-1)?.text === "Hello from ProdLi." && lines.at(-1)?.clipboard === "Hello from ProdLi.", JSON.stringify({ pasted, lines }));
+    await pill.eval(`window.prodliDesktop.prefs.set({ dictateAnywhere: false }).then(() => true)`).catch(() => undefined);
+    pill.close();
+  }
 
   console.log("on disk");
   page.close();

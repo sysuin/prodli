@@ -4,7 +4,7 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import { IPC } from "../core/ipc";
-import type { DesktopBridge, StorageChange } from "../../../prodli/src/lib/desktop";
+import type { DesktopBridge, DesktopDictationControl, StorageChange } from "../../../prodli/src/lib/desktop";
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? "";
 const theme = arg("prodli-theme");
@@ -46,6 +46,16 @@ const bridge: DesktopBridge = {
   onCommand: (cb) => listen<string>(IPC.command, cb),
   setBadge: (text) => ipcRenderer.send(IPC.setBadge, String(text ?? "")),
   setRecording: (recording) => ipcRenderer.send(IPC.recordingState, !!recording),
+  dictation: {
+    onControl: (cb) => listen<DesktopDictationControl>(IPC.dictationControl, cb),
+    paste: (text) => ipcRenderer.invoke(IPC.dictationPaste, String(text ?? "")),
+    done: () => ipcRenderer.send(IPC.dictationDone),
+    finish: () => ipcRenderer.send(IPC.dictationFinish),
+    cancel: () => ipcRenderer.send(IPC.dictationCancel),
+    ready: () => ipcRenderer.send(IPC.dictationReady),
+    status: () => ipcRenderer.invoke(IPC.dictationStatus),
+    askToPaste: () => ipcRenderer.invoke(IPC.dictationAskToPaste),
+  },
 };
 
 contextBridge.exposeInMainWorld("prodliDesktop", bridge);

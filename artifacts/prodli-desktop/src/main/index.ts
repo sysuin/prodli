@@ -17,6 +17,7 @@ import { isRecording, refreshMenus, refreshTray, setRecording, setTrayTitle, set
 import { startMenuBar, stopMenuBar } from "./menuBar";
 import { startUpdates } from "./updates";
 import { startCallNudges } from "./callNudge";
+import { startDictation } from "./dictation";
 import { startAppTracking, stopAppTracking } from "./appTracker";
 import { sendCommand } from "./windows";
 import { registerAppScheme, serveApp } from "./protocol";
@@ -62,6 +63,7 @@ if (!app.requestSingleInstanceLock()) {
     setUpMenus();
     startUpdates(refreshMenus);
     startCallNudges({ isRecording, record: () => sendCommand("record-call") });
+    startDictation();
 
     const store = await opening;
     startAppTracking(store);

@@ -78,6 +78,29 @@ export function siteCategory(hostname: string): SiteCategory {
   return "other";
 }
 
+// Desktop app: dictation into any app picks the style from the app in front.
+const APP_EMAIL = /\b(mail|outlook|spark|airmail|thunderbird|superhuman|mimestream|hey|proton mail|canary)\b/i;
+const APP_WORK = /\b(slack|teams|discord|zoom|webex|linear|notion|jira|confluence|asana|clickup|trello|basecamp|figma|miro|github|gitlab|monday)\b/i;
+const APP_PERSONAL = /\b(whatsapp|messages|messenger|telegram|signal|imessage|instagram|facetime|line|viber|wechat)\b/i;
+const APP_CODE = /\b(code|cursor|xcode|intellij|pycharm|webstorm|android studio|terminal|iterm2?|warp|powershell|command prompt|windows terminal|sublime text|vim|zed)\b/i;
+
+/** Which kind of app (by its name, e.g. "Slack", "Microsoft Outlook") the text goes into. */
+export function appCategory(appName: string): SiteCategory {
+  const n = appName.trim();
+  if (!n) return "other";
+  if (APP_EMAIL.test(n)) return "email";
+  if (APP_WORK.test(n)) return "work";
+  if (APP_PERSONAL.test(n)) return "personal";
+  return "other";
+}
+
+/** The field kind for an app: email apps write emails, chat apps messages, editors and terminals code. */
+export function appFieldKind(appName: string): FieldKind {
+  if (APP_CODE.test(appName)) return "code";
+  const c = appCategory(appName);
+  return c === "email" ? "email" : c === "work" || c === "personal" ? "chat" : "other";
+}
+
 /** What kind of field the text goes into, from the site and the field itself. */
 export function fieldKind(hostname: string, field: { tag: string; type?: string; role?: string | null; multiline: boolean; codeLike?: boolean }): FieldKind {
   if (field.codeLike) return "code";

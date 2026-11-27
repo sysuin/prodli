@@ -204,8 +204,43 @@ describe("desktop preferences", async () => {
   const { cleanPrefs, DEFAULT_PREFS } = await import("../src/core/prefs");
   it("keeps known boolean settings only", () => {
     expect(cleanPrefs(null)).toEqual(DEFAULT_PREFS);
-    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true, autoKeepAwake: true });
-    expect(cleanPrefs({ keepRunning: false, autoKeepAwake: false }, { openAtLogin: true, keepRunning: true, callNudge: false, autoKeepAwake: true })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false, autoKeepAwake: false });
+    const dict = { dictateAnywhere: false, dictateShortcut: "Alt+Shift+Space" } as const;
+    expect(cleanPrefs({ openAtLogin: true, keepRunning: "no", evil: 1 })).toEqual({ openAtLogin: true, keepRunning: true, callNudge: true, autoKeepAwake: true, ...dict });
+    expect(cleanPrefs({ keepRunning: false, autoKeepAwake: false }, { openAtLogin: true, keepRunning: true, callNudge: false, autoKeepAwake: true, ...dict })).toEqual({ openAtLogin: true, keepRunning: false, callNudge: false, autoKeepAwake: false, ...dict });
+  });
+  it("dictation into any app is off until turned on, with a shortcut from the list", () => {
+    expect(DEFAULT_PREFS.dictateAnywhere).toBe(false);
+    expect(cleanPrefs({ dictateAnywhere: true, dictateShortcut: "F8" })).toMatchObject({ dictateAnywhere: true, dictateShortcut: "F8" });
+    expect(cleanPrefs({ dictateShortcut: "Command+Q" }).dictateShortcut).toBe("Alt+Shift+Space");
+  });
+});
+
+describe("dictation into any app", async () => {
+  const { appCategory, appFieldKind, pasteCommand, pillBounds, shortcutLabel } = await import("../src/core/dictation");
+  it("picks the style from the app in front", () => {
+    expect(appCategory("Microsoft Outlook")).toBe("email");
+    expect(appCategory("Mail")).toBe("email");
+    expect(appCategory("Slack")).toBe("work");
+    expect(appCategory("Microsoft Teams")).toBe("work");
+    expect(appCategory("WhatsApp")).toBe("personal");
+    expect(appCategory("Messages")).toBe("personal");
+    expect(appCategory("Pages")).toBe("other");
+    expect(appCategory("Outline")).toBe("other");
+    expect(appCategory("")).toBe("other");
+    expect(appFieldKind("Visual Studio Code")).toBe("code");
+    expect(appFieldKind("Slack")).toBe("chat");
+    expect(appFieldKind("Microsoft Outlook")).toBe("email");
+  });
+  it("presses paste the right way on each computer", () => {
+    expect(pasteCommand("darwin")?.args.join(" ")).toContain('keystroke "v" using command down');
+    expect(pasteCommand("win32")?.args.join(" ")).toContain("SendWait('^v')");
+    expect(pasteCommand("linux")?.file).toBe("xdotool");
+    expect(pasteCommand("aix")).toBeNull();
+  });
+  it("puts the pill at the bottom centre and labels shortcuts", () => {
+    expect(pillBounds({ x: 0, y: 25, width: 1440, height: 875 })).toEqual({ x: 530, y: 25 + 875 - 72 - 24, width: 380, height: 72 });
+    expect(shortcutLabel("Alt+Shift+Space", true)).toBe("⌥⇧Space");
+    expect(shortcutLabel("CommandOrControl+Shift+Space", false)).toBe("Ctrl+Shift+Space");
   });
 });
 

@@ -19,6 +19,14 @@ export const IPC = {
   filesAvailable: "prodli:files:available",
   filesTake: "prodli:files:take",
   filesOpenDialog: "prodli:files:openDialog",
+  dictationControl: "prodli:dictation:control",
+  dictationPaste: "prodli:dictation:paste",
+  dictationDone: "prodli:dictation:done",
+  dictationFinish: "prodli:dictation:finish",
+  dictationCancel: "prodli:dictation:cancel",
+  dictationStatus: "prodli:dictation:status",
+  dictationReady: "prodli:dictation:ready",
+  dictationAskToPaste: "prodli:dictation:askToPaste",
 } as const;
 
 /** Keys the store keeps encrypted with the OS keychain. */
