@@ -15,9 +15,12 @@ import { canUseProdliAi } from "../recorder/summarize";
 import { DICTATING_KEY, ensureOffscreenDocument, hasOffscreenDocument } from "../recorder/controller";
 import { RECORDING_STATE_KEY, VOCABULARY_STORAGE_KEY } from "../recorder/types";
 import {
+  addDay,
   cleanLocally,
+  cleanupLevel,
   countWords,
   DEFAULT_DICTATION_SETTINGS,
+  DICTATION_DAYS_KEY,
   DICTATION_HISTORY_KEY,
   DICTATION_SETTINGS_KEY,
   expandSnippets,
@@ -234,13 +237,15 @@ async function finish(): Promise<void> {
       if (whole) {
         text = whole.text; // the whole dictation was a snippet cue
       } else {
-        if (s.settings.polish) {
+        const level = cleanupLevel(s.settings);
+        if (level !== "none") {
           const host = s.info?.host ?? "";
           const style = s.settings.styles[siteCategory(host)];
           const field = s.info ? fieldKind(host, s.info.field) : "other";
           try {
             const language = aiLanguage(s.language);
-            const r = await callDictate({ mode: "polish", text: raw, style, field, dictionary: s.vocabulary.slice(0, 100), ...(language ? { language } : {}) });
+            const before = s.info?.before?.slice(-1000);
+            const r = await callDictate({ mode: "polish", text: raw, style, field, level, dictionary: s.vocabulary.slice(0, 100), ...(language ? { language } : {}), ...(before?.trim() ? { before } : {}) });
             text = r.text;
             polished = true;
           } catch (err) {
@@ -263,7 +268,7 @@ async function finish(): Promise<void> {
     return cleanup(s, 2000);
   }
 
-  const result = ((await toPill(s, { type: "insert", text, replaceSelection: command } as Omit<ToPill, "target" | "session" | "tabId">)) as InsertResult | undefined) ?? { ok: false, method: "none" };
+  const result = ((await toPill(s, { type: "insert", text, replaceSelection: command, learn: !command && s.settings.learnWords !== false } as Omit<ToPill, "target" | "session" | "tabId">)) as InsertResult | undefined) ?? { ok: false, method: "none" };
   const words = countWords(text);
   const mac = /Mac/i.test(navigator.userAgent);
   state(
@@ -272,9 +277,10 @@ async function finish(): Promise<void> {
       ? { phase: "done", message: `✓ ${command ? "Edited" : `Typed ${words} word${words === 1 ? "" : "s"}`}${note}` }
       : result.method === "copied"
         ? { phase: "done", message: `Copied — paste it with ${mac ? "⌘V" : "Ctrl+V"}${note}` }
-        : { phase: "error", message: "Couldn't type or copy the text. It's in ProdLi → Settings → Dictation → History." },
+        : { phase: "error", message: s.settings.keepHistory === false ? "Couldn't type or copy the text." : "Couldn't type or copy the text. It's in ProdLi → Settings → Dictation → History." },
   );
-  await saveHistory({ at: new Date().toISOString(), text, words, ms: stopped.ms, site: s.info?.host || "", mode: command ? "command" : "dictate", polished });
+  // With history off, only the count is kept (for stats), not what was said.
+  await saveHistory({ at: new Date().toISOString(), text: s.settings.keepHistory === false ? "" : text, words, ms: stopped.ms, site: s.info?.host || "", mode: command ? "command" : "dictate", polished });
   await cleanup(s, result.method === "typed" ? 1400 : 3500);
 }
 
@@ -299,7 +305,19 @@ async function cleanup(s: Session, pillDelayMs: number): Promise<void> {
 
 async function saveHistory(entry: DictationEntry): Promise<void> {
   const list = await local<DictationEntry[]>(DICTATION_HISTORY_KEY, []);
-  await chrome.storage.local.set({ [DICTATION_HISTORY_KEY]: [entry, ...list].slice(0, MAX_HISTORY) });
+  const days = await local<string[]>(DICTATION_DAYS_KEY, []);
+  await chrome.storage.local.set({ [DICTATION_HISTORY_KEY]: [entry, ...list].slice(0, MAX_HISTORY), [DICTATION_DAYS_KEY]: addDay(days) });
+}
+
+/** Adds words the user corrected right after dictating to the shared dictionary (also used for meeting notes). */
+async function learnWords(words: string[]): Promise<void> {
+  const settings = { ...DEFAULT_DICTATION_SETTINGS, ...(await local<Partial<DictationSettings>>(DICTATION_SETTINGS_KEY, {})) };
+  if (settings.learnWords === false) return;
+  const vocab = await local<string[]>(VOCABULARY_STORAGE_KEY, []);
+  const have = new Set(vocab.map((w) => w.toLowerCase()));
+  const add = words.map((w) => w.trim().slice(0, 60)).filter((w) => w.length >= 3 && !have.has(w.toLowerCase()));
+  if (!add.length || vocab.length >= 60) return;
+  await chrome.storage.local.set({ [VOCABULARY_STORAGE_KEY]: [...vocab, ...add].slice(0, 60) });
 }
 
 // ── Wiring ───────────────────────────────────────────────────────────────────
@@ -332,6 +350,9 @@ export function registerDictation(): void {
         break;
       case "toggle-from-page":
         void toggleDictation(sender.tab);
+        break;
+      case "learn":
+        if (Array.isArray(msg.words)) void learnWords(msg.words.filter((w): w is string => typeof w === "string").slice(0, 5));
         break;
     }
     return undefined;

@@ -106,7 +106,10 @@ try {
   check("Finishing types the cleaned-up text where the cursor was (with a space)", typed === "Hello So let's meet on Wednesday.", JSON.stringify(typed));
   const body = await swEval(`__bodies[0] ?? null`);
   check("The raw speech goes to the AI clean-up with the site's style and the field kind", body?.mode === "polish" && body?.text === "um so let's meet on tuesday no wait wednesday" && body?.style === "neutral" && body?.field === "document", JSON.stringify(body));
+  check("The clean-up gets the default level and the text before the cursor, for context", body?.level === "light" && body?.before === "Hello", JSON.stringify(body));
   check("The pill says what happened", /Typed 5 words/.test(doneMsg), doneMsg);
+  const days = await swEval(`chrome.storage.local.get("dictationDays").then((r) => r.dictationDays ?? [])`);
+  check("Today is counted for the dictation streak", days.length === 1 && /^\d{4}-\d\d-\d\d$/.test(days[0]), JSON.stringify(days));
   const hist = await swEval(`chrome.storage.local.get("dictationHistory").then((r) => r.dictationHistory ?? [])`);
   check("The dictation is kept in the history on this device", hist.length === 1 && hist[0].text === "So let's meet on Wednesday." && hist[0].site === "compose.example" && hist[0].words === 5, JSON.stringify(hist));
 
@@ -140,6 +143,22 @@ try {
   await dictate("https://compose.example/");
   await sleep(1600);
   check("Dictating before existing text adds a space between them", (await page.eval(`document.getElementById("i").value`)) === "Quick note. Done", await page.eval(`document.getElementById("i").value`));
+
+  // ── Learning a word the user corrects right after dictating ────────────────
+  await swEval(`(() => { globalThis.__heard = "send it to prodly"; globalThis.__prodliDictateStub = async () => ({ text: "Send it to Prodly." }); return chrome.storage.local.set({ recorderVocabulary: [] }).then(() => true); })()`);
+  await page.eval(`(() => { const t = document.getElementById("t"); t.value = ""; t.focus(); return true; })()`);
+  await dictate("https://compose.example/");
+  await sleep(2400);
+  await dictate("https://compose.example/");
+  for (let i = 0; i < 30 && !(await page.eval(`document.getElementById("t").value`)).includes("Prodly"); i++) await sleep(100);
+  // The user fixes the misheard name, as they would by typing.
+  await page.eval(`(() => { const t = document.getElementById("t"); const at = t.value.indexOf("Prodly"); t.focus(); t.setSelectionRange(at, at + 6); document.execCommand("insertText", false, "ProdLi"); return t.value; })()`);
+  let vocab = [];
+  for (let i = 0; i < 30 && !vocab.includes("ProdLi"); i++) {
+    await sleep(150);
+    vocab = await swEval(`chrome.storage.local.get("recorderVocabulary").then((r) => r.recorderVocabulary ?? [])`);
+  }
+  check("Correcting a dictated word adds the new spelling to the dictionary", vocab.includes("ProdLi") && vocab.length === 1, JSON.stringify(vocab));
 
   // ── Esc cancels ─────────────────────────────────────────────────────────────
   await page.eval(`(() => { const t = document.getElementById("t"); t.focus(); t.setSelectionRange(t.value.length, t.value.length); return true; })()`);
@@ -177,6 +196,16 @@ try {
   await settings.eval(`[...document.querySelectorAll('[data-testid="dictation-settings"] button')].find((x) => /Add snippet/.test(x.textContent)).click()`);
   await sleep(300);
   const snips = await settings.eval(`chrome.storage.local.get("dictationSnippets").then((r) => r.dictationSnippets ?? [])`);
+  check("Settings: clean-up levels None / Light / Concise, Light chosen", await settings.eval(`(() => { const f = document.querySelector('[data-testid="dictation-cleanup"]'); return !!f && /None/.test(f.innerText) && /Concise/.test(f.innerText) && f.querySelector('input[value="light"]').checked; })()`));
+  await settings.eval(`document.querySelector('[data-testid="dictation-cleanup"] input[value="concise"]').click()`);
+  await sleep(300);
+  const ds = await settings.eval(`chrome.storage.local.get("dictationSettings").then((r) => r.dictationSettings)`);
+  check("Settings: choosing Concise saves it", ds?.cleanup === "concise", JSON.stringify(ds));
+  check("Settings: the streak shows", /1\s*day in a row/.test(await settings.eval(`document.querySelector('[data-testid="dictation-streak"]')?.innerText ?? ""`)), await settings.eval(`document.querySelector('[data-testid="dictation-stats"]')?.innerText ?? ""`));
+  await settings.eval(`document.querySelector('[data-testid="dictation-keep-history"]').click()`);
+  await sleep(400);
+  const h2 = await settings.eval(`chrome.storage.local.get("dictationHistory").then((r) => r.dictationHistory ?? [])`);
+  check("Settings: turning history off removes what was said but keeps the counts", h2.length > 0 && h2.every((e) => e.text === "" && e.words > 0), JSON.stringify(h2));
   check("Settings: + Add snippet saves it", snips.some((s) => s.cue === "my address" && s.text === "1 Main St"), JSON.stringify(snips));
   const axeSource = readFileSync(path.resolve(here, "../..", "node_modules/axe-core/axe.min.js"), "utf8");
   for (const theme of ["light", "dark"]) {
