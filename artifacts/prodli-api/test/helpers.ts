@@ -56,6 +56,12 @@ export function makeApp(clock = { now: 1_800_000_000_000 }) {
       const text = input.action === "fix" ? input.text.replace(/\bteh\b/g, "the") : `${input.action}: ${input.text}`;
       return { text, changed: text !== input.text, model: "test" };
     },
+    proofread: async (input) => {
+      calls.push({ kind: "proofread", clientId: `${input.level}|${input.variant ?? ""}|${input.paragraphs.length}` });
+      if (input.paragraphs[0] === "FAIL") throw new AiError("ai_failed", "The writing check didn't work this time.");
+      const issues = input.paragraphs.flatMap((p, paragraph) => [...p.matchAll(/\bteh\b/g)].map((m) => ({ paragraph, start: m.index!, end: m.index! + 3, original: "teh", replacement: "the", type: "spelling" as const, explanation: "Spelling" })));
+      return { issues, model: "test" };
+    },
     followUp: async (input) => {
       calls.push({ kind: "follow-up", clientId: input.tone });
       if (input.style) calls.push({ kind: "follow-up-style", clientId: input.style });
