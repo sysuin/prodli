@@ -5,6 +5,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 ## Where things stand
 
 - **Production (app.prodli.com):** deployed 27 Nov 2026 from main `2c45844` (up to sysuin/prodli#136: the new writing surface in the note editor) through the GitHub workflow (restore point before it: `00000045-00000000-00005130-fa1e2c239a03c7e1811cd085e611ad25`). Before that: 26 Nov from `370126d` (notes and transcript import), `be0aae6` and `85fb745`; 25 Nov from `16baf95`. The extension gets #134 and #136 with the next store upload, the phone app the editor styles with its next build. Health: `https://app.prodli.com/api/health`.
+- **On main, not yet in production (needs the owner's "deploy"):** sysuin/prodli#138 writing check (`/api/ai/proofread`, migration 0017), #139 screen recorder, #140 share links (creates the `prodli-videos` R2 bucket, migration 0018), #141 dictation upgrades (the API takes `level`, `before` and the excited style), #142 desktop dictation into any app (desktop app only, no server change). Staging has them all.
 - **Website (prodli.com):** deploys by itself on every push to main; shows the three plans.
 - **Chrome extension:** the store still has **1.4.0**. The code is **1.5.0** (manifest), with everything below; it reaches users only when the owner uploads a new store build from the Mac.
 - **Plans (live in Dodo since 24 Nov):** Free; Pro $5/month or $48/year; Pro Plus $12/month or $120/year. Limits and product IDs: docs/PRO-PLAN.md. Every new account gets a 14-day Pro trial (TRIAL_DAYS). No real purchase has been made yet (TODO: real purchase test).
@@ -12,6 +13,11 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 - **Phone app:** built (artifacts/prodli-mobile); a separate local session, "ProdLi mobile development", works on it on branch `mobile-4` (pushed, no open PR). Check with the owner before changing `artifacts/prodli-mobile`.
 
 ## What shipped recently (newest first)
+
+- **#142** Desktop: dictate into any app (Settings › Desktop app, off until turned on; floating pill, paste at the cursor; macOS needs Accessibility). Needs a check on a real Mac and Windows PC.
+- **#141** Dictation: clean-up levels None/Light/Concise, Excited style, the text before the cursor as context, words learned from your corrections, hands-free on a quick tap, daily streak, history switch.
+- **#138–#140** Writing check in any text box (Grammarly-style), screen recorder (Loom-style) with share links at `/v/<id>`.
+- **#134, #136** Notes and transcript import; the note editor's writing surface.
 
 - **#109** `scripts/pr.sh`: open PRs and merge after CI through GitHub's REST API (GraphQL is blocked in cloud sessions).
 - **#107, #108** Ready for the cloud: CLAUDE.md, `scripts/cloud-setup.sh`, the production deploy from GitHub saving a D1 restore point and checking health; the GitHub `production` environment needs the owner's approval and deploys only from main.
