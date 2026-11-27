@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { onStorageChange, storageGet, storageRemove, storageSet } from "../lib/storage";
 import { generateId } from "../lib/utils";
 import type { Note, Todo } from "../types";
@@ -32,6 +32,8 @@ import { callRecordingSupported, recoverInPerson } from "../recorder/inPerson";
 import { recoverUploads } from "../recorder/upload";
 import { DropOverlay, UploadButton, UploadPanel, UploadStatus, useUploadDrop } from "./meetings/Upload";
 import { openRecorder } from "../screenrec/open";
+
+const VideoShare = lazy(() => import("../screenrec/VideoShare").then((m) => ({ default: m.VideoShare })));
 import { answerReviewAsk, CHROME_STORE_REVIEWS_URL, NO_REVIEW_ASK, REVIEW_ASK_KEY, shouldAskForReview, type ReviewAskState } from "../lib/reviewAsk";
 
 const SPEECH_LANGS: { code: string; label: string }[] = [
@@ -599,9 +601,12 @@ function MeetingDetail({
       {audioUrl && meeting.hasVideo && (
         <Section title="Video">
           <video data-testid="meeting-video" controls playsInline src={audioUrl} style={{ width: "100%", maxHeight: "60vh", background: "#000", border: "var(--nb-border)" }} />
-          <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", marginTop: 8, textDecoration: "none" }}>
+          <a href={audioUrl} download={audioFileName(meeting)} style={{ ...btn(), display: "inline-block", margin: "8px 0", textDecoration: "none" }}>
             Download video
           </a>
+          <Suspense fallback={null}>
+            <VideoShare meetingId={meeting.id} />
+          </Suspense>
         </Section>
       )}
       {audioUrl && !meeting.hasVideo && (

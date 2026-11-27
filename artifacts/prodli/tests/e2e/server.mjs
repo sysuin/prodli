@@ -152,6 +152,58 @@ try {
   t = await w.text();
   check("Web: sees both devices (extension + web)", /Extension · /.test(t) && /Web · .* ?\(this one\)/.test(t), t.slice(0, 500).replace(/\n/g, " | "));
 
+  // 🎥 A screen recording's share link: upload in parts to the local server, then the public page and file.
+  console.log("shared video");
+  {
+    const made = await p.eval(`(async () => {
+      const c = document.createElement("canvas"); c.width = 320; c.height = 180; const x = c.getContext("2d");
+      const rec = new MediaRecorder(c.captureStream(15), { mimeType: "video/webm" }); const parts = [];
+      rec.ondataavailable = (e) => parts.push(e.data); rec.start(200);
+      for (let i = 0; i < 20; i++) { x.fillStyle = "hsl(" + i * 18 + ",80%,50%)"; x.fillRect(0, 0, 320, 180); await new Promise((r) => setTimeout(r, 60)); }
+      await new Promise((r) => { rec.onstop = r; rec.stop(); });
+      const blob = new Blob(parts, { type: "video/webm" });
+      const id = "mtg_share_e2e"; const now = new Date().toISOString();
+      const meeting = { id, platform: "screen", title: "Shared walkthrough", meetingCode: null, url: "", startedAt: now, endedAt: now, durationSec: 2, status: "ready", transcript: [{ id: "t0", speaker: "You", text: "This is the new flow.", startMs: 0, endMs: 1500 }], summary: { title: "Shared walkthrough", overview: "A short tour.", keyPoints: ["One"], decisions: [], actionItems: [{ task: "Try it", owner: null, dueDate: null, priority: "medium" }], openQuestions: [], model: "test", generatedAt: now }, error: null, notice: null, hasAudio: true, hasVideo: true, micIncluded: true, audioMimeType: "video/webm", updatedAt: now };
+      await new Promise((res, rej) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const t = r.result.transaction(["meetings", "audio"], "readwrite"); t.objectStore("meetings").put(meeting); t.objectStore("audio").put(blob, id); t.oncomplete = res; t.onerror = rej; }; r.onerror = rej; });
+      await chrome.storage.local.set({ openMeetingId: id, lastSection: "meetings" });
+      return blob.size;
+    })()`);
+    await p.send("Page.reload", {});
+    await sleep(2500);
+    await p.eval(fakeChromeGoogle);
+    let ready = false;
+    for (let i = 0; i < 30 && !ready; i++) {
+      await sleep(200);
+      ready = await p.eval(`!!document.querySelector('[data-testid="video-share-start"]')`);
+    }
+    check("Video: a screen recording offers Get a share link", ready, String(made));
+    await p.eval(`document.querySelector('[data-testid="video-share-start"]').click(); true`);
+    let link = null;
+    for (let i = 0; i < 60 && !link; i++) {
+      await sleep(250);
+      link = await p.eval(`document.querySelector('[data-testid="video-share-url"]')?.value ?? null`);
+    }
+    check("Video: uploads and shows the link", !!link && /\/v\/[\w-]+$/.test(link), String(link) + " " + (await p.eval(`document.querySelector('[data-testid="video-share"]')?.innerText ?? ""`)));
+    if (link) {
+      const page = await fetch(link);
+      const html = await page.text();
+      check("Video: the link opens a page with the video, its notes and transcript", page.status === 200 && html.includes("Shared walkthrough") && html.includes("A short tour.") && html.includes("This is the new flow.") && html.includes("/video"), html.slice(0, 200));
+      const file = await fetch(`${link}/video`, { headers: { Range: "bytes=0-99" } });
+      check("Video: the file streams with byte ranges (seekable)", file.status === 206 && file.headers.get("content-type") === "video/webm" && (await file.arrayBuffer()).byteLength === 100 && file.headers.get("content-range") === `bytes 0-99/${made}`, `${file.status} ${file.headers.get("content-range")}`);
+      const { meetings } = await p.eval(`new Promise((res) => { const r = indexedDB.open("prodli-meetings"); r.onsuccess = () => { const q = r.result.transaction("meetings").objectStore("meetings").get("mtg_share_e2e"); q.onsuccess = () => res({ meetings: q.result }); }; })`);
+      check("Video: the meeting remembers its link", meetings?.videoShare?.url === link);
+      // Stop sharing removes the page.
+      await p.eval(`window.confirm = () => true; [...document.querySelectorAll('[data-testid="video-share"] button')].find((x) => x.textContent === "Stop sharing").click(); true`);
+      let gone = false;
+      for (let i = 0; i < 30 && !gone; i++) {
+        await sleep(200);
+        gone = (await fetch(link)).status === 404;
+      }
+      check("Video: Stop sharing takes the page down", gone && (await p.eval(`!!document.querySelector('[data-testid="video-share-start"]')`)));
+    }
+    await p.goto("editor");
+  }
+
   console.log("sync");
   const waitFor = async (fn, ms = 10_000) => {
     const t0 = Date.now();

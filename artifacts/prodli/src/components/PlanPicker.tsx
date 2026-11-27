@@ -293,6 +293,7 @@ export function PlanPicker({ user, onSignIn }: { user: ProdliUser | null; onSign
                   ["Writing help & screenshot text", (l: PlanLimits) => (l.writes ?? 0).toLocaleString()],
                   ["Dictation AI clean-ups", (l: PlanLimits) => (l.dictations ?? 0).toLocaleString()],
                   ["Writing checks (ProdLi AI)", (l: PlanLimits) => (l.checks !== undefined ? l.checks.toLocaleString() : "—")],
+                  ["Shared videos", (l: PlanLimits) => (l.videos ? `${l.videos.videos === null ? "Unlimited" : l.videos.videos}, up to ${l.videos.maxSec >= 3600 ? `${l.videos.maxSec / 3600} h` : `${l.videos.maxSec / 60} min`}` : "—")],
                   ["Synced storage", (l: PlanLimits) => formatBytes(l.storageBytes)],
                 ] as const
               ).map(([label, f]) => (

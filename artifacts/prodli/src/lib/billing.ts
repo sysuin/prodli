@@ -34,6 +34,8 @@ export interface PlanLimits {
   dictations?: number;
   /** Writing check: ProdLi AI checks a month (checks on the computer itself don't count). */
   checks?: number;
+  /** Shared videos: how many (null: unlimited) and how long each. */
+  videos?: { videos: number | null; maxSec: number };
 }
 
 export interface Billing {

@@ -12,6 +12,7 @@ import { createScreenMeeting } from "../recorder/upload";
 import { updateMeeting } from "../recorder/db";
 import { storageGet, storageSet } from "../lib/storage";
 import { OPEN_MEETING_KEY } from "../lib/askOpen";
+import { VideoShare } from "./VideoShare";
 
 const PREFS_KEY = "screenRecorderPrefs";
 interface Prefs {
@@ -498,6 +499,7 @@ function Done({ phase, onOpen, onAgain }: { phase: Extract<Phase, { kind: "done"
       <div style={{ fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.07em" }}>✓ Saved to Meetings · {formatClock(phase.rec.durationMs)}</div>
       <input value={title} onChange={(e) => rename(e.target.value)} aria-label="Title" style={{ border: "var(--nb-border)", background: "hsl(var(--background))", color: ink, fontFamily: "inherit", fontSize: 20, fontWeight: 900, padding: "8px 10px" }} />
       <video src={url} controls playsInline style={{ width: "100%", maxHeight: "60vh", background: "#000", border: "var(--nb-border)" }} data-testid="record-playback" />
+      <VideoShare meetingId={phase.rec.id} />
       <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>{phase.rec.hasSound ? "ProdLi is writing the transcript and notes with action items; they appear in Meetings in a minute or two (needs a free ProdLi account)." : "Recorded without sound, so there's no transcript."}</p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button style={btn("primary")} onClick={() => onOpen(phase.rec.id)} data-testid="record-open">
