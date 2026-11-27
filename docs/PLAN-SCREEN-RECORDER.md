@@ -20,13 +20,18 @@
   - `tests/unit/screenrec.test.ts`: the duration patch and the layout.
   - `tests/e2e/screenrec.mjs`: Chrome's fake camera, microphone and screen. It checks the bubble in the frames, pause, seekable length, transcript, Open in Meetings, camera only and Discard.
 
-## Phase 2 (next): share links
+## Phase 2 (built 2026-11-27): share links
 
-- R2 bucket `prodli-videos` (and `-staging`), created in the deploy workflow like the desktop downloads bucket.
-- D1 `videos` table: owner, title, duration, size, created, share settings, views.
-- Upload: after Stop (later: while recording) in fixed-size multipart parts through the Worker. Plan limits are checked before starting.
-- `GET /v/:id`: a viewer page with the video (range requests from R2), transcript, summary and chapters, plus view counts for the owner. Delete removes it from R2.
-- Privacy/Terms wording for hosted videos (stored on our servers until deleted), the limits on the pricing page, and PRO-PLAN.md.
+- **Getting a link:** "Get a share link" on a video's page in Meetings and on the recorder's "Saved" screen (`screenrec/VideoShare.tsx`, `share.ts`). It shows upload progress and can be cancelled. Then the link, with Copy, Open, views and Stop sharing. When the summary arrives after sharing, the page gets it automatically.
+- **Storage:** R2 bucket `VIDEOS` (`prodli-videos`, `prodli-videos-staging`; the deploy workflow creates each once; wrangler dev keeps a local one). D1 table `videos` (migration 0018): owner, recording, title, length, size, R2 key, upload state, page notes, views.
+- **Upload** (`prodli-api/src/videos.ts`):
+  - `POST /api/videos` checks the plan's limits, then starts an R2 multipart upload. It returns the existing link if that recording is already shared with the same file.
+  - `PUT /api/videos/:id/parts/:n` takes 10 MiB parts. They must be equal size except the last, which is R2's rule. The app resumes parts already sent and retries 5xx errors.
+  - `POST …/complete` finishes it with the notes and transcript. `PUT /api/videos/:id` updates the notes or title. `DELETE` removes the file and the page. Deleting the account removes all of them.
+- **Page:** `GET /v/:id` shows the video, notes and transcript (unlisted, noindex, no scripts, strict CSP). `GET /v/:id/video` streams from R2 with byte ranges (206), so players can seek. `/v/*` runs the Worker first, and the web app's service worker leaves `/v/` and `/s/` alone.
+- **Limits:** Free 25 videos up to 5 min each; Pro unlimited up to 45 min; Pro Plus up to 2 h. Files can be at most about 12 Mbit/s of their length. They're shown in the plan picker, the pricing page, the Terms and PRO-PLAN.md.
+- **Tests:** `prodli-api/test/videos.test.ts` covers parts, completion, the page, ranges, limits, notes updates, Stop sharing and account deletion. `tests/e2e/server.mjs` "shared video" uploads from the app to the local server, opens the page, gets a 206 range, and stops sharing.
+- **Later:** upload while recording (an "instant" link), view notifications, comments and reactions on the page, trim before sharing.
 
 ## Better than Loom
 
