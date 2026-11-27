@@ -44,7 +44,7 @@ const COMPARISONS: Record<Competitor, Comparison> = {
       ["Ask questions across meetings", "Yes (Ask ProdLi: 100 questions a month free)", "Yes (AI chat across meetings, on every plan)"],
       ["Templates", "Built-in meeting types free; your own templates with Pro", "Custom note templates on every plan"],
       ["Notes into tasks and your day", "Action items go to your to-dos; a daily brief plans your day around them and your calendar; habits and focus tools in the same tab", "Action items in the notes; follow-up emails and pre-meeting briefs on Business"],
-      ["Integrations", "None yet (Markdown and PDF export, share links)", "Slack on Basic; Notion, HubSpot, Attio, Affinity and Zapier on Business; API on Business"],
+      ["Integrations", "Two-way Google Calendar; a read-only personal API and MCP server (for Claude, ChatGPT and other AI tools); imports from Notion, Evernote, Google Keep, Todoist, TickTick and Google Tasks; Markdown and PDF export, share links", "Slack on Basic; Notion, HubSpot, Attio, Affinity and Zapier on Business; API on Business"],
       ["Teams", "Personal accounts", "Workspaces with shared folders; SSO and admin controls on Enterprise"],
     ],
     different: [
@@ -86,7 +86,7 @@ const COMPARISONS: Record<Competitor, Comparison> = {
       ["Ask questions across meetings", "Yes (Ask ProdLi: 100 questions a month free)", "Yes (AI Chat: 20 a month on Basic, 50 on Pro)"],
       ["Templates", "Built-in meeting types free; your own templates with Pro", "Advanced templates on Pro; AI meeting templates on Business"],
       ["Notes into tasks and your day", "Action items go to your to-dos; a daily brief plans your day around them and your calendar; habits and focus tools in the same tab", "Action items captured and assigned; pre-call briefings"],
-      ["Integrations", "None yet (Markdown and PDF export, share links)", "Many, including Slack, Salesforce, HubSpot, Notion, Jira, Asana and Zapier"],
+      ["Integrations", "Two-way Google Calendar; a read-only personal API and MCP server (for Claude, ChatGPT and other AI tools); imports from Notion, Evernote, Google Keep, Todoist, TickTick and Google Tasks; Markdown and PDF export, share links", "Many, including Slack, Salesforce, HubSpot, Notion, Jira, Asana and Zapier"],
       ["Teams", "Personal accounts", "Workspaces; SSO and SCIM on Enterprise"],
     ],
     different: [
@@ -97,7 +97,7 @@ const COMPARISONS: Record<Competitor, Comparison> = {
     ],
     stronger: [
       "Apps on every platform, including desktop and phone apps today.",
-      "Live transcript and coaching during the call, and file imports.",
+      "A live transcript and coaching during the call (ProdLi's coach works after the call, on Pro).",
       "A long list of integrations, from Slack to Salesforce.",
       "Team workspaces and enterprise features (SSO, SCIM, HIPAA add-on).",
     ],
@@ -105,7 +105,7 @@ const COMPARISONS: Record<Competitor, Comparison> = {
     faq: [
       ["Is ProdLi an Otter alternative without a bot?", "Yes. ProdLi never joins your calls. It takes notes in your own browser, from Google Meet's captions or the call's sound on your computer."],
       ["Does ProdLi have a phone app like Otter?", "You can record in-person meetings on your phone in the browser at app.prodli.com. Native iPhone and Android apps aren't out yet."],
-      ["Can ProdLi transcribe uploaded audio files?", "Not as a separate import like Otter's. ProdLi transcribes the calls and in-person meetings it records."],
+      ["Can ProdLi transcribe uploaded audio files?", "Yes. ⬆ Upload recording in Meetings takes an audio or video file (up to 500 MB or 3 hours) and makes a transcript, summary and action items. You can also bring in transcripts exported from Otter, Fireflies, Granola, Zoom or Teams (.vtt, .srt, .txt)."],
     ],
     sources: [
       ["Otter pricing", "https://otter.ai/pricing"],
@@ -125,7 +125,7 @@ const COMPARISONS: Record<Competitor, Comparison> = {
       ["Audio", "Google Meet: nothing recorded, notes come from Meet's captions. Other calls: saved on your computer, sent for transcription, not kept on ProdLi's servers", "Doesn't record or store audio; the transcript is saved as text"],
       ["Ask questions across meetings", "Yes (Ask ProdLi: 100 questions a month free)", "Ask AI custom questions (uses AI credits)"],
       ["Notes into tasks and your day", "Action items go to your to-dos; a daily brief plans your day around them and your calendar; habits and focus tools in the same tab", "Action items; AI workflows that send notes to other tools"],
-      ["Integrations", "None yet (Markdown and PDF export, share links)", "Slack, Notion, Linear, HubSpot and more; AI workflows"],
+      ["Integrations", "Two-way Google Calendar; a read-only personal API and MCP server (for Claude, ChatGPT and other AI tools); imports from Notion, Evernote, Google Keep, Todoist, TickTick and Google Tasks; Markdown and PDF export, share links", "Slack, Notion, Linear, HubSpot and more; AI workflows"],
       ["Teams", "Personal accounts", "Team, Business and Enterprise plans; SSO on Business"],
     ],
     different: [

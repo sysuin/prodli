@@ -32,8 +32,10 @@ const FEATURES = [
   ["🖥", "Record any call", "Zoom, Teams, Slack, Google Meet, FaceTime — your computer's sound and your microphone. No bot joins. Transcript, summary and action items."],
   ["⌨️", "Quick add anywhere", "Option/Alt + Shift + A in any app adds a to-do or note without switching windows."],
   ["🔔", "Always there", "Lives in the menu bar or tray: Pomodoro, reminders and your daily brief keep going when the window is closed."],
+  ["🎙", "Dictate into any app", "Turn it on in Settings, press the shortcut in Mail, Slack, Word or any app and talk: ProdLi cleans up what you said and types it where your cursor is."],
+  ["🍅", "Menu bar timer", "Your Pomodoro countdown, the time block that's on and your top task, right in the menu bar or tray."],
   ["📄", "Open your files", "Markdown, CSV, JSON and code files open nicely with “Open With → ProdLi”."],
-  ["🔄", "Synced everywhere", "The same notes, to-dos, habits and meetings as the Chrome extension, app.prodli.com and the phone app."],
+  ["🔄", "Synced everywhere", "The same notes, to-dos, habits and meetings as the Chrome extension and app.prodli.com."],
   ["📴", "Works offline", "Everything is saved on your computer first and syncs when you're back online."],
 ];
 
