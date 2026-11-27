@@ -4,7 +4,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 
 ## Where things stand
 
-- **Production (app.prodli.com):** deployed 26 Nov 2026 from main `370126d` (up to sysuin/prodli#134: notes import from Notion, Evernote, Keep and Markdown folders; meeting transcript import) through the GitHub workflow (restore point before it: `00000043-00000000-0000512f-ca3ea230cdd7d447534c6ce99650e5dc`). Earlier the same day from `be0aae6` and `85fb745`; 25 Nov from `16baf95`. The extension gets these features with the next store upload. Health: `https://app.prodli.com/api/health`.
+- **Production (app.prodli.com):** deployed 27 Nov 2026 from main `2c45844` (up to sysuin/prodli#136: the new writing surface in the note editor) through the GitHub workflow (restore point before it: `00000045-00000000-00005130-fa1e2c239a03c7e1811cd085e611ad25`). Before that: 26 Nov from `370126d` (notes and transcript import), `be0aae6` and `85fb745`; 25 Nov from `16baf95`. The extension gets #134 and #136 with the next store upload, the phone app the editor styles with its next build. Health: `https://app.prodli.com/api/health`.
 - **Website (prodli.com):** deploys by itself on every push to main; shows the three plans.
 - **Chrome extension:** the store still has **1.4.0**. The code is **1.5.0** (manifest), with everything below; it reaches users only when the owner uploads a new store build from the Mac.
 - **Plans (live in Dodo since 24 Nov):** Free; Pro $5/month or $48/year; Pro Plus $12/month or $120/year. Limits and product IDs: docs/PRO-PLAN.md. Every new account gets a 14-day Pro trial (TRIAL_DAYS). No real purchase has been made yet (TODO: real purchase test).
