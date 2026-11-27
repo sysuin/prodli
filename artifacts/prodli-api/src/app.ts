@@ -53,6 +53,7 @@ import { DODO_RETURN_PARAMS, renderProPage, type ProPageFrom } from "./proPage";
 import { authenticateApiToken, cleanTokenName, createApiToken, deleteAllApiTokens, deleteApiToken, listApiTokens, MAX_TOKENS, TOKEN_PREFIX, type TokenAuth } from "./apiTokens";
 import { ArgError, check, getMeeting, getNote, getToday, listHabits, listMeetings, listTodos, searchNotes, type Reader } from "./readApi";
 import { mcpResponse, SERVER_INFO } from "./mcp";
+import { completeVideo, countView, createVideo, CreateVideoSchema, deleteUserVideos, deleteVideo, getVideo, listVideos, openVideo, PART_SIZE, renderVideoMissing, renderVideoPage, streamVideo, updateDetails, uploadPart, VideoDetailsSchema, VideoError, VIDEO_LIMITS, VIDEO_PAGE_HEADERS, videoJson } from "./videos";
 import { deleteShare, listShares, MAX_SHARE_BYTES, openShare, renderShareMissing, renderSharePage, saveShare, SHARE_PAGE_HEADERS, ShareInputSchema, type ShareRow } from "./shares";
 
 export type Environment = "development" | "staging" | "production";
@@ -75,6 +76,8 @@ export interface Env extends BillingVars {
   ANTHROPIC_API_KEY?: string;
   /** R2 bucket for nightly backups (src/backup.ts). */
   BACKUPS?: R2Bucket;
+  /** Shared videos (🎥 Record a video → Get a share link; src/videos.ts). */
+  VIDEOS?: R2Bucket;
   /** Secret for the admin backup/restore endpoints. Unset = those endpoints don't exist. */
   ADMIN_TOKEN?: string;
   USER_STORE: DurableObjectNamespace<UserStore>;
@@ -204,8 +207,11 @@ export function createApp(deps: Deps = realDeps) {
   const webhookBody = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
   // Screenshots for "Pull out the text" are a bit larger than the other AI requests.
   const ocrBody = bodyLimit({ maxSize: MAX_OCR_DATA_URL + 1024, onError: tooLarge });
+  // Shared videos: the file in 10 MB parts, and the notes and transcript shown with it.
+  const videoPartBody = bodyLimit({ maxSize: PART_SIZE + 1024, onError: tooLarge });
+  const videoBody = bodyLimit({ maxSize: 512 * 1024, onError: tooLarge });
   app.use("/api/*", (c, next) =>
-    c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/ocr" ? ocrBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
+    c.req.path === "/api/sync" ? syncBody(c, next) : c.req.path === "/api/ai/ocr" ? ocrBody(c, next) : /^\/api\/videos\/[^/]+\/parts\/\d+$/.test(c.req.path) ? videoPartBody(c, next) : c.req.path.startsWith("/api/videos") ? videoBody(c, next) : c.req.path.startsWith("/api/ai/") ? aiBody(c, next) : c.req.path === "/api/billing/webhook" ? webhookBody(c, next) : smallBody(c, next),
   );
   const noStore: MiddlewareHandler<AppEnv> = async (c, next) => {
     await next();
@@ -418,6 +424,7 @@ export function createApp(deps: Deps = realDeps) {
     }
     await storeFor(c.env, auth.user.id).wipe();
     await deleteBackups(c.env, auth.user.id);
+    await deleteUserVideos(c.env.DB, c.env.VIDEOS, auth.user.id);
     await deleteUser(c.env.DB, auth.user.id);
     clearSessionCookie(c);
     return c.json({ deleted: true });
@@ -484,7 +491,7 @@ export function createApp(deps: Deps = realDeps) {
   };
   const appOrigin = (c: Ctx) => new URL(c.req.url).origin;
 
-  const limitsOf = (plan: Plan) => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan], checks: PROOFREAD_MONTHLY_LIMIT[plan] });
+  const limitsOf = (plan: Plan) => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan], checks: PROOFREAD_MONTHLY_LIMIT[plan], videos: VIDEO_LIMITS[plan] });
   /** What's for sale: per paid plan, which billing periods and their prices. */
   const plansOnSale = async (c: Ctx) => {
     const products = productsOnSale(c.env);
@@ -1167,6 +1174,105 @@ export function createApp(deps: Deps = realDeps) {
   app.get("/s/:id", async (c) => {
     const row = await openShare(c.env.DB, c.req.param("id"), deps.now());
     return row ? c.body(renderSharePage(row), 200, SHARE_PAGE_HEADERS) : c.body(renderShareMissing(), 404, SHARE_PAGE_HEADERS);
+  });
+
+  // ── Shared videos (src/videos.ts) ─────────────────────────────────────────
+  const videoError = (c: Ctx, err: unknown) => {
+    if (err instanceof VideoError) return c.json({ error: err.code, message: err.message }, err.status);
+    throw err;
+  };
+
+  /** POST { meetingId, title, date, durationSec, size, mime } → { video, uploaded }. Starts an upload (or returns the existing link). */
+  app.post("/api/videos", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.VIDEOS) return c.json({ error: "videos_unavailable", message: "Video links aren't available right now." }, 503);
+    if (c.env.SYNC_LIMITER && !(await c.env.SYNC_LIMITER.limit({ key: `video:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const input = CreateVideoSchema.safeParse(await c.req.json().catch(() => null));
+    if (!input.success) return c.json({ error: "bad_request" }, 400);
+    try {
+      const { row, uploaded } = await createVideo(c.env.DB, c.env.VIDEOS, auth.user.id, auth.user.plan, input.data, deps.now());
+      return c.json({ video: videoJson(appOrigin(c), row), uploaded });
+    } catch (err) {
+      return videoError(c, err);
+    }
+  });
+
+  /** PUT <bytes> → { ok }. One part of the file (every part but the last is exactly PART_SIZE). */
+  app.put("/api/videos/:id/parts/:n", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.VIDEOS) return c.json({ error: "videos_unavailable" }, 503);
+    const declared = Number(c.req.header("Content-Length") ?? "0");
+    if (declared > PART_SIZE) return c.json({ error: "too_large" }, 413);
+    const row = await getVideo(c.env.DB, auth.user.id, c.req.param("id"));
+    if (!row) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.arrayBuffer();
+    if (body.byteLength > PART_SIZE) return c.json({ error: "too_large" }, 413);
+    try {
+      await uploadPart(c.env.DB, c.env.VIDEOS, row, Number(c.req.param("n")), body);
+      return c.json({ ok: true });
+    } catch (err) {
+      return videoError(c, err);
+    }
+  });
+
+  /** POST { title?, summary?, transcript? } → { video }. Finishes the upload; the link works from now on. */
+  app.post("/api/videos/:id/complete", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.VIDEOS) return c.json({ error: "videos_unavailable" }, 503);
+    const row = await getVideo(c.env.DB, auth.user.id, c.req.param("id"));
+    if (!row) return c.json({ error: "not_found" }, 404);
+    const details = VideoDetailsSchema.safeParse((await c.req.json().catch(() => ({}))) ?? {});
+    if (!details.success) return c.json({ error: "bad_request" }, 400);
+    try {
+      return c.json({ video: videoJson(appOrigin(c), await completeVideo(c.env.DB, c.env.VIDEOS, row, details.data, deps.now())) });
+    } catch (err) {
+      return videoError(c, err);
+    }
+  });
+
+  /** PUT { title?, summary?, transcript? } → { video }. The notes are ready, or the title changed. */
+  app.put("/api/videos/:id", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const row = await getVideo(c.env.DB, auth.user.id, c.req.param("id"));
+    if (!row) return c.json({ error: "not_found" }, 404);
+    const details = VideoDetailsSchema.safeParse(await c.req.json().catch(() => null));
+    if (!details.success) return c.json({ error: "bad_request" }, 400);
+    try {
+      return c.json({ video: videoJson(appOrigin(c), await updateDetails(c.env.DB, row, details.data, deps.now())) });
+    } catch (err) {
+      return videoError(c, err);
+    }
+  });
+
+  app.get("/api/videos", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    return c.json({ videos: (await listVideos(c.env.DB, auth.user.id)).map((r) => videoJson(appOrigin(c), r)), limits: VIDEO_LIMITS[(auth.user.plan as keyof typeof VIDEO_LIMITS) ?? "free"] ?? VIDEO_LIMITS.free });
+  });
+
+  app.delete("/api/videos/:id", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    const row = await getVideo(c.env.DB, auth.user.id, c.req.param("id"));
+    if (!row) return c.json({ error: "not_found" }, 404);
+    if (c.env.VIDEOS) await deleteVideo(c.env.DB, c.env.VIDEOS, row);
+    return c.json({ ok: true });
+  });
+
+  /** The public page and the file (unlisted: anyone with the link). */
+  app.get("/v/:id", async (c) => {
+    const row = await openVideo(c.env.DB, c.req.param("id"));
+    if (!row) return c.body(renderVideoMissing(), 404, VIDEO_PAGE_HEADERS);
+    const counting = countView(c.env.DB, row.id).then(() => undefined, () => undefined);
+    try {
+      c.executionCtx.waitUntil(counting);
+    } catch {
+      await counting; // no execution context (tests)
+    }
+    return c.body(renderVideoPage(row, appOrigin(c)), 200, VIDEO_PAGE_HEADERS);
+  });
+  app.get("/v/:id/video", async (c) => {
+    const row = await openVideo(c.env.DB, c.req.param("id"));
+    if (!row || !c.env.VIDEOS) return c.text("Not found", 404);
+    return streamVideo(c.env.VIDEOS, row, c.req.header("Range") ?? null);
   });
 
   /** Where Dodo returns people after checkout or the portal (src/proPage.ts). */

@@ -104,7 +104,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  // The API, shared notes (/s/) and shared videos (/v/, streamed with byte ranges) always go to the network.
+  if (req.method !== "GET" || url.origin !== self.location.origin || /^\\/(api|s|v)\\//.test(url.pathname)) return;
   if (req.mode === "navigate") {
     // Fresh page when online (picks up new versions), cached app when offline.
     event.respondWith(fetch(req).catch(() => caches.match("/", { cacheName: CACHE })));

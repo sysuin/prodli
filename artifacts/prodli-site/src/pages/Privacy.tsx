@@ -109,6 +109,12 @@ Anthropic processes this data as our service provider under its commercial terms
 The copy is deleted when the link expires (after 7 or 30 days, or never if you choose that with ProdLi Pro), when you click Stop sharing, or when you delete your account. Sharing again updates the copy. Meeting notes contain what other participants said: share them only with people who should see them, and you are responsible for having the right to share them.`,
   },
   {
+    title: "Shared videos (optional)",
+    body: `With an account, you can share a screen recording as a link (Get a share link on a video in Meetings, or after recording). When you do, the video file is uploaded to our servers (Cloudflare R2) together with a copy of its title, date, length, summary and transcript, and anyone who has the link can watch it and read them. We count how many times the page is opened. The page asks search engines not to index it.
+
+The video and the copy are deleted when you click Stop sharing or when you delete your account. Until then they stay on our servers, so share only what you'd be comfortable with anyone holding the link seeing: everything visible on what you recorded is in the video. You are responsible for having the right to share it, including other people's voices, faces or information that appear in it.`,
+  },
+  {
     title: "Connected apps and API keys (optional)",
     body: `With an account, you can create API keys (Settings → Connections) to let apps you choose, such as Claude, ChatGPT, Cursor or your own scripts, read your synced ProdLi data through ProdLi's read-only API and MCP server: to-dos and lists, notes, meeting summaries and your own meeting notes, meeting transcripts (only when the app asks for one), habits and your day's focus. Connected apps can't change anything. Your calendar, time tracking, files and meeting audio aren't available to them.
 
@@ -144,7 +150,7 @@ Under India's Digital Personal Data Protection Act, 2023, we process your person
   },
   {
     title: "Who processes data for us",
-    body: `• Cloudflare, Inc.: hosting, databases, sync, backups, request logs and AI audio transcription (Workers AI), only when you use it with your account
+    body: `• Cloudflare, Inc.: hosting, databases, sync, backups, shared videos, request logs and AI audio transcription (Workers AI), only when you use it with your account
 • Dodo Payments: if you buy ProdLi Pro. Dodo Payments is our reseller and the merchant of record: it sells you the subscription, takes payment and handles tax and invoices under its own terms and privacy policy. You give your payment details to Dodo Payments, not to us. We give Dodo Payments your name, email address and ProdLi account ID to set up your checkout, and it tells us your subscription's status, plan, renewal date and its customer and subscription IDs; we never receive your card details.
 • Google LLC: sign-in
 • Anthropic, PBC: AI daily briefs, weekly reviews, Ask ProdLi answers, meeting summaries, follow-up emails, writing help, the writing check, page summaries, text from screenshots, Speak tasks and Break it down, only when you use them with your account
@@ -159,6 +165,7 @@ These providers process data only to provide their services to us, under data pr
     title: "How long we keep data",
     body: `• Synced data and your account: until you delete them.
 • Shared meeting notes: until the link expires, you stop sharing, or you delete your account.
+• Shared videos (the file, its notes and transcript): until you stop sharing or delete your account.
 • Request logs: up to 7 days.
 • Backups: we back up synced data nightly. Each copy is deleted automatically after 30 days. Our hosting provider's automatic recovery points also expire within 30 days.
 • "Delete account" (account window) immediately deletes your account, sessions, AI usage counts, shared meeting notes, all synced data and our backup copies of it. Data may remain in our provider's automatic recovery points for up to 30 days, after which it's gone.
@@ -239,7 +246,7 @@ You're responsible for your content. In particular, if you record or transcribe 
   },
   {
     title: "ProdLi Pro and Pro Plus (paid plans)",
-    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 500 Ask ProdLi questions, 1,000 writing-help uses, 3,000 dictation clean-ups, 3,000 writing checks and 1,500 minutes of audio transcription per month). ProdLi Pro Plus includes everything in Pro with higher limits (currently 10 GB of synced data, 900 AI meeting summaries, 400 AI daily briefs or weekly reviews, 1,200 Ask ProdLi questions, 2,500 writing-help uses, 6,000 dictation clean-ups, 8,000 writing checks and 4,500 minutes of audio transcription per month). Both plans add features shown in the app as Pro (currently your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series history, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries that use your own notes, a decision log, meeting type rules, dictation Command Mode and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
+    body: `ProdLi Pro raises the limits shown in the app (currently 2 GB of synced data, 300 AI meeting summaries, 200 AI daily briefs or weekly reviews, 500 Ask ProdLi questions, 1,000 writing-help uses, 3,000 dictation clean-ups, 3,000 writing checks, unlimited shared videos up to 45 minutes each, and 1,500 minutes of audio transcription per month). ProdLi Pro Plus includes everything in Pro with higher limits (currently 10 GB of synced data, 900 AI meeting summaries, 400 AI daily briefs or weekly reviews, 1,200 Ask ProdLi questions, 2,500 writing-help uses, 6,000 dictation clean-ups, 8,000 writing checks, unlimited shared videos up to 2 hours each, and 4,500 minutes of audio transcription per month). Both plans add features shown in the app as Pro (currently your own meeting templates, talk-time insights, action items across meetings, AI meeting prep, focus trends, your writing style, meeting series history, notes in your language, prep reminders, key moments in summaries, meeting insights, meeting coaching, summaries that use your own notes, a decision log, meeting type rules, dictation Command Mode and shared notes links that never expire). Until Pro goes on sale, those features are free for everyone; we may make them Pro-only once it does. Orders are processed by our online reseller Dodo Payments, the merchant of record for all ProdLi Pro orders: it charges you, issues invoices and handles payment questions and refunds.
 
 New accounts get a free 14-day Pro trial. It starts when you create your account, needs no card and ends by itself: afterwards you're on the free plan, nothing you saved is deleted, and only the Pro features and higher limits stop. You can buy Pro during the trial.
 
@@ -251,7 +258,7 @@ Pro and Pro Plus are subscriptions, billed monthly or yearly in advance at the p
   },
   {
     title: "Free plan and limits",
-    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses, 300 writing checks and 300 minutes of audio transcription per month (checks done by Chrome's built-in AI on your computer don't count). Limits are shown in the app and may change; we'll give notice before reducing them. More is available with ProdLi Pro (see “ProdLi Pro (paid plan)” above).`,
+    body: `The free plan currently includes 100 MB of synced data, 20 AI meeting summaries, 62 AI daily briefs or weekly reviews, 100 Ask ProdLi questions, 200 writing-help uses, 300 writing checks and 300 minutes of audio transcription per month (checks done by Chrome's built-in AI on your computer don't count), and up to 25 shared videos of up to 5 minutes each. Limits are shown in the app and may change; we'll give notice before reducing them. More is available with ProdLi Pro (see “ProdLi Pro (paid plan)” above).`,
   },
   {
     title: "AI summaries, briefs, reviews, transcripts and answers",

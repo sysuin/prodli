@@ -100,6 +100,8 @@ export interface Meeting {
   audioMimeType: string | null;
   /** The recording is a video (🎥 Record screen): the player shows it, and it can be downloaded. */
   hasVideo?: boolean;
+  /** The video's share link (src/screenrec/share.ts); `notesAt` is the summary the page last got. */
+  videoShare?: { id: string; url: string; notesAt?: string | null };
   /** The Google Calendar event this meeting belongs to, matched when recording starts (lib/calendarLink.ts). */
   calendarEvent?: CalendarEventRef;
   /** Uploaded recordings (⬆ Upload recording): when the file was added. `startedAt` is when it was recorded. */
