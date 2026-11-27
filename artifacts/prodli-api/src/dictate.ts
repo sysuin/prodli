@@ -15,7 +15,11 @@ import { dictationLanguageText, VOICE_LANGUAGES } from "./languages";
 
 export const DICTATE_MONTHLY_LIMIT = { free: 1000, pro: 3000, plus: 6000 } as const;
 export const MAX_DICTATION_CHARS = 8000;
-export const DICTATION_STYLES = ["formal", "casual", "very_casual", "neutral"] as const;
+export const DICTATION_STYLES = ["formal", "casual", "very_casual", "excited", "neutral"] as const;
+/** How much the clean-up changes: "light" keeps the words (fillers, corrections, punctuation); "concise" also tightens rambling. */
+export const CLEANUP_LEVELS = ["light", "concise"] as const;
+/** Text already in the field around the cursor, for continuity (names, mid-sentence capitalization). */
+export const MAX_CONTEXT_CHARS = 1000;
 export type DictationStyle = (typeof DICTATION_STYLES)[number];
 
 export const DictateInputSchema = z.object({
@@ -31,6 +35,9 @@ export const DictateInputSchema = z.object({
   field: z.enum(["email", "chat", "document", "search", "code", "other"]).default("other"),
   /** The user's language (Settings → Language); absent = Automatic. Polish keeps its script (Devanagari for Hindi, Latin letters for Hinglish). */
   language: z.enum(VOICE_LANGUAGES).optional(),
+  level: z.enum(CLEANUP_LEVELS).default("light"),
+  /** What's already written in the field just before the cursor (polish only). */
+  before: z.string().max(MAX_CONTEXT_CHARS).optional(),
 });
 export type DictateInput = z.infer<typeof DictateInputSchema>;
 
@@ -40,6 +47,7 @@ const STYLE_TEXT: Record<DictationStyle, string> = {
   formal: "Style: formal. Full sentences, proper capitalization and punctuation, no slang. Suitable for email to clients or managers.",
   casual: "Style: casual. Natural and friendly, normal capitalization and punctuation, contractions are fine. Suitable for work chat.",
   very_casual: "Style: very casual. Relaxed texting style: lowercase is fine, light punctuation, no full stop at the end of a short message. Suitable for messages to friends.",
+  excited: "Style: excited. Warm and upbeat: an exclamation mark where the speaker sounds enthusiastic, energetic wording, but no added emoji and no invented praise.",
   neutral: "Style: keep the speaker's own tone; just make it clean and correctly punctuated.",
 };
 
@@ -61,12 +69,22 @@ Rules:
 - Add punctuation, capitalization and paragraph breaks. Turn spoken punctuation into symbols when clearly meant ("comma", "question mark", "new line", "new paragraph").
 - When the speaker lists items ("first…, second…", "one…, two…", or a clear enumeration of three or more things), format them as a list with "- " or "1. " on separate lines.
 - Write numbers, dates, times, emails, URLs and amounts in their usual written form ("three thirty pm" → "3:30 pm", "twenty five percent" → "25%", "john at gmail dot com" → "john@gmail.com").
-- Keep the speaker's words, meaning, language and dialect. Don't add information, don't summarize, don't translate, don't make it longer.
+- Keep the speaker's words, meaning, language and dialect. Don't add information, don't summarize, don't translate, don't make it longer. (Only when asked to tighten it may you shorten the wording.)
 - If a language is given, write in the script it names (for example Devanagari for Hindi, Latin letters for Hinglish).
 - Spell names and terms from the dictionary exactly as written there.
 - If the input is empty or only filler, return an empty string.`;
 
 const COMMAND_PROMPT = `The user selected some text and spoke an instruction about it (for example "make this more formal", "turn this into bullet points", "translate to Spanish", "fix the grammar", "make it shorter"). Apply the instruction to the selected text and return only the resulting text — no explanations, quotes or preamble. Keep everything the instruction doesn't ask you to change. If the instruction is not an edit you can apply to the text, return the selected text unchanged.`;
+
+const CONCISE_TEXT = "Also tighten it: cut repetition, rambling and hedging, and use the clearest, shortest wording that keeps every fact, name, number and request. Don't drop anything the speaker meant.";
+
+/** The text before the cursor, so the dictation continues it naturally. */
+function contextText(before: string | undefined): string {
+  const b = before?.slice(-MAX_CONTEXT_CHARS).trimStart();
+  if (!b?.trim()) return "";
+  const midSentence = !/[.!?:\n]\s*$/.test(b);
+  return `\nText already in the field just before the cursor (context only: never repeat it or include it in your output; use it to spell names the same way and to continue naturally${midSentence ? "; it ends mid-sentence, so continue the sentence without a capital letter unless the next word needs one" : ""}):\n<before_cursor>\n${b}\n</before_cursor>`;
+}
 
 /** The system prompt and user message for one clean-up (exported for tests). */
 export function dictateRequest(input: DictateInput): { system: string; user: string } {
@@ -75,7 +93,7 @@ export function dictateRequest(input: DictateInput): { system: string; user: str
   const language = dictationLanguageText(input.language);
   return {
     system: POLISH_PROMPT,
-    user: `${STYLE_TEXT[input.style]}${FIELD_TEXT[input.field] ? `\n${FIELD_TEXT[input.field]}` : ""}${language ? `\n${language}` : ""}${dictionary}\n\n<dictation>\n${input.text}\n</dictation>\n\nReturn the cleaned-up text.`,
+    user: `${STYLE_TEXT[input.style]}${input.level === "concise" ? `\n${CONCISE_TEXT}` : ""}${FIELD_TEXT[input.field] ? `\n${FIELD_TEXT[input.field]}` : ""}${language ? `\n${language}` : ""}${dictionary}${contextText(input.before)}\n\n<dictation>\n${input.text}\n</dictation>\n\nReturn the cleaned-up text.`,
   };
 }
 
