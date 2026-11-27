@@ -11,7 +11,7 @@
 // transcribed after the call (AI transcription when signed in, or on-device).
 
 /** "in-person": recorded from the microphone on the Meetings page (recorder/inPerson.ts), not a call tab. "upload": a file added with ⬆ Upload recording (recorder/upload.ts). */
-export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person" | "desktop" | "upload";
+export type CallPlatform = "google-meet" | "zoom" | "teams" | "webex" | "slack" | "discord" | "jitsi" | "whereby" | "browser" | "in-person" | "desktop" | "upload" | "screen";
 
 export interface CallInfo {
   platform: CallPlatform;
@@ -32,6 +32,7 @@ export const PLATFORM_LABEL: Record<CallPlatform, string> = {
   "in-person": "In person",
   desktop: "Call",
   upload: "Uploaded recording",
+  screen: "Screen recording",
 };
 
 const parse = (url: string | undefined): URL | null => {

@@ -16,7 +16,7 @@ ProdLi is an AI meeting-notes and daily-planner product: a Chrome extension (new
 
 - `pnpm install --frozen-lockfile` (pnpm only; version pinned in package.json)
 - `pnpm run typecheck` · `pnpm test` (every package)
-- End-to-end, extension: `pnpm --filter @workspace/prodli run build:extension:test`, then `node artifacts/prodli/tests/e2e/run.mjs [suite,suite]` (suite names are the keys in `run.mjs`), plus the separate files `recording.mjs`, `localfiles.mjs`, `dictation.mjs`, `snippets.mjs`, `writing.mjs`, `languages.mjs`, `screenshot.mjs`. All of them: `pnpm test:e2e`.
+- End-to-end, extension: `pnpm --filter @workspace/prodli run build:extension:test`, then `node artifacts/prodli/tests/e2e/run.mjs [suite,suite]` (suite names are the keys in `run.mjs`), plus the separate files `recording.mjs`, `localfiles.mjs`, `dictation.mjs`, `snippets.mjs`, `writing.mjs`, `screenrec.mjs`, `languages.mjs`, `screenshot.mjs`. All of them: `pnpm test:e2e`.
 - End-to-end, accounts and billing against a local API: `pnpm test:e2e:server` (wrangler dev + a stand-in for Dodo).
 - On Linux (cloud), run Chrome-based tests with `CI=1` (adds `--no-sandbox`) and `CHROME_PATH` if Chrome isn't at `/usr/bin/google-chrome`.
 - Desktop: `pnpm --filter @workspace/prodli-desktop test`; end-to-end (real local API, works in the cloud too): `xvfb-run --auto-servernum pnpm --filter @workspace/prodli-desktop test:e2e` (`xvfb-run` only on Linux). Phone: `pnpm --filter @workspace/prodli-mobile typecheck`, `test`, `export:check`, `test:e2e`; after changing a note block (`sections/editor/noteSchema.ts`, `phoneExtensions.ts`), `build:editor` rebuilds the phone's editor bundle (a test fails if you forget).

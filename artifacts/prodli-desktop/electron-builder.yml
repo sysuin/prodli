@@ -81,8 +81,9 @@ mac:
   minimumSystemVersion: "12.0"
   extendInfo:
     NSMicrophoneUsageDescription: ProdLi records your microphone when you record a meeting or a call, to make a transcript and notes.
+    NSCameraUsageDescription: ProdLi shows your camera in a bubble when you record a video of your screen.
     NSAudioCaptureUsageDescription: ProdLi records your computer's sound when you record a call, so the other people's voices are in the transcript.
-    NSScreenCaptureUsageDescription: ProdLi uses screen and system audio recording only to capture a call's sound; the picture is never recorded.
+    NSScreenCaptureUsageDescription: ProdLi uses screen and system audio recording to capture a call's sound, and to record your screen when you choose Record a video.
     LSUIElement: false
   # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are set.
   notarize: false

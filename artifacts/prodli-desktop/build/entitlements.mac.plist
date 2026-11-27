@@ -9,6 +9,8 @@
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <!-- Recording meetings and calls. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
     <key>com.apple.security.device.audio-input</key>
     <true/>
     <!-- Talking to ProdLi's server, and the sign-in hand-off on 127.0.0.1. -->

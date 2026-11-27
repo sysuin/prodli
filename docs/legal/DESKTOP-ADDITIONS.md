@@ -27,6 +27,8 @@ Facts: `artifacts/prodli-api/src/desktopAuth.ts`, migration `0012_desktop_sessio
 ### Meetings: recording calls in other apps
 Proposed addition to the meetings section:
 > In the desktop app, **Record a call** records your computer's sound (so the other people on a call in any app, such as Zoom or Teams) together with your microphone. The screen picture is never recorded. As with other recordings, the audio stays on your computer; it's sent for AI transcription only as described above, and isn't kept by us. On a Mac this needs your permission in System Settings (Screen & System Audio Recording, Microphone).
+>
+> *(Added 2026-11-27, for review:)* **Record a video** (in Meetings) records your screen, and your camera if you choose, with your microphone. The video stays on your computer; only its audio is sent for transcription as described above. On a Mac it also needs Camera permission.
 
 Facts: `src/recorder/desktopCall.ts` (video track stopped immediately), `src/main/media.ts`, audio in IndexedDB like in-person recordings, transcription via `/api/ai/transcribe` (existing processor: Cloudflare Workers AI).
 

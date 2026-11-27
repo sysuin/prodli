@@ -98,6 +98,8 @@ export interface Meeting {
   /** Languages Whisper heard, most-spoken first (e.g. ["en", "tl"]). */
   audioLanguages?: string[];
   audioMimeType: string | null;
+  /** The recording is a video (🎥 Record screen): the player shows it, and it can be downloaded. */
+  hasVideo?: boolean;
   /** The Google Calendar event this meeting belongs to, matched when recording starts (lib/calendarLink.ts). */
   calendarEvent?: CalendarEventRef;
   /** Uploaded recordings (⬆ Upload recording): when the file was added. `startedAt` is when it was recorded. */

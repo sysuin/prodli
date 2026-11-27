@@ -514,6 +514,7 @@ export default function App() {
     },
     importTasks: () => setImportOpen(true),
     importNotes: () => setImportNotesOpen(true),
+    recordScreen: () => void import("./screenrec/open").then((m) => m.openRecorder()),
     dailyNote: () => void requestDailyNote().then(() => handleSectionChange("editor")),
     saveTabs: () => void saveAndCloseWindow().then(flash, () => flash("Couldn't save the tabs. Try again.")),
     toggleTheme: () => void toggleTheme(),
