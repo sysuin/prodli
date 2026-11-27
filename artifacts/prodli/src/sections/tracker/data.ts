@@ -3,7 +3,18 @@
 
 import { getDayKey, getDaysBetween } from "../../lib/utils";
 import type { TrackerSettings, TimeTrackingDay } from "../../types";
-import { onAnyStorageChange, storageGetAll, storageRemove, storageSet } from "../../lib/storage";
+import { onAnyStorageChange, storageGet, storageGetAll, storageRemove, storageSet } from "../../lib/storage";
+import { CLEARS_APPLIED_KEY, CLEARS_KEY, dayNumber, type TrackingClears } from "../../lib/trackingClears";
+import { maxMerge } from "../../lib/syncCore";
+import { accountsEnabled } from "../../lib/prodliAccount";
+
+/** Records a clear so it reaches the account and every device (lib/trackingClears.ts), then syncs. */
+async function recordClear(patch: TrackingClears): Promise<void> {
+  const [clears, applied] = await Promise.all([storageGet<TrackingClears>(CLEARS_KEY, {}), storageGet<TrackingClears>(CLEARS_APPLIED_KEY, {})]);
+  await storageSet(CLEARS_KEY, maxMerge(clears, patch));
+  await storageSet(CLEARS_APPLIED_KEY, maxMerge(applied, patch));
+  if (accountsEnabled()) void import("../../lib/prodliSync").then((m) => m.syncOnce({ forceTracking: true })).catch(() => undefined);
+}
 
 /** Theme-aware purple with WCAG AA contrast (deeper in light mode, lighter in dark). */
 export const ACCENT = "var(--tracker-accent)";
@@ -83,6 +94,7 @@ export async function loadRangeData(fromDate: string, toDate: string): Promise<R
 
 export async function clearAllTrackingData(): Promise<void> {
   _rangeCache.clear();
+  await recordClear({ all: dayNumber(getDayKey()) });
   if (isExtension()) {
     const all: Record<string, unknown> = await new Promise((resolve) =>
       chrome.storage.local.get(null, resolve)
@@ -98,6 +110,7 @@ export async function clearAllTrackingData(): Promise<void> {
 
 export async function clearDomainHistory(domain: string): Promise<void> {
   _rangeCache.clear();
+  await recordClear({ sites: { [domain]: dayNumber(getDayKey()) } });
   if (isExtension()) {
     const all: Record<string, unknown> = await new Promise((resolve) =>
       chrome.storage.local.get(null, resolve)

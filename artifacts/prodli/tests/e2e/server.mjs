@@ -425,6 +425,26 @@ try {
   const keyOnAccount = (await fetch(`${SERVER}/api/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).status;
   check("API key: can't use the rest of the API", keyOnAccount === 401);
 
+  // Time Tracker: removing a site's history stays removed on the account and the other devices.
+  await p.eval(`chrome.storage.local.set({ "tt_2026-11-20": { "youtube.com": 900, "github.com": 600 } })`);
+  await openAccount(p, "devices");
+  await sleep(500);
+  await p.click("Sync now");
+  const serverDay = async () => ((await w.eval(`fetch("/api/account/export").then(r => r.json())`)).data?.tracking ?? []).find((x) => x.id === "2026-11-20")?.value;
+  ms = await waitFor(async () => (await serverDay())?.["youtube.com"] === 900);
+  check("Tracker sync: the extension's history reaches the account", ms >= 0, JSON.stringify(await serverDay()));
+  // What Time Tracker → remove a site's history does (lib/trackingClears.ts): a synced clear, then the local days.
+  await p.eval(`chrome.storage.local.set({ tt_clears: { sites: { "youtube.com": 20261127 } }, tt_clearsApplied: { sites: { "youtube.com": 20261127 } }, "tt_2026-11-20": { "github.com": 600 } })`);
+  await sleep(300);
+  await p.click("Sync now");
+  ms = await waitFor(async () => { const d = await serverDay(); return !!d && !("youtube.com" in d) && d["github.com"] === 600; });
+  check("Tracker sync: a removed site is removed on the account too (not merged back)", ms >= 0, JSON.stringify(await serverDay()));
+  await sleep(2500);
+  check("Tracker sync: …and stays removed on this device after syncing", !("youtube.com" in ((await p.storage(["tt_2026-11-20"]))["tt_2026-11-20"] ?? {})));
+  ms = await waitFor(async () => { const d = JSON.parse((await w.eval(`localStorage.getItem("prodli_tt_2026-11-20")`)) ?? "null"); return !!d && !("youtube.com" in d); }, 20_000);
+  check("Tracker sync: …and on the web app", ms >= 0, String(await w.eval(`localStorage.getItem("prodli_tt_2026-11-20")`)));
+  await p.eval(`document.querySelector('[role="dialog"] button[aria-label="Close"]')?.click(); true`);
+
   await openAccount(w, "devices");
   await sleep(800);
   t = await w.text();
