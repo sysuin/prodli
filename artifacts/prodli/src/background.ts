@@ -20,6 +20,7 @@ import { registerDictation } from "./dictation/background";
 import { registerMeetingRetention } from "./recorder/retention";
 import { registerCalendarSync } from "./lib/calendarSync";
 import { registerSnippets } from "./snippets/background";
+import { registerWriting } from "./writing/background";
 import { registerWebSignIn } from "./lib/webSignIn";
 
 if (import.meta.env.VITE_E2E === "1") keepNotificationsInside();
@@ -47,6 +48,7 @@ registerPrepReminders();
 registerCapture();
 // Saved snippets typed into any text box (right-click → Insert a ProdLi snippet, or its shortcut).
 registerSnippets();
+registerWriting();
 // Screenshot to ProdLi: right-click on a page, or 📸 in the Quick add window.
 registerScreenshot();
 // Local Markdown/CSV/JSON/text files opened in Chrome open in ProdLi's Files viewer (once allowed).

@@ -18,6 +18,7 @@ Three plans (2026-11-24): **Free**, **Pro** ($5/month or $48/year) and **Pro Plu
 | Writing help (✨ Improve, follow-ups, screenshot text) | 200 | 1,000 | 2,500 |
 | AI audio transcription | 300 min | 1,500 min | 4,500 min |
 | Voice dictation AI clean-ups (the audio counts as transcription) | 1,000 | 3,000 | 6,000 |
+| Writing checks with ProdLi AI (2026-11-27; checks on the computer with Chrome's built-in AI don't count) | 300 | 3,000 | 8,000 |
 | Synced storage | 100 MB | 2 GB | 10 GB |
 | Your own meeting templates | — | ✓ |
 | Talk-time insights | — | ✓ |

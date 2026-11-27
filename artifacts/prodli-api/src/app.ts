@@ -39,6 +39,7 @@ import { AI_MONTHLY_LIMIT, AiError, aiUsage, cleanCustomTemplate, cleanGlossary,
 import { MAX_PIECE_BYTES, refundSeconds, reserveSeconds, TRANSCRIBE_MONTHLY_MINUTES, transcribeUsage, transcribeWithWorkersAi, wavSeconds, type TranscriptPiece } from "./transcribe";
 import { funnelReport, parseUninstallFeedback, saveUninstallFeedback } from "./insights";
 import { BreakdownInputSchema, breakdownWithClaude, type BreakdownInput, ExtractTasksInputSchema, extractTasksWithClaude, MAX_DUMP_CHARS, MAX_PAGE_CHARS, PageSummaryInputSchema, summarizePageWithClaude, type ExtractTasksInput, type PageSummary, type PageSummaryInput } from "./write";
+import { MAX_PROOFREAD_CHARS, PROOFREAD_MONTHLY_LIMIT, ProofreadInputSchema, proofreadWithClaude, type Issue, type ProofreadInput } from "./proofread";
 import { draftFollowUpWithClaude, FollowUpInputSchema, MAX_FOLLOW_UP_CHARS, MAX_REWRITE_CHARS, RewriteInputSchema, rewriteWithClaude, WRITE_MONTHLY_LIMIT, type FollowUp, type FollowUpInput, type Rewrite, type RewriteInput } from "./write";
 import { parseChanges, QUOTA_BYTES, SyncError } from "./syncStore";
 import { applySubscriptionEvent, BillingError, dodoClient, dodoEnv, getCustomerId, getSubscription, isPaidPlan, ourProductIds, PAID_PLANS, planFor, planOfProduct, planRank, productsOnSale, proFeatureAllowed, saveCustomerId, verifyWebhook, type BillingVars, type DodoClient, type DodoEnv, type DodoEvent, type Interval, type PaidPlan, type Plan, type Price } from "./billing";
@@ -66,6 +67,8 @@ export interface Env extends BillingVars {
   AUTH_LIMITER?: RateLimit;
   SYNC_LIMITER?: RateLimit;
   AI_LIMITER?: RateLimit;
+  /** The writing check sends a request every few seconds while someone types, so it has its own, higher limit. */
+  CHECK_LIMITER?: RateLimit;
   /** Workers AI (staging and production only): Whisper for "Transcribe audio with AI". */
   AI?: Ai;
   /** Secret (`wrangler secret put ANTHROPIC_API_KEY --env …`). Without it, server summaries are off. */
@@ -95,6 +98,7 @@ export interface Deps {
   dictate: (input: DictateInput, apiKey: string) => Promise<{ text: string }>;
   ask: (input: AskInput, apiKey: string) => Promise<AskAnswer>;
   rewrite: (input: RewriteInput, apiKey: string) => Promise<Rewrite>;
+  proofread: (input: ProofreadInput, apiKey: string) => Promise<{ issues: Issue[]; model: string }>;
   followUp: (input: FollowUpInput, apiKey: string) => Promise<FollowUp>;
   transcribe: (wav: Uint8Array, ai: Ai, vocabulary?: string[], language?: string) => Promise<TranscriptPiece>;
   summarizePage: (input: PageSummaryInput, apiKey: string) => Promise<PageSummary>;
@@ -106,7 +110,7 @@ export interface Deps {
   now: () => number;
 }
 
-const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, breakdown: breakdownWithClaude, ocr: ocrWithClaude, now: Date.now };
+const realDeps: Deps = { verifyExtension: (t, id) => verifyExtensionAccessToken(t, id), verifyWeb: verifyWebIdToken, summarize: summarizeWithClaude, brief: generateBrief, review: generateReview, prep: prepWithClaude, coach: coachWithClaude, dictate: dictateWithClaude, ask: askClaude, rewrite: rewriteWithClaude, proofread: proofreadWithClaude, followUp: draftFollowUpWithClaude, transcribe: transcribeWithWorkersAi, summarizePage: summarizePageWithClaude, extractTasks: extractTasksWithClaude, breakdown: breakdownWithClaude, ocr: ocrWithClaude, now: Date.now };
 
 /** Stand-in for Google in local end-to-end tests: accepts "good:<sub>:<email>[:<name>]". */
 function fakeGoogle(token: string): GoogleIdentity {
@@ -480,7 +484,7 @@ export function createApp(deps: Deps = realDeps) {
   };
   const appOrigin = (c: Ctx) => new URL(c.req.url).origin;
 
-  const limitsOf = (plan: Plan) => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan] });
+  const limitsOf = (plan: Plan) => ({ storageBytes: QUOTA_BYTES[plan], summaries: AI_MONTHLY_LIMIT[plan], briefs: BRIEF_MONTHLY_LIMIT[plan], asks: ASK_MONTHLY_LIMIT[plan], writes: WRITE_MONTHLY_LIMIT[plan], transcribeMinutes: TRANSCRIBE_MONTHLY_MINUTES[plan], dictations: DICTATE_MONTHLY_LIMIT[plan], checks: PROOFREAD_MONTHLY_LIMIT[plan] });
   /** What's for sale: per paid plan, which billing periods and their prices. */
   const plansOnSale = async (c: Ctx) => {
     const products = productsOnSale(c.env);
@@ -629,6 +633,7 @@ export function createApp(deps: Deps = realDeps) {
   const askLimit = (plan: string) => ASK_MONTHLY_LIMIT[plan as keyof typeof ASK_MONTHLY_LIMIT] ?? ASK_MONTHLY_LIMIT.free;
   const briefLimit = (plan: string) => BRIEF_MONTHLY_LIMIT[plan as keyof typeof BRIEF_MONTHLY_LIMIT] ?? BRIEF_MONTHLY_LIMIT.free;
   const writeLimit = (plan: string) => WRITE_MONTHLY_LIMIT[plan as keyof typeof WRITE_MONTHLY_LIMIT] ?? WRITE_MONTHLY_LIMIT.free;
+  const proofreadLimit = (plan: string) => PROOFREAD_MONTHLY_LIMIT[plan as keyof typeof PROOFREAD_MONTHLY_LIMIT] ?? PROOFREAD_MONTHLY_LIMIT.free;
   const transcribeLimitSeconds = (plan: string) => 60 * (TRANSCRIBE_MONTHLY_MINUTES[plan as keyof typeof TRANSCRIBE_MONTHLY_MINUTES] ?? TRANSCRIBE_MONTHLY_MINUTES.free);
 
   app.get("/api/ai/usage", requireAuth, async (c) => {
@@ -642,6 +647,7 @@ export function createApp(deps: Deps = realDeps) {
       asks: { used: await aiUsage(c.env.DB, auth.user.id, now, "ask_usage"), limit: askLimit(auth.user.plan) },
       writes: { used: await aiUsage(c.env.DB, auth.user.id, now, "write_usage"), limit: writeLimit(auth.user.plan) },
       dictations: { used: await aiUsage(c.env.DB, auth.user.id, now, "dictate_usage"), limit: dictateLimit(auth.user.plan) },
+      checks: { used: await aiUsage(c.env.DB, auth.user.id, now, "proofread_usage"), limit: proofreadLimit(auth.user.plan) },
       transcribeSeconds: { used: await transcribeUsage(c.env.DB, auth.user.id, now), limit: transcribeLimitSeconds(auth.user.plan), available: !!c.env.AI },
     });
   });
@@ -883,6 +889,30 @@ export function createApp(deps: Deps = realDeps) {
       return c.json({ text: r.text, changed: r.changed, usage: { used, limit } });
     } catch (err) {
       await refundAi(c.env.DB, auth.user.id, now, "write_usage");
+      if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
+      throw err;
+    }
+  });
+
+  // POST { paragraphs, variant?, level? } → { issues, usage }. The writing check: a few paragraphs the user
+  // is typing, sent to Anthropic and not stored. Its own allowance and rate limit (requests come often).
+  app.post("/api/ai/proofread", requireAuth, async (c) => {
+    const auth = c.get("auth");
+    if (!c.env.ANTHROPIC_API_KEY) return c.json({ error: "ai_unavailable" }, 503);
+    if (c.env.CHECK_LIMITER && !(await c.env.CHECK_LIMITER.limit({ key: `check:${auth.user.id}` })).success) return c.json({ error: "rate_limited" }, 429);
+    const body = (await c.req.json().catch(() => null)) as { paragraphs?: unknown } | null;
+    if (Array.isArray(body?.paragraphs) && body.paragraphs.reduce((n: number, p) => n + (typeof p === "string" ? p.length : 0), 0) > MAX_PROOFREAD_CHARS) return c.json({ error: "too_large" }, 413);
+    const input = ProofreadInputSchema.safeParse(body);
+    if (!input.success || !input.data.paragraphs.some((p) => p.trim())) return c.json({ error: "bad_request" }, 400);
+    const now = deps.now();
+    const limit = proofreadLimit(auth.user.plan);
+    const used = await reserveAi(c.env.DB, auth.user.id, now, limit, "proofread_usage");
+    if (used === null) return c.json({ error: "check_quota_exceeded", usage: { used: limit, limit } }, 429);
+    try {
+      const r = await deps.proofread(input.data, c.env.ANTHROPIC_API_KEY);
+      return c.json({ issues: r.issues, usage: { used, limit } });
+    } catch (err) {
+      await refundAi(c.env.DB, auth.user.id, now, "proofread_usage");
       if (err instanceof AiError) return c.json({ error: err.code, message: err.message }, err.code === "ai_busy" ? 503 : 502);
       throw err;
     }

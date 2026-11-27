@@ -292,6 +292,7 @@ export function PlanPicker({ user, onSignIn }: { user: ProdliUser | null; onSign
                   ["Daily briefs & reviews", (l: PlanLimits) => l.briefs.toLocaleString()],
                   ["Writing help & screenshot text", (l: PlanLimits) => (l.writes ?? 0).toLocaleString()],
                   ["Dictation AI clean-ups", (l: PlanLimits) => (l.dictations ?? 0).toLocaleString()],
+                  ["Writing checks (ProdLi AI)", (l: PlanLimits) => (l.checks !== undefined ? l.checks.toLocaleString() : "—")],
                   ["Synced storage", (l: PlanLimits) => formatBytes(l.storageBytes)],
                 ] as const
               ).map(([label, f]) => (

@@ -196,6 +196,8 @@ export interface AiUsage {
   briefs?: { used: number; limit: number };
   asks?: { used: number; limit: number };
   writes?: { used: number; limit: number };
+  /** The writing check's monthly ProdLi AI checks (checks on this computer aren't counted). */
+  checks?: { used: number; limit: number };
   /** Seconds of audio transcribed this month ("Transcribe audio with AI"). */
   transcribeSeconds?: { used: number; limit: number; available: boolean };
 }

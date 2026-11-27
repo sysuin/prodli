@@ -31,7 +31,8 @@
   ],
   "optional_host_permissions": [
     "https://meet.google.com/*",
-    "file:///*"
+    "file:///*",
+    "<all_urls>"
   ],
   "externally_connectable": {
     "matches": ["https://app.prodli.com/*"]
@@ -63,6 +64,9 @@
     },
     "insert-snippet": {
       "description": "Insert a saved snippet into the text box you're typing in"
+    },
+    "check-writing": {
+      "description": "Check the writing in the text box you're typing in (spelling, grammar, clarity)"
     }
   },
   "icons": {

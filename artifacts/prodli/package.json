@@ -12,7 +12,7 @@
     "test": "vitest run",
     "build:extension:store": "PRODLI_STORE=1 node scripts/build-extension.mjs",
     "build:extension:test": "PRODLI_OUT_DIR=dist-extension-test PRODLI_GOOGLE_CLIENT_ID= PRODLI_EXTENSION_KEY= VITE_PRODLI_API= VITE_E2E=1 node scripts/build-extension.mjs",
-    "test:e2e": "pnpm run build:extension:test && node tests/e2e/run.mjs && node tests/e2e/recording.mjs && node tests/e2e/localfiles.mjs && node tests/e2e/dictation.mjs && node tests/e2e/snippets.mjs && node tests/e2e/languages.mjs && node tests/e2e/screenshot.mjs",
+    "test:e2e": "pnpm run build:extension:test && node tests/e2e/run.mjs && node tests/e2e/recording.mjs && node tests/e2e/localfiles.mjs && node tests/e2e/dictation.mjs && node tests/e2e/snippets.mjs && node tests/e2e/writing.mjs && node tests/e2e/languages.mjs && node tests/e2e/screenshot.mjs",
     "test:e2e:server": "node tests/e2e/server.mjs"
   },
   "devDependencies": {
