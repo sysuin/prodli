@@ -541,6 +541,7 @@ function PlanSection({ onSignIn }: { onSignIn: () => void }) {
           {ai?.briefs && <UsageBar label="AI daily briefs & weekly reviews" used={ai.briefs.used} limit={ai.briefs.limit} />}
           {ai?.asks && <UsageBar label="Ask ProdLi questions" used={ai.asks.used} limit={ai.asks.limit} />}
           {ai?.writes && <UsageBar label="Writing help (✨ Improve)" used={ai.writes.used} limit={ai.writes.limit} />}
+          {ai?.checks && <UsageBar label="Writing check (ProdLi AI)" used={ai.checks.used} limit={ai.checks.limit} />}
           {sync?.usage && <UsageBar label="Synced storage" used={sync.usage.bytes} limit={sync.usage.quota} format={mb} />}
           <div style={{ fontSize: 11, opacity: 0.7 }}>AI allowances reset on the 1st of each month.</div>
         </div>

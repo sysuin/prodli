@@ -19,8 +19,9 @@ import { Logo } from "./Logo";
 import { WritingStyleSection } from "./WritingStyle";
 import { LanguageSettings } from "./LanguageSettings";
 const DictationSettings = lazy(() => import("./DictationSettings").then((m) => ({ default: m.DictationSettings })));
+const WritingCheckSettings = lazy(() => import("./WritingCheckSettings").then((m) => ({ default: m.WritingCheckSettings })));
 
-export type SettingsTab = "account" | "plan" | "devices" | "connections" | "data" | "appearance" | "desktop" | "language" | "writing" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
+export type SettingsTab = "account" | "plan" | "devices" | "connections" | "data" | "appearance" | "desktop" | "language" | "writing" | "writingcheck" | "dictation" | "today" | "pomodoro" | "tracker" | "meetings" | "files" | "help" | "about";
 
 // Each section's own settings, shown here as well (loaded only when opened).
 const TrackerSettings = lazy(() => import("../sections/TimeTrackerSection").then((m) => ({ default: () => <m.TimeTrackerSection settingsOnly /> })));
@@ -56,6 +57,7 @@ const TABS: TabDef[] = [
   { id: "desktop", label: "Desktop app", icon: "🖥", group: "Preferences", desktopOnly: true },
   { id: "language", label: "Language", icon: "🌐", group: "Preferences" },
   { id: "writing", label: "Writing style", icon: "✍️", group: "Preferences", serverOnly: true },
+  { id: "writingcheck", label: "Writing check", icon: "🖊️", group: "Preferences", extensionOnly: true },
   { id: "dictation", label: "Dictation", icon: "🎙", group: "Preferences", extensionOnly: true },
   { id: "today", label: "Today & planning", icon: "☀️", group: "Preferences" },
   { id: "pomodoro", label: "Pomodoro", icon: "🍅", group: "Sections" },
@@ -358,6 +360,13 @@ export function SettingsModal({
           <Heading sub="How ✨ Improve and follow-up emails should sound.">Writing style</Heading>
           <WritingStyleSection />
         </>
+      );
+      break;
+    case "writingcheck":
+      body = (
+        <Suspense fallback={<div style={{ fontWeight: 700 }}>Loading…</div>}>
+          <WritingCheckSettings />
+        </Suspense>
       );
       break;
     case "dictation":

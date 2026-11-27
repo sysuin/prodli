@@ -1,6 +1,7 @@
 // Background (extension): right-click "Add to ProdLi" menus and the Quick add shortcut.
 import { addNote, addTask } from "./capture";
 import { MENU_SNIPPET } from "../snippets/background";
+import { MENU_WRITING } from "../writing/background";
 import { accountsEnabled } from "./prodliAccount";
 import { syncOnce } from "./prodliSync";
 import { addReadLater, extractPageText, MAX_PAGE_CHARS, saveHighlight, savePageNote } from "./readLater";
@@ -52,6 +53,7 @@ export function registerCapture(): void {
       chrome.contextMenus.create({ id: MENU_SUMMARIZE, title: "Summarize page to ProdLi notes", contexts: ["page"] });
       chrome.contextMenus.create({ id: MENU_HIGHLIGHT, title: "Save highlight to ProdLi", contexts: ["selection"] });
       chrome.contextMenus.create({ id: MENU_SNIPPET, title: "Insert a ProdLi snippet", contexts: ["editable"] });
+      chrome.contextMenus.create({ id: MENU_WRITING, title: "Check writing with ProdLi", contexts: ["editable"] });
       createScreenshotMenu();
     });
   });

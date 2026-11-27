@@ -30,6 +30,8 @@ export default defineConfig({
         "dictate-pill": path.resolve(import.meta.dirname, "src/dictation/pill.ts"),
         // The snippet picker, injected into the page the user is typing in (same rule).
         "snippet-picker": path.resolve(import.meta.dirname, "src/snippets/picker.ts"),
+        // The writing check, injected into the page the user is typing in (same rule).
+        "writing-check": path.resolve(import.meta.dirname, "src/writing/checker.ts"),
       },
       output: {
         entryFileNames: (chunk) =>
@@ -41,7 +43,9 @@ export default defineConfig({
                 ? "dictate-pill.js"
                 : chunk.name === "snippet-picker"
                   ? "snippet-picker.js"
-                  : "assets/[name]-[hash].js",
+                  : chunk.name === "writing-check"
+                    ? "writing-check.js"
+                    : "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },

@@ -32,6 +32,8 @@ export interface PlanLimits {
   transcribeMinutes?: number;
   /** AI clean-ups of voice dictation a month. */
   dictations?: number;
+  /** Writing check: ProdLi AI checks a month (checks on the computer itself don't count). */
+  checks?: number;
 }
 
 export interface Billing {
