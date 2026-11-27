@@ -56,8 +56,8 @@ const cleanup = () => {
     if (process.platform === "win32") execSync(`taskkill /pid ${server.pid} /t /f`, { stdio: "ignore" });
     else process.kill(-server.pid, "SIGTERM");
   } catch {}
-  rmSync(state, { recursive: true, force: true });
-  rmSync(userData, { recursive: true, force: true });
+  rmSync(state, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  rmSync(userData, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 };
 process.on("exit", cleanup);
 for (let i = 0; ; i++) {
