@@ -132,3 +132,13 @@ describe("chrome-store.mjs (Chrome Web Store API v2)", () => {
     expect((await run(["upload"], {})).code).toBe(2);
   });
 });
+
+describe("store errors", async () => {
+  // @ts-expect-error plain .mjs script, no types
+  const { errorText } = await import("../../scripts/chrome-store.mjs");
+  it("shows Google's details, which say why a package was refused", () => {
+    const body = { error: { code: 400, message: "The uploaded package was invalid.", details: [{ "@type": "type.googleapis.com/google.rpc.BadRequest", fieldViolations: [{ description: "Version must be higher" }] }] } };
+    expect(errorText(400, body)).toContain("Version must be higher");
+    expect(errorText(400, { error: { message: "Nope" } })).toBe("HTTP 400: Nope");
+  });
+});
