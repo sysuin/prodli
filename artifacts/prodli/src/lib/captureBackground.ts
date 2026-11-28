@@ -13,8 +13,10 @@ const MENU_READ_LATER = "prodli-read-later";
 const MENU_SUMMARIZE = "prodli-summarize-page";
 const MENU_HIGHLIGHT = "prodli-save-highlight";
 
+/** Each confirmation gets its own id: two saved in the same millisecond used to replace each other. */
+let notified = 0;
 function notify(title: string, message: string): void {
-  chrome.notifications.create(`prodli-capture-${Date.now()}`, { type: "basic", iconUrl: "icons/icon-128.png", title, message: message.slice(0, 180), priority: 0 });
+  chrome.notifications.create(`prodli-capture-${Date.now()}-${++notified}`, { type: "basic", iconUrl: "icons/icon-128.png", title, message: message.slice(0, 180), priority: 0 });
 }
 
 /**
