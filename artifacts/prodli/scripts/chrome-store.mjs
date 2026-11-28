@@ -31,7 +31,11 @@ export function errorText(status, body) {
     if (body.error === "invalid_grant") return `Google refused the service account (invalid_grant${body.error_description ? `: ${body.error_description}` : ""}): check the CWS_SERVICE_ACCOUNT key`;
     return `${body.error}${body.error_description ? `: ${body.error_description}` : ""}`;
   }
-  if (body?.error?.message) return `HTTP ${status}: ${body.error.message}`;
+  if (body?.error?.message) {
+    // Google puts the reason ("version must be higher…", a manifest problem) in error.details.
+    const details = Array.isArray(body.error.details) && body.error.details.length ? ` Details: ${JSON.stringify(body.error.details).slice(0, 1500)}` : "";
+    return `HTTP ${status}: ${body.error.message}${details}`;
+  }
   return `HTTP ${status}: ${JSON.stringify(body).slice(0, 500)}`;
 }
 
