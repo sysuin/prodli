@@ -9,20 +9,26 @@ const ASK = {
   desc: "Ask about your day, notes and meetings — “What should I focus on now?”, “What did we decide in Monday's call?” — and turn answers into to-dos with one click. Save prompts you use often, or have them run on a schedule. Ctrl/⌘ + K takes you anywhere. Works with Claude and ChatGPT too, through ProdLi's MCP server.",
 };
 
-const FEATURES = [
+// Dictation, writing check and the screen recorder reach extension users with
+// 1.5.0. Set to true once 1.5.0 is live in the Chrome Web Store (TODO.md).
+const SHOW_EXTENSION_150 = false;
+
+const ALL_FEATURES = [
   { emoji: "🎙️", title: "Meetings", accent: "#FF4FA3", group: "Meet", desc: "AI notes for Google Meet, Zoom, Teams and meetings in the room, with no bot in the call. Transcript, summary, decisions and action items. Upload a recording or an Otter or Zoom transcript too." },
-  { emoji: "🎥", title: "Screen recorder", accent: "#F472B6", group: "Meet", desc: "Record your screen, a window or a tab with your camera in a bubble. Get a transcript and notes, and a link anyone can watch." },
+  { emoji: "🎥", title: "Screen recorder", accent: "#F472B6", group: "Meet", needs150: true, desc: "Record your screen, a window or a tab with your camera in a bubble. Get a transcript and notes, and a link anyone can watch." },
   { emoji: "☀️", title: "Today", accent: "#F59E0B", group: "Plan", desc: "A daily brief that plans your day around your two-way Google Calendar, to-dos and habits. Block time for tasks between meetings, wrap up in the evening. Search, your quick links and Read later in every new tab." },
   { emoji: "📊", title: "Weekly review", accent: "#14B8A6", group: "Plan", desc: "What got done, what slipped, how habits and focus went — and three priorities for next week." },
   { emoji: "✅", title: "To-Dos", accent: "#00BCD4", group: "Plan", desc: "Priorities, due dates and subtasks. Type “Call Sam friday !high” and ProdLi fills in the rest." },
   { emoji: "🎯", title: "Habits", accent: "#66BB6A", group: "Plan", desc: "Daily check-ins with streaks and a heatmap calendar." },
   { emoji: "✍️", title: "Notes", accent: "#FFD700", group: "Create", desc: "Rich notes with checklists, tables and a “/” menu. Paste Markdown, pin, export or print." },
   { emoji: "📄", title: "Files", accent: "#FF9800", group: "Create", desc: "Drop a Markdown, CSV, JSON or code file anywhere in Chrome to read it nicely — then save it as a note." },
-  { emoji: "🗣️", title: "Dictation", accent: "#38BDF8", group: "Write", desc: "Press Alt+Shift+D in any text box and talk. ProdLi removes the “um”s, fixes punctuation and writes it in the right tone for email or chat. Snippets, your own words, and edits by voice." },
-  { emoji: "✔️", title: "Writing check", accent: "#4ADE80", group: "Write", desc: "Spelling, grammar and clearer wording as you type in Gmail, LinkedIn or any text box. Click for the fix, or rewrite shorter, clearer or friendlier." },
+  { emoji: "🗣️", title: "Dictation", accent: "#38BDF8", group: "Write", needs150: true, desc: "Press Alt+Shift+D in any text box and talk. ProdLi removes the “um”s, fixes punctuation and writes it in the right tone for email or chat. Snippets, your own words, and edits by voice." },
+  { emoji: "✔️", title: "Writing check", accent: "#4ADE80", group: "Write", needs150: true, desc: "Spelling, grammar and clearer wording as you type in Gmail, LinkedIn or any text box. Click for the fix, or rewrite shorter, clearer or friendlier." },
   { emoji: "🍅", title: "Pomodoro", accent: "#FF6B6B", group: "Focus", desc: "A focus timer that keeps running across tabs and tells you when to take a break." },
   { emoji: "⏱", title: "Time Tracker", accent: "#A78BFA", group: "Focus", desc: "See where your browsing time goes, set daily limits, and block distracting sites (and Shorts and Reels) during focus time." },
 ];
+
+const FEATURES = ALL_FEATURES.filter((f) => SHOW_EXTENSION_150 || !("needs150" in f));
 
 const STEPS = [
   { n: "01", title: "Add to Chrome", desc: "Free. ProdLi becomes your new tab, and the web app at app.prodli.com works on any device." },
