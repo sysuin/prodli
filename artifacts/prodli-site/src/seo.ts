@@ -10,7 +10,7 @@ export const PAGES: PageMeta[] = [
     path: "/",
     title: "ProdLi: AI meeting notes without a bot, and your day planned",
     description:
-      "ProdLi writes the transcript, summary, decisions and action items for Google Meet, Zoom, Teams and in-person meetings, with no bot in the call, then turns them into your plan for the day in every new tab. Free.",
+      "ProdLi writes the transcript, summary, decisions and action items for Google Meet, Zoom, Teams and in-person meetings, with no bot in the call, then turns them into your plan for the day in every new tab. Plus voice dictation, a writing check and screen recording. Free.",
     inSitemap: true,
   },
   {

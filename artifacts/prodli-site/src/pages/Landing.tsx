@@ -10,8 +10,8 @@ const ASK = {
 };
 
 // Dictation, writing check and the screen recorder reach extension users with
-// 1.5.0. Set to true once 1.5.0 is live in the Chrome Web Store (TODO.md).
-const SHOW_EXTENSION_150 = false;
+// 1.5.0 (live in the Chrome Web Store since 26 Nov 2026; 1.5.1 since 28 Nov).
+const SHOW_EXTENSION_150 = true;
 
 const ALL_FEATURES = [
   { emoji: "🎙️", title: "Meetings", accent: "#FF4FA3", group: "Meet", desc: "AI notes for Google Meet, Zoom, Teams and meetings in the room, with no bot in the call. Transcript, summary, decisions and action items. Upload a recording or an Otter or Zoom transcript too." },
