@@ -4,7 +4,7 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 
 ## Where things stand
 
-- **Production (app.prodli.com):** deployed 27 Nov 2026 (evening) from main `9772083` (up to sysuin/prodli#142: writing check, screen recorder with share links, dictation upgrades; created the `prodli-videos` R2 bucket, applied migrations 0017 and 0018) through the GitHub workflow (restore point before it: `00000046-00000000-00005130-c413b440a5dd03a94dcc84acebab3eb6`). Before that: 27 Nov from `2c45844` (restore point `00000045-00000000-00005130-fa1e2c239a03c7e1811cd085e611ad25`), 26 Nov from `370126d`, `be0aae6` and `85fb745`; 25 Nov from `16baf95`. The extension gets #134–#141 with the next store upload, the desktop app #142 with its first release, the phone app the editor styles with its next build. Health: `https://app.prodli.com/api/health`.
+- **Production (app.prodli.com):** deployed 28 Nov 2026 from main `06ed26a` (sysuin/prodli#145: Time Tracker clears sync on the server; restore point before it: `00000048-00000000-00005131-b5db94641959c6b1e6e092b5238f5e0b`; no migrations). Before that: 27 Nov 2026 (evening) from main `9772083` (up to sysuin/prodli#142: writing check, screen recorder with share links, dictation upgrades; created the `prodli-videos` R2 bucket, applied migrations 0017 and 0018) through the GitHub workflow (restore point before it: `00000046-00000000-00005130-c413b440a5dd03a94dcc84acebab3eb6`). Before that: 27 Nov from `2c45844` (restore point `00000045-00000000-00005130-fa1e2c239a03c7e1811cd085e611ad25`), 26 Nov from `370126d`, `be0aae6` and `85fb745`; 25 Nov from `16baf95`. The extension gets #134–#141 with the next store upload, the desktop app #142 with its first release, the phone app the editor styles with its next build. Health: `https://app.prodli.com/api/health`.
 - **Website (prodli.com):** deploys by itself on every push to main; shows the three plans.
 - **Chrome extension:** the store still has **1.4.0**. The code is **1.5.0** (manifest), with everything below; it reaches users only when the owner uploads a new store build from the Mac.
 - **Plans (live in Dodo since 24 Nov):** Free; Pro $5/month or $48/year; Pro Plus $12/month or $120/year. Limits and product IDs: docs/PRO-PLAN.md. Every new account gets a 14-day Pro trial (TRIAL_DAYS). No real purchase has been made yet (TODO: real purchase test).
@@ -12,6 +12,8 @@ Until 24 Nov 2026, ProdLi was built in one long Claude Code session on the owner
 - **Phone app:** built (artifacts/prodli-mobile); a separate local session, "ProdLi mobile development", works on it on branch `mobile-4` (pushed, no open PR). Check with the owner before changing `artifacts/prodli-mobile`.
 
 ## What shipped recently (newest first)
+
+- **#145–#147** Time Tracker fixes (clearing history syncs and is removed on the server, no idle minute, videos count, incognito never recorded, no double counting, subdomain exclusion) and "Most visited" suggestions in Quick links; website covers every feature and fixes wrong statements; the Screen recorder, Dictation and Writing check cards stay hidden until 1.5.0 is in the store (`SHOW_EXTENSION_150` in Landing.tsx).
 
 - **#142** Desktop: dictate into any app (Settings › Desktop app, off until turned on; floating pill, paste at the cursor; macOS needs Accessibility). Needs a check on a real Mac and Windows PC.
 - **#141** Dictation: clean-up levels None/Light/Concise, Excited style, the text before the cursor as context, words learned from your corrections, hands-free on a quick tap, daily streak, history switch.
